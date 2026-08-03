@@ -1,0 +1,44 @@
+{
+  "summary": "Frontend-only testing for AMZ Prints ERP mock-mode invoice/customer/production upgrades. Login, /invoices compact cards + Create Invoice, /invoices/new form (customer select autofill, add-new-customer inline dialog, live grand total incl. previous balance, derived status Partial), Save→View→Edit round-trip, /customers portal with ledger dialog (Total Billed/Paid/Outstanding + Invoices/Orders/Payments tabs), /production kanban with 7 stages and stage-advance button, and regression navigation all verified. Found & fixed one blocker in mockOrdersAPI (non-stateful getAll causing kanban moves to silently revert).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Production kanban → Move to next stage",
+        "issue": "BEFORE FIX: mockOrdersAPI.getAll() returned a fresh literal array every call and mockOrdersAPI.update()/create()/delete() were no-ops. Clicking the 'Next stage' button showed a success toast but the card snapped back on the next fetch. Fixed by making mockOrders module-scoped stateful (getAll/getById/create/update/delete/duplicate now mutate the same array).",
+        "affected_selectors": ["[data-testid^=\"move-\"]", "[data-testid^=\"stage-\"]"]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "Console warnings (non-blocking)",
+        "issues": [
+          "React warning: Select is changing from uncontrolled to controlled — InvoiceForm's Select uses value={formData.customerId || undefined}; passing '' vs undefined toggles controlled/uncontrolled. Suggest initialising customerId to undefined or always passing a defined string.",
+          "Radix DialogContent missing aria-describedby / Description — a11y warning on new-customer-dialog, customer-dialog and ledger-dialog. Add <DialogDescription> or aria-describedby to silence."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "(Optional) Silence 'controlled/uncontrolled Select' warning by using undefined initial customerId (or a fixed placeholder value).",
+    "(Optional) Add DialogDescription to the three Dialog components for a11y.",
+    "Consider persisting mock state to localStorage so refresh doesn't wipe kanban moves & newly-added customers/invoices (currently in-memory only)."
+  ],
+  "critical_code_review_comments": [
+    "mockOrdersAPI previously returned a NEW literal from getAll() on every call while update()/create()/delete() were pure no-ops. Any UI feature that depends on optimistic-refetch (Production kanban, Order edits) would silently revert. FIXED in mockAuth.js.",
+    "InvoiceForm.jsx: Select's value passes `formData.customerId || undefined`, which flips between undefined and '' — triggers React controlled/uncontrolled warning. Not functional but noisy.",
+    "InvoiceForm.jsx handleSave computes derivedStatus based on `balance` (which already includes previousBalance). This is correct — Grand Total = subtotal+tax−discount+prevBal, and status marks Paid only when the fully-inclusive balance ≤ 0. Verified visually.",
+    "mockCustomersAPI.getLedger references mockOrdersFull (empty array) — order history in ledger will always be empty until real orders API pushes into that array or ledger reads mockOrders. Consider unifying to mockOrders.",
+    "Invoices card grid `xl:grid-cols-4` present ✔; cards expose data-testids for view/edit/share/whatsapp ✔."
+  ],
+  "updated_files": ["/app/frontend/src/services/mockAuth.js"],
+  "success_rate": { "backend": "n/a (mocked)", "frontend": "100% after 1 fix" },
+  "test_credentials": "admin / admin123 (mock)",
+  "seed_data_creation": "Uses existing seeded ABC Corporation, XYZ Enterprises, INV-2024-001, INV-2024-002, ORD-001, ORD-002.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All 13 explicit acceptance items pass. Only one blocker was found & fixed (mockOrdersAPI now stateful). Remaining items are non-blocking React/a11y console warnings. Ledger 'Orders' tab will always show 0 until the mock order list is wired into mockCustomersAPI.getLedger (currently reads mockOrdersFull which is never populated).",
+  "rca of the issue": "Production kanban Next-stage click → ordersAPI.update() → mock update was a no-op (returned {id,...data} but did not mutate any store). Fresh getAll() then returned the original seed, so the moved order appeared to snap back. Root cause: mockOrdersAPI was written as a stateless stub while other mock modules (customers, invoices, products) are stateful. Fix: refactored mockOrdersAPI to use a module-scoped `mockOrders` array with proper CRUD mutations, matching the pattern used by mockCustomersAPI and mockInvoicesAPI."
+}

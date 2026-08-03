@@ -1,0 +1,208 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+    margin: 0;
+    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+    font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+}
+
+@layer base {
+    :root {
+        --background: 210 20% 98%;
+        --foreground: 0 0% 18%;
+        --card: 0 0% 100%;
+        --card-foreground: 0 0% 18%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 0 0% 18%;
+        --primary: 18 95% 54%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 0 0% 18%;
+        --secondary-foreground: 0 0% 98%;
+        --muted: 210 20% 96%;
+        --muted-foreground: 0 0% 45%;
+        --accent: 18 95% 54%;
+        --accent-foreground: 0 0% 100%;
+        --destructive: 0 84% 60%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 0 0% 90%;
+        --input: 0 0% 90%;
+        --ring: 18 95% 54%;
+        --chart-1: 18 95% 54%;
+        --chart-2: 197 37% 24%;
+        --chart-3: 43 74% 66%;
+        --chart-4: 173 58% 39%;
+        --chart-5: 27 87% 67%;
+        --radius: 0.5rem;
+    }
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+    body {
+        @apply bg-[#F5F7FB] text-foreground;
+    }
+}
+
+@layer base {
+    [data-debug-wrapper="true"] {
+        display: contents !important;
+    }
+
+    [data-debug-wrapper="true"] > * {
+        margin-left: inherit;
+        margin-right: inherit;
+        margin-top: inherit;
+        margin-bottom: inherit;
+        padding-left: inherit;
+        padding-right: inherit;
+        padding-top: inherit;
+        padding-bottom: inherit;
+        column-gap: inherit;
+        row-gap: inherit;
+        gap: inherit;
+        border-left-width: inherit;
+        border-right-width: inherit;
+        border-top-width: inherit;
+        border-bottom-width: inherit;
+        border-left-style: inherit;
+        border-right-style: inherit;
+        border-top-style: inherit;
+        border-bottom-style: inherit;
+        border-left-color: inherit;
+        border-right-color: inherit;
+        border-top-color: inherit;
+        border-bottom-color: inherit;
+    }
+}
+
+.amz-orange {
+    color: #F26522;
+}
+
+.amz-bg-orange {
+    background-color: #F26522;
+}
+
+.amz-dark-gray {
+    color: #2E2E2E;
+}
+
+.amz-bg-dark-gray {
+    background-color: #2E2E2E;
+}
+
+/* 3D Card Effects */
+.order-card-3d {
+    perspective: 1500px;
+    transform-style: preserve-3d;
+    cursor: pointer;
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.order-card-3d-inner {
+    position: relative;
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 1.5rem;
+    transform-style: preserve-3d;
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+                box-shadow 0.4s ease;
+    box-shadow: 
+        0 1px 3px rgba(0, 0, 0, 0.05),
+        0 4px 12px rgba(0, 0, 0, 0.05),
+        0 12px 24px rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(242, 101, 34, 0.08);
+    overflow: hidden;
+    transform: translateZ(0);
+}
+
+.order-card-3d:hover .order-card-3d-inner {
+    transform: translateY(-8px) rotateX(4deg) rotateY(-4deg);
+    box-shadow: 
+        0 4px 8px rgba(242, 101, 34, 0.08),
+        0 16px 32px rgba(242, 101, 34, 0.12),
+        0 24px 48px rgba(242, 101, 34, 0.15),
+        0 32px 64px rgba(0, 0, 0, 0.08);
+    border-color: rgba(242, 101, 34, 0.25);
+}
+
+.order-card-3d-accent {
+    position: absolute;
+    top: -30px;
+    right: -30px;
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(242, 101, 34, 0.15) 0%, rgba(242, 101, 34, 0) 70%);
+    transition: all 0.4s ease;
+    z-index: 0;
+}
+
+.order-card-3d:hover .order-card-3d-accent {
+    transform: scale(2);
+    background: radial-gradient(circle, rgba(242, 101, 34, 0.2) 0%, rgba(242, 101, 34, 0) 70%);
+}
+
+.order-card-3d-inner::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: linear-gradient(90deg, #F26522, #FF8A50, #F26522);
+    background-size: 200% 100%;
+    transform: translateY(-100%);
+    transition: transform 0.3s ease;
+    z-index: 1;
+}
+
+.order-card-3d:hover .order-card-3d-inner::before {
+    transform: translateY(0);
+    animation: shimmer 2s linear infinite;
+}
+
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* Print styles for invoice */
+@media print {
+    @page { size: A4; margin: 10mm; }
+    .no-print, nav, aside, .invoice-container ~ * { display: none !important; }
+    body { background: white !important; }
+    .invoice-container {
+        box-shadow: none !important;
+        border: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        max-width: 100% !important;
+        font-size: 11px !important;
+        line-height: 1.35 !important;
+        page-break-inside: avoid !important;
+    }
+    .invoice-container .p-8 { padding: 14px !important; }
+    .invoice-container .p-4 { padding: 8px !important; }
+    .invoice-container table { font-size: 10.5px !important; }
+    .invoice-container table th, .invoice-container table td { padding: 5px 6px !important; }
+    .invoice-container h1 { font-size: 18px !important; }
+    .invoice-container .text-3xl { font-size: 18px !important; }
+    .invoice-container .text-2xl { font-size: 14px !important; }
+    .invoice-container .text-xl { font-size: 12px !important; }
+    .invoice-container .h-24 { height: 60px !important; }
+    .invoice-container .w-20, .invoice-container .h-20 { width: 52px !important; height: 52px !important; }
+    .invoice-container .w-32, .invoice-container .h-32 { width: 84px !important; height: 84px !important; }
+    main, .App { padding: 0 !important; margin: 0 !important; }
+}
