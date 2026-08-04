@@ -1,7 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { settingsAPI } from '@/services/api';
 import { gasRequest } from '@/services/gasClient';
-import { tokenStorage } from '@/services/tokenStorage';
 
 const BRAND_CACHE_KEY = 'amz_erp_brand_v1';
 
@@ -104,26 +102,16 @@ export const BrandProvider = ({ children }) => {
   }, [applyTheme]);
 
   const refreshBrand = useCallback(async () => {
+    // Cached brand already painted — mark ready immediately
+    setLoading(false);
     try {
-      // Public branding — safe on login page (no auth)
+      // Public branding only (one GAS call). Skip /settings on boot — it was a second cold start.
       try {
         const pub = await gasRequest('GET', '/public/branding');
         const next = normalizeBrandPayload(pub.data);
         if (next) applyBrand(next);
       } catch {
         /* keep cached / default */
-      }
-
-      // Authenticated settings ONLY when logged in — avoids 401 → login reload loop
-      const token = tokenStorage.getToken();
-      if (token) {
-        try {
-          const res = await settingsAPI.get();
-          const next = normalizeBrandPayload(res.data);
-          if (next) applyBrand(next);
-        } catch {
-          /* ignore */
-        }
       }
     } finally {
       setLoading(false);

@@ -25,9 +25,16 @@ export function getUserDisplayName(user) {
 }
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState(() => tokenStorage.getUser());
+  const [loading, setLoading] = useState(() => {
+    // Only block UI when we have a token but no cached user yet
+    const token = tokenStorage.getToken();
+    const saved = tokenStorage.getUser();
+    return Boolean(token && !saved);
+  });
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return Boolean(tokenStorage.getToken() && tokenStorage.getUser());
+  });
 
   const applyUser = useCallback((userData) => {
     if (!userData) {
@@ -45,23 +52,23 @@ export const AuthProvider = ({ children }) => {
     const savedUser = tokenStorage.getUser();
 
     if (!token) {
+      setUser(null);
+      setIsAuthenticated(false);
       setLoading(false);
       return;
     }
 
-    // Show cached user immediately, then refresh Name/Role from server
+    // Instant paint from cache — do NOT wait on GAS cold start
     if (savedUser) {
       setUser(savedUser);
       setIsAuthenticated(true);
+      setLoading(false);
     }
 
     try {
       const res = await authAPI.getCurrentUser();
-      if (res?.data) {
-        applyUser(res.data);
-      }
+      if (res?.data) applyUser(res.data);
     } catch {
-      // Keep cached user if /auth/me fails (e.g. brief GAS cold start)
       if (!savedUser) {
         tokenStorage.clear();
         setUser(null);
@@ -82,6 +89,7 @@ export const AuthProvider = ({ children }) => {
       const { token, user: userData } = response.data;
       tokenStorage.setToken(token);
       applyUser(userData);
+      setLoading(false);
       return { success: true };
     } catch (error) {
       console.error('Login error:', error);

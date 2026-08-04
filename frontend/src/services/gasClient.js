@@ -8,9 +8,9 @@ if (!GAS_API_BASE_URL) {
   );
 }
 
-/** Short in-memory GET cache — cuts repeat GAS cold starts while navigating. */
+/** In-memory GET cache — avoids repeat GAS round-trips while navigating. */
 const getCache = new Map();
-const GET_CACHE_TTL_MS = 45000;
+const GET_CACHE_TTL_MS = 120000;
 
 function cacheGet(key) {
   const hit = getCache.get(key);
@@ -140,8 +140,8 @@ export async function gasRequest(method, path, options = {}) {
   try {
     resultPair = await fetchOnce(url.toString(), init);
   } catch (err) {
-    // One automatic retry for cold-start / transient GAS failures
-    await new Promise((r) => setTimeout(r, 900));
+    // Brief retry for GAS cold-start / transient failures (was 900ms — felt extra slow)
+    await new Promise((r) => setTimeout(r, 350));
     resultPair = await fetchOnce(url.toString(), init);
   }
 

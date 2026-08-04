@@ -88,30 +88,27 @@ const Dashboard = () => {
       if (dateRange.from) params.from = dateRange.from;
       if (dateRange.to) params.to = dateRange.to;
 
-      const boot = await dashboardAPI.bootstrap(params);
+      // Bootstrap first (main KPIs). Expenses load in parallel — don't block UI on 2nd cold start.
+      const bootPromise = dashboardAPI.bootstrap(params);
+      const expensesPromise = expensesAPI.getAll(params).catch(() => ({ data: [] }));
+
+      const boot = await bootPromise;
       const data = boot.data || {};
       setStats(data.stats || {});
       setChartData(data.charts || { monthlySales: [], orderStatus: [] });
       setRecentOrders(Array.isArray(data.recentOrders) ? data.recentOrders : []);
+      setLoading(false);
 
-      try {
-        const expensesRes = await expensesAPI.getAll(params);
-        const list = Array.isArray(expensesRes.data) ? expensesRes.data : [];
-        setRecentExpenses(list.slice(0, 5));
-        const expenseTotal = list.reduce((s, e) => s + Number(e.amount || 0), 0);
-        setStats((prev) => ({
-          ...prev,
-          ...(data.stats || {}),
-          expenses: Number((data.stats || {}).expenses) > 0
-            ? (data.stats || {}).expenses
-            : expenseTotal,
-        }));
-      } catch {
-        setRecentExpenses([]);
-      }
+      const expensesRes = await expensesPromise;
+      const list = Array.isArray(expensesRes.data) ? expensesRes.data : [];
+      setRecentExpenses(list.slice(0, 5));
+      const expenseTotal = list.reduce((s, e) => s + Number(e.amount || 0), 0);
+      setStats((prev) => ({
+        ...prev,
+        expenses: Number(prev.expenses) > 0 ? prev.expenses : expenseTotal,
+      }));
     } catch (error) {
       console.error('Dashboard load failed', error);
-    } finally {
       setLoading(false);
     }
   }, [dateRange]);

@@ -556,7 +556,8 @@ function resetAdminLogin_() {
 function handleLogin_(body) {
   var email = String(body.email || body.username || '').trim();
   var password = String(body.password || '');
-  var users = ensureDefaultAdmin_();
+  // Fast path: read Users only. Repair admin only if login fails / sheet empty.
+  var users = getSheetRows_(SHEET_NAMES.USERS);
   var loginId = email.toLowerCase();
 
   var user = users.find(function (u) {
@@ -567,6 +568,18 @@ function handleLogin_(body) {
     var sheetPass = String(u.password != null ? u.password : '').trim();
     return identifiers.indexOf(loginId) !== -1 && sheetPass === password.trim();
   });
+
+  if (!user) {
+    users = ensureDefaultAdmin_();
+    user = users.find(function (u) {
+      if (!isActiveUser_(u)) return false;
+      var identifiers = [u.email, u.username, u.name, u.id]
+        .map(function (v) { return String(v || '').trim().toLowerCase(); })
+        .filter(Boolean);
+      var sheetPass = String(u.password != null ? u.password : '').trim();
+      return identifiers.indexOf(loginId) !== -1 && sheetPass === password.trim();
+    });
+  }
 
   if (!user) {
     var hint = users.length
