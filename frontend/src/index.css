@@ -178,11 +178,11 @@ code {
     100% { background-position: -200% 0; }
 }
 
-/* Print styles for invoice */
+/* Print styles for invoice / quotation — header & footer on every page */
 @media print {
-    @page { size: A4; margin: 10mm; }
+    @page { size: A4; margin: 14mm 12mm 18mm 12mm; }
     .no-print, nav, aside, .invoice-container ~ * { display: none !important; }
-    body { background: white !important; }
+    body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .invoice-container {
         box-shadow: none !important;
         border: none !important;
@@ -191,10 +191,27 @@ code {
         max-width: 100% !important;
         font-size: 11px !important;
         line-height: 1.35 !important;
-        page-break-inside: avoid !important;
     }
-    .invoice-container .p-8 { padding: 14px !important; }
-    .invoice-container .p-4 { padding: 8px !important; }
+    .invoice-container thead { display: table-header-group; }
+    .invoice-container tfoot { display: table-footer-group; }
+    .invoice-container tr { page-break-inside: avoid; }
+    .invoice-print-header {
+        display: block !important;
+    }
+    .invoice-print-footer {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: 9px;
+        color: #666;
+        padding: 4px 0;
+        border-top: 1px solid #e5e7eb;
+        background: white;
+    }
+    .invoice-container .p-8 { padding: 10px 0 !important; }
+    .invoice-container .p-4 { padding: 6px 0 !important; }
     .invoice-container table { font-size: 10.5px !important; }
     .invoice-container table th, .invoice-container table td { padding: 5px 6px !important; }
     .invoice-container h1 { font-size: 18px !important; }

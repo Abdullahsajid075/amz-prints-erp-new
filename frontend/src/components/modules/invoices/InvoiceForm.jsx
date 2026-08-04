@@ -59,10 +59,43 @@ const InvoiceForm = () => {
     }
     try {
       const res = await invoicesAPI.getById(invoiceId);
-      if (res.data) {
-        const items = (res.data.items || []).map(i => ({ ...i, _key: i._key || `k_${Math.random().toString(36).slice(2, 8)}` }));
-        setFormData({ ...emptyInvoice, ...res.data, items: items.length ? items : [emptyItem()] });
-      }
+      const inv = res.data || {};
+      const dateOnly = (d) => {
+        if (!d) return '';
+        const s = String(d);
+        if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+        try { return new Date(d).toISOString().slice(0, 10); } catch { return ''; }
+      };
+      const items = (inv.items || []).map((i) => ({
+        ...emptyItem(),
+        ...i,
+        _key: i._key || `k_${Math.random().toString(36).slice(2, 8)}`,
+        name: i.name || '',
+        quantity: Number(i.quantity) || 1,
+        rate: Number(i.rate) || 0,
+        size: i.size || '',
+        material: i.material || '',
+      }));
+      setFormData({
+        ...emptyInvoice,
+        invoiceNumber: inv.invoiceNumber || '',
+        orderId: inv.orderId || '',
+        customerId: inv.customerId || '',
+        customerName: inv.customerName || '',
+        customerEmail: inv.customerEmail || '',
+        customerPhone: inv.customerPhone || '',
+        customerAddress: inv.customerAddress || '',
+        date: dateOnly(inv.date) || emptyInvoice.date,
+        dueDate: dateOnly(inv.dueDate) || '',
+        items: items.length ? items : [emptyItem()],
+        taxRate: Number(inv.taxRate) || 0,
+        discount: Number(inv.discount) || 0,
+        previousBalance: Number(inv.previousBalance) || 0,
+        paidAmount: Number(inv.paidAmount) || 0,
+        status: inv.status || 'Unpaid',
+        notes: inv.notes || '',
+        shareToken: inv.shareToken || '',
+      });
     } catch (err) { console.error(err); toast.error('Failed to load invoice'); }
   }, [invoiceId, isEdit]);
 
@@ -149,22 +182,22 @@ const InvoiceForm = () => {
   };
 
   return (
-    <div className="space-y-6" data-testid="invoice-form">
+    <div className="space-y-4" data-testid="invoice-form">
       <div className="flex items-center gap-4">
         <Button variant="outline" onClick={() => navigate('/invoices')} data-testid="back-invoices">
           <ArrowLeft className="h-4 w-4 mr-2" />Back
         </Button>
         <div>
-          <h1 className="text-3xl font-bold" style={{ color: '#1F2937' }}>{isEdit ? 'Edit Invoice' : 'Create Invoice'}</h1>
+          <h1 className="text-2xl font-bold" style={{ color: '#1F2937' }}>{isEdit ? 'Edit Invoice' : 'Create Invoice'}</h1>
           <p className="text-gray-600 text-sm mt-0.5">{isEdit ? 'Update invoice details' : 'Fill in details — customer is auto-recorded'}</p>
         </div>
       </div>
 
-      <form onSubmit={handleSave} className="space-y-4">
+      <form onSubmit={handleSave} className="space-y-3">
         <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-base">Customer & Invoice Info</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <CardHeader className="py-3"><CardTitle className="text-base">Customer & Invoice Info</CardTitle></CardHeader>
+          <CardContent className="space-y-3 pt-0">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="md:col-span-2">
                 <Label>Customer *</Label>
                 <Select value={formData.customerId || ''} onValueChange={selectCustomer}>

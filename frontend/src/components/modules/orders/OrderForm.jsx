@@ -61,7 +61,42 @@ const OrderForm = () => {
   const fetchOrder = useCallback(async () => {
     try {
       const response = await ordersAPI.getById(orderId);
-      setFormData(response.data);
+      const o = response.data || {};
+      const dateOnly = (d) => {
+        if (!d) return '';
+        const s = String(d);
+        if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+        try {
+          return new Date(d).toISOString().slice(0, 10);
+        } catch {
+          return '';
+        }
+      };
+      const products = Array.isArray(o.products) && o.products.length
+        ? o.products.map((p, i) => ({
+            _key: p._key || p.id || `p_${i}`,
+            name: p.name || '',
+            quantity: Number(p.quantity) || 1,
+            rate: Number(p.rate) || 0,
+            size: p.size || '',
+            material: p.material || '',
+            notes: p.notes || '',
+          }))
+        : [{ _key: 'p_init', name: '', quantity: 1, rate: 0, size: '', material: '', notes: '' }];
+      setFormData({
+        customerName: o.customerName || '',
+        customerEmail: o.customerEmail || '',
+        customerPhone: o.customerPhone || '',
+        customerAddress: o.customerAddress || '',
+        customerId: o.customerId || '',
+        assignedDesigner: o.assignedDesigner || undefined,
+        deliveryDate: dateOnly(o.deliveryDate),
+        remarks: o.remarks || '',
+        advancePayment: Number(o.advancePayment) || 0,
+        status: o.status || ORDER_STATUS.RECEIVED,
+        tokenNo: o.tokenNo || '',
+        products,
+      });
     } catch (error) {
       console.error('Error fetching order:', error);
       toast.error('Failed to load order');
@@ -163,26 +198,26 @@ const OrderForm = () => {
   };
 
   return (
-    <div className="space-y-6" data-testid="order-form">
+    <div className="space-y-4" data-testid="order-form">
       <div className="flex items-center gap-4">
         <Button variant="outline" onClick={() => navigate('/orders')} data-testid="back-button">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back
         </Button>
         <div>
-          <h1 className="text-3xl font-bold" style={{ color: '#2E2E2E' }}>
+          <h1 className="text-2xl font-bold" style={{ color: '#2E2E2E' }}>
             {isEdit ? 'Edit Order' : 'Create New Order'}
           </h1>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-4">
         <Card>
-          <CardHeader>
-            <CardTitle>Customer Information</CardTitle>
+          <CardHeader className="py-3">
+            <CardTitle className="text-base">Customer Information</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <CardContent className="space-y-3 pt-0">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="customerName">Customer Name *</Label>
                 <Input

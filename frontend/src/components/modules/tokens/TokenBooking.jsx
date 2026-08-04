@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,9 +6,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { countersAPI, tokensAPI, customersAPI, debugAPI } from '@/services/api';
+import { tokensAPI, customersAPI, debugAPI } from '@/services/api';
 import { toast } from 'sonner';
 import { Ticket, Printer, MessageCircle, Monitor, Search, Plus, XCircle, Loader2 } from 'lucide-react';
+
+const DEFAULT_SERVICES = [
+  { name: 'Designing', counter: 'Table 01' },
+  { name: 'Printing Services', counter: 'Table 01' },
+  { name: 'NADRA Services', counter: 'Table 02' },
+  { name: 'Photo Copy & Documents', counter: 'Table 03' },
+  { name: 'PALS Fee & Information', counter: 'Executive Office' },
+  { name: 'Payments', counter: 'Executive Office' },
+  { name: 'Discussion', counter: 'Executive Office' },
+  { name: 'Other Printing Services', counter: 'Executive Office' },
+];
 
 function buildWhatsAppUrl(phone, text) {
   const digits = String(phone || '').replace(/\D/g, '');
@@ -44,6 +55,7 @@ function printToken(token) {
   <div class="row"><span class="label">Customer:</span> ${token.customerName || ''}</div>
   <div class="row"><span class="label">Phone:</span> ${token.customerPhone || ''}</div>
   <div class="row"><span class="label">Service:</span> ${token.service || ''}</div>
+  ${token.serviceNote ? `<div class="row"><span class="label">Note:</span> ${token.serviceNote}</div>` : ''}
   <div class="row"><span class="label">Date:</span> ${token.date || ''} ${token.time || ''}</div>
   <hr />
   <div class="footer">Please wait for your token to be called</div>
@@ -64,6 +76,7 @@ const emptyForm = {
   customerPhone: '',
   counterName: '',
   service: '',
+  serviceNote: '',
   notes: '',
 };
 
@@ -71,24 +84,25 @@ const TokenBooking = () => {
   const navigate = useNavigate();
   const [form, setForm] = useState(emptyForm);
   const [counters, setCounters] = useState([]);
-  const [products, setProducts] = useState([]);
+  const [services, setServices] = useState(DEFAULT_SERVICES);
   const [loading, setLoading] = useState(false);
   const [lastToken, setLastToken] = useState(null);
   const [lookingUp, setLookingUp] = useState(false);
-
   const [dbStatus, setDbStatus] = useState('');
 
   const loadMeta = useCallback(async () => {
     try {
       const res = await tokensAPI.getMeta();
       const counterList = Array.isArray(res.data?.counters) ? res.data.counters : [];
-      const productList = Array.isArray(res.data?.products) ? res.data.products : [];
+      const serviceList = Array.isArray(res.data?.services) && res.data.services.length
+        ? res.data.services
+        : DEFAULT_SERVICES;
       setCounters(counterList);
-      setProducts(productList);
+      setServices(serviceList);
       if (!counterList.length) {
         setDbStatus('No counters in sheet. Click “Sync Sheets” then redeploy Code.gs if needed.');
       } else {
-        setDbStatus(`Connected · ${counterList.length} counter(s) loaded from Google Sheets`);
+        setDbStatus(`Connected · ${counterList.length} counter(s) · auto-assign by service`);
       }
     } catch (error) {
       console.error(error);
@@ -114,6 +128,21 @@ const TokenBooking = () => {
   useEffect(() => {
     loadMeta();
   }, [loadMeta]);
+
+  const assignedCounter = useMemo(() => {
+    if (!form.service) return '';
+    const match = services.find((s) => s.name === form.service);
+    return match?.counter || form.counterName || '';
+  }, [form.service, form.counterName, services]);
+
+  const onServiceChange = (value) => {
+    const match = services.find((s) => s.name === value);
+    setForm((prev) => ({
+      ...prev,
+      service: value,
+      counterName: match?.counter || '',
+    }));
+  };
 
   const lookupCustomer = async () => {
     if (!form.customerPhone.trim()) return;
@@ -149,12 +178,13 @@ const TokenBooking = () => {
       toast.error('Customer name and phone are required');
       return;
     }
-    if (!form.counterName) {
-      toast.error('Select a counter');
-      return;
-    }
     if (!form.service) {
       toast.error('Select a service');
+      return;
+    }
+    const counterName = assignedCounter;
+    if (!counterName) {
+      toast.error('No counter mapped for this service');
       return;
     }
 
@@ -163,14 +193,15 @@ const TokenBooking = () => {
       const res = await tokensAPI.create({
         customerName: form.customerName.trim(),
         customerPhone: form.customerPhone.trim(),
-        counterName: form.counterName,
+        counterName,
         service: form.service,
+        serviceNote: form.serviceNote,
         notes: form.notes,
       });
       const token = res.data;
       setLastToken(token);
-      toast.success(`Token ${token.tokenNo} booked`);
-      setForm((prev) => ({ ...emptyForm, counterName: prev.counterName }));
+      toast.success(`Token ${token.tokenNo} → ${token.counterName}`);
+      setForm((prev) => ({ ...emptyForm, service: prev.service, counterName: prev.counterName }));
     } catch (error) {
       console.error(error);
       toast.error(error.response?.data?.message || 'Failed to book token');
@@ -186,10 +217,11 @@ const TokenBooking = () => {
       `Counter: ${token.counterName}`,
       `Customer: ${token.customerName}`,
       `Service: ${token.service}`,
+      token.serviceNote ? `Note: ${token.serviceNote}` : null,
       `Date: ${token.date} ${token.time}`,
       ``,
       `Please wait for your token to be called.`,
-    ].join('\n');
+    ].filter(Boolean).join('\n');
     window.open(buildWhatsAppUrl(token.customerPhone, text), '_blank');
   };
 
@@ -219,7 +251,7 @@ const TokenBooking = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold" style={{ color: '#2E2E2E' }}>Token Booking</h1>
-          <p className="text-sm text-gray-500 mt-1">Book walk-in tokens · auto customer · POS print · WhatsApp</p>
+          <p className="text-sm text-gray-500 mt-1">Select service → counter auto-assigned · print · WhatsApp</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={syncSheets} data-testid="sync-sheets">
@@ -280,69 +312,55 @@ const TokenBooking = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label>Counter *</Label>
-                  <Select
-                    value={form.counterName || undefined}
-                    onValueChange={(value) => setForm({ ...form, counterName: value })}
-                  >
-                    <SelectTrigger data-testid="token-counter">
-                      <SelectValue placeholder="Select counter" />
+                  <Label>Service *</Label>
+                  <Select value={form.service || undefined} onValueChange={onServiceChange}>
+                    <SelectTrigger data-testid="token-service">
+                      <SelectValue placeholder="Select service" />
                     </SelectTrigger>
                     <SelectContent>
-                      {counters
-                        .filter((c) => String(c.status || 'Active').toLowerCase() === 'active')
-                        .map((c) => (
-                          <SelectItem key={c.counterName} value={c.counterName}>
-                            {c.counterName}{c.accessHolder ? ` · ${c.accessHolder}` : ''}
-                          </SelectItem>
-                        ))}
+                      {services.map((s) => (
+                        <SelectItem key={s.name} value={s.name}>
+                          {s.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <Label>Service *</Label>
-                  {products.length > 0 ? (
-                    <Select
-                      value={form.service || undefined}
-                      onValueChange={(value) => setForm({ ...form, service: value })}
-                    >
-                      <SelectTrigger data-testid="token-service">
-                        <SelectValue placeholder="Select service / product" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {products.map((p) => (
-                          <SelectItem key={p.id || p.name} value={p.name}>
-                            {p.name}{p.rate ? ` · Rs ${p.rate}` : ''}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      value={form.service}
-                      onChange={(e) => setForm({ ...form, service: e.target.value })}
-                      placeholder="e.g. Business Cards, Banner"
-                      data-testid="token-service"
-                    />
-                  )}
-                  {products.length > 0 && (
-                    <Input
-                      className="mt-2"
-                      value={form.service}
-                      onChange={(e) => setForm({ ...form, service: e.target.value })}
-                      placeholder="Or type service manually"
-                    />
+                  <Label>Counter (auto)</Label>
+                  <Input
+                    value={assignedCounter}
+                    readOnly
+                    className="bg-gray-50 font-semibold"
+                    data-testid="token-counter"
+                    placeholder="Select a service first"
+                  />
+                  {counters.length > 0 && assignedCounter && !counters.some((c) => c.counterName === assignedCounter) && (
+                    <p className="text-xs text-amber-600 mt-1">
+                      Counter “{assignedCounter}” missing — click Sync Sheets to create it.
+                    </p>
                   )}
                 </div>
               </div>
 
               <div>
-                <Label>Notes</Label>
+                <Label>Service Note</Label>
+                <Textarea
+                  value={form.serviceNote}
+                  onChange={(e) => setForm({ ...form, serviceNote: e.target.value })}
+                  rows={2}
+                  placeholder="Details for the counter (e.g. CNIC reprint, 100 business cards…)"
+                  data-testid="token-service-note"
+                />
+              </div>
+
+              <div>
+                <Label>Internal Notes</Label>
                 <Textarea
                   value={form.notes}
                   onChange={(e) => setForm({ ...form, notes: e.target.value })}
                   rows={2}
-                  placeholder="Optional notes"
+                  placeholder="Optional internal notes"
                 />
               </div>
 
@@ -375,6 +393,9 @@ const TokenBooking = () => {
                   <div className="text-sm mt-2 text-gray-700">{lastToken.counterName}</div>
                   <div className="text-sm text-gray-600">{lastToken.customerName}</div>
                   <div className="text-sm text-gray-600">{lastToken.service}</div>
+                  {lastToken.serviceNote && (
+                    <div className="text-xs text-gray-500 mt-1">{lastToken.serviceNote}</div>
+                  )}
                 </div>
                 <div className="grid grid-cols-1 gap-2">
                   <Button variant="outline" onClick={() => printToken(lastToken)} data-testid="token-print">

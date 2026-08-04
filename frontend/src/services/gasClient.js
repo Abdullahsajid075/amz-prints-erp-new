@@ -10,7 +10,7 @@ if (!GAS_API_BASE_URL) {
 
 /** Short in-memory GET cache — cuts repeat GAS cold starts while navigating. */
 const getCache = new Map();
-const GET_CACHE_TTL_MS = 20000;
+const GET_CACHE_TTL_MS = 45000;
 
 function cacheGet(key) {
   const hit = getCache.get(key);
@@ -43,6 +43,41 @@ function handleUnauthorized(path) {
     tokenStorage.clear();
     window.location.href = '/login';
   }
+}
+
+async function fetchOnce(url, init) {
+  let response;
+  try {
+    response = await fetch(url, init);
+  } catch (error) {
+    throw {
+      code: 'ERR_NETWORK',
+      message: error.message || 'Network Error',
+      response: { data: { message: 'Unable to reach Google Apps Script backend.' } },
+    };
+  }
+
+  const text = await response.text();
+  let payload;
+  try {
+    payload = text ? JSON.parse(text) : {};
+  } catch {
+    const preview = String(text || '').slice(0, 120).replace(/\s+/g, ' ');
+    const isGoogleHtml = /<!DOCTYPE html|/i.test(text) || /unable to open the file/i.test(text);
+    throw {
+      response: {
+        status: 502,
+        data: {
+          message: isGoogleHtml
+            ? 'Google Apps Script temporarily returned an error page. Wait a few seconds and try again. If it keeps failing, open the Web App URL in a browser and check Deploy → Manage deployments (Execute as: Me, Who has access: Anyone).'
+            : (preview
+              ? `Unexpected backend response: ${preview}`
+              : 'Empty response from Google Apps Script. Check Web App deployment.'),
+        },
+      },
+    };
+  }
+  return { response, payload };
 }
 
 export async function gasRequest(method, path, options = {}) {
@@ -86,38 +121,16 @@ export async function gasRequest(method, path, options = {}) {
     init.body = JSON.stringify(data);
   }
 
-  let response;
+  let resultPair;
   try {
-    response = await fetch(url.toString(), init);
-  } catch (error) {
-    throw {
-      code: 'ERR_NETWORK',
-      message: error.message || 'Network Error',
-      response: { data: { message: 'Unable to reach Google Apps Script backend.' } },
-    };
+    resultPair = await fetchOnce(url.toString(), init);
+  } catch (err) {
+    // One automatic retry for cold-start / transient GAS failures
+    await new Promise((r) => setTimeout(r, 900));
+    resultPair = await fetchOnce(url.toString(), init);
   }
 
-  const text = await response.text();
-  let payload;
-  try {
-    payload = text ? JSON.parse(text) : {};
-  } catch {
-    const preview = String(text || '').slice(0, 120).replace(/\s+/g, ' ');
-    const isGoogleHtml = /<!DOCTYPE html|/i.test(text) || /unable to open the file/i.test(text);
-    throw {
-      response: {
-        status: 502,
-        data: {
-          message: isGoogleHtml
-            ? 'Google Apps Script temporarily returned an error page. Wait a few seconds and try again. If it keeps failing, open the Web App URL in a browser and check Deploy → Manage deployments (Execute as: Me, Who has access: Anyone).'
-            : (preview
-              ? `Unexpected backend response: ${preview}`
-              : 'Empty response from Google Apps Script. Check Web App deployment.'),
-        },
-      },
-    };
-  }
-
+  const { response, payload } = resultPair;
   const appStatus = payload._status;
   if (appStatus >= 400) {
     if (appStatus === 401) {

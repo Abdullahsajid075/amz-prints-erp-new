@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { dashboardAPI, expensesAPI } from '@/services/api';
 import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';import {
   TrendingUp, TrendingDown, ShoppingCart, Clock, CheckCircle, DollarSign,
-  Receipt, Users, Calendar, ArrowUpRight, ArrowDownRight, Activity
+  Receipt, Users, Calendar, ArrowUpRight, ArrowDownRight, Activity, FileText, FileSpreadsheet
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -58,7 +58,8 @@ const SectionCard = ({ title, subtitle, action, children, testId }) => (
 const Dashboard = () => {
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
   const [stats, setStats] = useState({
-    totalOrders: 0, pendingOrders: 0, completedOrders: 0,
+    totalQuotations: 0, totalOrders: 0, totalInvoices: 0,
+    pendingOrders: 0, completedOrders: 0,
     revenue: 0, expenses: 0, receivables: 0, payables: 0, activeCustomers: 0
   });
   const [recentOrders, setRecentOrders] = useState([]);
@@ -157,20 +158,26 @@ const Dashboard = () => {
         </div>
       </div>
 
+      {/* Module counts — separate Quotations / Orders / Invoices */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <StatCard testId="stat-total-quotations" title="Total Quotations" value={stats.totalQuotations || 0} icon={FileText} tint="#8B5CF6" />
+        <StatCard testId="stat-total-orders" title="Total Orders" value={stats.totalOrders || 0} icon={ShoppingCart} tint="#F26522" />
+        <StatCard testId="stat-total-invoices" title="Total Invoices" value={stats.totalInvoices || 0} icon={FileSpreadsheet} tint="#0EA5E9" />
+      </div>
+
       {/* Primary KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <StatCard testId="stat-total-orders" title="Total Orders" value={stats.totalOrders} icon={ShoppingCart} tint="#F26522" trend="up" trendValue="+12%" />
-        <StatCard testId="stat-pending" title="Pending" value={stats.pendingOrders} icon={Clock} tint="#F59E0B" />
-        <StatCard testId="stat-completed" title="Completed" value={stats.completedOrders} icon={CheckCircle} tint="#10B981" trend="up" trendValue="+8%" />
-        <StatCard testId="stat-revenue" title="Revenue" value={formatCurrency(stats.revenue)} icon={DollarSign} tint="#3B82F6" trend="up" trendValue="+15%" />
+        <StatCard testId="stat-pending" title="Pending Orders" value={stats.pendingOrders} icon={Clock} tint="#F59E0B" />
+        <StatCard testId="stat-completed" title="Completed" value={stats.completedOrders} icon={CheckCircle} tint="#10B981" />
+        <StatCard testId="stat-revenue" title="Revenue" value={formatCurrency(stats.revenue)} icon={DollarSign} tint="#3B82F6" />
+        <StatCard testId="stat-customers" title="Active Customers" value={stats.activeCustomers || 0} icon={Users} tint="#14B8A6" />
       </div>
 
       {/* Secondary KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <StatCard testId="stat-expenses" title="Expenses" value={formatCurrency(stats.expenses)} icon={Receipt} tint="#EF4444" trend="down" trendValue="-4%" />
-        <StatCard testId="stat-receivables" title="Receivables" value={formatCurrency(stats.receivables)} icon={TrendingUp} tint="#8B5CF6" />
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <StatCard testId="stat-expenses" title="Expenses" value={formatCurrency(stats.expenses)} icon={Receipt} tint="#EF4444" />
+        <StatCard testId="stat-receivables" title="Receivables" value={formatCurrency(stats.receivables)} icon={TrendingUp} tint="#7C3AED" />
         <StatCard testId="stat-payables" title="Payables" value={formatCurrency(stats.payables)} icon={TrendingDown} tint="#EC4899" />
-        <StatCard testId="stat-customers" title="Active Customers" value={stats.activeCustomers || 0} icon={Users} tint="#14B8A6" />
       </div>
 
       {/* Charts */}

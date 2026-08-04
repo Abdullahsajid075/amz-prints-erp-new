@@ -157,8 +157,9 @@ const InvoiceView = ({ isPublic = false }) => {
               <p className="text-sm text-gray-600 mt-1">{company.tagline || 'Professional Printing & Advertising Services'}</p>
               <div className="text-xs text-gray-500 mt-2 space-y-0.5">
                 {company.address && <p>{company.address}</p>}
-                {company.phone && <p>📞 {company.phone}</p>}
-                {company.email && <p>✉ {company.email}</p>}
+                {company.phone && <p>{company.phone}</p>}
+                {company.email && <p>{company.email}</p>}
+                {company.website && <p>{company.website}</p>}
               </div>
             </div>
           </div>
@@ -171,8 +172,12 @@ const InvoiceView = ({ isPublic = false }) => {
             </div>
             <div className="mt-4 space-y-1 text-sm">
               <p><span className="text-gray-500">Date:</span> <span className="font-semibold">{formatDate(invoice.date)}</span></p>
-              <p><span className="text-gray-500">Due:</span> <span className="font-semibold">{formatDate(invoice.dueDate)}</span></p>
-              <p><span className="text-gray-500">Order:</span> <span className="font-semibold" style={{ color: accent }}>{invoice.orderId}</span></p>
+              {invoice.dueDate && (
+                <p><span className="text-gray-500">Due:</span> <span className="font-semibold">{formatDate(invoice.dueDate)}</span></p>
+              )}
+              {invoice.orderId && (
+                <p><span className="text-gray-500">Order:</span> <span className="font-semibold" style={{ color: accent }}>{invoice.orderId}</span></p>
+              )}
             </div>
           </div>
         </div>
@@ -182,8 +187,8 @@ const InvoiceView = ({ isPublic = false }) => {
             <p className="text-xs uppercase tracking-wider font-semibold mb-2" style={{ color: accent }}>Bill To</p>
             <p className="font-bold text-lg" style={{ color: '#2E2E2E' }}>{invoice.customerName}</p>
             {invoice.customerAddress && <p className="text-sm text-gray-600 mt-1">{invoice.customerAddress}</p>}
-            {invoice.customerPhone && <p className="text-sm text-gray-600">📞 {invoice.customerPhone}</p>}
-            {invoice.customerEmail && <p className="text-sm text-gray-600">✉ {invoice.customerEmail}</p>}
+            {invoice.customerPhone && <p className="text-sm text-gray-600">{invoice.customerPhone}</p>}
+            {invoice.customerEmail && <p className="text-sm text-gray-600">{invoice.customerEmail}</p>}
           </div>
           <div className="text-right">
             <p className="text-xs uppercase tracking-wider font-semibold mb-2" style={{ color: accent }}>Status</p>
@@ -335,9 +340,12 @@ const InvoiceView = ({ isPublic = false }) => {
           )}
         </div>
 
-        <div className="p-4 text-center border-t border-gray-100" style={{ backgroundColor: template === 'bold' ? accent : '#F5F7FB' }}>
+        <div className="p-4 text-center border-t border-gray-100 invoice-print-footer" style={{ backgroundColor: template === 'bold' ? accent : '#F5F7FB' }}>
           <p className={`text-xs ${template === 'bold' ? 'text-white' : 'text-gray-500'}`}>
-            Thank you for your business! • {company.name || 'AMZ Prints'} • {company.website || 'amzprints.com'}
+            {company.name || 'AMZ Prints'}
+            {company.phone ? ` · ${company.phone}` : ''}
+            {company.website ? ` · ${company.website}` : ''}
+            {' · '}Thank you for your business
           </p>
         </div>
       </div>

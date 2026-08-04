@@ -56,8 +56,11 @@ export const BrandProvider = ({ children }) => {
       try {
         const pub = await gasRequest('GET', '/public/branding');
         if (pub.data) {
+          const company = { ...defaultBrand.company, ...(pub.data.company || {}) };
+          if (pub.data.companyLogo && !company.logo) company.logo = pub.data.companyLogo;
+          if (pub.data.companyStamp && !company.stamp) company.stamp = pub.data.companyStamp;
           const next = {
-            company: { ...defaultBrand.company, ...(pub.data.company || {}) },
+            company,
             theme: { ...defaultBrand.theme, ...(pub.data.theme || {}) },
             invoice: { ...defaultBrand.invoice, ...(pub.data.invoice || {}) },
           };
@@ -72,10 +75,13 @@ export const BrandProvider = ({ children }) => {
       try {
         const res = await settingsAPI.get();
         if (res.data) {
+          const company = { ...defaultBrand.company, ...(typeof res.data.company === 'object' ? res.data.company : {}) };
+          if (res.data.companyLogo && !company.logo) company.logo = res.data.companyLogo;
+          if (res.data.companyStamp && !company.stamp) company.stamp = res.data.companyStamp;
           const next = {
-            company: { ...defaultBrand.company, ...(res.data.company || {}) },
-            theme: { ...defaultBrand.theme, ...(res.data.theme || {}) },
-            invoice: { ...defaultBrand.invoice, ...(res.data.invoice || {}) },
+            company,
+            theme: { ...defaultBrand.theme, ...(typeof res.data.theme === 'object' ? res.data.theme : {}) },
+            invoice: { ...defaultBrand.invoice, ...(typeof res.data.invoice === 'object' ? res.data.invoice : {}) },
           };
           setBrand(next);
           applyTheme(next.theme);

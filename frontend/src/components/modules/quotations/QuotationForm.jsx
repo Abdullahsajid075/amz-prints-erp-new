@@ -204,61 +204,104 @@ const QuotationForm = ({ printMode = false }) => {
   }
 
   if (printMode) {
+    const accentColor = primary || '#F26522';
     return (
-      <div className="max-w-3xl mx-auto bg-white p-8 print:p-0" data-testid="quotation-print">
-        <div className="flex justify-between items-start border-b-2 pb-4 mb-6" style={{ borderColor: primary || '#F26522' }}>
-          <div>
-            {company.logo ? (
-              <img src={company.logo} alt="logo" className="h-14 object-contain mb-2" />
-            ) : null}
-            <h1 className="text-2xl font-bold">{company.name || 'AMZ Prints'}</h1>
-            <p className="text-sm text-gray-600">{company.tagline}</p>
-            <p className="text-xs text-gray-500 mt-1">{[company.address, company.phone].filter(Boolean).join(' · ')}</p>
+      <div className="max-w-4xl mx-auto bg-white shadow-lg print:shadow-none invoice-container" data-testid="quotation-print">
+        <div className="h-2" style={{ background: `linear-gradient(90deg, ${accentColor}, #FF8A50)` }} />
+        <div className="p-8 print:p-6">
+          <div className="flex justify-between items-start gap-6 border-b-2 pb-5 mb-6" style={{ borderColor: accentColor }}>
+            <div className="flex items-start gap-4">
+              {company.logo ? (
+                <img src={company.logo} alt="logo" className="h-16 object-contain" />
+              ) : (
+                <div className="w-16 h-16 rounded-xl flex items-center justify-center text-white text-2xl font-bold" style={{ backgroundColor: accentColor }}>
+                  {(company.name || 'A').charAt(0)}
+                </div>
+              )}
+              <div>
+                <h2 className="text-xl font-bold" style={{ color: '#2E2E2E' }}>{company.name || 'AMZ Prints'}</h2>
+                <p className="text-sm text-gray-600">{company.tagline}</p>
+                <p className="text-xs text-gray-500 mt-1">{[company.address, company.phone, company.email].filter(Boolean).join(' · ')}</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-4xl font-black tracking-tight" style={{ color: accentColor }}>QUOTATION</p>
+              <p className="text-lg font-semibold mt-2">{form.orderId || 'Draft'}</p>
+              <p className="text-sm text-gray-600">{form.date || new Date().toISOString().slice(0, 10)}</p>
+            </div>
           </div>
-          <div className="text-right">
-            <p className="text-xs uppercase tracking-wider" style={{ color: primary || '#F26522' }}>Quotation</p>
-            <p className="text-xl font-bold">{form.orderId || 'Draft'}</p>
-            <p className="text-sm text-gray-600">{form.date || new Date().toISOString().slice(0, 10)}</p>
+
+          <div className="grid grid-cols-2 gap-6 mb-8">
+            <div>
+              <p className="text-xs uppercase tracking-wider font-semibold mb-1" style={{ color: accentColor }}>Quote For</p>
+              <p className="font-semibold text-lg">{form.customerName}</p>
+              <p className="text-sm text-gray-600">{form.customerPhone}</p>
+              <p className="text-sm text-gray-600">{form.customerEmail}</p>
+              <p className="text-sm text-gray-600">{form.customerAddress}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs uppercase tracking-wider font-semibold mb-1" style={{ color: accentColor }}>Status</p>
+              <p className="font-semibold">{form.status || 'Draft'}</p>
+            </div>
           </div>
-        </div>
-        <div className="mb-6">
-          <p className="text-xs uppercase font-semibold mb-1" style={{ color: primary || '#F26522' }}>Customer</p>
-          <p className="font-semibold">{form.customerName}</p>
-          <p className="text-sm text-gray-600">{form.customerPhone}</p>
-          <p className="text-sm text-gray-600">{form.customerEmail}</p>
-          <p className="text-sm text-gray-600">{form.customerAddress}</p>
-        </div>
-        <table className="w-full text-sm mb-6">
-          <thead>
-            <tr style={{ backgroundColor: '#2E2E2E', color: '#fff' }}>
-              <th className="text-left p-2">#</th>
-              <th className="text-left p-2">Item</th>
-              <th className="text-right p-2">Qty</th>
-              <th className="text-right p-2">Rate</th>
-              <th className="text-right p-2">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {form.products.map((p, i) => (
-              <tr key={p._key} className="border-b">
-                <td className="p-2">{i + 1}</td>
-                <td className="p-2">{p.name}{p.size ? ` (${p.size})` : ''}</td>
-                <td className="p-2 text-right">{p.quantity}</td>
-                <td className="p-2 text-right">{formatCurrency(p.rate)}</td>
-                <td className="p-2 text-right font-semibold">{formatCurrency(p.quantity * p.rate)}</td>
+
+          <table className="w-full text-sm mb-6">
+            <thead>
+              <tr style={{ backgroundColor: '#2E2E2E', color: '#fff' }}>
+                <th className="text-left p-3">#</th>
+                <th className="text-left p-3">Description</th>
+                <th className="text-right p-3">Qty</th>
+                <th className="text-right p-3">Rate</th>
+                <th className="text-right p-3">Amount</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        <div className="flex justify-end">
-          <div className="px-4 py-2 rounded text-white font-bold" style={{ backgroundColor: primary || '#F26522' }}>
-            Total: {formatCurrency(total)}
+            </thead>
+            <tbody>
+              {form.products.map((p, i) => (
+                <tr key={p._key} className="border-b border-gray-100">
+                  <td className="p-3 text-gray-500">{i + 1}</td>
+                  <td className="p-3">
+                    <p className="font-medium">{p.name}</p>
+                    {(p.size || p.material) && (
+                      <p className="text-xs text-gray-500">{[p.size, p.material].filter(Boolean).join(' · ')}</p>
+                    )}
+                  </td>
+                  <td className="p-3 text-right">{p.quantity}</td>
+                  <td className="p-3 text-right">{formatCurrency(p.rate)}</td>
+                  <td className="p-3 text-right font-semibold">{formatCurrency(p.quantity * p.rate)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <div className="flex justify-end mb-8">
+            <div className="w-64 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Subtotal</span>
+                <span className="font-semibold">{formatCurrency(total)}</span>
+              </div>
+              <div className="flex justify-between px-3 py-2 rounded text-white font-bold" style={{ backgroundColor: accentColor }}>
+                <span>TOTAL</span>
+                <span>{formatCurrency(total)}</span>
+              </div>
+            </div>
+          </div>
+
+          {form.remarks && (
+            <div className="mb-8 p-4 bg-gray-50 rounded border border-gray-100">
+              <p className="text-xs uppercase font-semibold text-gray-700 mb-1">Notes</p>
+              <p className="text-sm text-gray-600 whitespace-pre-line">{form.remarks}</p>
+            </div>
+          )}
+
+          <div className="text-center text-xs text-gray-500 border-t pt-4">
+            Thank you for considering {company.name || 'AMZ Prints'} · This quotation is valid for 15 days
+            {company.website ? ` · ${company.website}` : ''}
           </div>
         </div>
-        {form.remarks && <p className="mt-6 text-sm text-gray-600"><strong>Notes:</strong> {form.remarks}</p>}
-        <div className="no-print mt-8 flex gap-2">
+
+        <div className="no-print mt-6 flex gap-2 px-2 pb-4">
           <Button variant="outline" onClick={() => navigate(`/quotations/${quotationId}/edit`)}>Back</Button>
-          <Button onClick={() => window.print()} className="text-white" style={{ backgroundColor: primary || '#F26522' }}>
+          <Button onClick={() => window.print()} className="text-white" style={{ backgroundColor: accentColor }}>
             <Printer className="h-4 w-4 mr-2" />Print
           </Button>
         </div>
@@ -267,14 +310,14 @@ const QuotationForm = ({ printMode = false }) => {
   }
 
   return (
-    <div className="space-y-6" data-testid="quotation-form">
+    <div className="space-y-4" data-testid="quotation-form">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-3">
           <Button variant="outline" onClick={() => navigate('/quotations')}>
             <ArrowLeft className="h-4 w-4 mr-2" />Back
           </Button>
           <div>
-            <h1 className="text-3xl font-bold" style={{ color: '#2E2E2E' }}>
+            <h1 className="text-2xl font-bold" style={{ color: '#2E2E2E' }}>
               {isEdit ? 'Edit Quotation' : 'New Quotation'}
             </h1>
             {form.orderId && <p className="text-sm text-gray-500">{form.orderId}</p>}
@@ -296,8 +339,8 @@ const QuotationForm = ({ printMode = false }) => {
       </div>
 
       <Card>
-        <CardHeader><CardTitle>Customer</CardTitle></CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <CardHeader className="py-3"><CardTitle className="text-base">Customer</CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-0">
           <div>
             <Label>Name *</Label>
             <Input value={form.customerName} onChange={(e) => setForm({ ...form, customerName: e.target.value })} />

@@ -36,7 +36,11 @@ var DEFAULT_HEADERS = {
     'DocType', 'TrackingNumber', 'StatusHistory', 'DeliveryAddress', 'QuotationId'
   ],
   Products: ['Id', 'Name', 'Category', 'Rate', 'Unit', 'Description', 'Status', 'ProductType', 'Designer', 'Stock', 'Material', 'Size', 'MinQuantity'],
-  Invoices: ['Id', 'InvoiceNo', 'Date', 'CustomerId', 'CustomerName', 'CustomerPhone', 'Items', 'Subtotal', 'Tax', 'Discount', 'Total', 'Paid', 'Status', 'ShareToken'],
+  Invoices: [
+    'Id', 'InvoiceNo', 'Date', 'DueDate', 'OrderId', 'CustomerId', 'CustomerName', 'CustomerPhone',
+    'CustomerEmail', 'CustomerAddress', 'Items', 'Subtotal', 'TaxRate', 'Tax', 'Discount',
+    'PreviousBalance', 'Total', 'Paid', 'Status', 'Notes', 'ShareToken'
+  ],
   Vendors: ['Id', 'Name', 'Phone', 'Email', 'Address', 'Notes'],
   Purchases: ['Id', 'PurchaseNo', 'Date', 'VendorId', 'VendorName', 'Items', 'Total', 'Status'],
   Expenses: ['Id', 'Date', 'Category', 'Amount', 'Description', 'PaymentMethod'],
@@ -44,9 +48,23 @@ var DEFAULT_HEADERS = {
   Counters: [
     'RecordType', 'CounterName', 'AccessHolder', 'Prefix', 'LastNumber', 'Status',
     'TokenNo', 'Date', 'Time', 'CustomerId', 'CustomerName', 'CustomerPhone',
-    'Service', 'TokenStatus', 'CalledAt', 'OrderId', 'Notes'
+    'Service', 'ServiceNote', 'TokenStatus', 'CalledAt', 'OrderId', 'Notes'
   ],
   Settings: ['Key', 'Value'],
+};
+
+/** Token service → counter assignment (auto). */
+var SERVICE_COUNTER_MAP = {
+  'designing': 'Table 01',
+  'printing services': 'Table 01',
+  'nadra services': 'Table 02',
+  'photo copy & documents': 'Table 03',
+  'photo copy and documents': 'Table 03',
+  'pals fee & information': 'Executive Office',
+  'pals fee and information': 'Executive Office',
+  'payments': 'Executive Office',
+  'discussion': 'Executive Office',
+  'other printing services': 'Executive Office',
 };
 
 function getSpreadsheetId_() {
@@ -159,11 +177,31 @@ function normalizeHeader_(header) {
     recordtype: 'recordtype', type: 'recordtype', countername: 'countername', counter: 'countername',
     accessholder: 'accessholder', holder: 'accessholder', prefix: 'prefix', lastnumber: 'lastnumber',
     lasttoken: 'lastnumber', service: 'service', tokenstatus: 'tokenstatus', calledat: 'calledat',
-    invoiceno: 'invoiceno', sharetoken: 'sharetoken', key: 'key', value: 'value',
+    invoiceno: 'invoiceno', invoicenumber: 'invoiceno', sharetoken: 'sharetoken',
+    key: 'key', value: 'value',
     amount: 'amount', method: 'method', paymentmethod: 'paymentmethod', vendorname: 'vendorname',
     vendorid: 'vendorid', purchaseno: 'purchaseno', refid: 'refid',
+    paidamount: 'paid', paid: 'paid', totalamount: 'total', taxrate: 'taxrate',
+    duedate: 'duedate', previousbalance: 'previousbalance', servicenote: 'servicenote',
   };
   return aliases[key] || key;
+}
+
+/** Accept camelCase API bodies against lowercase sheet keys. */
+function coerceKeys_(obj) {
+  var out = {};
+  if (!obj || typeof obj !== 'object') return out;
+  Object.keys(obj).forEach(function (k) {
+    if (k === '_row') {
+      out._row = obj._row;
+      return;
+    }
+    var nk = normalizeHeader_(k);
+    if (out[nk] === undefined || out[nk] === null || out[nk] === '') {
+      out[nk] = obj[k];
+    }
+  });
+  return out;
 }
 
 function serializeCell_(value) {
@@ -266,8 +304,13 @@ function sheetToObjects_(sheet, sheetName) {
 
 function valueForHeader_(obj, rawHeader) {
   var key = normalizeHeader_(rawHeader);
-  if (obj[key] !== undefined && obj[key] !== null && obj[key] !== '') {
-    return serializeCell_(obj[key]);
+  var flat = coerceKeys_(obj);
+  if (flat[key] !== undefined && flat[key] !== null && flat[key] !== '') {
+    return serializeCell_(flat[key]);
+  }
+  // Allow explicit empty string / 0 writes for numeric fields
+  if (flat[key] === 0 || flat[key] === false) {
+    return serializeCell_(flat[key]);
   }
 
   // Extra aliases so existing sheet labels still receive values
@@ -280,12 +323,18 @@ function valueForHeader_(obj, rawHeader) {
     tokenstatus: ['tokenstatus', 'status'],
     status: ['status', 'tokenstatus'],
     service: ['service', 'product', 'products'],
+    total: ['total', 'totalamount'],
+    paid: ['paid', 'paidamount'],
+    tax: ['tax'],
   };
 
   var keys = fallbacks[key] || [key];
   for (var i = 0; i < keys.length; i++) {
-    if (obj[keys[i]] !== undefined && obj[keys[i]] !== null && obj[keys[i]] !== '') {
-      return serializeCell_(obj[keys[i]]);
+    if (flat[keys[i]] !== undefined && flat[keys[i]] !== null && flat[keys[i]] !== '') {
+      return serializeCell_(flat[keys[i]]);
+    }
+    if (flat[keys[i]] === 0 || flat[keys[i]] === false) {
+      return serializeCell_(flat[keys[i]]);
     }
   }
   return '';
@@ -293,7 +342,8 @@ function valueForHeader_(obj, rawHeader) {
 
 function appendObject_(sheet, sheetName, obj) {
   var headers = ensureHeaders_(sheet, sheetName);
-  var row = headers.map(function (h) { return valueForHeader_(obj, h); });
+  var flat = coerceKeys_(obj);
+  var row = headers.map(function (h) { return valueForHeader_(flat, h); });
   // Guard: refuse silent empty writes
   var hasValue = row.some(function (cell) { return cell !== '' && cell !== null; });
   if (!hasValue) {
@@ -302,15 +352,16 @@ function appendObject_(sheet, sheetName, obj) {
   sheet.appendRow(row);
   SpreadsheetApp.flush();
   invalidateSheetCache_(sheetName);
-  return obj;
+  return flat;
 }
 
 function updateObjectProps_(sheet, sheetName, rowNumber, updates) {
   var headers = getRawHeaders_(sheet, sheetName);
+  var flat = coerceKeys_(updates);
   headers.forEach(function (rawHeader, i) {
     var key = normalizeHeader_(rawHeader);
-    if (updates[key] !== undefined) {
-      sheet.getRange(rowNumber, i + 1).setValue(serializeCell_(updates[key]));
+    if (flat[key] !== undefined) {
+      sheet.getRange(rowNumber, i + 1).setValue(serializeCell_(flat[key]));
     }
   });
   SpreadsheetApp.flush();
@@ -326,8 +377,19 @@ function deleteRow_(sheet, rowNumber, sheetName) {
 function findById_(rows, id) {
   var needle = String(id);
   return rows.findIndex(function (r) {
-    return String(r.id) === needle || String(r.orderid) === needle || String(r.tokenno) === needle;
+    return String(r.id) === needle
+      || String(r.orderid) === needle
+      || String(r.tokenno) === needle
+      || String(r.invoiceno) === needle;
   });
+}
+
+function slicePage_(rows, params) {
+  if (!params) return rows;
+  var offset = Number(params.offset || 0);
+  var limit = Number(params.limit || 0);
+  if (!limit || limit <= 0) return rows;
+  return rows.slice(offset, offset + limit);
 }
 
 function nowDate_() {
@@ -826,8 +888,7 @@ function handleCollection_(sheetName, path, method, body, basePath) {
   if (path === basePath) {
     if (method === 'GET') return rows;
     if (method === 'POST') {
-      var record = Object.assign({ id: sheetName.toLowerCase().slice(0, -1) + '_' + Date.now() }, body);
-      // flatten common camelCase
+      var record = coerceKeys_(Object.assign({ id: sheetName.toLowerCase().slice(0, -1) + '_' + Date.now() }, body));
       if (body.name) record.name = body.name;
       appendObject_(sheet, sheetName, record);
       return record;
@@ -840,12 +901,148 @@ function handleCollection_(sheetName, path, method, body, basePath) {
 
   if (method === 'GET') return rows[index];
   if (method === 'PUT') {
-    var updates = Object.assign({}, rows[index], body);
+    var updates = coerceKeys_(Object.assign({}, rows[index], body));
     updateObjectProps_(sheet, sheetName, rows[index]._row, updates);
     return updates;
   }
   if (method === 'DELETE') {
     deleteRow_(sheet, rows[index]._row, sheetName);
+    return { success: true };
+  }
+  throw new Error('Method not allowed');
+}
+
+/* ===================== INVOICES ===================== */
+
+function normalizeInvoice_(body, existing) {
+  existing = existing || {};
+  var items = body.items || body.Items || existing.items || [];
+  if (typeof items === 'string') {
+    try { items = JSON.parse(items); } catch (e) { items = []; }
+  }
+  var taxRate = Number(
+    body.taxRate != null ? body.taxRate : (body.taxrate != null ? body.taxrate : existing.taxrate || 0)
+  );
+  var subtotal = Number(
+    body.subtotal != null ? body.subtotal : (existing.subtotal != null ? existing.subtotal : 0)
+  );
+  if (!subtotal && Array.isArray(items)) {
+    subtotal = items.reduce(function (s, it) {
+      return s + (Number(it.quantity || 0) * Number(it.rate || 0));
+    }, 0);
+  }
+  var taxAmount = Number(
+    body.tax != null && body.taxRate == null && body.taxrate == null
+      ? body.tax
+      : (subtotal * taxRate) / 100
+  );
+  if (body.tax != null && (body.taxRate != null || body.taxrate != null)) {
+    taxAmount = Number(body.tax);
+  }
+  var discount = Number(body.discount != null ? body.discount : (existing.discount || 0));
+  var total = Number(
+    body.totalAmount != null ? body.totalAmount
+      : (body.total != null ? body.total
+        : (subtotal + taxAmount - discount))
+  );
+  return {
+    id: body.id || existing.id || ('invoice_' + Date.now()),
+    invoiceno: body.invoiceNumber || body.invoiceno || existing.invoiceno || '',
+    date: body.date || existing.date || nowDate_(),
+    duedate: body.dueDate || body.duedate || existing.duedate || '',
+    orderid: body.orderId || body.orderid || existing.orderid || '',
+    customerid: body.customerId || body.customerid || existing.customerid || '',
+    customername: body.customerName || body.customername || existing.customername || '',
+    customerphone: body.customerPhone || body.customerphone || existing.customerphone || '',
+    customeremail: body.customerEmail || body.customeremail || existing.customeremail || '',
+    customeraddress: body.customerAddress || body.customeraddress || existing.customeraddress || '',
+    items: items,
+    subtotal: subtotal,
+    taxrate: taxRate,
+    tax: taxAmount,
+    discount: discount,
+    previousbalance: Number(
+      body.previousBalance != null ? body.previousBalance
+        : (body.previousbalance != null ? body.previousbalance : existing.previousbalance || 0)
+    ),
+    total: total,
+    paid: Number(
+      body.paidAmount != null ? body.paidAmount
+        : (body.paid != null ? body.paid : existing.paid || 0)
+    ),
+    status: body.status || existing.status || 'Unpaid',
+    notes: body.notes || existing.notes || '',
+    sharetoken: body.shareToken || body.sharetoken || existing.sharetoken
+      || ('shr_' + Utilities.getUuid().replace(/-/g, '').slice(0, 12)),
+  };
+}
+
+function toApiInvoice_(inv) {
+  return {
+    id: inv.id,
+    invoiceNumber: inv.invoiceno || '',
+    date: inv.date || '',
+    dueDate: inv.duedate || '',
+    orderId: inv.orderid || '',
+    customerId: inv.customerid || '',
+    customerName: inv.customername || '',
+    customerPhone: inv.customerphone || '',
+    customerEmail: inv.customeremail || '',
+    customerAddress: inv.customeraddress || '',
+    items: Array.isArray(inv.items) ? inv.items : [],
+    subtotal: Number(inv.subtotal || 0),
+    taxRate: Number(inv.taxrate || 0),
+    tax: Number(inv.tax || 0),
+    discount: Number(inv.discount || 0),
+    previousBalance: Number(inv.previousbalance || 0),
+    totalAmount: Number(inv.total || inv.totalamount || 0),
+    paidAmount: Number(inv.paid || inv.paidamount || 0),
+    status: inv.status || 'Unpaid',
+    notes: inv.notes || '',
+    shareToken: inv.sharetoken || '',
+  };
+}
+
+function handleInvoices_(path, method, body) {
+  var sheet = getSheet_(SHEET_NAMES.INVOICES);
+  if (method === 'POST' || method === 'PUT') {
+    ensureHeaders_(sheet, SHEET_NAMES.INVOICES);
+  }
+  var rows = getSheetRows_(SHEET_NAMES.INVOICES);
+
+  if (path === '/invoices') {
+    if (method === 'GET') return rows.map(toApiInvoice_);
+    if (method === 'POST') {
+      if (body.customerPhone || body.customerName) {
+        var cust = upsertCustomer_({
+          name: body.customerName,
+          phone: body.customerPhone,
+          email: body.customerEmail,
+          address: body.customerAddress,
+        });
+        body.customerId = cust.id;
+      }
+      var created = normalizeInvoice_(body);
+      appendObject_(sheet, SHEET_NAMES.INVOICES, created);
+      return toApiInvoice_(created);
+    }
+    throw new Error('Method not allowed');
+  }
+
+  var id = path.split('/')[2];
+  var index = findById_(rows, id);
+  if (index < 0) throw new Error('Invoice not found');
+
+  if (method === 'GET') return toApiInvoice_(rows[index]);
+  if (method === 'PUT') {
+    var updated = normalizeInvoice_(body, rows[index]);
+    updated.id = rows[index].id;
+    if (!updated.sharetoken) updated.sharetoken = rows[index].sharetoken;
+    updateObjectProps_(sheet, SHEET_NAMES.INVOICES, rows[index]._row, updated);
+    return toApiInvoice_(updated);
+  }
+  if (method === 'DELETE') {
+    deleteRow_(sheet, rows[index]._row, SHEET_NAMES.INVOICES);
     return { success: true };
   }
   throw new Error('Method not allowed');
@@ -890,13 +1087,21 @@ function ensureDefaultCounters_() {
   var sheet = getSheet_(SHEET_NAMES.COUNTERS);
   ensureHeaders_(sheet, SHEET_NAMES.COUNTERS);
   var counters = getCounterMasters_();
-  if (counters.length) return counters;
-
   var defaults = [
-    { recordtype: 'Counter', countername: 'Counter 1', accessholder: 'Reception', prefix: 'A', lastnumber: 0, status: 'Active' },
-    { recordtype: 'Counter', countername: 'Counter 2', accessholder: 'Design Desk', prefix: 'B', lastnumber: 0, status: 'Active' },
+    { recordtype: 'Counter', countername: 'Table 01', accessholder: 'Design / Printing', prefix: 'A', lastnumber: 0, status: 'Active' },
+    { recordtype: 'Counter', countername: 'Table 02', accessholder: 'NADRA', prefix: 'B', lastnumber: 0, status: 'Active' },
+    { recordtype: 'Counter', countername: 'Table 03', accessholder: 'Documents', prefix: 'C', lastnumber: 0, status: 'Active' },
+    { recordtype: 'Counter', countername: 'Executive Office', accessholder: 'Front Desk', prefix: 'E', lastnumber: 0, status: 'Active' },
   ];
-  defaults.forEach(function (c) { appendObject_(sheet, SHEET_NAMES.COUNTERS, c); });
+  var existingNames = {};
+  counters.forEach(function (c) {
+    existingNames[String(c.counterName).toLowerCase()] = true;
+  });
+  defaults.forEach(function (c) {
+    if (!existingNames[String(c.countername).toLowerCase()]) {
+      appendObject_(sheet, SHEET_NAMES.COUNTERS, c);
+    }
+  });
   return getCounterMasters_();
 }
 
@@ -918,11 +1123,18 @@ function toApiToken_(t) {
     customerName: t.customername,
     customerPhone: t.customerphone,
     service: t.service,
+    serviceNote: t.servicenote || '',
     status: t.tokenstatus || t.status || 'Waiting',
     calledAt: t.calledat || '',
     orderId: t.orderid || '',
     notes: t.notes || '',
   };
+}
+
+function resolveCounterForService_(serviceName, explicitCounter) {
+  if (explicitCounter) return String(explicitCounter).trim();
+  var key = String(serviceName || '').trim().toLowerCase();
+  return SERVICE_COUNTER_MAP[key] || '';
 }
 
 function handleTokens_(path, method, body, params) {
@@ -956,11 +1168,13 @@ function handleTokens_(path, method, body, params) {
   // POST /tokens — book token
   if (path === '/tokens' && method === 'POST') {
     var counters = ensureDefaultCounters_();
-    var counterName = body.counterName || body.counter || '';
+    var serviceName = body.service || body.serviceName || '';
+    var counterName = resolveCounterForService_(serviceName, body.counterName || body.counter || '');
+    if (!counterName) throw new Error('Select a service (or counter)');
     var counter = counters.find(function (c) {
       return String(c.counterName).toLowerCase() === String(counterName).toLowerCase();
     });
-    if (!counter) throw new Error('Counter not found: ' + counterName);
+    if (!counter) throw new Error('Counter not found: ' + counterName + '. Run Sync Sheets to create Table 01–03 / Executive Office.');
     if (String(counter.status).toLowerCase() !== 'active') throw new Error('Counter is not active');
 
     var customer = upsertCustomer_({
@@ -980,7 +1194,8 @@ function handleTokens_(path, method, body, params) {
       customerid: customer.id,
       customername: customer.name,
       customerphone: customer.phone,
-      service: body.service || body.serviceName || '',
+      service: serviceName,
+      servicenote: body.serviceNote || body.servicenote || '',
       tokenstatus: 'Waiting',
       calledat: '',
       orderid: '',
@@ -1095,9 +1310,18 @@ function handleCounters_(path, method, body) {
 /* ===================== DASHBOARD / SETTINGS ===================== */
 
 function getDashboardBootstrap_() {
-  // One Orders read + one Customers read for the whole dashboard
-  var orders = getSheetRows_(SHEET_NAMES.ORDERS);
+  // One Orders + Customers + Invoices read for the whole dashboard
+  var ordersAll = getSheetRows_(SHEET_NAMES.ORDERS);
+  var invoices = getSheetRows_(SHEET_NAMES.INVOICES);
   var customers = getSheetRows_(SHEET_NAMES.CUSTOMERS);
+
+  var quotations = ordersAll.filter(function (o) {
+    return String(o.doctype || '').toLowerCase() === 'quotation';
+  });
+  var orders = ordersAll.filter(function (o) {
+    return String(o.doctype || 'Order').toLowerCase() !== 'quotation';
+  });
+
   var completed = orders.filter(function (o) {
     return String(o.status).toLowerCase().indexOf('deliver') !== -1;
   }).length;
@@ -1106,12 +1330,22 @@ function getDashboardBootstrap_() {
     var key = o.status || 'Unknown';
     statusMap[key] = (statusMap[key] || 0) + 1;
   });
+
+  var invoiceRevenue = invoices.reduce(function (s, inv) {
+    return s + Number(inv.total || inv.totalamount || 0);
+  }, 0);
+  var orderRevenue = orders.reduce(function (s, o) {
+    return s + Number(o.totalamount || 0);
+  }, 0);
+
   return {
     stats: {
+      totalQuotations: quotations.length,
       totalOrders: orders.length,
+      totalInvoices: invoices.length,
       pendingOrders: orders.length - completed,
       completedOrders: completed,
-      revenue: orders.reduce(function (s, o) { return s + Number(o.totalamount || 0); }, 0),
+      revenue: invoiceRevenue || orderRevenue,
       expenses: 0,
       receivables: orders.reduce(function (s, o) { return s + Number(o.balanceamount || 0); }, 0),
       payables: 0,
@@ -1128,36 +1362,13 @@ function getDashboardBootstrap_() {
 }
 
 function getDashboardStats_() {
-  var orders = getSheetRows_(SHEET_NAMES.ORDERS);
-  var customers = getSheetRows_(SHEET_NAMES.CUSTOMERS);
-  var completed = orders.filter(function (o) {
-    return String(o.status).toLowerCase().indexOf('deliver') !== -1;
-  }).length;
-  return {
-    totalOrders: orders.length,
-    pendingOrders: orders.length - completed,
-    completedOrders: completed,
-    revenue: orders.reduce(function (s, o) { return s + Number(o.totalamount || 0); }, 0),
-    expenses: 0,
-    receivables: orders.reduce(function (s, o) { return s + Number(o.balanceamount || 0); }, 0),
-    payables: 0,
-    activeCustomers: customers.length,
-  };
+  var boot = getDashboardBootstrap_();
+  return boot.stats;
 }
 
 function getDashboardCharts_() {
-  var orders = getSheetRows_(SHEET_NAMES.ORDERS);
-  var statusMap = {};
-  orders.forEach(function (o) {
-    var key = o.status || 'Unknown';
-    statusMap[key] = (statusMap[key] || 0) + 1;
-  });
-  return {
-    monthlySales: [],
-    orderStatus: Object.keys(statusMap).map(function (name) {
-      return { name: name, value: statusMap[name] };
-    }),
-  };
+  var boot = getDashboardBootstrap_();
+  return boot.charts;
 }
 
 function getRecentOrders_() {
@@ -1174,6 +1385,15 @@ function getSettings_() {
   if (rows[0].key !== undefined) {
     var obj = {};
     rows.forEach(function (r) { obj[r.key] = r.value; });
+    // Re-attach large assets stored as separate keys
+    if (typeof obj.company === 'object' && obj.company) {
+      if (obj.companyLogo && !obj.company.logo) obj.company.logo = obj.companyLogo;
+      if (obj.companyStamp && !obj.company.stamp) obj.company.stamp = obj.companyStamp;
+    } else if (typeof obj.company === 'string') {
+      try { obj.company = JSON.parse(obj.company); } catch (e) { obj.company = {}; }
+      if (obj.companyLogo) obj.company.logo = obj.companyLogo;
+      if (obj.companyStamp) obj.company.stamp = obj.companyStamp;
+    }
     return obj;
   }
   return rows[0];
@@ -1184,22 +1404,49 @@ function updateSettings_(body) {
   ensureHeaders_(sheet, SHEET_NAMES.SETTINGS);
   var headers = getRawHeaders_(sheet, SHEET_NAMES.SETTINGS);
   var normalized = headers.map(normalizeHeader_);
+
+  // Split large logo/stamp out of company JSON so cells stay under Sheets limits
+  var payload = Object.assign({}, body || {});
+  if (payload.company && typeof payload.company === 'object') {
+    var company = Object.assign({}, payload.company);
+    if (company.logo && String(company.logo).length > 35000) {
+      payload.companyLogo = company.logo;
+      company.logo = '';
+    } else if (company.logo) {
+      payload.companyLogo = company.logo;
+    }
+    if (company.stamp && String(company.stamp).length > 35000) {
+      payload.companyStamp = company.stamp;
+      company.stamp = '';
+    } else if (company.stamp) {
+      payload.companyStamp = company.stamp;
+    }
+    payload.company = company;
+  }
+
   if (normalized.indexOf('key') !== -1 && normalized.indexOf('value') !== -1) {
     sheet.clearContents();
     sheet.getRange(1, 1, 1, 2).setValues([['Key', 'Value']]);
-    var keys = Object.keys(body);
+    var keys = Object.keys(payload);
     keys.forEach(function (k, i) {
-      sheet.getRange(i + 2, 1, 1, 2).setValues([[k, serializeCell_(body[k])]]);
+      var cell = serializeCell_(payload[k]);
+      // Soft-truncate only as last resort to avoid total write failure
+      if (typeof cell === 'string' && cell.length > 49000) {
+        cell = cell.slice(0, 49000);
+      }
+      sheet.getRange(i + 2, 1, 1, 2).setValues([[k, cell]]);
     });
-    return body;
+    invalidateSheetCache_(SHEET_NAMES.SETTINGS);
+    return getSettings_();
   }
   // single row style — overwrite row 2
   if (sheet.getLastRow() < 2) {
-    appendObject_(sheet, SHEET_NAMES.SETTINGS, body);
+    appendObject_(sheet, SHEET_NAMES.SETTINGS, payload);
   } else {
-    updateObjectProps_(sheet, SHEET_NAMES.SETTINGS, 2, body);
+    updateObjectProps_(sheet, SHEET_NAMES.SETTINGS, 2, payload);
   }
-  return body;
+  invalidateSheetCache_(SHEET_NAMES.SETTINGS);
+  return getSettings_();
 }
 
 function getReports_(params) {
@@ -1210,8 +1457,12 @@ function getReports_(params) {
 function handlePublic_(path, method) {
   if (method === 'GET' && path === '/public/branding') {
     var settings = getSettings_();
+    var company = settings.company || {};
+    if (typeof company !== 'object') company = {};
+    if (settings.companyLogo && !company.logo) company.logo = settings.companyLogo;
+    if (settings.companyStamp && !company.stamp) company.stamp = settings.companyStamp;
     return {
-      company: settings.company || {},
+      company: company,
       theme: settings.theme || {},
       invoice: settings.invoice || {},
     };
@@ -1221,7 +1472,7 @@ function handlePublic_(path, method) {
     var invoices = getSheetRows_(SHEET_NAMES.INVOICES);
     var invoice = invoices.find(function (i) { return String(i.sharetoken) === token; });
     if (!invoice) throw new Error('Invoice not found');
-    return invoice;
+    return toApiInvoice_(invoice);
   }
   if (method === 'GET' && path.indexOf('/public/track/') === 0) {
     var tracking = path.replace('/public/track/', '');
@@ -1342,6 +1593,16 @@ function handleRequest_(e) {
       return jsonResponse_({
         counters: handleCounters_('/counters', 'GET', {}),
         products: handleProducts_('/products', 'GET', {}),
+        services: [
+          { name: 'Designing', counter: 'Table 01' },
+          { name: 'Printing Services', counter: 'Table 01' },
+          { name: 'NADRA Services', counter: 'Table 02' },
+          { name: 'Photo Copy & Documents', counter: 'Table 03' },
+          { name: 'PALS Fee & Information', counter: 'Executive Office' },
+          { name: 'Payments', counter: 'Executive Office' },
+          { name: 'Discussion', counter: 'Executive Office' },
+          { name: 'Other Printing Services', counter: 'Executive Office' },
+        ],
       });
     }
 
@@ -1365,7 +1626,7 @@ function handleRequest_(e) {
     }
 
     if (path === '/invoices' || path.indexOf('/invoices/') === 0) {
-      return jsonResponse_(handleCollection_(SHEET_NAMES.INVOICES, path, method, body, '/invoices'));
+      return jsonResponse_(handleInvoices_(path, method, body));
     }
     if (path === '/vendors' || path.indexOf('/vendors/') === 0) {
       return jsonResponse_(handleCollection_(SHEET_NAMES.VENDORS, path, method, body, '/vendors'));

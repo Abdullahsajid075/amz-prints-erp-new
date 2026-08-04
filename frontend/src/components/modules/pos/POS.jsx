@@ -83,6 +83,11 @@ const POS = () => {
   };
 
   const printReceipt = (sale) => {
+    const website = company.website || 'https://amzprints.com';
+    const logoHtml = company.logo
+      ? `<img src="${company.logo}" alt="logo" style="max-height:48px;max-width:160px;display:block;margin:0 auto 6px;" />`
+      : '';
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(website)}`;
     const rows = (sale.products || [])
       .map(
         (p) =>
@@ -92,17 +97,24 @@ const POS = () => {
     const html = `<!DOCTYPE html><html><head><title>Receipt ${sale.orderId || ''}</title>
       <style>
         @page { size: 80mm auto; margin: 4mm; }
-        body { font-family: Arial, sans-serif; width: 72mm; margin: 0; color: #000; font-size: 12px; }
-        h1 { font-size: 16px; margin: 0; text-align: center; color: #F26522; }
+        body { font-family: Arial, Helvetica, sans-serif; width: 72mm; margin: 0; color: #111; font-size: 12px; }
+        h1 { font-size: 15px; margin: 0; text-align: center; color: #F26522; letter-spacing: 0.02em; }
+        .tag { text-align: center; font-size: 10px; color: #555; margin-top: 2px; }
         .center { text-align: center; }
         table { width: 100%; border-collapse: collapse; margin-top: 8px; }
         td, th { padding: 3px 0; font-size: 11px; }
+        th { border-bottom: 1px solid #333; }
         hr { border: none; border-top: 1px dashed #333; margin: 8px 0; }
-        .total { font-size: 14px; font-weight: bold; }
+        .total { font-size: 14px; font-weight: bold; display:flex; justify-content:space-between; }
+        .brand-bar { height: 3px; background: linear-gradient(90deg,#F26522,#FF8A50); margin-bottom: 8px; }
       </style></head><body>
+      <div class="brand-bar"></div>
+      ${logoHtml}
       <h1>${company.name || 'AMZ Prints'}</h1>
-      <div class="center">${company.phone || ''}</div>
-      <div class="center">POS Receipt</div>
+      <div class="tag">${company.tagline || 'Professional Printing & Advertising'}</div>
+      <div class="center" style="font-size:10px;margin-top:4px">${company.phone || ''}${company.address ? `<br/>${company.address}` : ''}</div>
+      <hr />
+      <div class="center" style="font-weight:bold;letter-spacing:0.12em;font-size:11px">POS RECEIPT</div>
       <hr />
       <div>Order: <strong>${sale.orderId || ''}</strong></div>
       <div>Customer: ${sale.customerName || 'Walk-in'}</div>
@@ -115,11 +127,15 @@ const POS = () => {
         <tbody>${rows}</tbody>
       </table>
       <hr />
-      <div class="total" style="display:flex;justify-content:space-between"><span>TOTAL</span><span>${formatCurrency(sale.totalAmount)}</span></div>
-      <div class="center" style="margin-top:12px">Thank you!</div>
+      <div class="total"><span>TOTAL</span><span>${formatCurrency(sale.totalAmount)}</span></div>
+      <div class="center" style="margin-top:14px">
+        <img src="${qrUrl}" width="88" height="88" alt="Website QR" />
+        <div style="font-size:10px;margin-top:4px">${website.replace(/^https?:\/\//, '')}</div>
+      </div>
+      <div class="center" style="margin-top:10px;font-size:11px">Thank you for your business!</div>
       <script>window.onload=function(){window.print();setTimeout(function(){window.close()},400);};</script>
       </body></html>`;
-    const win = window.open('', '_blank', 'width=360,height=640');
+    const win = window.open('', '_blank', 'width=360,height=720');
     if (!win) {
       toast.error('Allow popups to print receipt');
       return;

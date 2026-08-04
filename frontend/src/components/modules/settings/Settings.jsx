@@ -44,6 +44,27 @@ const readFileAsDataURL = (file) =>
     reader.readAsDataURL(file);
   });
 
+/** Compress images so Settings cells stay under Google Sheets ~50k limit. */
+async function compressImageFile(file, maxEdge = 320, quality = 0.72) {
+  const dataUrl = await readFileAsDataURL(file);
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
+      const w = Math.max(1, Math.round(img.width * scale));
+      const h = Math.max(1, Math.round(img.height * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
+}
+
 const Settings = () => {
   const { refreshBrand, primary } = useBrand();
   const [settings, setSettings] = useState(defaultSettings);
@@ -60,17 +81,30 @@ const Settings = () => {
     try {
       const res = await settingsAPI.get();
       if (res.data) {
+        const company = {
+          ...defaultSettings.company,
+          ...(typeof res.data.company === 'object' ? res.data.company : {}),
+        };
+        if (res.data.companyLogo && !company.logo) company.logo = res.data.companyLogo;
+        if (res.data.companyStamp && !company.stamp) company.stamp = res.data.companyStamp;
         setSettings({
           ...defaultSettings,
           ...res.data,
-          company: { ...defaultSettings.company, ...(res.data.company || {}) },
-          invoice: { ...defaultSettings.invoice, ...(res.data.invoice || {}) },
-          theme: { ...defaultSettings.theme, ...(res.data.theme || {}) },
-          users: { ...defaultSettings.users, ...(res.data.users || {}) },
+          company,
+          invoice: { ...defaultSettings.invoice, ...(typeof res.data.invoice === 'object' ? res.data.invoice : {}) },
+          theme: { ...defaultSettings.theme, ...(typeof res.data.theme === 'object' ? res.data.theme : {}) },
+          users: { ...defaultSettings.users, ...(typeof res.data.users === 'object' ? res.data.users : {}) },
+          orders: { ...defaultSettings.orders, ...(typeof res.data.orders === 'object' ? res.data.orders : {}) },
+          customers: { ...defaultSettings.customers, ...(typeof res.data.customers === 'object' ? res.data.customers : {}) },
+          products: { ...defaultSettings.products, ...(typeof res.data.products === 'object' ? res.data.products : {}) },
+          payments: { ...defaultSettings.payments, ...(typeof res.data.payments === 'object' ? res.data.payments : {}) },
+          notifications: { ...defaultSettings.notifications, ...(typeof res.data.notifications === 'object' ? res.data.notifications : {}) },
+          system: { ...defaultSettings.system, ...(typeof res.data.system === 'object' ? res.data.system : {}) },
         });
       }
     } catch (err) {
       console.error('Failed to load settings', err);
+      toast.error(err.response?.data?.message || 'Failed to load settings');
     }
   }, []);
 
@@ -94,11 +128,15 @@ const Settings = () => {
   const save = async () => {
     setSaving(true);
     try {
-      await settingsAPI.update(settings);
+      const payload = { ...settings };
+      if (payload.company?.logo) payload.companyLogo = payload.company.logo;
+      if (payload.company?.stamp) payload.companyStamp = payload.company.stamp;
+      await settingsAPI.update(payload);
       await refreshBrand();
-      toast.success('Settings saved');
+      toast.success('Settings saved to Google Sheets');
     } catch (e) {
-      toast.error('Failed');
+      console.error(e);
+      toast.error(e.response?.data?.message || 'Failed to save settings');
     } finally {
       setSaving(false);
     }
@@ -114,9 +152,9 @@ const Settings = () => {
       return;
     }
     try {
-      const dataUrl = await readFileAsDataURL(file);
+      const dataUrl = await compressImageFile(file);
       update('company', field, dataUrl);
-      toast.success(`${field === 'logo' ? 'Logo' : 'Stamp'} loaded`);
+      toast.success(`${field === 'logo' ? 'Logo' : 'Stamp'} ready (compressed for Sheets)`);
     } catch {
       toast.error('Failed to read file');
     }
