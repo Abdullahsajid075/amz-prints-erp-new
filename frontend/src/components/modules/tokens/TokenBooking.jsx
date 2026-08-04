@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { countersAPI, tokensAPI, productsAPI, customersAPI } from '@/services/api';
+import { countersAPI, tokensAPI, productsAPI, customersAPI, debugAPI } from '@/services/api';
 import { toast } from 'sonner';
 import { Ticket, Printer, MessageCircle, Monitor, Search, Plus } from 'lucide-react';
 
@@ -76,16 +76,39 @@ const TokenBooking = () => {
   const [lastToken, setLastToken] = useState(null);
   const [lookingUp, setLookingUp] = useState(false);
 
+  const [dbStatus, setDbStatus] = useState('');
+
   const loadMeta = useCallback(async () => {
     try {
       const [cRes, pRes] = await Promise.all([countersAPI.getAll(), productsAPI.getAll()]);
-      setCounters(Array.isArray(cRes.data) ? cRes.data : []);
+      const counterList = Array.isArray(cRes.data) ? cRes.data : [];
+      setCounters(counterList);
       setProducts(Array.isArray(pRes.data) ? pRes.data : []);
+      if (!counterList.length) {
+        setDbStatus('No counters in sheet. Click “Sync Sheets” then redeploy Code.gs if needed.');
+      } else {
+        setDbStatus(`Connected · ${counterList.length} counter(s) loaded from Google Sheets`);
+      }
     } catch (error) {
       console.error(error);
-      toast.error('Failed to load counters/services');
+      const msg = error.response?.data?.message || error.message || 'Failed to load counters/services';
+      setDbStatus(msg);
+      toast.error(msg);
     }
   }, []);
+
+  const syncSheets = async () => {
+    try {
+      const res = await debugAPI.prepare();
+      toast.success('Sheets synced — required columns ensured');
+      console.log('prepareDatabase', res.data);
+      await loadMeta();
+    } catch (error) {
+      const msg = error.response?.data?.message || 'Sync failed — redeploy latest Code.gs first';
+      toast.error(msg);
+      setDbStatus(msg);
+    }
+  };
 
   useEffect(() => {
     loadMeta();
@@ -176,15 +199,26 @@ const TokenBooking = () => {
           <h1 className="text-3xl font-bold" style={{ color: '#2E2E2E' }}>Token Booking</h1>
           <p className="text-sm text-gray-500 mt-1">Book walk-in tokens · auto customer · POS print · WhatsApp</p>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => navigate('/tokens/counter')}
-          data-testid="open-counter-screen"
-        >
-          <Monitor className="h-4 w-4 mr-2" />
-          Counter Screen
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={syncSheets} data-testid="sync-sheets">
+            Sync Sheets
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => navigate('/tokens/counter')}
+            data-testid="open-counter-screen"
+          >
+            <Monitor className="h-4 w-4 mr-2" />
+            Counter Screen
+          </Button>
+        </div>
       </div>
+
+      {dbStatus && (
+        <div className="text-sm rounded-lg border px-3 py-2 bg-gray-50 text-gray-700" data-testid="db-status">
+          {dbStatus}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2">

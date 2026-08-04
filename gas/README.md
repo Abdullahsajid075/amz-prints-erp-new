@@ -1,46 +1,57 @@
-# Google Apps Script Backend
+# Google Apps Script Backend — Database Sync
 
-**Web App URL:**  
-`https://script.google.com/macros/s/AKfycbxEvWjbbh0-VJ1JxKR-qFZ9TbllIyh9rAJRg1ythfihJP61o6sxvcYhHehXafZEYummLw/exec`
+## Why UI works but Sheets stay empty
 
-## Redeploy required
+Usually one of these:
 
-Copy latest `gas/Code.gs` → Apps Script → **Deploy → New version**.
+1. **Old Code.gs still deployed** (most common) — UI talks to GAS, but old script has no `/tokens` write logic / wrong header mapping  
+2. **Counters/Customers columns missing** — data can't map into your existing headers  
+3. **SPREADSHEET_ID** Script property points to a different spreadsheet  
 
-Then run `setupCounters` once (optional) to seed Counter 1 / Counter 2 if Counters sheet is empty.
+## Fix now (do in order)
 
-## Sheets used (existing only)
+### 1. Redeploy Code.gs
+1. Open Apps Script project  
+2. Replace ALL code with repo file `gas/Code.gs`  
+3. **Deploy → Manage deployments → Edit → New version → Deploy**
 
-Orders, Products, Customers, Invoices, Vendors, Users, Purchases, Expenses, Payments, **Counters**, Settings
+### 2. Prepare database (pick one)
 
-## Users sheet
+**Option A — Apps Script editor**  
+Select function `prepareDatabase` → Run (authorize if asked)
 
-| Username | Password | Name | Role | Status |
-|----------|----------|------|------|--------|
-| admin | admin123 | Administrator | Admin | Active |
+**Option B — ERP UI**  
+Token Booking page → **Sync Sheets** button
 
-## Counters sheet (Token Booking)
+This only **adds missing columns**. It does not delete your data.
 
-Same sheet stores:
+### 3. Verify
+- Token Booking page should show: `Connected · N counter(s) loaded…`  
+- Book a token → check **Counters** sheet for a new `Token` row  
+- Check **Customers** sheet for customer (by phone)
 
-1. **Counter rows** (`RecordType=Counter`): CounterName, AccessHolder, Prefix, LastNumber, Status  
-2. **Token rows** (`RecordType=Token`): TokenNo, Date, Time, Customer*, Service, TokenStatus, CalledAt, OrderId
+## Counters sheet
 
-Do not create a separate Tokens sheet.
+Rows can be:
 
-## Token APIs
+| RecordType | CounterName | Prefix | LastNumber | Status | TokenNo | … |
+|------------|-------------|--------|------------|--------|---------|---|
+| Counter | Counter 1 | A | 0 | Active | | |
+| Token | Counter 1 | | | | A-001 | … |
 
-- `GET /counters`
-- `POST /tokens` — upserts customer by phone, generates token
-- `GET /tokens?counter=Counter%201`
-- `POST /tokens/:tokenNo/call|complete|skip|link-order`
+If Counters was empty, Sync creates Counter 1 / Counter 2.
 
-## Frontend
+## Debug API
 
-- `/tokens` — Token Booking (print + WhatsApp)
-- `/tokens/counter` — live Counter / Access Holder screen
-- Create Order from called token → `/orders/new?...` prefilled
+After login token:
 
-## Fix: Customers / Orders not saving
+- `GET ?path=/debug/schema&token=...` → sheet headers + row counts  
+- `POST ?path=/debug/prepare&token=...` → ensure columns  
 
-Older `appendRow_` wrote `obj[header]` using raw sheet headers while API sent camelCase keys. Latest Code.gs maps headers correctly and preserves existing column names.
+## Users login
+
+| Username | Password |
+|----------|----------|
+| admin | admin123 |
+
+(Use exact values from your Users sheet.)

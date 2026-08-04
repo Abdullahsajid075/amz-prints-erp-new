@@ -134,17 +134,39 @@ function parseCell_(value) {
 }
 
 function ensureHeaders_(sheet, sheetName) {
+  var defaults = DEFAULT_HEADERS[sheetName] || ['Id', 'Name'];
   var lastCol = sheet.getLastColumn();
   var lastRow = sheet.getLastRow();
+  var existing = [];
+
   if (lastRow >= 1 && lastCol >= 1) {
-    var existing = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-    if (existing.some(function (h) { return String(h).trim() !== ''; })) {
-      return existing.map(String);
-    }
+    existing = sheet.getRange(1, 1, 1, lastCol).getValues()[0]
+      .map(function (h) { return String(h || '').trim(); })
+      .filter(function (h) { return h !== ''; });
   }
-  var defaults = DEFAULT_HEADERS[sheetName] || ['Id', 'Name'];
-  sheet.getRange(1, 1, 1, defaults.length).setValues([defaults]);
-  return defaults;
+
+  if (!existing.length) {
+    sheet.getRange(1, 1, 1, defaults.length).setValues([defaults]);
+    return defaults.slice();
+  }
+
+  // Keep existing headers, append any missing required columns (do not wipe data)
+  var existingNorm = existing.map(normalizeHeader_);
+  var missing = [];
+  defaults.forEach(function (header) {
+    var norm = normalizeHeader_(header);
+    if (existingNorm.indexOf(norm) === -1) {
+      missing.push(header);
+      existingNorm.push(norm);
+    }
+  });
+
+  if (missing.length) {
+    sheet.getRange(1, existing.length + 1, 1, existing.length + missing.length).setValues([missing]);
+    existing = existing.concat(missing);
+  }
+
+  return existing;
 }
 
 function getRawHeaders_(sheet, sheetName) {
@@ -181,17 +203,41 @@ function sheetToObjects_(sheet, sheetName) {
 
 function valueForHeader_(obj, rawHeader) {
   var key = normalizeHeader_(rawHeader);
-  if (obj[key] !== undefined && obj[key] !== null) return serializeCell_(obj[key]);
-  // camelCase API fields mapped onto spaced sheet headers
-  var camel = key;
-  if (obj[camel] !== undefined) return serializeCell_(obj[camel]);
+  if (obj[key] !== undefined && obj[key] !== null && obj[key] !== '') {
+    return serializeCell_(obj[key]);
+  }
+
+  // Extra aliases so existing sheet labels still receive values
+  var fallbacks = {
+    countername: ['counter', 'countername', 'name'],
+    name: ['name', 'customername', 'fullname'],
+    phone: ['phone', 'customerphone', 'mobile'],
+    customername: ['customername', 'name'],
+    customerphone: ['customerphone', 'phone', 'mobile'],
+    tokenstatus: ['tokenstatus', 'status'],
+    status: ['status', 'tokenstatus'],
+    service: ['service', 'product', 'products'],
+  };
+
+  var keys = fallbacks[key] || [key];
+  for (var i = 0; i < keys.length; i++) {
+    if (obj[keys[i]] !== undefined && obj[keys[i]] !== null && obj[keys[i]] !== '') {
+      return serializeCell_(obj[keys[i]]);
+    }
+  }
   return '';
 }
 
 function appendObject_(sheet, sheetName, obj) {
-  var headers = getRawHeaders_(sheet, sheetName);
+  var headers = ensureHeaders_(sheet, sheetName);
   var row = headers.map(function (h) { return valueForHeader_(obj, h); });
+  // Guard: refuse silent empty writes
+  var hasValue = row.some(function (cell) { return cell !== '' && cell !== null; });
+  if (!hasValue) {
+    throw new Error('Nothing written to ' + sheetName + ' — check sheet column headers match API fields');
+  }
   sheet.appendRow(row);
+  SpreadsheetApp.flush();
   return obj;
 }
 
@@ -562,7 +608,9 @@ function isCounterRow_(row) {
   if (type === 'token') return false;
   if (type === 'counter') return true;
   // Heuristic: no token number ⇒ counter master
-  return !row.tokenno;
+  if (row.tokenno) return false;
+  // Must have a counter name somehow
+  return !!(row.countername || row.name);
 }
 
 function isTokenRow_(row) {
@@ -574,18 +622,20 @@ function isTokenRow_(row) {
 
 function getCounterMasters_() {
   var sheet = getSheet_(SHEET_NAMES.COUNTERS);
+  ensureHeaders_(sheet, SHEET_NAMES.COUNTERS);
   var rows = sheetToObjects_(sheet, SHEET_NAMES.COUNTERS);
   return rows.filter(isCounterRow_).map(function (c) {
+    var name = c.countername || c.name || '';
     return {
-      id: c.id || c.countername,
-      counterName: c.countername,
+      id: c.id || name,
+      counterName: name,
       accessHolder: c.accessholder || '',
       prefix: c.prefix || 'T',
       lastNumber: Number(c.lastnumber || 0),
       status: c.status || 'Active',
       _row: c._row,
     };
-  });
+  }).filter(function (c) { return !!c.counterName; });
 }
 
 function ensureDefaultCounters_() {
@@ -967,6 +1017,13 @@ function handleRequest_(e) {
     }
     if (path === '/reports') return jsonResponse_(getReports_(e.parameter));
 
+    if (method === 'GET' && path === '/debug/schema') {
+      return jsonResponse_(getSchema_());
+    }
+    if (method === 'POST' && path === '/debug/prepare') {
+      return jsonResponse_({ ok: true, report: prepareDatabase() });
+    }
+
     return jsonResponse_({ message: 'Not found: ' + path }, 404);
   } catch (err) {
     return jsonResponse_({ message: err.message || String(err) }, 500);
@@ -986,4 +1043,55 @@ function doPost(e) {
  */
 function setupCounters() {
   ensureDefaultCounters_();
+}
+
+/**
+ * Run once after deploy: ensure all ERP sheets have required columns.
+ * Does NOT delete existing data — only adds missing header columns.
+ */
+function prepareDatabase() {
+  var names = [
+    SHEET_NAMES.CUSTOMERS,
+    SHEET_NAMES.ORDERS,
+    SHEET_NAMES.PRODUCTS,
+    SHEET_NAMES.INVOICES,
+    SHEET_NAMES.VENDORS,
+    SHEET_NAMES.PURCHASES,
+    SHEET_NAMES.EXPENSES,
+    SHEET_NAMES.PAYMENTS,
+    SHEET_NAMES.COUNTERS,
+    SHEET_NAMES.SETTINGS,
+  ];
+  var report = [];
+  names.forEach(function (name) {
+    try {
+      var sheet = getSheet_(name);
+      var headers = ensureHeaders_(sheet, name);
+      report.push({ sheet: name, ok: true, columns: headers.length, headers: headers });
+    } catch (err) {
+      report.push({ sheet: name, ok: false, error: err.message });
+    }
+  });
+  ensureDefaultCounters_();
+  Logger.log(JSON.stringify(report, null, 2));
+  return report;
+}
+
+function getSchema_() {
+  var names = Object.keys(SHEET_NAMES).map(function (k) { return SHEET_NAMES[k]; });
+  var out = { spreadsheetId: getSpreadsheetId_(), sheets: {} };
+  names.forEach(function (name) {
+    try {
+      var sheet = getSheet_(name);
+      var headers = getRawHeaders_(sheet, name);
+      out.sheets[name] = {
+        rows: Math.max(sheet.getLastRow() - 1, 0),
+        headers: headers,
+      };
+    } catch (err) {
+      out.sheets[name] = { error: err.message };
+    }
+  });
+  out.counters = getCounterMasters_();
+  return out;
 }

@@ -74,10 +74,15 @@ export async function gasRequest(method, path, options = {}) {
   try {
     payload = text ? JSON.parse(text) : {};
   } catch {
+    const preview = String(text || '').slice(0, 180).replace(/\s+/g, ' ');
     throw {
       response: {
         status: 502,
-        data: { message: 'Backend returned invalid JSON.' },
+        data: {
+          message: preview
+            ? `Backend returned non-JSON (redeploy Code.gs?). ${preview}`
+            : 'Backend returned empty response. Redeploy latest gas/Code.gs.',
+        },
       },
     };
   }

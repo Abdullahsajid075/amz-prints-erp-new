@@ -118,6 +118,11 @@ export const tokensAPI = {
   linkOrder: (id, data) => gasRequest('POST', `/tokens/${id}/link-order`, withToken({ data })),
 };
 
+export const debugAPI = {
+  schema: () => gasRequest('GET', '/debug/schema', withToken()),
+  prepare: () => gasRequest('POST', '/debug/prepare', withToken()),
+};
+
 export default {
   authAPI,
   dashboardAPI,
