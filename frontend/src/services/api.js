@@ -24,6 +24,19 @@ const api = axios.create({
 
 api.interceptors.request.use(
   (config) => {
+    if (!USE_MOCK && config.url) {
+      const apiPath = config.url.startsWith('/') ? config.url : `/${config.url}`;
+      config.params = { ...config.params, path: apiPath };
+
+      const method = (config.method || 'get').toUpperCase();
+      if (method !== 'GET' && method !== 'POST') {
+        config.method = 'post';
+        config.params._method = method;
+      }
+
+      config.url = '';
+    }
+
     const token = tokenStorage.getToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
