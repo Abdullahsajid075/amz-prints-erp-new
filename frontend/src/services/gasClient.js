@@ -45,12 +45,6 @@ function stripStatus(payload) {
   return rest;
 }
 
-function isLoginPath() {
-  if (typeof window === 'undefined') return false;
-  const path = window.location.pathname || '';
-  return path === '/login' || path.endsWith('/login') || /\/login\/?$/.test(path);
-}
-
 function handleUnauthorized(path) {
   const apiPath = path.startsWith('/') ? path : `/${path}`;
 
@@ -62,19 +56,13 @@ function handleUnauthorized(path) {
   tokenStorage.clear();
   getCache.clear();
 
-  // Soft logout via React — NO window.location (that caused login refresh loops)
+  // Soft logout only — never hard-reload (window.location caused login form wipes)
   if (unauthorizedHandler) {
     try {
       unauthorizedHandler();
     } catch {
       /* ignore */
     }
-    return;
-  }
-
-  // Fallback: only leave the current page if we are NOT already on login
-  if (!isLoginPath() && typeof window !== 'undefined') {
-    window.location.replace('/login');
   }
 }
 

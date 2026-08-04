@@ -130,11 +130,14 @@ export const BrandProvider = ({ children }) => {
     }
   }, [applyBrand]);
 
-  // Mount once only — unstable deps were re-triggering branding fetches
+  // Mount once. On /login skip network fetch — huge logo payloads were thrashing the form.
   useEffect(() => {
     if (booted.current) return;
     booted.current = true;
     if (initial.current?.theme) applyTheme(initial.current.theme);
+    setLoading(false);
+    const path = typeof window !== 'undefined' ? window.location.pathname || '' : '';
+    if (path === '/login' || path.endsWith('/login')) return;
     refreshBrand();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

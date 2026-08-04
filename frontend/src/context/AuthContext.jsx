@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback, useRef, useMemo } from 'react';
 import { authAPI } from '../services/api';
 import { tokenStorage } from '../services/tokenStorage';
 import { setUnauthorizedHandler } from '../services/gasClient';
@@ -32,16 +32,15 @@ function isLoginPath() {
 }
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(() => tokenStorage.getUser());
+  const booted = useRef(false);
+  const [user, setUser] = useState(() => (isLoginPath() ? null : tokenStorage.getUser()));
   const [loading, setLoading] = useState(() => {
+    if (isLoginPath()) return false;
     const token = tokenStorage.getToken();
     const saved = tokenStorage.getUser();
-    // On login screen never block the form
-    if (isLoginPath()) return false;
     return Boolean(token && !saved);
   });
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    // Don't treat cached session as logged-in while sitting on /login
     if (isLoginPath()) return false;
     return Boolean(tokenStorage.getToken() && tokenStorage.getUser());
   });
@@ -63,16 +62,23 @@ export const AuthProvider = ({ children }) => {
     tokenStorage.setUser(userData);
   }, [clearSession]);
 
-  // Soft 401 handler — replaces window.location hard reload
   useEffect(() => {
     setUnauthorizedHandler(() => {
+      // On login page ignore 401 side-effects entirely
+      if (isLoginPath()) {
+        tokenStorage.clear();
+        return;
+      }
       clearSession();
     });
     return () => setUnauthorizedHandler(null);
   }, [clearSession]);
 
-  const initAuth = useCallback(async () => {
-    // Login page: never call /auth/me (401 → used to hard-reload the page)
+  useEffect(() => {
+    if (booted.current) return;
+    booted.current = true;
+
+    // Login screen: do not touch session / do not call GAS
     if (isLoginPath()) {
       setLoading(false);
       setIsAuthenticated(false);
@@ -93,25 +99,25 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     }
 
-    try {
-      const res = await authAPI.getCurrentUser();
-      if (res?.data) applyUser(res.data);
-    } catch {
-      // 401 already cleared via handler; ensure UI matches
-      clearSession();
-    } finally {
-      setLoading(false);
-    }
+    (async () => {
+      try {
+        const res = await authAPI.getCurrentUser();
+        if (res?.data) applyUser(res.data);
+      } catch {
+        clearSession();
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [applyUser, clearSession]);
 
-  useEffect(() => {
-    initAuth();
-  }, [initAuth]);
-
-  const login = async (credentials) => {
+  const login = useCallback(async (credentials) => {
     try {
       const response = await authAPI.login(credentials);
-      const { token, user: userData } = response.data;
+      const { token, user: userData } = response.data || {};
+      if (!token) {
+        return { success: false, error: 'Login failed — no token returned.' };
+      }
       tokenStorage.setToken(token);
       applyUser(userData);
       setLoading(false);
@@ -120,16 +126,27 @@ export const AuthProvider = ({ children }) => {
       console.error('Login error:', error);
       return {
         success: false,
-        error: error.response?.data?.message || 'Login failed. Please check your credentials.'
+        error: error.response?.data?.message || 'Login failed. Please check your credentials.',
       };
     }
-  };
+  }, [applyUser]);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     clearSession();
-  };
+  }, [clearSession]);
 
-  const value = { user, loading, isAuthenticated, login, logout, displayName: getUserDisplayName(user) };
+  const value = useMemo(
+    () => ({
+      user,
+      loading,
+      isAuthenticated,
+      login,
+      logout,
+      displayName: getUserDisplayName(user),
+    }),
+    [user, loading, isAuthenticated, login, logout]
+  );
+
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
