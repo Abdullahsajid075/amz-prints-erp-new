@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useBrand } from '@/context/BrandContext';
+import { tokenStorage } from '@/services/tokenStorage';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -276,6 +277,11 @@ const OrderTrackingForm = () => {
 
 const Login = () => {
   const { company, primary } = useBrand();
+
+  // Visiting /login: drop any half-dead token so background 401s cannot reload this page
+  useEffect(() => {
+    tokenStorage.clear();
+  }, []);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #F5F7FB 0%, #E8ECF4 100%)' }}>

@@ -56,7 +56,7 @@ function writeCachedBrand(brand) {
       invoice: brand.invoice,
     }));
   } catch {
-    /* quota */
+    /* quota — often from huge logos; keep UI brand anyway */
   }
 }
 
@@ -73,6 +73,17 @@ function normalizeBrandPayload(data) {
   };
 }
 
+function brandSignature(b) {
+  if (!b) return '';
+  return [
+    b.company?.name,
+    b.company?.tagline,
+    b.company?.logo ? String(b.company.logo).slice(0, 64) : '',
+    b.company?.logo ? String(b.company.logo).length : 0,
+    b.theme?.primary,
+  ].join('|');
+}
+
 const BrandContext = createContext(null);
 
 export const useBrand = () => {
@@ -82,10 +93,11 @@ export const useBrand = () => {
 };
 
 export const BrandProvider = ({ children }) => {
-  const cached = readCachedBrand();
-  const [brand, setBrand] = useState(cached || defaultBrand);
-  const [loading, setLoading] = useState(!cached);
+  const initial = useRef(readCachedBrand());
+  const [brand, setBrand] = useState(initial.current || defaultBrand);
+  const [loading, setLoading] = useState(!initial.current);
   const booted = useRef(false);
+  const sigRef = useRef(brandSignature(initial.current || defaultBrand));
 
   const applyTheme = useCallback((theme) => {
     const root = document.documentElement;
@@ -96,34 +108,36 @@ export const BrandProvider = ({ children }) => {
 
   const applyBrand = useCallback((next) => {
     if (!next) return;
+    const sig = brandSignature(next);
+    // Skip no-op updates — prevents login logo flicker / re-render loops
+    if (sig === sigRef.current) return;
+    sigRef.current = sig;
     setBrand(next);
     applyTheme(next.theme);
     writeCachedBrand(next);
   }, [applyTheme]);
 
   const refreshBrand = useCallback(async () => {
-    // Cached brand already painted — mark ready immediately
     setLoading(false);
     try {
-      // Public branding only (one GAS call). Skip /settings on boot — it was a second cold start.
-      try {
-        const pub = await gasRequest('GET', '/public/branding');
-        const next = normalizeBrandPayload(pub.data);
-        if (next) applyBrand(next);
-      } catch {
-        /* keep cached / default */
-      }
+      const pub = await gasRequest('GET', '/public/branding');
+      const next = normalizeBrandPayload(pub.data);
+      if (next) applyBrand(next);
+    } catch {
+      /* keep cached / default — never redirect */
     } finally {
       setLoading(false);
     }
   }, [applyBrand]);
 
+  // Mount once only — unstable deps were re-triggering branding fetches
   useEffect(() => {
     if (booted.current) return;
     booted.current = true;
-    if (cached?.theme) applyTheme(cached.theme);
+    if (initial.current?.theme) applyTheme(initial.current.theme);
     refreshBrand();
-  }, [applyTheme, cached, refreshBrand]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const value = useMemo(
     () => ({ brand, loading, refreshBrand, primary: brand.theme.primary, company: brand.company }),

@@ -12,6 +12,13 @@ if (!GAS_API_BASE_URL) {
 const getCache = new Map();
 const GET_CACHE_TTL_MS = 120000;
 
+/** Soft logout callback (AuthContext). Never hard-reload the page. */
+let unauthorizedHandler = null;
+
+export function setUnauthorizedHandler(handler) {
+  unauthorizedHandler = typeof handler === 'function' ? handler : null;
+}
+
 function cacheGet(key) {
   const hit = getCache.get(key);
   if (!hit) return null;
@@ -38,25 +45,36 @@ function stripStatus(payload) {
   return rest;
 }
 
+function isLoginPath() {
+  if (typeof window === 'undefined') return false;
+  const path = window.location.pathname || '';
+  return path === '/login' || path.endsWith('/login') || /\/login\/?$/.test(path);
+}
+
 function handleUnauthorized(path) {
   const apiPath = path.startsWith('/') ? path : `/${path}`;
-  // Never bounce public/login endpoints — that caused login page reload loops
-  if (
-    apiPath === '/auth/login'
-    || apiPath.startsWith('/public/')
-  ) {
+
+  // Never treat public/login API failures as session expiry
+  if (apiPath === '/auth/login' || apiPath.startsWith('/public/')) {
     return;
   }
 
   tokenStorage.clear();
+  getCache.clear();
 
-  // Already on login: clear bad token silently (no location reload)
-  if (typeof window !== 'undefined' && window.location.pathname === '/login') {
+  // Soft logout via React — NO window.location (that caused login refresh loops)
+  if (unauthorizedHandler) {
+    try {
+      unauthorizedHandler();
+    } catch {
+      /* ignore */
+    }
     return;
   }
 
-  if (typeof window !== 'undefined') {
-    window.location.href = '/login';
+  // Fallback: only leave the current page if we are NOT already on login
+  if (!isLoginPath() && typeof window !== 'undefined') {
+    window.location.replace('/login');
   }
 }
 
@@ -140,7 +158,6 @@ export async function gasRequest(method, path, options = {}) {
   try {
     resultPair = await fetchOnce(url.toString(), init);
   } catch (err) {
-    // Brief retry for GAS cold-start / transient failures (was 900ms — felt extra slow)
     await new Promise((r) => setTimeout(r, 350));
     resultPair = await fetchOnce(url.toString(), init);
   }
@@ -167,7 +184,6 @@ export async function gasRequest(method, path, options = {}) {
   if (cacheKey) {
     cacheSet(cacheKey, result);
   } else {
-    // Mutations invalidate GET cache
     getCache.clear();
   }
 
