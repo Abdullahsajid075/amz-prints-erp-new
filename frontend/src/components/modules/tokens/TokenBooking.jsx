@@ -4,11 +4,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { tokensAPI, customersAPI, debugAPI } from '@/services/api';
 import { toast } from 'sonner';
-import { Ticket, Printer, MessageCircle, Monitor, Search, Plus, XCircle, Loader2 } from 'lucide-react';
+import {
+  Ticket, Printer, MessageCircle, Monitor, Search, Plus, XCircle,
+  Loader2, RefreshCw,
+} from 'lucide-react';
 
 const DEFAULT_SERVICES = [
   { name: 'Designing', counter: 'Table 01' },
@@ -20,6 +24,15 @@ const DEFAULT_SERVICES = [
   { name: 'Discussion', counter: 'Executive Office' },
   { name: 'Other Printing Services', counter: 'Executive Office' },
 ];
+
+const statusClass = (status) => {
+  const s = String(status || '').toLowerCase();
+  if (s === 'waiting') return 'bg-amber-100 text-amber-800';
+  if (s === 'called' || s === 'in progress') return 'bg-blue-100 text-blue-800';
+  if (s === 'completed' || s === 'ordered') return 'bg-green-100 text-green-800';
+  if (s === 'cancelled' || s === 'skipped') return 'bg-red-100 text-red-800';
+  return 'bg-slate-100 text-slate-700';
+};
 
 function buildWhatsAppUrl(phone, text) {
   const digits = String(phone || '').replace(/\D/g, '');
@@ -89,6 +102,9 @@ const TokenBooking = () => {
   const [lastToken, setLastToken] = useState(null);
   const [lookingUp, setLookingUp] = useState(false);
   const [dbStatus, setDbStatus] = useState('');
+  const [tokens, setTokens] = useState([]);
+  const [listLoading, setListLoading] = useState(false);
+  const [listFilter, setListFilter] = useState('today'); // today | all
 
   const loadMeta = useCallback(async () => {
     try {
@@ -100,7 +116,7 @@ const TokenBooking = () => {
       setCounters(counterList);
       setServices(serviceList);
       if (!counterList.length) {
-        setDbStatus('No counters in sheet. Click “Sync Sheets” then redeploy Code.gs if needed.');
+        setDbStatus('No counters yet — first booking will auto-create Table 01–03 / Executive Office. Or click Sync Sheets.');
       } else {
         setDbStatus(`Connected · ${counterList.length} counter(s) · auto-assign by service`);
       }
@@ -108,16 +124,36 @@ const TokenBooking = () => {
       console.error(error);
       const msg = error.response?.data?.message || error.message || 'Failed to load counters/services';
       setDbStatus(msg);
+      setServices(DEFAULT_SERVICES);
       toast.error(msg);
     }
   }, []);
 
+  const loadTokens = useCallback(async () => {
+    setListLoading(true);
+    try {
+      const res = await tokensAPI.getAll({
+        date: listFilter === 'all' ? 'all' : 'today',
+        counter: 'all',
+      });
+      const list = Array.isArray(res.data) ? res.data : [];
+      setTokens(list);
+    } catch (error) {
+      console.error(error);
+      toast.error(error.response?.data?.message || 'Failed to load token list');
+      setTokens([]);
+    } finally {
+      setListLoading(false);
+    }
+  }, [listFilter]);
+
   const syncSheets = async () => {
     try {
       const res = await debugAPI.prepare();
-      toast.success('Sheets synced — required columns ensured');
+      toast.success('Sheets synced — counters & columns ready');
       console.log('prepareDatabase', res.data);
       await loadMeta();
+      await loadTokens();
     } catch (error) {
       const msg = error.response?.data?.message || 'Sync failed — redeploy latest Code.gs first';
       toast.error(msg);
@@ -128,6 +164,12 @@ const TokenBooking = () => {
   useEffect(() => {
     loadMeta();
   }, [loadMeta]);
+
+  useEffect(() => {
+    loadTokens();
+    const timer = setInterval(loadTokens, 15000);
+    return () => clearInterval(timer);
+  }, [loadTokens]);
 
   const assignedCounter = useMemo(() => {
     if (!form.service) return '';
@@ -179,10 +221,12 @@ const TokenBooking = () => {
       return;
     }
     if (!form.service) {
-      toast.error('Select a service');
+      toast.error('Select a service first');
       return;
     }
-    const counterName = assignedCounter;
+    const counterName = assignedCounter
+      || services.find((s) => s.name === form.service)?.counter
+      || '';
     if (!counterName) {
       toast.error('No counter mapped for this service');
       return;
@@ -199,12 +243,21 @@ const TokenBooking = () => {
         notes: form.notes,
       });
       const token = res.data;
+      if (!token?.tokenNo && !token?.tokenno) {
+        throw { response: { data: { message: 'Token created but empty response — redeploy Code.gs' } } };
+      }
       setLastToken(token);
       toast.success(`Token ${token.tokenNo} → ${token.counterName}`);
-      setForm((prev) => ({ ...emptyForm, service: prev.service, counterName: prev.counterName }));
+      setForm((prev) => ({
+        ...emptyForm,
+        service: prev.service,
+        counterName: prev.counterName,
+      }));
+      await loadTokens();
+      await loadMeta();
     } catch (error) {
       console.error(error);
-      toast.error(error.response?.data?.message || 'Failed to book token');
+      toast.error(error.response?.data?.message || error.message || 'Failed to book token');
     } finally {
       setLoading(false);
     }
@@ -230,17 +283,21 @@ const TokenBooking = () => {
       const res = await tokensAPI.progress(token.tokenNo || token.id);
       setLastToken(res.data || { ...token, status: 'In Progress' });
       toast.success(`${token.tokenNo} → In Progress`);
+      loadTokens();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to mark in progress');
     }
   };
 
-  const cancelLastToken = async (token) => {
+  const cancelToken = async (token) => {
     if (!window.confirm(`Cancel token ${token.tokenNo}?`)) return;
     try {
       const res = await tokensAPI.cancel(token.tokenNo || token.id);
-      setLastToken(res.data || { ...token, status: 'Cancelled' });
+      if (lastToken && (lastToken.tokenNo === token.tokenNo || lastToken.id === token.id)) {
+        setLastToken(res.data || { ...token, status: 'Cancelled' });
+      }
       toast.message(`${token.tokenNo} cancelled`);
+      loadTokens();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to cancel');
     }
@@ -251,11 +308,15 @@ const TokenBooking = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold" style={{ color: '#2E2E2E' }}>Token Booking</h1>
-          <p className="text-sm text-gray-500 mt-1">Select service → counter auto-assigned · print · WhatsApp</p>
+          <p className="text-sm text-gray-500 mt-1">Select service → counter auto-assigned · list · print · WhatsApp</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={syncSheets} data-testid="sync-sheets">
             Sync Sheets
+          </Button>
+          <Button variant="outline" onClick={loadTokens} disabled={listLoading}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${listLoading ? 'animate-spin' : ''}`} />
+            Refresh List
           </Button>
           <Button
             variant="outline"
@@ -335,11 +396,6 @@ const TokenBooking = () => {
                     data-testid="token-counter"
                     placeholder="Select a service first"
                   />
-                  {counters.length > 0 && assignedCounter && !counters.some((c) => c.counterName === assignedCounter) && (
-                    <p className="text-xs text-amber-600 mt-1">
-                      Counter “{assignedCounter}” missing — click Sync Sheets to create it.
-                    </p>
-                  )}
                 </div>
               </div>
 
@@ -349,7 +405,7 @@ const TokenBooking = () => {
                   value={form.serviceNote}
                   onChange={(e) => setForm({ ...form, serviceNote: e.target.value })}
                   rows={2}
-                  placeholder="Details for the counter (e.g. CNIC reprint, 100 business cards…)"
+                  placeholder="Details for the counter"
                   data-testid="token-service-note"
                 />
               </div>
@@ -410,7 +466,7 @@ const TokenBooking = () => {
                     <Loader2 className="h-4 w-4 mr-2" />
                     In Progress
                   </Button>
-                  <Button variant="outline" className="text-red-600" onClick={() => cancelLastToken(lastToken)} data-testid="token-booking-cancel">
+                  <Button variant="outline" className="text-red-600" onClick={() => cancelToken(lastToken)} data-testid="token-booking-cancel">
                     <XCircle className="h-4 w-4 mr-2" />
                     Cancelled
                   </Button>
@@ -427,6 +483,104 @@ const TokenBooking = () => {
           </CardContent>
         </Card>
       </div>
+
+      <Card data-testid="token-list">
+        <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
+          <CardTitle className="text-base">
+            Token List {listFilter === 'today' ? '(Today)' : '(All)'}
+            <span className="ml-2 text-sm font-normal text-gray-500">{tokens.length}</span>
+          </CardTitle>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant={listFilter === 'today' ? 'default' : 'outline'}
+              style={listFilter === 'today' ? { backgroundColor: '#F26522' } : undefined}
+              className={listFilter === 'today' ? 'text-white' : ''}
+              onClick={() => setListFilter('today')}
+            >
+              Today
+            </Button>
+            <Button
+              size="sm"
+              variant={listFilter === 'all' ? 'default' : 'outline'}
+              style={listFilter === 'all' ? { backgroundColor: '#F26522' } : undefined}
+              className={listFilter === 'all' ? 'text-white' : ''}
+              onClick={() => setListFilter('all')}
+            >
+              All
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {listLoading && !tokens.length ? (
+            <p className="text-sm text-gray-500 py-6 text-center">Loading tokens…</p>
+          ) : !tokens.length ? (
+            <p className="text-sm text-gray-500 py-6 text-center">
+              No tokens found. Book one above, or click <strong>All</strong> / Sync Sheets.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-xs uppercase tracking-wide text-gray-500">
+                    <th className="py-2 pr-3">Token</th>
+                    <th className="py-2 pr-3">Customer</th>
+                    <th className="py-2 pr-3">Service</th>
+                    <th className="py-2 pr-3">Counter</th>
+                    <th className="py-2 pr-3">Time</th>
+                    <th className="py-2 pr-3">Status</th>
+                    <th className="py-2">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tokens.map((t) => (
+                    <tr key={t.id || t.tokenNo} className="border-b border-gray-100 hover:bg-orange-50/40">
+                      <td className="py-2.5 pr-3 font-bold" style={{ color: '#F26522' }}>{t.tokenNo}</td>
+                      <td className="py-2.5 pr-3">
+                        <div className="font-medium">{t.customerName}</div>
+                        <div className="text-xs text-gray-500">{t.customerPhone}</div>
+                      </td>
+                      <td className="py-2.5 pr-3">
+                        <div>{t.service}</div>
+                        {t.serviceNote && <div className="text-xs text-gray-500">{t.serviceNote}</div>}
+                      </td>
+                      <td className="py-2.5 pr-3">{t.counterName}</td>
+                      <td className="py-2.5 pr-3 whitespace-nowrap text-xs text-gray-600">
+                        {t.date} {t.time}
+                      </td>
+                      <td className="py-2.5 pr-3">
+                        <Badge className={statusClass(t.status)}>{t.status || 'Waiting'}</Badge>
+                      </td>
+                      <td className="py-2.5">
+                        <div className="flex flex-wrap gap-1">
+                          <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => printToken(t)} title="Print">
+                            <Printer className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => sendWhatsApp(t)} title="WhatsApp">
+                            <MessageCircle className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 px-2"
+                            onClick={() => navigate(`/tokens/counter?counter=${encodeURIComponent(t.counterName || '')}`)}
+                            title="Counter"
+                          >
+                            <Monitor className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-8 px-2 text-red-600" onClick={() => cancelToken(t)} title="Cancel">
+                            <XCircle className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };

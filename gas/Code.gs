@@ -1093,6 +1093,21 @@ function isTokenRow_(row) {
   return !!row.tokenno;
 }
 
+/** Normalize sheet dates (Date objects / ISO) to yyyy-MM-dd for reliable filtering. */
+function dateKey_(value) {
+  if (value === null || value === undefined || value === '') return '';
+  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, Session.getScriptTimeZone() || 'Asia/Karachi', 'yyyy-MM-dd');
+  }
+  var s = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  var parsed = new Date(s);
+  if (!isNaN(parsed.getTime())) {
+    return Utilities.formatDate(parsed, Session.getScriptTimeZone() || 'Asia/Karachi', 'yyyy-MM-dd');
+  }
+  return s;
+}
+
 function getCounterMasters_() {
   var rows = getSheetRows_(SHEET_NAMES.COUNTERS);
   return rows.filter(isCounterRow_).map(function (c) {
@@ -1142,7 +1157,7 @@ function toApiToken_(t) {
   return {
     id: t.id || t.tokenno,
     tokenNo: t.tokenno,
-    date: t.date,
+    date: dateKey_(t.date) || t.date,
     time: t.time,
     counterName: t.countername,
     customerId: t.customerid,
@@ -1168,31 +1183,34 @@ function handleTokens_(path, method, body, params) {
   var rows = getSheetRows_(SHEET_NAMES.COUNTERS);
   var tokens = rows.filter(isTokenRow_);
 
-  // GET /tokens?counter=Counter%201&status=Waiting
+  // GET /tokens?counter=Table%2001&status=Waiting&date=all
   if (path === '/tokens' && method === 'GET') {
     var filtered = tokens;
-    if (params && params.counter) {
+    if (params && params.counter && String(params.counter).toLowerCase() !== 'all') {
       filtered = filtered.filter(function (t) {
-        return String(t.countername).toLowerCase() === String(params.counter).toLowerCase();
+        return String(t.countername || '').toLowerCase() === String(params.counter).toLowerCase();
       });
     }
     if (params && params.status) {
       filtered = filtered.filter(function (t) {
-        return String(t.tokenstatus || t.status).toLowerCase() === String(params.status).toLowerCase();
+        return String(t.tokenstatus || t.status || '').toLowerCase() === String(params.status).toLowerCase();
       });
     }
-    if (params && params.date) {
-      filtered = filtered.filter(function (t) { return String(t.date) === String(params.date); });
-    } else {
-      // default: today's tokens
-      var today = nowDate_();
-      filtered = filtered.filter(function (t) { return String(t.date) === today; });
+    var dateParam = params && params.date ? String(params.date) : 'today';
+    if (dateParam && dateParam.toLowerCase() !== 'all') {
+      var want = dateParam.toLowerCase() === 'today' ? nowDate_() : dateKey_(dateParam);
+      filtered = filtered.filter(function (t) {
+        return dateKey_(t.date) === want;
+      });
     }
+    // Newest first
+    filtered = filtered.slice().reverse();
     return filtered.map(toApiToken_);
   }
 
   // POST /tokens — book token
   if (path === '/tokens' && method === 'POST') {
+    ensureHeaders_(sheet, SHEET_NAMES.COUNTERS);
     var counters = ensureDefaultCounters_();
     var serviceName = body.service || body.serviceName || '';
     var counterName = resolveCounterForService_(serviceName, body.counterName || body.counter || '');
@@ -1200,8 +1218,27 @@ function handleTokens_(path, method, body, params) {
     var counter = counters.find(function (c) {
       return String(c.counterName).toLowerCase() === String(counterName).toLowerCase();
     });
-    if (!counter) throw new Error('Counter not found: ' + counterName + '. Run Sync Sheets to create Table 01–03 / Executive Office.');
-    if (String(counter.status).toLowerCase() !== 'active') throw new Error('Counter is not active');
+    // Auto-create mapped counter if Sync Sheets was never run
+    if (!counter) {
+      var prefixes = { 'table 01': 'A', 'table 02': 'B', 'table 03': 'C', 'executive office': 'E' };
+      var prefix = prefixes[String(counterName).toLowerCase()] || 'T';
+      appendObject_(sheet, SHEET_NAMES.COUNTERS, {
+        recordtype: 'Counter',
+        countername: counterName,
+        accessholder: 'Front Desk',
+        prefix: prefix,
+        lastnumber: 0,
+        status: 'Active',
+      });
+      counters = ensureDefaultCounters_();
+      counter = counters.find(function (c) {
+        return String(c.counterName).toLowerCase() === String(counterName).toLowerCase();
+      });
+    }
+    if (!counter) throw new Error('Counter not found: ' + counterName + '. Click Sync Sheets.');
+    if (String(counter.status || 'Active').toLowerCase() !== 'active') {
+      throw new Error('Counter is not active: ' + counterName);
+    }
 
     var customer = upsertCustomer_({
       name: body.customerName || body.name,

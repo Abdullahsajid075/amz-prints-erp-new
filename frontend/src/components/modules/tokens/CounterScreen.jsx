@@ -41,8 +41,8 @@ const CounterScreen = () => {
       const res = await countersAPI.getAll();
       const list = Array.isArray(res.data) ? res.data : [];
       setCounters(list);
-      if (!counterName && list.length) {
-        setCounterName(list[0].counterName);
+      if (!counterName) {
+        setCounterName(list.length ? list[0].counterName : '__all__');
       }
     } catch (error) {
       console.error(error);
@@ -51,12 +51,19 @@ const CounterScreen = () => {
   }, [counterName]);
 
   const loadTokens = useCallback(async () => {
-    if (!counterName) return;
     try {
-      const res = await tokensAPI.getAll({ counter: counterName });
+      const params = { date: 'today' };
+      if (counterName && counterName !== '__all__') {
+        params.counter = counterName;
+      } else {
+        params.counter = 'all';
+      }
+      const res = await tokensAPI.getAll(params);
       setTokens(Array.isArray(res.data) ? res.data : []);
     } catch (error) {
       console.error(error);
+      toast.error(error.response?.data?.message || 'Failed to load tokens');
+      setTokens([]);
     }
   }, [counterName]);
 
@@ -66,7 +73,11 @@ const CounterScreen = () => {
 
   useEffect(() => {
     if (!counterName) return;
-    setSearchParams({ counter: counterName });
+    if (counterName !== '__all__') {
+      setSearchParams({ counter: counterName });
+    } else {
+      setSearchParams({});
+    }
     loadTokens();
     const timer = setInterval(loadTokens, 12000);
     return () => clearInterval(timer);
@@ -175,10 +186,11 @@ const CounterScreen = () => {
         </div>
         <div className="flex items-center gap-2">
           <Select value={counterName || undefined} onValueChange={setCounterName}>
-            <SelectTrigger className="w-[220px]" data-testid="counter-select">
+            <SelectTrigger className="w-[240px]" data-testid="counter-select">
               <SelectValue placeholder="Select counter" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="__all__">All counters</SelectItem>
               {counters.map((c) => (
                 <SelectItem key={c.counterName} value={c.counterName}>
                   {c.counterName}{c.accessHolder ? ` · ${c.accessHolder}` : ''}
@@ -290,7 +302,7 @@ const CounterScreen = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>Today — {counterName || 'All'}</CardTitle>
+          <CardTitle>Today — {counterName === '__all__' || !counterName ? 'All counters' : counterName}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
