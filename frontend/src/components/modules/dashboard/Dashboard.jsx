@@ -71,21 +71,23 @@ const Dashboard = () => {
       if (dateRange.from) params.from = dateRange.from;
       if (dateRange.to) params.to = dateRange.to;
 
-      const [statsRes, chartsRes, ordersRes, expensesRes] = await Promise.all([
-        dashboardAPI.getStats(params),
-        dashboardAPI.getCharts(params),
-        dashboardAPI.getRecentOrders({ limit: 8 }),
-        expensesAPI.getAll(params)
-      ]);
+      // One GAS round-trip instead of 4 parallel cold starts
+      const boot = await dashboardAPI.bootstrap(params);
+      const data = boot.data || {};
+      setStats(data.stats || {});
+      setChartData(data.charts || { monthlySales: [], orderStatus: [] });
+      setRecentOrders(Array.isArray(data.recentOrders) ? data.recentOrders : []);
 
-      setStats(statsRes.data);
-      setChartData(chartsRes.data);
-      setRecentOrders(ordersRes.data || []);
-      setRecentExpenses((expensesRes.data || []).slice(0, 6));
+      try {
+        const expensesRes = await expensesAPI.getAll(params);
+        setRecentExpenses(Array.isArray(expensesRes.data) ? expensesRes.data.slice(0, 5) : []);
+      } catch {
+        setRecentExpenses([]);
+      }
     } catch (error) {
-      console.error('Error fetching dashboard data:', error);
+      console.error('Dashboard load failed', error);
     }
-  }, [dateRange.from, dateRange.to]);
+  }, [dateRange]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchDashboardData(); }, []);

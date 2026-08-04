@@ -54,10 +54,51 @@ function getSpreadsheetId_() {
   return id;
 }
 
+/** Reuse one Spreadsheet open per request (big speed win). */
+var _ssCache = null;
+function getSpreadsheet_() {
+  if (!_ssCache) {
+    _ssCache = SpreadsheetApp.openById(getSpreadsheetId_());
+  }
+  return _ssCache;
+}
+
 function getSheet_(name) {
-  var sheet = SpreadsheetApp.openById(getSpreadsheetId_()).getSheetByName(name);
+  var sheet = getSpreadsheet_().getSheetByName(name);
   if (!sheet) throw new Error('Sheet not found: ' + name);
   return sheet;
+}
+
+function cacheKey_(sheetName) {
+  return 'sheet_' + sheetName;
+}
+
+function invalidateSheetCache_(sheetName) {
+  try {
+    CacheService.getScriptCache().remove(cacheKey_(sheetName));
+  } catch (err) {}
+}
+
+/**
+ * Cached sheet rows (30s). Avoids re-reading Sheets on every API call.
+ */
+function getSheetRows_(sheetName) {
+  var cache = CacheService.getScriptCache();
+  var key = cacheKey_(sheetName);
+  try {
+    var hit = cache.get(key);
+    if (hit) return JSON.parse(hit);
+  } catch (err) {}
+
+  var rows = sheetToObjects_(getSheet_(sheetName), sheetName);
+  try {
+    // CacheService max ~100KB per entry; store what fits
+    var payload = JSON.stringify(rows);
+    if (payload.length < 90000) {
+      cache.put(key, payload, 30);
+    }
+  } catch (err) {}
+  return rows;
 }
 
 function jsonResponse_(payload, statusCode) {
@@ -254,10 +295,11 @@ function appendObject_(sheet, sheetName, obj) {
   }
   sheet.appendRow(row);
   SpreadsheetApp.flush();
+  invalidateSheetCache_(sheetName);
   return obj;
 }
 
-function updateObjectRow_(sheet, sheetName, rowNumber, updates) {
+function updateObjectProps_(sheet, sheetName, rowNumber, updates) {
   var headers = getRawHeaders_(sheet, sheetName);
   headers.forEach(function (rawHeader, i) {
     var key = normalizeHeader_(rawHeader);
@@ -265,10 +307,14 @@ function updateObjectRow_(sheet, sheetName, rowNumber, updates) {
       sheet.getRange(rowNumber, i + 1).setValue(serializeCell_(updates[key]));
     }
   });
+  SpreadsheetApp.flush();
+  invalidateSheetCache_(sheetName);
 }
 
-function deleteRow_(sheet, rowNumber) {
+function deleteRow_(sheet, rowNumber, sheetName) {
   sheet.deleteRow(rowNumber);
+  SpreadsheetApp.flush();
+  if (sheetName) invalidateSheetCache_(sheetName);
 }
 
 function findById_(rows, id) {
@@ -312,8 +358,7 @@ function isActiveUser_(user) {
 function handleLogin_(body) {
   var email = String(body.email || body.username || '').trim();
   var password = String(body.password || '');
-  var sheet = getSheet_(SHEET_NAMES.USERS);
-  var users = sheetToObjects_(sheet, SHEET_NAMES.USERS);
+  var users = getSheetRows_(SHEET_NAMES.USERS);
   var loginId = email.toLowerCase();
 
   var user = users.find(function (u) {
@@ -341,7 +386,7 @@ function validateToken_(token) {
   try {
     var payload = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(token)).getDataAsString());
     if (payload.exp && Date.now() > payload.exp) return null;
-    var users = sheetToObjects_(getSheet_(SHEET_NAMES.USERS), SHEET_NAMES.USERS);
+    var users = getSheetRows_(SHEET_NAMES.USERS);
     var payloadId = String(payload.id || '').toLowerCase();
     return users.find(function (u) {
       if (!isActiveUser_(u)) return false;
@@ -372,7 +417,7 @@ function normalizeCustomer_(body) {
 function findCustomerByPhone_(phone) {
   var cleaned = String(phone || '').replace(/\D/g, '');
   if (!cleaned) return null;
-  var customers = sheetToObjects_(getSheet_(SHEET_NAMES.CUSTOMERS), SHEET_NAMES.CUSTOMERS);
+  var customers = getSheetRows_(SHEET_NAMES.CUSTOMERS);
   return customers.find(function (c) {
     var p = String(c.phone || '').replace(/\D/g, '');
     return p && (p === cleaned || p.slice(-10) === cleaned.slice(-10));
@@ -406,13 +451,13 @@ function upsertCustomer_(body) {
 
 function handleCustomers_(path, method, body) {
   var sheet = getSheet_(SHEET_NAMES.CUSTOMERS);
-  var customers = sheetToObjects_(sheet, SHEET_NAMES.CUSTOMERS);
+  var customers = getSheetRows_(SHEET_NAMES.CUSTOMERS);
 
   if (path.endsWith('/ledger')) {
     var ledgerId = path.split('/')[2];
     var customer = customers.find(function (c) { return String(c.id) === String(ledgerId); });
     if (!customer) throw new Error('Customer not found');
-    var orders = sheetToObjects_(getSheet_(SHEET_NAMES.ORDERS), SHEET_NAMES.ORDERS).filter(function (o) {
+    var orders = getSheetRows_(SHEET_NAMES.ORDERS).filter(function (o) {
       return String(o.customerid) === String(customer.id) || String(o.customerphone) === String(customer.phone);
     });
     return {
@@ -455,7 +500,7 @@ function handleCustomers_(path, method, body) {
     return updates;
   }
   if (method === 'DELETE') {
-    deleteRow_(sheet, customers[index]._row);
+    deleteRow_(sheet, customers[index]._row, SHEET_NAMES.CUSTOMERS);
     return { success: true };
   }
   throw new Error('Method not allowed');
@@ -464,7 +509,7 @@ function handleCustomers_(path, method, body) {
 /* ===================== ORDERS ===================== */
 
 function nextOrderId_() {
-  var orders = sheetToObjects_(getSheet_(SHEET_NAMES.ORDERS), SHEET_NAMES.ORDERS);
+  var orders = getSheetRows_(SHEET_NAMES.ORDERS);
   var max = 0;
   orders.forEach(function (o) {
     var m = String(o.orderid || '').match(/(\d+)/);
@@ -521,7 +566,7 @@ function toApiOrder_(o) {
 
 function handleOrders_(method, body) {
   var sheet = getSheet_(SHEET_NAMES.ORDERS);
-  var orders = sheetToObjects_(sheet, SHEET_NAMES.ORDERS);
+  var orders = getSheetRows_(SHEET_NAMES.ORDERS);
 
   if (method === 'GET') return orders.map(toApiOrder_);
 
@@ -545,7 +590,7 @@ function handleOrders_(method, body) {
 
 function handleOrderById_(path, method, body) {
   var sheet = getSheet_(SHEET_NAMES.ORDERS);
-  var orders = sheetToObjects_(sheet, SHEET_NAMES.ORDERS);
+  var orders = getSheetRows_(SHEET_NAMES.ORDERS);
   var id = path.split('/')[2];
   var index = findById_(orders, id);
 
@@ -577,7 +622,7 @@ function handleOrderById_(path, method, body) {
     return toApiOrder_(updated);
   }
   if (method === 'DELETE') {
-    deleteRow_(sheet, orders[index]._row);
+    deleteRow_(sheet, orders[index]._row, SHEET_NAMES.ORDERS);
     return { success: true };
   }
   throw new Error('Method not allowed');
@@ -587,7 +632,7 @@ function handleOrderById_(path, method, body) {
 
 function handleCollection_(sheetName, path, method, body, basePath) {
   var sheet = getSheet_(sheetName);
-  var rows = sheetToObjects_(sheet, sheetName);
+  var rows = getSheetRows_(sheetName);
 
   if (path === basePath) {
     if (method === 'GET') return rows;
@@ -611,7 +656,7 @@ function handleCollection_(sheetName, path, method, body, basePath) {
     return updates;
   }
   if (method === 'DELETE') {
-    deleteRow_(sheet, rows[index]._row);
+    deleteRow_(sheet, rows[index]._row, sheetName);
     return { success: true };
   }
   throw new Error('Method not allowed');
@@ -637,8 +682,7 @@ function isTokenRow_(row) {
 }
 
 function getCounterMasters_() {
-  var sheet = getSheet_(SHEET_NAMES.COUNTERS);
-  var rows = sheetToObjects_(sheet, SHEET_NAMES.COUNTERS);
+  var rows = getSheetRows_(SHEET_NAMES.COUNTERS);
   return rows.filter(isCounterRow_).map(function (c) {
     var name = c.countername || c.name || '';
     return {
@@ -694,7 +738,7 @@ function toApiToken_(t) {
 
 function handleTokens_(path, method, body, params) {
   var sheet = getSheet_(SHEET_NAMES.COUNTERS);
-  var rows = sheetToObjects_(sheet, SHEET_NAMES.COUNTERS);
+  var rows = getSheetRows_(SHEET_NAMES.COUNTERS);
   var tokens = rows.filter(isTokenRow_);
 
   // GET /tokens?counter=Counter%201&status=Waiting
@@ -849,9 +893,42 @@ function handleCounters_(path, method, body) {
 
 /* ===================== DASHBOARD / SETTINGS ===================== */
 
+function getDashboardBootstrap_() {
+  // One Orders read + one Customers read for the whole dashboard
+  var orders = getSheetRows_(SHEET_NAMES.ORDERS);
+  var customers = getSheetRows_(SHEET_NAMES.CUSTOMERS);
+  var completed = orders.filter(function (o) {
+    return String(o.status).toLowerCase().indexOf('deliver') !== -1;
+  }).length;
+  var statusMap = {};
+  orders.forEach(function (o) {
+    var key = o.status || 'Unknown';
+    statusMap[key] = (statusMap[key] || 0) + 1;
+  });
+  return {
+    stats: {
+      totalOrders: orders.length,
+      pendingOrders: orders.length - completed,
+      completedOrders: completed,
+      revenue: orders.reduce(function (s, o) { return s + Number(o.totalamount || 0); }, 0),
+      expenses: 0,
+      receivables: orders.reduce(function (s, o) { return s + Number(o.balanceamount || 0); }, 0),
+      payables: 0,
+      activeCustomers: customers.length,
+    },
+    charts: {
+      monthlySales: [],
+      orderStatus: Object.keys(statusMap).map(function (name) {
+        return { name: name, value: statusMap[name] };
+      }),
+    },
+    recentOrders: orders.slice(-5).reverse().map(toApiOrder_),
+  };
+}
+
 function getDashboardStats_() {
-  var orders = sheetToObjects_(getSheet_(SHEET_NAMES.ORDERS), SHEET_NAMES.ORDERS);
-  var customers = sheetToObjects_(getSheet_(SHEET_NAMES.CUSTOMERS), SHEET_NAMES.CUSTOMERS);
+  var orders = getSheetRows_(SHEET_NAMES.ORDERS);
+  var customers = getSheetRows_(SHEET_NAMES.CUSTOMERS);
   var completed = orders.filter(function (o) {
     return String(o.status).toLowerCase().indexOf('deliver') !== -1;
   }).length;
@@ -868,7 +945,7 @@ function getDashboardStats_() {
 }
 
 function getDashboardCharts_() {
-  var orders = sheetToObjects_(getSheet_(SHEET_NAMES.ORDERS), SHEET_NAMES.ORDERS);
+  var orders = getSheetRows_(SHEET_NAMES.ORDERS);
   var statusMap = {};
   orders.forEach(function (o) {
     var key = o.status || 'Unknown';
@@ -883,14 +960,14 @@ function getDashboardCharts_() {
 }
 
 function getRecentOrders_() {
-  return sheetToObjects_(getSheet_(SHEET_NAMES.ORDERS), SHEET_NAMES.ORDERS)
+  return getSheetRows_(SHEET_NAMES.ORDERS)
     .slice(-5)
     .reverse()
     .map(toApiOrder_);
 }
 
 function getSettings_() {
-  var rows = sheetToObjects_(getSheet_(SHEET_NAMES.SETTINGS), SHEET_NAMES.SETTINGS);
+  var rows = getSheetRows_(SHEET_NAMES.SETTINGS);
   if (!rows.length) return {};
   // Key/Value sheet → object, or single-row settings
   if (rows[0].key !== undefined) {
@@ -932,7 +1009,7 @@ function getReports_(params) {
 function handlePublic_(path, method) {
   if (method === 'GET' && path.indexOf('/public/invoice/') === 0) {
     var token = path.replace('/public/invoice/', '');
-    var invoices = sheetToObjects_(getSheet_(SHEET_NAMES.INVOICES), SHEET_NAMES.INVOICES);
+    var invoices = getSheetRows_(SHEET_NAMES.INVOICES);
     var invoice = invoices.find(function (i) { return String(i.sharetoken) === token; });
     if (!invoice) throw new Error('Invoice not found');
     return invoice;
@@ -983,9 +1060,18 @@ function handleRequest_(e) {
     if (method === 'GET' && path === '/auth/me') return jsonResponse_(sanitizeUser_(user));
     if (method === 'POST' && path === '/auth/logout') return jsonResponse_({ success: true });
 
+    if (method === 'GET' && path === '/dashboard/bootstrap') return jsonResponse_(getDashboardBootstrap_());
     if (method === 'GET' && path === '/dashboard/stats') return jsonResponse_(getDashboardStats_());
     if (method === 'GET' && path === '/dashboard/charts') return jsonResponse_(getDashboardCharts_());
     if (method === 'GET' && path === '/dashboard/recent-orders') return jsonResponse_(getRecentOrders_());
+
+    // Token booking page: one round-trip instead of counters + products
+    if (method === 'GET' && path === '/tokens/meta') {
+      return jsonResponse_({
+        counters: handleCounters_('/counters', 'GET', {}),
+        products: handleProducts_('/products', 'GET', {}),
+      });
+    }
 
     if (path === '/orders') return jsonResponse_(handleOrders_(method, body));
     if (path.indexOf('/orders/') === 0) return jsonResponse_(handleOrderById_(path, method, body));

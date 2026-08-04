@@ -8,6 +8,28 @@ if (!GAS_API_BASE_URL) {
   );
 }
 
+/** Short in-memory GET cache — cuts repeat GAS cold starts while navigating. */
+const getCache = new Map();
+const GET_CACHE_TTL_MS = 20000;
+
+function cacheGet(key) {
+  const hit = getCache.get(key);
+  if (!hit) return null;
+  if (Date.now() - hit.at > GET_CACHE_TTL_MS) {
+    getCache.delete(key);
+    return null;
+  }
+  return hit.value;
+}
+
+function cacheSet(key, value) {
+  getCache.set(key, { at: Date.now(), value });
+}
+
+export function clearGasCache() {
+  getCache.clear();
+}
+
 function stripStatus(payload) {
   if (!payload || typeof payload !== 'object' || payload._status === undefined) {
     return payload;
@@ -44,6 +66,12 @@ export async function gasRequest(method, path, options = {}) {
   if (httpMethod !== 'GET' && httpMethod !== 'POST') {
     url.searchParams.set('_method', httpMethod);
     httpMethod = 'POST';
+  }
+
+  const cacheKey = httpMethod === 'GET' ? url.toString() : null;
+  if (cacheKey) {
+    const cached = cacheGet(cacheKey);
+    if (cached) return cached;
   }
 
   const init = {
@@ -103,10 +131,19 @@ export async function gasRequest(method, path, options = {}) {
     };
   }
 
-  return {
+  const result = {
     data: stripStatus(payload),
     status: response.status,
   };
+
+  if (cacheKey) {
+    cacheSet(cacheKey, result);
+  } else {
+    // Mutations invalidate GET cache
+    getCache.clear();
+  }
+
+  return result;
 }
 
 export function withToken(options = {}) {

@@ -57,7 +57,7 @@ const CounterScreen = () => {
     if (!counterName) return;
     setSearchParams({ counter: counterName });
     loadTokens();
-    const timer = setInterval(loadTokens, 5000);
+    const timer = setInterval(loadTokens, 12000);
     return () => clearInterval(timer);
   }, [counterName, loadTokens, setSearchParams]);
 
@@ -132,7 +132,7 @@ const CounterScreen = () => {
           </Button>
           <div>
             <h1 className="text-3xl font-bold" style={{ color: '#2E2E2E' }}>Counter Screen</h1>
-            <p className="text-sm text-gray-500">Live queue · auto-refresh every 5s</p>
+            <p className="text-sm text-gray-500">Live queue · auto-refresh every 12s</p>
           </div>
         </div>
         <div className="flex items-center gap-2">

@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { countersAPI, tokensAPI, productsAPI, customersAPI, debugAPI } from '@/services/api';
+import { countersAPI, tokensAPI, customersAPI, debugAPI } from '@/services/api';
 import { toast } from 'sonner';
 import { Ticket, Printer, MessageCircle, Monitor, Search, Plus } from 'lucide-react';
 
@@ -80,10 +80,11 @@ const TokenBooking = () => {
 
   const loadMeta = useCallback(async () => {
     try {
-      const [cRes, pRes] = await Promise.all([countersAPI.getAll(), productsAPI.getAll()]);
-      const counterList = Array.isArray(cRes.data) ? cRes.data : [];
+      const res = await tokensAPI.getMeta();
+      const counterList = Array.isArray(res.data?.counters) ? res.data.counters : [];
+      const productList = Array.isArray(res.data?.products) ? res.data.products : [];
       setCounters(counterList);
-      setProducts(Array.isArray(pRes.data) ? pRes.data : []);
+      setProducts(productList);
       if (!counterList.length) {
         setDbStatus('No counters in sheet. Click “Sync Sheets” then redeploy Code.gs if needed.');
       } else {

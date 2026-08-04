@@ -8,6 +8,7 @@ export const authAPI = {
 };
 
 export const dashboardAPI = {
+  bootstrap: (params) => gasRequest('GET', '/dashboard/bootstrap', withToken({ params })),
   getStats: (params) => gasRequest('GET', '/dashboard/stats', withToken({ params })),
   getCharts: (params) => gasRequest('GET', '/dashboard/charts', withToken({ params })),
   getRecentOrders: (params) => gasRequest('GET', '/dashboard/recent-orders', withToken({ params })),
@@ -109,6 +110,7 @@ export const countersAPI = {
 };
 
 export const tokensAPI = {
+  getMeta: () => gasRequest('GET', '/tokens/meta', withToken()),
   getAll: (params) => gasRequest('GET', '/tokens', withToken({ params })),
   create: (data) => gasRequest('POST', '/tokens', withToken({ data })),
   getById: (id) => gasRequest('GET', `/tokens/${id}`, withToken()),
