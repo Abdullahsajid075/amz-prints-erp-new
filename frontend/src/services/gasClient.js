@@ -74,14 +74,17 @@ export async function gasRequest(method, path, options = {}) {
   try {
     payload = text ? JSON.parse(text) : {};
   } catch {
-    const preview = String(text || '').slice(0, 180).replace(/\s+/g, ' ');
+    const preview = String(text || '').slice(0, 120).replace(/\s+/g, ' ');
+    const isGoogleHtml = /<!DOCTYPE html|/i.test(text) || /unable to open the file/i.test(text);
     throw {
       response: {
         status: 502,
         data: {
-          message: preview
-            ? `Backend returned non-JSON (redeploy Code.gs?). ${preview}`
-            : 'Backend returned empty response. Redeploy latest gas/Code.gs.',
+          message: isGoogleHtml
+            ? 'Google Apps Script temporarily returned an error page. Wait a few seconds and try again. If it keeps failing, open the Web App URL in a browser and check Deploy → Manage deployments (Execute as: Me, Who has access: Anyone).'
+            : (preview
+              ? `Unexpected backend response: ${preview}`
+              : 'Empty response from Google Apps Script. Check Web App deployment.'),
         },
       },
     };

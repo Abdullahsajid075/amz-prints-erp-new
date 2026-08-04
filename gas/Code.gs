@@ -27,6 +27,7 @@ var SHEET_NAMES = {
 };
 
 var DEFAULT_HEADERS = {
+  Users: ['Username', 'Password', 'Name', 'Role', 'Status'],
   Customers: ['Id', 'Name', 'Phone', 'Email', 'Address', 'City', 'Notes'],
   Orders: [
     'Id', 'OrderId', 'Date', 'CustomerId', 'CustomerName', 'CustomerPhone',
@@ -133,44 +134,59 @@ function parseCell_(value) {
   return value;
 }
 
-function ensureHeaders_(sheet, sheetName) {
-  var defaults = DEFAULT_HEADERS[sheetName] || ['Id', 'Name'];
+function readHeaders_(sheet) {
   var lastCol = sheet.getLastColumn();
   var lastRow = sheet.getLastRow();
-  var existing = [];
+  if (lastRow < 1 || lastCol < 1) return [];
+  return sheet.getRange(1, 1, 1, lastCol).getValues()[0]
+    .map(function (h) { return String(h || '').trim(); });
+}
 
-  if (lastRow >= 1 && lastCol >= 1) {
-    existing = sheet.getRange(1, 1, 1, lastCol).getValues()[0]
-      .map(function (h) { return String(h || '').trim(); })
-      .filter(function (h) { return h !== ''; });
-  }
+/**
+ * READ-ONLY: never mutates the sheet (safe for login / GET).
+ */
+function getRawHeaders_(sheet, sheetName) {
+  var headers = readHeaders_(sheet).filter(function (h) { return h !== ''; });
+  if (headers.length) return headers;
+  return (DEFAULT_HEADERS[sheetName] || ['Id', 'Name']).slice();
+}
+
+/**
+ * WRITE path only: add missing columns without wiping data.
+ */
+function ensureHeaders_(sheet, sheetName) {
+  var defaults = DEFAULT_HEADERS[sheetName] || ['Id', 'Name'];
+  var raw = readHeaders_(sheet);
+  var existing = raw.filter(function (h) { return h !== ''; });
 
   if (!existing.length) {
     sheet.getRange(1, 1, 1, defaults.length).setValues([defaults]);
+    SpreadsheetApp.flush();
     return defaults.slice();
   }
 
-  // Keep existing headers, append any missing required columns (do not wipe data)
   var existingNorm = existing.map(normalizeHeader_);
-  var missing = [];
+  var nextCol = raw.length + 1; // append after physical last header slot
+  // Prefer appending after last non-empty header index
+  for (var i = raw.length - 1; i >= 0; i--) {
+    if (raw[i]) {
+      nextCol = i + 2;
+      break;
+    }
+  }
+
   defaults.forEach(function (header) {
     var norm = normalizeHeader_(header);
     if (existingNorm.indexOf(norm) === -1) {
-      missing.push(header);
+      sheet.getRange(1, nextCol).setValue(header);
+      existing.push(header);
       existingNorm.push(norm);
+      nextCol++;
     }
   });
 
-  if (missing.length) {
-    sheet.getRange(1, existing.length + 1, 1, existing.length + missing.length).setValues([missing]);
-    existing = existing.concat(missing);
-  }
-
+  SpreadsheetApp.flush();
   return existing;
-}
-
-function getRawHeaders_(sheet, sheetName) {
-  return ensureHeaders_(sheet, sheetName);
 }
 
 function sheetToObjects_(sheet, sheetName) {
@@ -622,7 +638,6 @@ function isTokenRow_(row) {
 
 function getCounterMasters_() {
   var sheet = getSheet_(SHEET_NAMES.COUNTERS);
-  ensureHeaders_(sheet, SHEET_NAMES.COUNTERS);
   var rows = sheetToObjects_(sheet, SHEET_NAMES.COUNTERS);
   return rows.filter(isCounterRow_).map(function (c) {
     var name = c.countername || c.name || '';
@@ -679,7 +694,6 @@ function toApiToken_(t) {
 
 function handleTokens_(path, method, body, params) {
   var sheet = getSheet_(SHEET_NAMES.COUNTERS);
-  ensureHeaders_(sheet, SHEET_NAMES.COUNTERS);
   var rows = sheetToObjects_(sheet, SHEET_NAMES.COUNTERS);
   var tokens = rows.filter(isTokenRow_);
 
