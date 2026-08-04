@@ -111,14 +111,22 @@ const OrderTrackingForm = () => {
 
     try {
       const id = trackingNumber.trim();
+      if (!id) {
+        setError('Please enter a tracking number or order ID.');
+        return;
+      }
       const response = await trackPublic(id);
       if (response.data) {
         setOrder(response.data);
       } else {
-        setError('No order found with this tracking number');
+        setError('No order found with this tracking number or order ID.');
       }
     } catch (err) {
-      setError('Order not found. Please check your tracking number.');
+      const msg =
+        err?.response?.data?.message
+        || err?.message
+        || 'Order not found. Check tracking number / order ID and try again.';
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -144,13 +152,13 @@ const OrderTrackingForm = () => {
           </Alert>
         )}
         <div className="space-y-2">
-          <Label htmlFor="tracking" className="text-sm font-medium">Tracking Number</Label>
+          <Label htmlFor="tracking" className="text-sm font-medium">Tracking Number / Order ID</Label>
           <div className="relative">
             <Package className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
             <Input
               id="tracking"
               type="text"
-              placeholder="Enter your order tracking number"
+              placeholder="e.g. TRK-1234 or ORD-..."
               value={trackingNumber}
               onChange={(e) => setTrackingNumber(e.target.value)}
               className="pl-10 h-12"
@@ -158,6 +166,7 @@ const OrderTrackingForm = () => {
               data-testid="tracking-number-input"
             />
           </div>
+          <p className="text-xs text-gray-500">Use the tracking number from your receipt, or your order ID.</p>
         </div>
         <Button
           type="submit"

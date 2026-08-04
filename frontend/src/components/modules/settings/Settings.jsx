@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { settingsAPI, usersAPI } from '@/services/api';
+import { clearGasCache } from '@/services/gasClient';
 import { useBrand } from '@/context/BrandContext';
 import { Save, Building2, FileText, Palette, Users, ShoppingCart, Package, UserCog, CreditCard, Bell, Shield, Database, Trash2, Plus, X, Edit } from 'lucide-react';
 import { toast } from 'sonner';
@@ -65,9 +66,57 @@ async function compressImageFile(file, maxEdge = 320, quality = 0.72) {
   });
 }
 
+const SETTINGS_CACHE_KEY = 'amz_erp_settings_v1';
+
+function parseMaybeJson(value) {
+  if (value == null) return value;
+  if (typeof value === 'object') return value;
+  if (typeof value !== 'string') return value;
+  const s = value.trim();
+  if ((s.startsWith('{') || s.startsWith('[')) && s.length > 1) {
+    try { return JSON.parse(s); } catch { return null; }
+  }
+  return value;
+}
+
+function mergeSettingsFromApi(data) {
+  if (!data || typeof data !== 'object') return { ...defaultSettings };
+  const section = (key) => {
+    const raw = parseMaybeJson(data[key]);
+    return {
+      ...defaultSettings[key],
+      ...(raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}),
+    };
+  };
+  const company = section('company');
+  const logo = data.companyLogo || company.logo || '';
+  const stamp = data.companyStamp || company.stamp || '';
+  return {
+    ...defaultSettings,
+    company: { ...company, logo, stamp },
+    invoice: section('invoice'),
+    theme: section('theme'),
+    orders: section('orders'),
+    customers: section('customers'),
+    products: section('products'),
+    designers: section('designers'),
+    employees: section('employees'),
+    payments: section('payments'),
+    users: section('users'),
+    notifications: section('notifications'),
+    system: section('system'),
+  };
+}
+
 const Settings = () => {
   const { refreshBrand, primary } = useBrand();
-  const [settings, setSettings] = useState(defaultSettings);
+  const [settings, setSettings] = useState(() => {
+    try {
+      const cached = localStorage.getItem(SETTINGS_CACHE_KEY);
+      if (cached) return mergeSettingsFromApi(JSON.parse(cached));
+    } catch { /* ignore */ }
+    return defaultSettings;
+  });
   const [saving, setSaving] = useState(false);
   const [newMethod, setNewMethod] = useState('');
   const [newCategory, setNewCategory] = useState('');
@@ -80,27 +129,10 @@ const Settings = () => {
   const loadSettings = useCallback(async () => {
     try {
       const res = await settingsAPI.get();
-      if (res.data) {
-        const company = {
-          ...defaultSettings.company,
-          ...(typeof res.data.company === 'object' ? res.data.company : {}),
-        };
-        if (res.data.companyLogo && !company.logo) company.logo = res.data.companyLogo;
-        if (res.data.companyStamp && !company.stamp) company.stamp = res.data.companyStamp;
-        setSettings({
-          ...defaultSettings,
-          ...res.data,
-          company,
-          invoice: { ...defaultSettings.invoice, ...(typeof res.data.invoice === 'object' ? res.data.invoice : {}) },
-          theme: { ...defaultSettings.theme, ...(typeof res.data.theme === 'object' ? res.data.theme : {}) },
-          users: { ...defaultSettings.users, ...(typeof res.data.users === 'object' ? res.data.users : {}) },
-          orders: { ...defaultSettings.orders, ...(typeof res.data.orders === 'object' ? res.data.orders : {}) },
-          customers: { ...defaultSettings.customers, ...(typeof res.data.customers === 'object' ? res.data.customers : {}) },
-          products: { ...defaultSettings.products, ...(typeof res.data.products === 'object' ? res.data.products : {}) },
-          payments: { ...defaultSettings.payments, ...(typeof res.data.payments === 'object' ? res.data.payments : {}) },
-          notifications: { ...defaultSettings.notifications, ...(typeof res.data.notifications === 'object' ? res.data.notifications : {}) },
-          system: { ...defaultSettings.system, ...(typeof res.data.system === 'object' ? res.data.system : {}) },
-        });
+      if (res.data && Object.keys(res.data).length) {
+        const merged = mergeSettingsFromApi(res.data);
+        setSettings(merged);
+        try { localStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify(merged)); } catch { /* quota */ }
       }
     } catch (err) {
       console.error('Failed to load settings', err);
@@ -128,12 +160,29 @@ const Settings = () => {
   const save = async () => {
     setSaving(true);
     try {
-      const payload = { ...settings };
-      if (payload.company?.logo) payload.companyLogo = payload.company.logo;
-      if (payload.company?.stamp) payload.companyStamp = payload.company.stamp;
-      await settingsAPI.update(payload);
+      const company = { ...(settings.company || {}) };
+      const companyLogo = company.logo || '';
+      const companyStamp = company.stamp || '';
+      // Keep company JSON small — logo/stamp as separate keys
+      const payload = {
+        ...settings,
+        company: { ...company, logo: '', stamp: '' },
+        companyLogo,
+        companyStamp,
+      };
+      const res = await settingsAPI.update(payload);
+      clearGasCache();
+      const saved = mergeSettingsFromApi(res.data && Object.keys(res.data).length ? res.data : payload);
+      setSettings(saved);
+      try { localStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify(saved)); } catch { /* quota */ }
       await refreshBrand();
-      toast.success('Settings saved to Google Sheets');
+      if (Array.isArray(res.data?._warnings) && res.data._warnings.length) {
+        toast.message(`Saved with warnings: ${res.data._warnings.join(', ')}`);
+      } else {
+        toast.success('Settings saved permanently to Google Sheets');
+      }
+      // Re-fetch to confirm persistence
+      await loadSettings();
     } catch (e) {
       console.error(e);
       toast.error(e.response?.data?.message || 'Failed to save settings');

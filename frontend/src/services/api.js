@@ -139,7 +139,8 @@ export const usersAPI = {
   delete: (id) => gasRequest('DELETE', `/users/${id}`, withToken()),
 };
 
-export const trackPublic = (id) => gasRequest('GET', `/public/track/${id}`);
+export const trackPublic = (id) =>
+  gasRequest('GET', `/public/track/${encodeURIComponent(String(id || '').trim())}`);
 
 export const debugAPI = {
   schema: () => gasRequest('GET', '/debug/schema', withToken()),

@@ -1,6 +1,9 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { settingsAPI } from '@/services/api';
 import { gasRequest } from '@/services/gasClient';
+import { tokenStorage } from '@/services/tokenStorage';
+
+const BRAND_CACHE_KEY = 'amz_erp_brand_v1';
 
 const defaultBrand = {
   company: {
@@ -31,6 +34,47 @@ const defaultBrand = {
   },
 };
 
+function readCachedBrand() {
+  try {
+    const raw = localStorage.getItem(BRAND_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.company) return null;
+    return {
+      company: { ...defaultBrand.company, ...(parsed.company || {}) },
+      theme: { ...defaultBrand.theme, ...(parsed.theme || {}) },
+      invoice: { ...defaultBrand.invoice, ...(parsed.invoice || {}) },
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedBrand(brand) {
+  try {
+    localStorage.setItem(BRAND_CACHE_KEY, JSON.stringify({
+      company: brand.company,
+      theme: brand.theme,
+      invoice: brand.invoice,
+    }));
+  } catch {
+    /* quota */
+  }
+}
+
+function normalizeBrandPayload(data) {
+  if (!data || typeof data !== 'object') return null;
+  const companyRaw = typeof data.company === 'object' ? data.company : {};
+  const company = { ...defaultBrand.company, ...companyRaw };
+  if (data.companyLogo && !company.logo) company.logo = data.companyLogo;
+  if (data.companyStamp && !company.stamp) company.stamp = data.companyStamp;
+  return {
+    company,
+    theme: { ...defaultBrand.theme, ...(typeof data.theme === 'object' ? data.theme : {}) },
+    invoice: { ...defaultBrand.invoice, ...(typeof data.invoice === 'object' ? data.invoice : {}) },
+  };
+}
+
 const BrandContext = createContext(null);
 
 export const useBrand = () => {
@@ -40,8 +84,10 @@ export const useBrand = () => {
 };
 
 export const BrandProvider = ({ children }) => {
-  const [brand, setBrand] = useState(defaultBrand);
-  const [loading, setLoading] = useState(true);
+  const cached = readCachedBrand();
+  const [brand, setBrand] = useState(cached || defaultBrand);
+  const [loading, setLoading] = useState(!cached);
+  const booted = useRef(false);
 
   const applyTheme = useCallback((theme) => {
     const root = document.documentElement;
@@ -50,53 +96,46 @@ export const BrandProvider = ({ children }) => {
     if (theme?.accent) root.style.setProperty('--brand-accent', theme.accent);
   }, []);
 
+  const applyBrand = useCallback((next) => {
+    if (!next) return;
+    setBrand(next);
+    applyTheme(next.theme);
+    writeCachedBrand(next);
+  }, [applyTheme]);
+
   const refreshBrand = useCallback(async () => {
     try {
-      // Public branding first (works on login page without auth)
+      // Public branding — safe on login page (no auth)
       try {
         const pub = await gasRequest('GET', '/public/branding');
-        if (pub.data) {
-          const company = { ...defaultBrand.company, ...(pub.data.company || {}) };
-          if (pub.data.companyLogo && !company.logo) company.logo = pub.data.companyLogo;
-          if (pub.data.companyStamp && !company.stamp) company.stamp = pub.data.companyStamp;
-          const next = {
-            company,
-            theme: { ...defaultBrand.theme, ...(pub.data.theme || {}) },
-            invoice: { ...defaultBrand.invoice, ...(pub.data.invoice || {}) },
-          };
-          setBrand(next);
-          applyTheme(next.theme);
-        }
+        const next = normalizeBrandPayload(pub.data);
+        if (next) applyBrand(next);
       } catch {
-        /* ignore public fail */
+        /* keep cached / default */
       }
 
-      // Full settings when authenticated
-      try {
-        const res = await settingsAPI.get();
-        if (res.data) {
-          const company = { ...defaultBrand.company, ...(typeof res.data.company === 'object' ? res.data.company : {}) };
-          if (res.data.companyLogo && !company.logo) company.logo = res.data.companyLogo;
-          if (res.data.companyStamp && !company.stamp) company.stamp = res.data.companyStamp;
-          const next = {
-            company,
-            theme: { ...defaultBrand.theme, ...(typeof res.data.theme === 'object' ? res.data.theme : {}) },
-            invoice: { ...defaultBrand.invoice, ...(typeof res.data.invoice === 'object' ? res.data.invoice : {}) },
-          };
-          setBrand(next);
-          applyTheme(next.theme);
+      // Authenticated settings ONLY when logged in — avoids 401 → login reload loop
+      const token = tokenStorage.getToken();
+      if (token) {
+        try {
+          const res = await settingsAPI.get();
+          const next = normalizeBrandPayload(res.data);
+          if (next) applyBrand(next);
+        } catch {
+          /* ignore */
         }
-      } catch {
-        /* guest / unauthorized */
       }
     } finally {
       setLoading(false);
     }
-  }, [applyTheme]);
+  }, [applyBrand]);
 
   useEffect(() => {
+    if (booted.current) return;
+    booted.current = true;
+    if (cached?.theme) applyTheme(cached.theme);
     refreshBrand();
-  }, [refreshBrand]);
+  }, [applyTheme, cached, refreshBrand]);
 
   const value = useMemo(
     () => ({ brand, loading, refreshBrand, primary: brand.theme.primary, company: brand.company }),

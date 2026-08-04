@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { tokensAPI, customersAPI, debugAPI } from '@/services/api';
 import { toast } from 'sonner';
@@ -150,7 +149,12 @@ const TokenBooking = () => {
   const syncSheets = async () => {
     try {
       const res = await debugAPI.prepare();
-      toast.success('Sheets synced — counters & columns ready');
+      const admin = res.data?.admin;
+      toast.success(
+        admin?.username
+          ? `Sheets synced. Login: ${admin.username} / ${admin.password}`
+          : 'Sheets synced — counters & columns ready'
+      );
       console.log('prepareDatabase', res.data);
       await loadMeta();
       await loadTokens();
@@ -243,11 +247,19 @@ const TokenBooking = () => {
         notes: form.notes,
       });
       const token = res.data;
-      if (!token?.tokenNo && !token?.tokenno) {
-        throw { response: { data: { message: 'Token created but empty response — redeploy Code.gs' } } };
+      const tokenNo = token?.tokenNo || token?.tokenno;
+      if (!tokenNo) {
+        throw {
+          response: {
+            data: {
+              message: 'Book response missing token number. Redeploy latest Code.gs, then Sync Sheets.',
+            },
+          },
+        };
       }
-      setLastToken(token);
-      toast.success(`Token ${token.tokenNo} → ${token.counterName}`);
+      const normalized = { ...token, tokenNo };
+      setLastToken(normalized);
+      toast.success(`Token ${tokenNo} → ${token.counterName || counterName}`);
       setForm((prev) => ({
         ...emptyForm,
         service: prev.service,
@@ -257,7 +269,9 @@ const TokenBooking = () => {
       await loadMeta();
     } catch (error) {
       console.error(error);
-      toast.error(error.response?.data?.message || error.message || 'Failed to book token');
+      const msg = error.response?.data?.message || error.message || 'Failed to book token';
+      toast.error(msg);
+      setDbStatus(msg);
     } finally {
       setLoading(false);
     }
@@ -374,18 +388,20 @@ const TokenBooking = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label>Service *</Label>
-                  <Select value={form.service || undefined} onValueChange={onServiceChange}>
-                    <SelectTrigger data-testid="token-service">
-                      <SelectValue placeholder="Select service" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {services.map((s) => (
-                        <SelectItem key={s.name} value={s.name}>
-                          {s.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={form.service}
+                    onChange={(e) => onServiceChange(e.target.value)}
+                    data-testid="token-service"
+                    required
+                  >
+                    <option value="">Select service</option>
+                    {services.map((s) => (
+                      <option key={s.name} value={s.name}>
+                        {s.name} → {s.counter}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <Label>Counter (auto)</Label>

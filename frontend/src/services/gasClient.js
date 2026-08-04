@@ -39,8 +39,23 @@ function stripStatus(payload) {
 }
 
 function handleUnauthorized(path) {
-  if (path !== '/auth/login') {
-    tokenStorage.clear();
+  const apiPath = path.startsWith('/') ? path : `/${path}`;
+  // Never bounce public/login endpoints — that caused login page reload loops
+  if (
+    apiPath === '/auth/login'
+    || apiPath.startsWith('/public/')
+  ) {
+    return;
+  }
+
+  tokenStorage.clear();
+
+  // Already on login: clear bad token silently (no location reload)
+  if (typeof window !== 'undefined' && window.location.pathname === '/login') {
+    return;
+  }
+
+  if (typeof window !== 'undefined') {
     window.location.href = '/login';
   }
 }

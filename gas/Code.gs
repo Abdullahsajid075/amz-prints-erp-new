@@ -423,13 +423,41 @@ function isActiveUser_(user) {
   return !status || status === 'active' || status === 'enabled' || status === '1' || status === 'true';
 }
 
-/** Create admin/admin123 when Users sheet has no login rows. */
+/** Ensure an admin login always exists (create or repair blank password). */
 function ensureDefaultAdmin_() {
   var sheet = getSheet_(SHEET_NAMES.USERS);
   ensureHeaders_(sheet, SHEET_NAMES.USERS);
   var users = getSheetRows_(SHEET_NAMES.USERS);
-  if (users && users.length) return users;
-  var admin = {
+
+  var admin = null;
+  for (var i = 0; i < users.length; i++) {
+    var ids = [users[i].username, users[i].email, users[i].name]
+      .map(function (v) { return String(v || '').trim().toLowerCase(); });
+    if (ids.indexOf('admin') !== -1) {
+      admin = users[i];
+      break;
+    }
+  }
+
+  if (admin) {
+    var pass = String(admin.password != null ? admin.password : '').trim();
+    var status = String(admin.status || '').trim();
+    var needsFix = !pass || !isActiveUser_(admin);
+    if (needsFix) {
+      updateObjectProps_(sheet, SHEET_NAMES.USERS, admin._row, {
+        password: pass || 'admin123',
+        status: 'Active',
+        username: admin.username || 'admin',
+        name: admin.name || 'Admin',
+        role: admin.role || 'Super Admin',
+      });
+      invalidateSheetCache_(SHEET_NAMES.USERS);
+      return getSheetRows_(SHEET_NAMES.USERS);
+    }
+    return users;
+  }
+
+  appendObject_(sheet, SHEET_NAMES.USERS, {
     username: 'admin',
     password: 'admin123',
     name: 'Admin',
@@ -437,10 +465,50 @@ function ensureDefaultAdmin_() {
     status: 'Active',
     permissions: '[]',
     id: 'user_admin',
-  };
-  appendObject_(sheet, SHEET_NAMES.USERS, admin);
+  });
   invalidateSheetCache_(SHEET_NAMES.USERS);
   return getSheetRows_(SHEET_NAMES.USERS);
+}
+
+/**
+ * Called from prepareDatabase / Sync Sheets — resets admin password to admin123
+ * so the ERP can always be opened after a bad Users sheet.
+ */
+function resetAdminLogin_() {
+  var sheet = getSheet_(SHEET_NAMES.USERS);
+  ensureHeaders_(sheet, SHEET_NAMES.USERS);
+  invalidateSheetCache_(SHEET_NAMES.USERS);
+  var users = getSheetRows_(SHEET_NAMES.USERS);
+  var admin = null;
+  for (var i = 0; i < users.length; i++) {
+    var ids = [users[i].username, users[i].email]
+      .map(function (v) { return String(v || '').trim().toLowerCase(); });
+    if (ids.indexOf('admin') !== -1) {
+      admin = users[i];
+      break;
+    }
+  }
+  if (admin) {
+    updateObjectProps_(sheet, SHEET_NAMES.USERS, admin._row, {
+      username: admin.username || 'admin',
+      password: 'admin123',
+      name: admin.name || 'Admin',
+      role: admin.role || 'Super Admin',
+      status: 'Active',
+    });
+  } else {
+    appendObject_(sheet, SHEET_NAMES.USERS, {
+      username: 'admin',
+      password: 'admin123',
+      name: 'Admin',
+      role: 'Super Admin',
+      status: 'Active',
+      permissions: '[]',
+      id: 'user_admin',
+    });
+  }
+  invalidateSheetCache_(SHEET_NAMES.USERS);
+  return { username: 'admin', password: 'admin123' };
 }
 
 function handleLogin_(body) {
@@ -460,8 +528,8 @@ function handleLogin_(body) {
 
   if (!user) {
     var hint = users.length
-      ? 'Check Users sheet Username/Password (and Status=Active).'
-      : 'Users sheet is empty — run Sync Sheets / prepareDatabase.';
+      ? 'Use Users sheet Username/Password, or click Sync Sheets to reset admin/admin123.'
+      : 'Users sheet empty — click Sync Sheets.';
     return { error: 'Invalid credentials. ' + hint };
   }
 
@@ -499,10 +567,10 @@ function validateToken_(token) {
 function normalizeCustomer_(body) {
   return {
     id: body.id || '',
-    name: body.name || body.customername || '',
-    phone: String(body.phone || body.customerphone || '').trim(),
-    email: body.email || body.customeremail || '',
-    address: body.address || body.customeraddress || '',
+    name: body.name || body.customerName || body.customername || '',
+    phone: String(body.phone || body.customerPhone || body.customerphone || '').trim(),
+    email: body.email || body.customerEmail || body.customeremail || '',
+    address: body.address || body.customerAddress || body.customeraddress || '',
     city: body.city || '',
     notes: body.notes || '',
   };
@@ -1211,10 +1279,21 @@ function handleTokens_(path, method, body, params) {
   // POST /tokens — book token
   if (path === '/tokens' && method === 'POST') {
     ensureHeaders_(sheet, SHEET_NAMES.COUNTERS);
+    invalidateSheetCache_(SHEET_NAMES.COUNTERS);
     var counters = ensureDefaultCounters_();
-    var serviceName = body.service || body.serviceName || '';
+    var serviceName = String(body.service || body.serviceName || '').trim();
     var counterName = resolveCounterForService_(serviceName, body.counterName || body.counter || '');
-    if (!counterName) throw new Error('Select a service (or counter)');
+    if (!counterName && serviceName) {
+      // Fuzzy: match map keys contained in service text
+      var mapKeys = Object.keys(SERVICE_COUNTER_MAP);
+      for (var mi = 0; mi < mapKeys.length; mi++) {
+        if (serviceName.toLowerCase().indexOf(mapKeys[mi]) !== -1) {
+          counterName = SERVICE_COUNTER_MAP[mapKeys[mi]];
+          break;
+        }
+      }
+    }
+    if (!counterName) throw new Error('Select a service (or counter). Got service="' + serviceName + '"');
     var counter = counters.find(function (c) {
       return String(c.counterName).toLowerCase() === String(counterName).toLowerCase();
     });
@@ -1230,7 +1309,8 @@ function handleTokens_(path, method, body, params) {
         lastnumber: 0,
         status: 'Active',
       });
-      counters = ensureDefaultCounters_();
+      invalidateSheetCache_(SHEET_NAMES.COUNTERS);
+      counters = getCounterMasters_();
       counter = counters.find(function (c) {
         return String(c.counterName).toLowerCase() === String(counterName).toLowerCase();
       });
@@ -1240,12 +1320,31 @@ function handleTokens_(path, method, body, params) {
       throw new Error('Counter is not active: ' + counterName);
     }
 
-    var customer = upsertCustomer_({
-      name: body.customerName || body.name,
-      phone: body.customerPhone || body.phone,
-      email: body.email,
-      address: body.address,
-    });
+    var customerName = String(body.customerName || body.name || '').trim();
+    var customerPhone = String(body.customerPhone || body.phone || '').trim();
+    if (!customerName || !customerPhone) {
+      throw new Error('Customer name and phone are required');
+    }
+
+    var customer;
+    try {
+      customer = upsertCustomer_({
+        name: customerName,
+        phone: customerPhone,
+        email: body.email,
+        address: body.address,
+      });
+    } catch (custErr) {
+      // Don't block token booking if Customers sheet has a temporary issue
+      customer = { id: 'cust_temp_' + Date.now(), name: customerName, phone: customerPhone };
+    }
+
+    // Re-read counter row after possible cache changes
+    invalidateSheetCache_(SHEET_NAMES.COUNTERS);
+    counters = getCounterMasters_();
+    counter = counters.find(function (c) {
+      return String(c.counterName).toLowerCase() === String(counterName).toLowerCase();
+    }) || counter;
 
     var tokenNo = nextTokenNo_(counter);
     var token = {
@@ -1254,9 +1353,9 @@ function handleTokens_(path, method, body, params) {
       tokenno: tokenNo,
       date: nowDate_(),
       time: nowTime_(),
-      customerid: customer.id,
-      customername: customer.name,
-      customerphone: customer.phone,
+      customerid: customer.id || '',
+      customername: customer.name || customerName,
+      customerphone: customer.phone || customerPhone,
       service: serviceName,
       servicenote: body.serviceNote || body.servicenote || '',
       tokenstatus: 'Waiting',
@@ -1441,75 +1540,146 @@ function getRecentOrders_() {
     .map(toApiOrder_);
 }
 
-function getSettings_() {
-  var rows = getSheetRows_(SHEET_NAMES.SETTINGS);
-  if (!rows.length) return {};
-  // Key/Value sheet → object, or single-row settings
-  if (rows[0].key !== undefined) {
-    var obj = {};
-    rows.forEach(function (r) { obj[r.key] = r.value; });
-    // Re-attach large assets stored as separate keys
-    if (typeof obj.company === 'object' && obj.company) {
-      if (obj.companyLogo && !obj.company.logo) obj.company.logo = obj.companyLogo;
-      if (obj.companyStamp && !obj.company.stamp) obj.company.stamp = obj.companyStamp;
-    } else if (typeof obj.company === 'string') {
-      try { obj.company = JSON.parse(obj.company); } catch (e) { obj.company = {}; }
-      if (obj.companyLogo) obj.company.logo = obj.companyLogo;
-      if (obj.companyStamp) obj.company.stamp = obj.companyStamp;
-    }
-    return obj;
+function parseSettingsValue_(value) {
+  if (value === null || value === undefined || value === '') return value;
+  if (typeof value === 'object') return value;
+  if (typeof value === 'boolean' || typeof value === 'number') return value;
+  var s = String(value).trim();
+  if (!s) return '';
+  if (s === 'true') return true;
+  if (s === 'false') return false;
+  if (/^-?\d+(\.\d+)?$/.test(s)) return Number(s);
+  if ((s.charAt(0) === '{' || s.charAt(0) === '[') && s.length > 1) {
+    try { return JSON.parse(s); } catch (e) { return value; }
   }
-  return rows[0];
+  return value;
+}
+
+function getSettings_() {
+  var sheet = getSheet_(SHEET_NAMES.SETTINGS);
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastRow < 2 || lastCol < 1) return {};
+
+  var values = sheet.getRange(1, 1, lastRow, Math.max(lastCol, 2)).getValues();
+  var header0 = String(values[0][0] || '').trim().toLowerCase();
+  var header1 = String(values[0][1] || '').trim().toLowerCase();
+  var obj = {};
+
+  if (header0 === 'key' && (header1 === 'value' || header1 === '')) {
+    for (var i = 1; i < values.length; i++) {
+      var k = String(values[i][0] || '').trim();
+      if (!k) continue;
+      obj[k] = parseSettingsValue_(values[i][1]);
+    }
+  } else {
+    var headers = values[0];
+    var row = values[1] || [];
+    headers.forEach(function (h, i) {
+      var key = String(h || '').trim();
+      if (!key) return;
+      obj[key] = parseSettingsValue_(row[i]);
+    });
+  }
+
+  if (typeof obj.company === 'string') {
+    obj.company = parseSettingsValue_(obj.company) || {};
+  }
+  if (!obj.company || typeof obj.company !== 'object') obj.company = {};
+  if (obj.companyLogo && !obj.company.logo) obj.company.logo = obj.companyLogo;
+  if (obj.companyStamp && !obj.company.stamp) obj.company.stamp = obj.companyStamp;
+
+  ['invoice', 'theme', 'orders', 'customers', 'products', 'payments', 'users', 'notifications', 'system', 'designers', 'employees'].forEach(function (sec) {
+    if (typeof obj[sec] === 'string') obj[sec] = parseSettingsValue_(obj[sec]);
+  });
+
+  return obj;
 }
 
 function updateSettings_(body) {
   var sheet = getSheet_(SHEET_NAMES.SETTINGS);
-  ensureHeaders_(sheet, SHEET_NAMES.SETTINGS);
-  var headers = getRawHeaders_(sheet, SHEET_NAMES.SETTINGS);
-  var normalized = headers.map(normalizeHeader_);
 
-  // Split large logo/stamp out of company JSON so cells stay under Sheets limits
-  var payload = Object.assign({}, body || {});
+  // Read existing FIRST (before any format conversion)
+  var existing = {};
+  try { existing = getSettings_() || {}; } catch (e) { existing = {}; }
+
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  var isKeyValue = false;
+  if (lastRow >= 1 && lastCol >= 1) {
+    var h = sheet.getRange(1, 1, 1, Math.min(lastCol, 2)).getValues()[0];
+    isKeyValue = String(h[0] || '').trim().toLowerCase() === 'key';
+  }
+  if (!isKeyValue) {
+    sheet.clear();
+    sheet.getRange(1, 1, 1, 2).setValues([['Key', 'Value']]);
+  } else if (lastRow < 1) {
+    sheet.getRange(1, 1, 1, 2).setValues([['Key', 'Value']]);
+  }
+
+  var incoming = body && typeof body === 'object' ? body : {};
+  var payload = Object.assign({}, existing, incoming);
+
+  ['company', 'invoice', 'theme', 'orders', 'customers', 'products', 'payments', 'users', 'notifications', 'system', 'designers', 'employees'].forEach(function (sec) {
+    var base = (existing[sec] && typeof existing[sec] === 'object') ? existing[sec] : {};
+    var next = (incoming[sec] && typeof incoming[sec] === 'object') ? incoming[sec] : null;
+    if (next) payload[sec] = Object.assign({}, base, next);
+  });
+
   if (payload.company && typeof payload.company === 'object') {
     var company = Object.assign({}, payload.company);
-    if (company.logo && String(company.logo).length > 35000) {
+    if (company.logo) {
       payload.companyLogo = company.logo;
       company.logo = '';
-    } else if (company.logo) {
-      payload.companyLogo = company.logo;
     }
-    if (company.stamp && String(company.stamp).length > 35000) {
+    if (company.stamp) {
       payload.companyStamp = company.stamp;
       company.stamp = '';
-    } else if (company.stamp) {
-      payload.companyStamp = company.stamp;
     }
+    if (incoming.companyLogo) payload.companyLogo = incoming.companyLogo;
+    if (incoming.companyStamp) payload.companyStamp = incoming.companyStamp;
     payload.company = company;
   }
 
-  if (normalized.indexOf('key') !== -1 && normalized.indexOf('value') !== -1) {
-    sheet.clearContents();
-    sheet.getRange(1, 1, 1, 2).setValues([['Key', 'Value']]);
-    var keys = Object.keys(payload);
-    keys.forEach(function (k, i) {
-      var cell = serializeCell_(payload[k]);
-      // Soft-truncate only as last resort to avoid total write failure
-      if (typeof cell === 'string' && cell.length > 49000) {
-        cell = cell.slice(0, 49000);
+  var dataLast = sheet.getLastRow();
+  var keyToRow = {};
+  if (dataLast >= 2) {
+    var keyCol = sheet.getRange(2, 1, dataLast, 1).getValues();
+    for (var r = 0; r < keyCol.length; r++) {
+      var rk = String(keyCol[r][0] || '').trim();
+      if (rk) keyToRow[rk] = r + 2;
+    }
+  }
+
+  var keys = Object.keys(payload);
+  var skipped = [];
+  keys.forEach(function (k) {
+    if (k === '_row' || k === '_status' || k === '_warnings') return;
+    var cell = serializeCell_(payload[k]);
+    if (typeof cell === 'string' && cell.length > 49000) {
+      if (k === 'companyLogo' || k === 'companyStamp') {
+        skipped.push(k + ' (too large for Sheets cell)');
+        return;
       }
-      sheet.getRange(i + 2, 1, 1, 2).setValues([[k, cell]]);
-    });
-    invalidateSheetCache_(SHEET_NAMES.SETTINGS);
-    return getSettings_();
-  }
-  // single row style — overwrite row 2
-  if (sheet.getLastRow() < 2) {
-    appendObject_(sheet, SHEET_NAMES.SETTINGS, payload);
-  } else {
-    updateObjectProps_(sheet, SHEET_NAMES.SETTINGS, 2, payload);
-  }
+      cell = cell.slice(0, 49000);
+      skipped.push(k + ' (truncated)');
+    }
+    try {
+      if (keyToRow[k]) {
+        sheet.getRange(keyToRow[k], 1, 1, 2).setValues([[k, cell]]);
+      } else {
+        sheet.appendRow([k, cell]);
+      }
+    } catch (writeErr) {
+      skipped.push(k + ': ' + (writeErr.message || writeErr));
+    }
+  });
+
+  SpreadsheetApp.flush();
   invalidateSheetCache_(SHEET_NAMES.SETTINGS);
-  return getSettings_();
+  var saved = getSettings_();
+  if (skipped.length) saved._warnings = skipped;
+  return saved;
 }
 
 function getReports_(params) {
@@ -1538,12 +1708,16 @@ function handlePublic_(path, method) {
     return toApiInvoice_(invoice);
   }
   if (method === 'GET' && path.indexOf('/public/track/') === 0) {
-    var tracking = path.replace('/public/track/', '');
+    var tracking = decodeURIComponent(path.replace('/public/track/', '')).trim();
+    var needle = tracking.toLowerCase();
     var orders = getSheetRows_(SHEET_NAMES.ORDERS);
     var order = orders.find(function (o) {
-      return String(o.trackingnumber) === String(tracking) || String(o.orderid) === String(tracking) || String(o.id) === String(tracking);
+      var keys = [o.trackingnumber, o.orderid, o.id, o.tokenno]
+        .map(function (v) { return String(v || '').trim().toLowerCase(); })
+        .filter(Boolean);
+      return keys.indexOf(needle) !== -1;
     });
-    if (!order) throw new Error('Order not found');
+    if (!order) throw new Error('Order not found for: ' + tracking);
     return toApiOrder_(order);
   }
   throw new Error('Not found');
@@ -1798,9 +1972,9 @@ function prepareDatabase() {
     }
   });
   ensureDefaultCounters_();
-  ensureDefaultAdmin_();
+  var adminCreds = resetAdminLogin_();
   Logger.log(JSON.stringify(report, null, 2));
-  return report;
+  return { sheets: report, admin: adminCreds };
 }
 
 function getSchema_() {
