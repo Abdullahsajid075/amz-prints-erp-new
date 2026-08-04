@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ordersAPI, customersAPI, designersAPI } from '@/services/api';
+import { ordersAPI, customersAPI, designersAPI, tokensAPI } from '@/services/api';
 import { ORDER_STATUS } from '@/utils/constants';
 import { Plus, Trash2, Save, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
@@ -14,18 +14,22 @@ import { toast } from 'sonner';
 const OrderForm = () => {
   const navigate = useNavigate();
   const { orderId } = useParams();
+  const [searchParams] = useSearchParams();
   const isEdit = !!orderId;
+  const prefillTokenNo = searchParams.get('tokenNo') || '';
 
   const [formData, setFormData] = useState({
     customerName: '',
     customerEmail: '',
     customerPhone: '',
     customerAddress: '',
+    customerId: '',
     assignedDesigner: undefined,
     deliveryDate: '',
     remarks: '',
     advancePayment: 0,
     status: ORDER_STATUS.RECEIVED,
+    tokenNo: '',
     products: [
       { _key: 'p_init', name: '', quantity: 1, rate: 0, size: '', material: '', notes: '' }
     ]
@@ -34,6 +38,7 @@ const OrderForm = () => {
   const [customers, setCustomers] = useState([]);
   const [designers, setDesigners] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [prefilled, setPrefilled] = useState(false);
 
   const fetchCustomers = useCallback(async () => {
     try {
@@ -47,7 +52,7 @@ const OrderForm = () => {
   const fetchDesigners = useCallback(async () => {
     try {
       const response = await designersAPI.getAll();
-      setDesigners(response.data);
+      setDesigners(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error('Error fetching designers:', error);
     }
@@ -70,6 +75,28 @@ const OrderForm = () => {
       fetchOrder();
     }
   }, [isEdit, fetchCustomers, fetchDesigners, fetchOrder]);
+
+  useEffect(() => {
+    if (isEdit || prefilled) return;
+    const customerName = searchParams.get('customerName');
+    const customerPhone = searchParams.get('customerPhone');
+    const customerId = searchParams.get('customerId');
+    const service = searchParams.get('service');
+    const tokenNo = searchParams.get('tokenNo');
+    if (!customerName && !customerPhone && !service && !tokenNo) return;
+
+    setFormData((prev) => ({
+      ...prev,
+      customerName: customerName || prev.customerName,
+      customerPhone: customerPhone || prev.customerPhone,
+      customerId: customerId || prev.customerId,
+      tokenNo: tokenNo || prev.tokenNo,
+      products: service
+        ? [{ _key: 'p_token', name: service, quantity: 1, rate: 0, size: '', material: '', notes: '' }]
+        : prev.products,
+    }));
+    setPrefilled(true);
+  }, [isEdit, prefilled, searchParams]);
 
   const handleProductChange = (index, field, value) => {
     const updatedProducts = [...formData.products];
@@ -114,7 +141,16 @@ const OrderForm = () => {
         await ordersAPI.update(orderId, orderData);
         toast.success('Order updated successfully');
       } else {
-        await ordersAPI.create(orderData);
+        const created = await ordersAPI.create(orderData);
+        if (prefillTokenNo || formData.tokenNo) {
+          try {
+            await tokensAPI.linkOrder(prefillTokenNo || formData.tokenNo, {
+              orderId: created.data?.orderId || created.data?.id || '',
+            });
+          } catch (linkError) {
+            console.warn('Token link failed', linkError);
+          }
+        }
         toast.success('Order created successfully');
       }
       navigate('/orders');

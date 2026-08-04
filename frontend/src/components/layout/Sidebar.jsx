@@ -1,12 +1,13 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, ShoppingCart, Users, Package, Palette, Factory, Warehouse, FileText, CreditCard, Receipt, UsersRound, BarChart3, Settings, X, Building2, ShoppingBag } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, Users, Package, Palette, Factory, Warehouse, FileText, CreditCard, Receipt, UsersRound, BarChart3, Settings, X, Building2, ShoppingBag, Ticket } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', testId: 'nav-dashboard' },
+  { icon: Ticket, label: 'Token Booking', path: '/tokens', testId: 'nav-tokens' },
   { icon: ShoppingCart, label: 'Orders', path: '/orders', testId: 'nav-orders' },
   { icon: Users, label: 'Customers', path: '/customers', testId: 'nav-customers' },
   { icon: Package, label: 'Products', path: '/products', testId: 'nav-products' },

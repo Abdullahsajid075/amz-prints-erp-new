@@ -24,6 +24,8 @@ import Reports from '@/components/modules/reports/Reports';
 import Settings from '@/components/modules/settings/Settings';
 import Vendors from '@/components/modules/vendors/Vendors';
 import Purchases from '@/components/modules/purchases/Purchases';
+import TokenBooking from '@/components/modules/tokens/TokenBooking';
+import CounterScreen from '@/components/modules/tokens/CounterScreen';
 
 function App() {
   return (
@@ -43,6 +45,9 @@ function App() {
           >
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
+
+            <Route path="tokens" element={<TokenBooking />} />
+            <Route path="tokens/counter" element={<CounterScreen />} />
 
             <Route path="orders" element={<OrdersList />} />
             <Route path="orders/new" element={<OrderForm />} />

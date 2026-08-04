@@ -103,6 +103,21 @@ export const paymentsAPI = {
   delete: (id) => gasRequest('DELETE', `/payments/${id}`, withToken()),
 };
 
+export const countersAPI = {
+  getAll: () => gasRequest('GET', '/counters', withToken()),
+  create: (data) => gasRequest('POST', '/counters', withToken({ data })),
+};
+
+export const tokensAPI = {
+  getAll: (params) => gasRequest('GET', '/tokens', withToken({ params })),
+  create: (data) => gasRequest('POST', '/tokens', withToken({ data })),
+  getById: (id) => gasRequest('GET', `/tokens/${id}`, withToken()),
+  call: (id) => gasRequest('POST', `/tokens/${id}/call`, withToken()),
+  complete: (id) => gasRequest('POST', `/tokens/${id}/complete`, withToken()),
+  skip: (id) => gasRequest('POST', `/tokens/${id}/skip`, withToken()),
+  linkOrder: (id, data) => gasRequest('POST', `/tokens/${id}/link-order`, withToken({ data })),
+};
+
 export default {
   authAPI,
   dashboardAPI,
@@ -118,4 +133,6 @@ export default {
   purchasesAPI,
   reportsAPI,
   paymentsAPI,
+  countersAPI,
+  tokensAPI,
 };

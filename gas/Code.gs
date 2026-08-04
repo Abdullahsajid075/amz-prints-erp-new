@@ -1,18 +1,18 @@
 /**
  * AMZ Prints ERP — Google Apps Script API
  *
- * Setup:
- * 1. Create a Google Sheet with tabs: Users, Orders, Customers, Products, Invoices,
- *    Vendors, Purchases, Expenses, Payments, Settings
- * 2. File → Project properties → Script properties:
- *    SPREADSHEET_ID = your sheet ID
- * 3. Paste this file into Apps Script editor
- * 4. Deploy → New deployment → Web app
- *    Execute as: Me | Who has access: Anyone
- * 5. Set REACT_APP_GAS_API_URL in Vercel to the /exec URL
+ * Sheets used (existing only):
+ * Orders, Products, Customers, Invoices, Vendors, Users,
+ * Purchases, Expenses, Payments, Counters, Settings
+ *
+ * Counters sheet stores BOTH:
+ *   RecordType=Counter  → counter definitions (name, access holder, prefix, last #)
+ *   RecordType=Token    → token bookings / live queue
+ *
+ * Deploy: New version after every change. Execute as Me | Anyone.
  */
 
-const SHEET_NAMES = {
+var SHEET_NAMES = {
   USERS: 'Users',
   ORDERS: 'Orders',
   CUSTOMERS: 'Customers',
@@ -22,38 +22,58 @@ const SHEET_NAMES = {
   PURCHASES: 'Purchases',
   EXPENSES: 'Expenses',
   PAYMENTS: 'Payments',
+  COUNTERS: 'Counters',
   SETTINGS: 'Settings',
 };
 
+var DEFAULT_HEADERS = {
+  Customers: ['Id', 'Name', 'Phone', 'Email', 'Address', 'City', 'Notes'],
+  Orders: [
+    'Id', 'OrderId', 'Date', 'CustomerId', 'CustomerName', 'CustomerPhone',
+    'CustomerEmail', 'CustomerAddress', 'Status', 'DeliveryDate', 'Products',
+    'TotalAmount', 'AdvancePayment', 'BalanceAmount', 'Remarks', 'AssignedDesigner', 'TokenNo'
+  ],
+  Products: ['Id', 'Name', 'Category', 'Rate', 'Unit', 'Description', 'Status'],
+  Invoices: ['Id', 'InvoiceNo', 'Date', 'CustomerId', 'CustomerName', 'CustomerPhone', 'Items', 'Subtotal', 'Tax', 'Discount', 'Total', 'Paid', 'Status', 'ShareToken'],
+  Vendors: ['Id', 'Name', 'Phone', 'Email', 'Address', 'Notes'],
+  Purchases: ['Id', 'PurchaseNo', 'Date', 'VendorId', 'VendorName', 'Items', 'Total', 'Status'],
+  Expenses: ['Id', 'Date', 'Category', 'Amount', 'Description', 'PaymentMethod'],
+  Payments: ['Id', 'Date', 'Type', 'RefId', 'CustomerName', 'Amount', 'Method', 'Notes'],
+  Counters: [
+    'RecordType', 'CounterName', 'AccessHolder', 'Prefix', 'LastNumber', 'Status',
+    'TokenNo', 'Date', 'Time', 'CustomerId', 'CustomerName', 'CustomerPhone',
+    'Service', 'TokenStatus', 'CalledAt', 'OrderId', 'Notes'
+  ],
+  Settings: ['Key', 'Value'],
+};
+
 function getSpreadsheetId_() {
-  const id = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
-  if (!id) {
-    throw new Error('Set SPREADSHEET_ID in Script properties');
-  }
+  var id = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+  if (!id) throw new Error('Set SPREADSHEET_ID in Script properties');
   return id;
 }
 
 function getSheet_(name) {
-  return SpreadsheetApp.openById(getSpreadsheetId_()).getSheetByName(name);
+  var sheet = SpreadsheetApp.openById(getSpreadsheetId_()).getSheetByName(name);
+  if (!sheet) throw new Error('Sheet not found: ' + name);
+  return sheet;
 }
 
 function jsonResponse_(payload, statusCode) {
-  const output = ContentService.createTextOutput(JSON.stringify(payload));
-  output.setMimeType(ContentService.MimeType.JSON);
+  var body = payload;
   if (statusCode) {
-    // GAS web apps don't support custom HTTP status codes; include in body when needed
-    output.setContent(JSON.stringify({ ...payload, _status: statusCode }));
+    body = Object.assign({}, payload, { _status: statusCode });
   }
-  return output;
+  return ContentService
+    .createTextOutput(JSON.stringify(body))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 function parseAuthToken_(e) {
-  if (e.parameter && e.parameter.token) {
-    return String(e.parameter.token);
-  }
-  const headers = e.headers || {};
-  const auth = headers.Authorization || headers.authorization || '';
-  const match = String(auth).match(/^Bearer\s+(.+)$/i);
+  if (e.parameter && e.parameter.token) return String(e.parameter.token);
+  var headers = e.headers || {};
+  var auth = headers.Authorization || headers.authorization || '';
+  var match = String(auth).match(/^Bearer\s+(.+)$/i);
   return match ? match[1] : '';
 }
 
@@ -62,9 +82,7 @@ function getPath_(e) {
 }
 
 function getMethod_(e) {
-  if (e.parameter && e.parameter._method) {
-    return String(e.parameter._method).toUpperCase();
-  }
+  if (e.parameter && e.parameter._method) return String(e.parameter._method).toUpperCase();
   return e.postData ? 'POST' : 'GET';
 }
 
@@ -78,126 +96,141 @@ function parseBody_(e) {
 }
 
 function normalizeHeader_(header) {
-  const key = String(header || '').trim().toLowerCase().replace(/\s+/g, '');
-  const aliases = {
-    username: 'username',
-    user: 'username',
-    userid: 'id',
-    id: 'id',
-    email: 'email',
-    password: 'password',
-    pass: 'password',
-    name: 'name',
-    fullname: 'name',
-    role: 'role',
-    status: 'status',
+  var key = String(header || '').trim().toLowerCase().replace(/[\s_\-]+/g, '');
+  var aliases = {
+    username: 'username', user: 'username', userid: 'id', id: 'id',
+    email: 'email', password: 'password', pass: 'password',
+    name: 'name', fullname: 'name', customername: 'customername',
+    phone: 'phone', mobile: 'phone', phoneno: 'phone', contact: 'phone', customerphone: 'customerphone',
+    address: 'address', customeraddress: 'customeraddress', city: 'city', notes: 'notes', remarks: 'remarks',
+    role: 'role', status: 'status', category: 'category', rate: 'rate', unit: 'unit', description: 'description',
+    orderid: 'orderid', date: 'date', time: 'time', deliverydate: 'deliverydate',
+    products: 'products', items: 'items', totalamount: 'totalamount', total: 'total',
+    advancepayment: 'advancepayment', balanceamount: 'balanceamount', assigneddesigner: 'assigneddesigner',
+    customerid: 'customerid', customeremail: 'customeremail', tokenno: 'tokenno',
+    recordtype: 'recordtype', type: 'recordtype', countername: 'countername', counter: 'countername',
+    accessholder: 'accessholder', holder: 'accessholder', prefix: 'prefix', lastnumber: 'lastnumber',
+    lasttoken: 'lastnumber', service: 'service', tokenstatus: 'tokenstatus', calledat: 'calledat',
+    invoiceno: 'invoiceno', sharetoken: 'sharetoken', key: 'key', value: 'value',
+    amount: 'amount', method: 'method', paymentmethod: 'paymentmethod', vendorname: 'vendorname',
+    vendorid: 'vendorid', purchaseno: 'purchaseno', refid: 'refid',
   };
   return aliases[key] || key;
 }
 
-function sheetToObjects_(sheet) {
+function serializeCell_(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'object') return JSON.stringify(value);
+  return value;
+}
+
+function parseCell_(value) {
+  if (typeof value !== 'string') return value;
+  var trimmed = value.trim();
+  if ((trimmed.charAt(0) === '[' || trimmed.charAt(0) === '{') && trimmed.length > 1) {
+    try { return JSON.parse(trimmed); } catch (e) { return value; }
+  }
+  return value;
+}
+
+function ensureHeaders_(sheet, sheetName) {
+  var lastCol = sheet.getLastColumn();
+  var lastRow = sheet.getLastRow();
+  if (lastRow >= 1 && lastCol >= 1) {
+    var existing = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+    if (existing.some(function (h) { return String(h).trim() !== ''; })) {
+      return existing.map(String);
+    }
+  }
+  var defaults = DEFAULT_HEADERS[sheetName] || ['Id', 'Name'];
+  sheet.getRange(1, 1, 1, defaults.length).setValues([defaults]);
+  return defaults;
+}
+
+function getRawHeaders_(sheet, sheetName) {
+  return ensureHeaders_(sheet, sheetName);
+}
+
+function sheetToObjects_(sheet, sheetName) {
   if (!sheet) return [];
-  const values = sheet.getDataRange().getValues();
-  if (values.length < 2) return [];
-  const headers = values[0].map(normalizeHeader_);
-  return values.slice(1)
-    .filter(row => row.some(cell => cell !== '' && cell !== null))
-    .map(row => {
-      const obj = {};
-      headers.forEach((header, i) => {
+  var headers = getRawHeaders_(sheet, sheetName || sheet.getName());
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  var values = sheet.getRange(2, 1, lastRow, headers.length).getValues();
+  var normalized = headers.map(normalizeHeader_);
+
+  return values
+    .filter(function (row) {
+      return row.some(function (cell) { return cell !== '' && cell !== null; });
+    })
+    .map(function (row, rowIndex) {
+      var obj = { _row: rowIndex + 2 };
+      normalized.forEach(function (header, i) {
         if (!header) return;
-        obj[header] = row[i];
+        obj[header] = parseCell_(row[i]);
       });
-      // Your Users sheet has Username/Password/Name/Role/Status (no id column)
       if (!obj.id) {
-        obj.id = obj.username || obj.email || obj.name || '';
+        obj.id = obj.orderid || obj.tokenno || obj.username || obj.email || obj.phone || obj.name || ('row_' + obj._row);
       }
-      if (!obj.email && obj.username) {
-        obj.email = obj.username;
-      }
+      if (!obj.email && obj.username) obj.email = obj.username;
+      if (!obj.customername && obj.name) obj.customername = obj.name;
+      if (!obj.phone && obj.customerphone) obj.phone = obj.customerphone;
       return obj;
     });
 }
 
-function handleRequest_(e) {
-  const path = getPath_(e);
-  const method = getMethod_(e);
-  const body = parseBody_(e);
-  const token = parseAuthToken_(e);
-
-  try {
-    if (method === 'POST' && path === '/auth/login') {
-      const result = handleLogin_(body);
-      if (result.error) {
-        return jsonResponse_({ message: result.error }, 401);
-      }
-      return jsonResponse_(result);
-    }
-
-    if (path.startsWith('/public/')) {
-      return jsonResponse_(handlePublic_(path, method, body));
-    }
-
-    const user = validateToken_(token);
-    if (!user && path !== '/auth/login') {
-      return jsonResponse_({ message: 'Unauthorized' }, 401);
-    }
-
-    if (method === 'GET' && path === '/auth/me') {
-      return jsonResponse_(sanitizeUser_(user));
-    }
-    if (method === 'POST' && path === '/auth/logout') {
-      return jsonResponse_({ success: true });
-    }
-    if (method === 'GET' && path === '/dashboard/stats') {
-      return jsonResponse_(getDashboardStats_());
-    }
-    if (method === 'GET' && path === '/dashboard/charts') {
-      return jsonResponse_(getDashboardCharts_());
-    }
-    if (method === 'GET' && path === '/dashboard/recent-orders') {
-      return jsonResponse_(getRecentOrders_());
-    }
-    if (path === '/orders') {
-      return jsonResponse_(handleOrders_(method, body, e.parameter));
-    }
-    if (path.startsWith('/orders/')) {
-      return jsonResponse_(handleOrderById_(path, method, body));
-    }
-    if (path === '/customers' || path.startsWith('/customers/')) {
-      return jsonResponse_(handleCustomers_(path, method, body));
-    }
-    if (path === '/products' || path.startsWith('/products/')) {
-      return jsonResponse_(handleCollection_(SHEET_NAMES.PRODUCTS, path, method, body, '/products'));
-    }
-    if (path === '/invoices' || path.startsWith('/invoices/')) {
-      return jsonResponse_(handleCollection_(SHEET_NAMES.INVOICES, path, method, body, '/invoices'));
-    }
-    if (path === '/vendors' || path.startsWith('/vendors/')) {
-      return jsonResponse_(handleCollection_(SHEET_NAMES.VENDORS, path, method, body, '/vendors'));
-    }
-    if (path === '/purchases' || path.startsWith('/purchases/')) {
-      return jsonResponse_(handleCollection_(SHEET_NAMES.PURCHASES, path, method, body, '/purchases'));
-    }
-    if (path === '/expenses' || path.startsWith('/expenses/')) {
-      return jsonResponse_(handleCollection_(SHEET_NAMES.EXPENSES, path, method, body, '/expenses'));
-    }
-    if (path === '/payments' || path.startsWith('/payments/')) {
-      return jsonResponse_(handleCollection_(SHEET_NAMES.PAYMENTS, path, method, body, '/payments'));
-    }
-    if (path === '/settings') {
-      if (method === 'GET') return jsonResponse_(getSettings_());
-      if (method === 'PUT' || method === 'POST') return jsonResponse_(updateSettings_(body));
-    }
-    if (path === '/reports') {
-      return jsonResponse_(getReports_(e.parameter));
-    }
-
-    return jsonResponse_({ message: 'Not found: ' + path }, 404);
-  } catch (err) {
-    return jsonResponse_({ message: err.message || String(err) }, 500);
-  }
+function valueForHeader_(obj, rawHeader) {
+  var key = normalizeHeader_(rawHeader);
+  if (obj[key] !== undefined && obj[key] !== null) return serializeCell_(obj[key]);
+  // camelCase API fields mapped onto spaced sheet headers
+  var camel = key;
+  if (obj[camel] !== undefined) return serializeCell_(obj[camel]);
+  return '';
 }
+
+function appendObject_(sheet, sheetName, obj) {
+  var headers = getRawHeaders_(sheet, sheetName);
+  var row = headers.map(function (h) { return valueForHeader_(obj, h); });
+  sheet.appendRow(row);
+  return obj;
+}
+
+function updateObjectRow_(sheet, sheetName, rowNumber, updates) {
+  var headers = getRawHeaders_(sheet, sheetName);
+  headers.forEach(function (rawHeader, i) {
+    var key = normalizeHeader_(rawHeader);
+    if (updates[key] !== undefined) {
+      sheet.getRange(rowNumber, i + 1).setValue(serializeCell_(updates[key]));
+    }
+  });
+}
+
+function deleteRow_(sheet, rowNumber) {
+  sheet.deleteRow(rowNumber);
+}
+
+function findById_(rows, id) {
+  var needle = String(id);
+  return rows.findIndex(function (r) {
+    return String(r.id) === needle || String(r.orderid) === needle || String(r.tokenno) === needle;
+  });
+}
+
+function nowDate_() {
+  return Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Karachi', 'yyyy-MM-dd');
+}
+
+function nowTime_() {
+  return Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Karachi', 'HH:mm:ss');
+}
+
+function pad_(n, width) {
+  var s = String(n);
+  while (s.length < width) s = '0' + s;
+  return s;
+}
+
+/* ===================== AUTH ===================== */
 
 function sanitizeUser_(user) {
   if (!user) return null;
@@ -210,253 +243,734 @@ function sanitizeUser_(user) {
 }
 
 function isActiveUser_(user) {
-  const status = String(user.status || 'active').trim().toLowerCase();
+  var status = String(user.status || 'active').trim().toLowerCase();
   return !status || status === 'active' || status === 'enabled' || status === '1' || status === 'true';
 }
 
 function handleLogin_(body) {
-  const email = String(body.email || body.username || '').trim();
-  const password = String(body.password || '');
-  const sheet = getSheet_(SHEET_NAMES.USERS);
-  if (!sheet) {
-    return { error: 'Users sheet not found' };
-  }
-  const users = sheetToObjects_(sheet);
-  const loginId = email.toLowerCase();
+  var email = String(body.email || body.username || '').trim();
+  var password = String(body.password || '');
+  var sheet = getSheet_(SHEET_NAMES.USERS);
+  var users = sheetToObjects_(sheet, SHEET_NAMES.USERS);
+  var loginId = email.toLowerCase();
 
-  const user = users.find((u) => {
+  var user = users.find(function (u) {
     if (!isActiveUser_(u)) return false;
-    const identifiers = [u.email, u.username, u.name, u.id]
-      .map((value) => String(value || '').trim().toLowerCase())
+    var identifiers = [u.email, u.username, u.name, u.id]
+      .map(function (v) { return String(v || '').trim().toLowerCase(); })
       .filter(Boolean);
-    return identifiers.includes(loginId) && String(u.password || '').trim() === password.trim();
+    return identifiers.indexOf(loginId) !== -1 && String(u.password || '').trim() === password.trim();
   });
 
-  if (!user) {
-    return { error: 'Invalid credentials' };
-  }
+  if (!user) return { error: 'Invalid credentials' };
 
-  const userId = String(user.id || user.username || user.email);
-  const token = Utilities.base64EncodeWebSafe(JSON.stringify({
+  var userId = String(user.id || user.username || user.email);
+  var token = Utilities.base64EncodeWebSafe(JSON.stringify({
     id: userId,
     email: user.email || user.username,
     exp: Date.now() + 24 * 60 * 60 * 1000,
   }));
 
-  return {
-    token,
-    user: sanitizeUser_(user),
-  };
+  return { token: token, user: sanitizeUser_(user) };
 }
 
 function validateToken_(token) {
   if (!token) return null;
   try {
-    const payload = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(token)).getDataAsString());
+    var payload = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(token)).getDataAsString());
     if (payload.exp && Date.now() > payload.exp) return null;
-    const sheet = getSheet_(SHEET_NAMES.USERS);
-    const users = sheetToObjects_(sheet);
-    const payloadId = String(payload.id || '').toLowerCase();
-    return users.find((u) => {
+    var users = sheetToObjects_(getSheet_(SHEET_NAMES.USERS), SHEET_NAMES.USERS);
+    var payloadId = String(payload.id || '').toLowerCase();
+    return users.find(function (u) {
       if (!isActiveUser_(u)) return false;
-      const ids = [u.id, u.username, u.email]
-        .map((value) => String(value || '').trim().toLowerCase())
+      var ids = [u.id, u.username, u.email]
+        .map(function (v) { return String(v || '').trim().toLowerCase(); })
         .filter(Boolean);
-      return ids.includes(payloadId);
+      return ids.indexOf(payloadId) !== -1;
     }) || null;
   } catch (err) {
     return null;
   }
 }
 
-function handlePublic_(path, method, body) {
-  if (method === 'GET' && path.startsWith('/public/invoice/')) {
-    const token = path.replace('/public/invoice/', '');
-    const invoices = sheetToObjects_(getSheet_(SHEET_NAMES.INVOICES));
-    const invoice = invoices.find(i => String(i.shareToken) === token);
-    if (!invoice) throw new Error('Invoice not found');
-    return invoice;
-  }
-  throw new Error('Not found');
+/* ===================== CUSTOMERS ===================== */
+
+function normalizeCustomer_(body) {
+  return {
+    id: body.id || '',
+    name: body.name || body.customername || '',
+    phone: String(body.phone || body.customerphone || '').trim(),
+    email: body.email || body.customeremail || '',
+    address: body.address || body.customeraddress || '',
+    city: body.city || '',
+    notes: body.notes || '',
+  };
 }
 
-function getDashboardStats_() {
-  const orders = sheetToObjects_(getSheet_(SHEET_NAMES.ORDERS));
-  const customers = sheetToObjects_(getSheet_(SHEET_NAMES.CUSTOMERS));
-  const completed = orders.filter(o => String(o.status).toLowerCase() === 'delivered').length;
-  const pending = orders.length - completed;
-  const revenue = orders.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+function findCustomerByPhone_(phone) {
+  var cleaned = String(phone || '').replace(/\D/g, '');
+  if (!cleaned) return null;
+  var customers = sheetToObjects_(getSheet_(SHEET_NAMES.CUSTOMERS), SHEET_NAMES.CUSTOMERS);
+  return customers.find(function (c) {
+    var p = String(c.phone || '').replace(/\D/g, '');
+    return p && (p === cleaned || p.slice(-10) === cleaned.slice(-10));
+  }) || null;
+}
 
+function upsertCustomer_(body) {
+  var data = normalizeCustomer_(body);
+  if (!data.name && !data.phone) throw new Error('Customer name or phone required');
+
+  var sheet = getSheet_(SHEET_NAMES.CUSTOMERS);
+  var existing = data.phone ? findCustomerByPhone_(data.phone) : null;
+
+  if (existing) {
+    var updates = {
+      name: data.name || existing.name,
+      phone: data.phone || existing.phone,
+      email: data.email || existing.email,
+      address: data.address || existing.address,
+      city: data.city || existing.city,
+      notes: data.notes || existing.notes,
+    };
+    updateObjectProps_(sheet, SHEET_NAMES.CUSTOMERS, existing._row, updates);
+    return Object.assign({}, existing, updates, { id: existing.id });
+  }
+
+  data.id = data.id || ('cust_' + Date.now());
+  appendObject_(sheet, SHEET_NAMES.CUSTOMERS, data);
+  return data;
+}
+
+function handleCustomers_(path, method, body) {
+  var sheet = getSheet_(SHEET_NAMES.CUSTOMERS);
+  var customers = sheetToObjects_(sheet, SHEET_NAMES.CUSTOMERS);
+
+  if (path.endsWith('/ledger')) {
+    var ledgerId = path.split('/')[2];
+    var customer = customers.find(function (c) { return String(c.id) === String(ledgerId); });
+    if (!customer) throw new Error('Customer not found');
+    var orders = sheetToObjects_(getSheet_(SHEET_NAMES.ORDERS), SHEET_NAMES.ORDERS).filter(function (o) {
+      return String(o.customerid) === String(customer.id) || String(o.customerphone) === String(customer.phone);
+    });
+    return {
+      customer: customer,
+      invoices: [],
+      orders: orders,
+      payments: [],
+      totalBilled: orders.reduce(function (s, o) { return s + Number(o.totalamount || 0); }, 0),
+      totalPaid: orders.reduce(function (s, o) { return s + Number(o.advancepayment || 0); }, 0),
+      outstanding: orders.reduce(function (s, o) { return s + Number(o.balanceamount || 0); }, 0),
+    };
+  }
+
+  if (path === '/customers') {
+    if (method === 'GET') {
+      return customers.map(function (c) {
+        return {
+          id: c.id,
+          name: c.name,
+          phone: c.phone,
+          email: c.email,
+          address: c.address,
+          city: c.city,
+          notes: c.notes,
+        };
+      });
+    }
+    if (method === 'POST') return upsertCustomer_(body);
+  }
+
+  var id = path.split('/')[2];
+  var index = findById_(customers, id);
+  if (index < 0) throw new Error('Customer not found');
+
+  if (method === 'GET') return customers[index];
+  if (method === 'PUT') {
+    var updates = normalizeCustomer_(Object.assign({}, customers[index], body));
+    updates.id = customers[index].id;
+    updateObjectProps_(sheet, SHEET_NAMES.CUSTOMERS, customers[index]._row, updates);
+    return updates;
+  }
+  if (method === 'DELETE') {
+    deleteRow_(sheet, customers[index]._row);
+    return { success: true };
+  }
+  throw new Error('Method not allowed');
+}
+
+/* ===================== ORDERS ===================== */
+
+function nextOrderId_() {
+  var orders = sheetToObjects_(getSheet_(SHEET_NAMES.ORDERS), SHEET_NAMES.ORDERS);
+  var max = 0;
+  orders.forEach(function (o) {
+    var m = String(o.orderid || '').match(/(\d+)/);
+    if (m) max = Math.max(max, Number(m[1]));
+  });
+  return 'ORD-' + pad_(max + 1, 4);
+}
+
+function normalizeOrder_(body, existing) {
+  existing = existing || {};
+  var products = body.products || body.items || existing.products || [];
+  return {
+    id: body.id || existing.id || ('order_' + Date.now()),
+    orderid: body.orderId || body.orderid || existing.orderid || nextOrderId_(),
+    date: body.date || existing.date || nowDate_(),
+    customerid: body.customerId || body.customerid || existing.customerid || '',
+    customername: body.customerName || body.customername || existing.customername || '',
+    customerphone: body.customerPhone || body.customerphone || existing.customerphone || '',
+    customeremail: body.customerEmail || body.customeremail || existing.customeremail || '',
+    customeraddress: body.customerAddress || body.customeraddress || existing.customeraddress || '',
+    status: body.status || existing.status || 'Order Received',
+    deliverydate: body.deliveryDate || body.deliverydate || existing.deliverydate || '',
+    products: products,
+    totalamount: Number(body.totalAmount != null ? body.totalAmount : (body.totalamount != null ? body.totalamount : existing.totalamount || 0)),
+    advancepayment: Number(body.advancePayment != null ? body.advancePayment : (body.advancepayment != null ? body.advancepayment : existing.advancepayment || 0)),
+    balanceamount: Number(body.balanceAmount != null ? body.balanceAmount : (body.balanceamount != null ? body.balanceamount : existing.balanceamount || 0)),
+    remarks: body.remarks || existing.remarks || '',
+    assigneddesigner: body.assignedDesigner || body.assigneddesigner || existing.assigneddesigner || '',
+    tokenno: body.tokenNo || body.tokenno || existing.tokenno || '',
+  };
+}
+
+function toApiOrder_(o) {
+  return {
+    id: o.id,
+    orderId: o.orderid,
+    date: o.date,
+    customerId: o.customerid,
+    customerName: o.customername,
+    customerPhone: o.customerphone,
+    customerEmail: o.customeremail,
+    customerAddress: o.customeraddress,
+    status: o.status,
+    deliveryDate: o.deliverydate,
+    products: Array.isArray(o.products) ? o.products : [],
+    totalAmount: Number(o.totalamount || 0),
+    advancePayment: Number(o.advancepayment || 0),
+    balanceAmount: Number(o.balanceamount || 0),
+    remarks: o.remarks || '',
+    assignedDesigner: o.assigneddesigner || '',
+    tokenNo: o.tokenno || '',
+  };
+}
+
+function handleOrders_(method, body) {
+  var sheet = getSheet_(SHEET_NAMES.ORDERS);
+  var orders = sheetToObjects_(sheet, SHEET_NAMES.ORDERS);
+
+  if (method === 'GET') return orders.map(toApiOrder_);
+
+  if (method === 'POST') {
+    // Auto upsert customer from order fields
+    if (body.customerPhone || body.customerName) {
+      var cust = upsertCustomer_({
+        name: body.customerName,
+        phone: body.customerPhone,
+        email: body.customerEmail,
+        address: body.customerAddress,
+      });
+      body.customerId = cust.id;
+    }
+    var record = normalizeOrder_(body);
+    appendObject_(sheet, SHEET_NAMES.ORDERS, record);
+    return toApiOrder_(record);
+  }
+  throw new Error('Method not allowed');
+}
+
+function handleOrderById_(path, method, body) {
+  var sheet = getSheet_(SHEET_NAMES.ORDERS);
+  var orders = sheetToObjects_(sheet, SHEET_NAMES.ORDERS);
+  var id = path.split('/')[2];
+  var index = findById_(orders, id);
+
+  if (path.indexOf('/duplicate') !== -1 && method === 'POST') {
+    if (index < 0) throw new Error('Order not found');
+    var copy = normalizeOrder_(Object.assign({}, toApiOrder_(orders[index]), {
+      id: 'order_' + Date.now(),
+      orderId: nextOrderId_(),
+    }));
+    appendObject_(sheet, SHEET_NAMES.ORDERS, copy);
+    return toApiOrder_(copy);
+  }
+
+  if (path.indexOf('/status') !== -1 && (method === 'PATCH' || method === 'POST')) {
+    if (index < 0) throw new Error('Order not found');
+    updateObjectProps_(sheet, SHEET_NAMES.ORDERS, orders[index]._row, { status: body.status });
+    orders[index].status = body.status;
+    return toApiOrder_(orders[index]);
+  }
+
+  if (index < 0) throw new Error('Order not found');
+
+  if (method === 'GET') return toApiOrder_(orders[index]);
+  if (method === 'PUT') {
+    var updated = normalizeOrder_(body, orders[index]);
+    updated.id = orders[index].id;
+    updated.orderid = orders[index].orderid;
+    updateObjectProps_(sheet, SHEET_NAMES.ORDERS, orders[index]._row, updated);
+    return toApiOrder_(updated);
+  }
+  if (method === 'DELETE') {
+    deleteRow_(sheet, orders[index]._row);
+    return { success: true };
+  }
+  throw new Error('Method not allowed');
+}
+
+/* ===================== GENERIC COLLECTION ===================== */
+
+function handleCollection_(sheetName, path, method, body, basePath) {
+  var sheet = getSheet_(sheetName);
+  var rows = sheetToObjects_(sheet, sheetName);
+
+  if (path === basePath) {
+    if (method === 'GET') return rows;
+    if (method === 'POST') {
+      var record = Object.assign({ id: sheetName.toLowerCase().slice(0, -1) + '_' + Date.now() }, body);
+      // flatten common camelCase
+      if (body.name) record.name = body.name;
+      appendObject_(sheet, sheetName, record);
+      return record;
+    }
+  }
+
+  var id = path.split('/')[2];
+  var index = findById_(rows, id);
+  if (index < 0) throw new Error('Not found');
+
+  if (method === 'GET') return rows[index];
+  if (method === 'PUT') {
+    var updates = Object.assign({}, rows[index], body);
+    updateObjectProps_(sheet, sheetName, rows[index]._row, updates);
+    return updates;
+  }
+  if (method === 'DELETE') {
+    deleteRow_(sheet, rows[index]._row);
+    return { success: true };
+  }
+  throw new Error('Method not allowed');
+}
+
+/* ===================== COUNTERS + TOKENS ===================== */
+
+function isCounterRow_(row) {
+  var type = String(row.recordtype || '').toLowerCase();
+  if (type === 'token') return false;
+  if (type === 'counter') return true;
+  // Heuristic: no token number ⇒ counter master
+  return !row.tokenno;
+}
+
+function isTokenRow_(row) {
+  var type = String(row.recordtype || '').toLowerCase();
+  if (type === 'token') return true;
+  if (type === 'counter') return false;
+  return !!row.tokenno;
+}
+
+function getCounterMasters_() {
+  var sheet = getSheet_(SHEET_NAMES.COUNTERS);
+  var rows = sheetToObjects_(sheet, SHEET_NAMES.COUNTERS);
+  return rows.filter(isCounterRow_).map(function (c) {
+    return {
+      id: c.id || c.countername,
+      counterName: c.countername,
+      accessHolder: c.accessholder || '',
+      prefix: c.prefix || 'T',
+      lastNumber: Number(c.lastnumber || 0),
+      status: c.status || 'Active',
+      _row: c._row,
+    };
+  });
+}
+
+function ensureDefaultCounters_() {
+  var sheet = getSheet_(SHEET_NAMES.COUNTERS);
+  ensureHeaders_(sheet, SHEET_NAMES.COUNTERS);
+  var counters = getCounterMasters_();
+  if (counters.length) return counters;
+
+  var defaults = [
+    { recordtype: 'Counter', countername: 'Counter 1', accessholder: 'Reception', prefix: 'A', lastnumber: 0, status: 'Active' },
+    { recordtype: 'Counter', countername: 'Counter 2', accessholder: 'Design Desk', prefix: 'B', lastnumber: 0, status: 'Active' },
+  ];
+  defaults.forEach(function (c) { appendObject_(sheet, SHEET_NAMES.COUNTERS, c); });
+  return getCounterMasters_();
+}
+
+function nextTokenNo_(counter) {
+  var sheet = getSheet_(SHEET_NAMES.COUNTERS);
+  var next = Number(counter.lastNumber || 0) + 1;
+  updateObjectProps_(sheet, SHEET_NAMES.COUNTERS, counter._row, { lastnumber: next });
+  return String(counter.prefix || 'T') + '-' + pad_(next, 3);
+}
+
+function toApiToken_(t) {
+  return {
+    id: t.id || t.tokenno,
+    tokenNo: t.tokenno,
+    date: t.date,
+    time: t.time,
+    counterName: t.countername,
+    customerId: t.customerid,
+    customerName: t.customername,
+    customerPhone: t.customerphone,
+    service: t.service,
+    status: t.tokenstatus || t.status || 'Waiting',
+    calledAt: t.calledat || '',
+    orderId: t.orderid || '',
+    notes: t.notes || '',
+  };
+}
+
+function handleTokens_(path, method, body, params) {
+  var sheet = getSheet_(SHEET_NAMES.COUNTERS);
+  ensureHeaders_(sheet, SHEET_NAMES.COUNTERS);
+  var rows = sheetToObjects_(sheet, SHEET_NAMES.COUNTERS);
+  var tokens = rows.filter(isTokenRow_);
+
+  // GET /tokens?counter=Counter%201&status=Waiting
+  if (path === '/tokens' && method === 'GET') {
+    var filtered = tokens;
+    if (params && params.counter) {
+      filtered = filtered.filter(function (t) {
+        return String(t.countername).toLowerCase() === String(params.counter).toLowerCase();
+      });
+    }
+    if (params && params.status) {
+      filtered = filtered.filter(function (t) {
+        return String(t.tokenstatus || t.status).toLowerCase() === String(params.status).toLowerCase();
+      });
+    }
+    if (params && params.date) {
+      filtered = filtered.filter(function (t) { return String(t.date) === String(params.date); });
+    } else {
+      // default: today's tokens
+      var today = nowDate_();
+      filtered = filtered.filter(function (t) { return String(t.date) === today; });
+    }
+    return filtered.map(toApiToken_);
+  }
+
+  // POST /tokens — book token
+  if (path === '/tokens' && method === 'POST') {
+    var counters = ensureDefaultCounters_();
+    var counterName = body.counterName || body.counter || '';
+    var counter = counters.find(function (c) {
+      return String(c.counterName).toLowerCase() === String(counterName).toLowerCase();
+    });
+    if (!counter) throw new Error('Counter not found: ' + counterName);
+    if (String(counter.status).toLowerCase() !== 'active') throw new Error('Counter is not active');
+
+    var customer = upsertCustomer_({
+      name: body.customerName || body.name,
+      phone: body.customerPhone || body.phone,
+      email: body.email,
+      address: body.address,
+    });
+
+    var tokenNo = nextTokenNo_(counter);
+    var token = {
+      recordtype: 'Token',
+      countername: counter.counterName,
+      tokenno: tokenNo,
+      date: nowDate_(),
+      time: nowTime_(),
+      customerid: customer.id,
+      customername: customer.name,
+      customerphone: customer.phone,
+      service: body.service || body.serviceName || '',
+      tokenstatus: 'Waiting',
+      calledat: '',
+      orderid: '',
+      notes: body.notes || '',
+      id: 'token_' + Date.now(),
+    };
+    appendObject_(sheet, SHEET_NAMES.COUNTERS, token);
+    return toApiToken_(token);
+  }
+
+  // /tokens/:id/...
+  var id = path.split('/')[2];
+  var index = tokens.findIndex(function (t) {
+    return String(t.tokenno) === String(id) || String(t.id) === String(id);
+  });
+  if (index < 0) throw new Error('Token not found');
+  var tokenRow = tokens[index];
+
+  if (path.indexOf('/call') !== -1 && method === 'POST') {
+    updateObjectProps_(sheet, SHEET_NAMES.COUNTERS, tokenRow._row, {
+      tokenstatus: 'Called',
+      calledat: nowTime_(),
+    });
+    tokenRow.tokenstatus = 'Called';
+    tokenRow.calledat = nowTime_();
+    return toApiToken_(tokenRow);
+  }
+
+  if (path.indexOf('/complete') !== -1 && method === 'POST') {
+    updateObjectProps_(sheet, SHEET_NAMES.COUNTERS, tokenRow._row, { tokenstatus: 'Completed' });
+    tokenRow.tokenstatus = 'Completed';
+    return toApiToken_(tokenRow);
+  }
+
+  if (path.indexOf('/skip') !== -1 && method === 'POST') {
+    updateObjectProps_(sheet, SHEET_NAMES.COUNTERS, tokenRow._row, { tokenstatus: 'Skipped' });
+    tokenRow.tokenstatus = 'Skipped';
+    return toApiToken_(tokenRow);
+  }
+
+  if (path.indexOf('/link-order') !== -1 && method === 'POST') {
+    updateObjectProps_(sheet, SHEET_NAMES.COUNTERS, tokenRow._row, {
+      orderid: body.orderId || body.orderid || '',
+      tokenstatus: 'Ordered',
+    });
+    tokenRow.orderid = body.orderId || body.orderid || '';
+    tokenRow.tokenstatus = 'Ordered';
+    return toApiToken_(tokenRow);
+  }
+
+  if (method === 'GET') return toApiToken_(tokenRow);
+  if (method === 'PUT') {
+    var upd = {
+      tokenstatus: body.status || body.tokenStatus || tokenRow.tokenstatus,
+      notes: body.notes != null ? body.notes : tokenRow.notes,
+      service: body.service != null ? body.service : tokenRow.service,
+    };
+    updateObjectProps_(sheet, SHEET_NAMES.COUNTERS, tokenRow._row, upd);
+    return toApiToken_(Object.assign({}, tokenRow, upd));
+  }
+  throw new Error('Method not allowed');
+}
+
+function handleCounters_(path, method, body) {
+  ensureDefaultCounters_();
+  if (path === '/counters' && method === 'GET') {
+    return getCounterMasters_().map(function (c) {
+      return {
+        id: c.id,
+        counterName: c.counterName,
+        accessHolder: c.accessHolder,
+        prefix: c.prefix,
+        lastNumber: c.lastNumber,
+        status: c.status,
+      };
+    });
+  }
+  if (path === '/counters' && method === 'POST') {
+    var sheet = getSheet_(SHEET_NAMES.COUNTERS);
+    var record = {
+      recordtype: 'Counter',
+      countername: body.counterName || body.name,
+      accessholder: body.accessHolder || '',
+      prefix: body.prefix || 'T',
+      lastnumber: Number(body.lastNumber || 0),
+      status: body.status || 'Active',
+    };
+    appendObject_(sheet, SHEET_NAMES.COUNTERS, record);
+    return {
+      counterName: record.countername,
+      accessHolder: record.accessholder,
+      prefix: record.prefix,
+      lastNumber: record.lastnumber,
+      status: record.status,
+    };
+  }
+  throw new Error('Method not allowed');
+}
+
+/* ===================== DASHBOARD / SETTINGS ===================== */
+
+function getDashboardStats_() {
+  var orders = sheetToObjects_(getSheet_(SHEET_NAMES.ORDERS), SHEET_NAMES.ORDERS);
+  var customers = sheetToObjects_(getSheet_(SHEET_NAMES.CUSTOMERS), SHEET_NAMES.CUSTOMERS);
+  var completed = orders.filter(function (o) {
+    return String(o.status).toLowerCase().indexOf('deliver') !== -1;
+  }).length;
   return {
     totalOrders: orders.length,
-    pendingOrders: pending,
+    pendingOrders: orders.length - completed,
     completedOrders: completed,
-    revenue,
+    revenue: orders.reduce(function (s, o) { return s + Number(o.totalamount || 0); }, 0),
     expenses: 0,
-    receivables: 0,
+    receivables: orders.reduce(function (s, o) { return s + Number(o.balanceamount || 0); }, 0),
     payables: 0,
     activeCustomers: customers.length,
   };
 }
 
 function getDashboardCharts_() {
+  var orders = sheetToObjects_(getSheet_(SHEET_NAMES.ORDERS), SHEET_NAMES.ORDERS);
+  var statusMap = {};
+  orders.forEach(function (o) {
+    var key = o.status || 'Unknown';
+    statusMap[key] = (statusMap[key] || 0) + 1;
+  });
   return {
     monthlySales: [],
-    orderStatus: [],
+    orderStatus: Object.keys(statusMap).map(function (name) {
+      return { name: name, value: statusMap[name] };
+    }),
   };
 }
 
 function getRecentOrders_() {
-  return sheetToObjects_(getSheet_(SHEET_NAMES.ORDERS)).slice(0, 5);
-}
-
-function handleOrders_(method, body, params) {
-  const sheet = getSheet_(SHEET_NAMES.ORDERS);
-  const orders = sheetToObjects_(sheet);
-
-  if (method === 'GET') return orders;
-  if (method === 'POST') {
-    const id = 'order_' + Date.now();
-    appendRow_(sheet, { id, ...body });
-    return { id, ...body };
-  }
-  throw new Error('Method not allowed');
-}
-
-function handleOrderById_(path, method, body) {
-  const id = path.split('/')[2];
-  const sheet = getSheet_(SHEET_NAMES.ORDERS);
-  let orders = sheetToObjects_(sheet);
-  const index = orders.findIndex(o => String(o.id) === id);
-
-  if (path.endsWith('/duplicate') && method === 'POST') {
-    const source = orders[index];
-    if (!source) throw new Error('Order not found');
-    const copy = { ...source, id: 'order_' + Date.now(), orderId: source.orderId + '-COPY' };
-    appendRow_(sheet, copy);
-    return copy;
-  }
-
-  if (path.endsWith('/status') && (method === 'PATCH' || method === 'POST')) {
-    if (index < 0) throw new Error('Order not found');
-    orders[index].status = body.status;
-    rewriteSheet_(sheet, orders);
-    return orders[index];
-  }
-
-  if (method === 'GET') {
-    if (index < 0) throw new Error('Order not found');
-    return orders[index];
-  }
-  if (method === 'PUT') {
-    if (index < 0) throw new Error('Order not found');
-    orders[index] = { ...orders[index], ...body };
-    rewriteSheet_(sheet, orders);
-    return orders[index];
-  }
-  if (method === 'DELETE') {
-    if (index < 0) throw new Error('Order not found');
-    orders.splice(index, 1);
-    rewriteSheet_(sheet, orders);
-    return { success: true };
-  }
-  throw new Error('Method not allowed');
-}
-
-function handleCustomers_(path, method, body) {
-  const sheet = getSheet_(SHEET_NAMES.CUSTOMERS);
-  const customers = sheetToObjects_(sheet);
-
-  if (path.endsWith('/ledger')) {
-    const id = path.split('/')[2];
-    const customer = customers.find(c => String(c.id) === id);
-    if (!customer) throw new Error('Customer not found');
-    return {
-      customer,
-      invoices: [],
-      orders: [],
-      payments: [],
-      totalBilled: 0,
-      totalPaid: 0,
-      outstanding: 0,
-    };
-  }
-
-  return handleCollection_(SHEET_NAMES.CUSTOMERS, path, method, body, '/customers');
-}
-
-function handleCollection_(sheetName, path, method, body, basePath) {
-  const sheet = getSheet_(sheetName);
-  let rows = sheetToObjects_(sheet);
-
-  if (path === basePath) {
-    if (method === 'GET') return rows;
-    if (method === 'POST') {
-      const id = sheetName.toLowerCase().slice(0, -1) + '_' + Date.now();
-      const record = { id, ...body };
-      appendRow_(sheet, record);
-      return record;
-    }
-  }
-
-  const id = path.split('/')[2];
-  const index = rows.findIndex(r => String(r.id) === id);
-
-  if (method === 'GET') {
-    if (index < 0) throw new Error('Not found');
-    return rows[index];
-  }
-  if (method === 'PUT') {
-    if (index < 0) throw new Error('Not found');
-    rows[index] = { ...rows[index], ...body };
-    rewriteSheet_(sheet, rows);
-    return rows[index];
-  }
-  if (method === 'DELETE') {
-    if (index < 0) throw new Error('Not found');
-    rows.splice(index, 1);
-    rewriteSheet_(sheet, rows);
-    return { success: true };
-  }
-
-  throw new Error('Method not allowed');
+  return sheetToObjects_(getSheet_(SHEET_NAMES.ORDERS), SHEET_NAMES.ORDERS)
+    .slice(-5)
+    .reverse()
+    .map(toApiOrder_);
 }
 
 function getSettings_() {
-  const rows = sheetToObjects_(getSheet_(SHEET_NAMES.SETTINGS));
-  return rows[0] || {};
+  var rows = sheetToObjects_(getSheet_(SHEET_NAMES.SETTINGS), SHEET_NAMES.SETTINGS);
+  if (!rows.length) return {};
+  // Key/Value sheet → object, or single-row settings
+  if (rows[0].key !== undefined) {
+    var obj = {};
+    rows.forEach(function (r) { obj[r.key] = r.value; });
+    return obj;
+  }
+  return rows[0];
 }
 
 function updateSettings_(body) {
-  const sheet = getSheet_(SHEET_NAMES.SETTINGS);
-  rewriteSheet_(sheet, [body]);
+  var sheet = getSheet_(SHEET_NAMES.SETTINGS);
+  ensureHeaders_(sheet, SHEET_NAMES.SETTINGS);
+  var headers = getRawHeaders_(sheet, SHEET_NAMES.SETTINGS);
+  var normalized = headers.map(normalizeHeader_);
+  if (normalized.indexOf('key') !== -1 && normalized.indexOf('value') !== -1) {
+    sheet.clearContents();
+    sheet.getRange(1, 1, 1, 2).setValues([['Key', 'Value']]);
+    var keys = Object.keys(body);
+    keys.forEach(function (k, i) {
+      sheet.getRange(i + 2, 1, 1, 2).setValues([[k, serializeCell_(body[k])]]);
+    });
+    return body;
+  }
+  // single row style — overwrite row 2
+  if (sheet.getLastRow() < 2) {
+    appendObject_(sheet, SHEET_NAMES.SETTINGS, body);
+  } else {
+    updateObjectProps_(sheet, SHEET_NAMES.SETTINGS, 2, body);
+  }
   return body;
 }
 
 function getReports_(params) {
-  return { period: params.period || 'month', summary: {} };
+  var stats = getDashboardStats_();
+  return { period: (params && params.period) || 'month', summary: stats };
 }
 
-function appendRow_(sheet, obj) {
-  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  if (!headers.length || !headers[0]) {
-    const keys = Object.keys(obj);
-    sheet.getRange(1, 1, 1, keys.length).setValues([keys]);
-    sheet.getRange(2, 1, 1, keys.length).setValues([keys.map(k => obj[k])]);
-    return;
+function handlePublic_(path, method) {
+  if (method === 'GET' && path.indexOf('/public/invoice/') === 0) {
+    var token = path.replace('/public/invoice/', '');
+    var invoices = sheetToObjects_(getSheet_(SHEET_NAMES.INVOICES), SHEET_NAMES.INVOICES);
+    var invoice = invoices.find(function (i) { return String(i.sharetoken) === token; });
+    if (!invoice) throw new Error('Invoice not found');
+    return invoice;
   }
-  sheet.appendRow(headers.map(h => obj[h] !== undefined ? obj[h] : ''));
+  throw new Error('Not found');
 }
 
-function rewriteSheet_(sheet, rows) {
-  if (!rows.length) {
-    sheet.clearContents();
-    return;
+function handleProducts_(path, method, body) {
+  var result = handleCollection_(SHEET_NAMES.PRODUCTS, path, method, body, '/products');
+  if (Array.isArray(result)) {
+    return result.map(function (p) {
+      return {
+        id: p.id,
+        name: p.name,
+        category: p.category || '',
+        rate: Number(p.rate || 0),
+        unit: p.unit || '',
+        description: p.description || '',
+        status: p.status || 'Active',
+      };
+    });
   }
-  const headers = Object.keys(rows[0]);
-  const data = [headers].concat(rows.map(r => headers.map(h => r[h] !== undefined ? r[h] : '')));
-  sheet.clearContents();
-  sheet.getRange(1, 1, data.length, headers.length).setValues(data);
+  return result;
+}
+
+/* ===================== ROUTER ===================== */
+
+function handleRequest_(e) {
+  var path = getPath_(e);
+  var method = getMethod_(e);
+  var body = parseBody_(e);
+  var token = parseAuthToken_(e);
+
+  try {
+    if (method === 'POST' && path === '/auth/login') {
+      var loginResult = handleLogin_(body);
+      if (loginResult.error) return jsonResponse_({ message: loginResult.error }, 401);
+      return jsonResponse_(loginResult);
+    }
+
+    if (path.indexOf('/public/') === 0) {
+      return jsonResponse_(handlePublic_(path, method, body));
+    }
+
+    var user = validateToken_(token);
+    if (!user) return jsonResponse_({ message: 'Unauthorized' }, 401);
+
+    if (method === 'GET' && path === '/auth/me') return jsonResponse_(sanitizeUser_(user));
+    if (method === 'POST' && path === '/auth/logout') return jsonResponse_({ success: true });
+
+    if (method === 'GET' && path === '/dashboard/stats') return jsonResponse_(getDashboardStats_());
+    if (method === 'GET' && path === '/dashboard/charts') return jsonResponse_(getDashboardCharts_());
+    if (method === 'GET' && path === '/dashboard/recent-orders') return jsonResponse_(getRecentOrders_());
+
+    if (path === '/orders') return jsonResponse_(handleOrders_(method, body));
+    if (path.indexOf('/orders/') === 0) return jsonResponse_(handleOrderById_(path, method, body));
+
+    if (path === '/customers' || path.indexOf('/customers/') === 0) {
+      return jsonResponse_(handleCustomers_(path, method, body));
+    }
+
+    if (path === '/products' || path.indexOf('/products/') === 0) {
+      return jsonResponse_(handleProducts_(path, method, body));
+    }
+
+    if (path === '/invoices' || path.indexOf('/invoices/') === 0) {
+      return jsonResponse_(handleCollection_(SHEET_NAMES.INVOICES, path, method, body, '/invoices'));
+    }
+    if (path === '/vendors' || path.indexOf('/vendors/') === 0) {
+      return jsonResponse_(handleCollection_(SHEET_NAMES.VENDORS, path, method, body, '/vendors'));
+    }
+    if (path === '/purchases' || path.indexOf('/purchases/') === 0) {
+      return jsonResponse_(handleCollection_(SHEET_NAMES.PURCHASES, path, method, body, '/purchases'));
+    }
+    if (path === '/expenses' || path.indexOf('/expenses/') === 0) {
+      return jsonResponse_(handleCollection_(SHEET_NAMES.EXPENSES, path, method, body, '/expenses'));
+    }
+    if (path === '/payments' || path.indexOf('/payments/') === 0) {
+      return jsonResponse_(handleCollection_(SHEET_NAMES.PAYMENTS, path, method, body, '/payments'));
+    }
+
+    // No Designers sheet — return empty / no-op friendly responses
+    if (path === '/designers' && method === 'GET') return jsonResponse_([]);
+    if (path.indexOf('/designers/') === 0) return jsonResponse_({ message: 'Designers sheet not configured' }, 404);
+
+    if (path === '/counters' || path.indexOf('/counters/') === 0) {
+      return jsonResponse_(handleCounters_(path, method, body));
+    }
+    if (path === '/tokens' || path.indexOf('/tokens/') === 0) {
+      return jsonResponse_(handleTokens_(path, method, body, e.parameter || {}));
+    }
+
+    if (path === '/settings') {
+      if (method === 'GET') return jsonResponse_(getSettings_());
+      if (method === 'PUT' || method === 'POST') return jsonResponse_(updateSettings_(body));
+    }
+    if (path === '/reports') return jsonResponse_(getReports_(e.parameter));
+
+    return jsonResponse_({ message: 'Not found: ' + path }, 404);
+  } catch (err) {
+    return jsonResponse_({ message: err.message || String(err) }, 500);
+  }
 }
 
 function doGet(e) {
@@ -467,15 +981,9 @@ function doPost(e) {
   return handleRequest_(e || { parameter: {}, postData: { contents: '{}' } });
 }
 
-function setupSheets() {
-  const ss = SpreadsheetApp.openById(getSpreadsheetId_());
-  Object.values(SHEET_NAMES).forEach(name => {
-    if (!ss.getSheetByName(name)) ss.insertSheet(name);
-  });
-
-  const users = getSheet_(SHEET_NAMES.USERS);
-  if (users.getLastRow() < 2) {
-    users.getRange(1, 1, 1, 5).setValues([['Username', 'Password', 'Name', 'Role', 'Status']]);
-    users.getRange(2, 1, 1, 5).setValues([['admin', 'admin123', 'Administrator', 'Admin', 'Active']]);
-  }
+/**
+ * One-time: ensure Counters has headers + default counters (does not wipe data).
+ */
+function setupCounters() {
+  ensureDefaultCounters_();
 }
