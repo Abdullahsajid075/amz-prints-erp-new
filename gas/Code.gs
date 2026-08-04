@@ -423,10 +423,30 @@ function isActiveUser_(user) {
   return !status || status === 'active' || status === 'enabled' || status === '1' || status === 'true';
 }
 
+/** Create admin/admin123 when Users sheet has no login rows. */
+function ensureDefaultAdmin_() {
+  var sheet = getSheet_(SHEET_NAMES.USERS);
+  ensureHeaders_(sheet, SHEET_NAMES.USERS);
+  var users = getSheetRows_(SHEET_NAMES.USERS);
+  if (users && users.length) return users;
+  var admin = {
+    username: 'admin',
+    password: 'admin123',
+    name: 'Admin',
+    role: 'Super Admin',
+    status: 'Active',
+    permissions: '[]',
+    id: 'user_admin',
+  };
+  appendObject_(sheet, SHEET_NAMES.USERS, admin);
+  invalidateSheetCache_(SHEET_NAMES.USERS);
+  return getSheetRows_(SHEET_NAMES.USERS);
+}
+
 function handleLogin_(body) {
   var email = String(body.email || body.username || '').trim();
   var password = String(body.password || '');
-  var users = getSheetRows_(SHEET_NAMES.USERS);
+  var users = ensureDefaultAdmin_();
   var loginId = email.toLowerCase();
 
   var user = users.find(function (u) {
@@ -434,10 +454,16 @@ function handleLogin_(body) {
     var identifiers = [u.email, u.username, u.name, u.id]
       .map(function (v) { return String(v || '').trim().toLowerCase(); })
       .filter(Boolean);
-    return identifiers.indexOf(loginId) !== -1 && String(u.password || '').trim() === password.trim();
+    var sheetPass = String(u.password != null ? u.password : '').trim();
+    return identifiers.indexOf(loginId) !== -1 && sheetPass === password.trim();
   });
 
-  if (!user) return { error: 'Invalid credentials' };
+  if (!user) {
+    var hint = users.length
+      ? 'Check Users sheet Username/Password (and Status=Active).'
+      : 'Users sheet is empty — run Sync Sheets / prepareDatabase.';
+    return { error: 'Invalid credentials. ' + hint };
+  }
 
   var userId = String(user.id || user.username || user.email);
   var token = Utilities.base64EncodeWebSafe(JSON.stringify({
@@ -1735,6 +1761,7 @@ function prepareDatabase() {
     }
   });
   ensureDefaultCounters_();
+  ensureDefaultAdmin_();
   Logger.log(JSON.stringify(report, null, 2));
   return report;
 }
