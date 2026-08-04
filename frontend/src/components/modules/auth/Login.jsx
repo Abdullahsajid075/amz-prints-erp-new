@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import { useBrand } from '@/context/BrandContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,10 +9,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Building2, Lock, Mail, AlertCircle, Search, Package, Calendar, User, MapPin, CheckCircle2, Circle, Clock, Truck } from 'lucide-react';
-import { ordersAPI } from '@/services/api';
+import { Lock, Mail, AlertCircle, Search, Package, Calendar, User, CheckCircle2, Circle, Clock, Truck } from 'lucide-react';
+import { trackPublic } from '@/services/api';
 import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
-import { ORDER_STATUS } from '@/utils/constants';
 
 const AdminLoginForm = () => {
   const [credentials, setCredentials] = useState({ email: '', password: '' });
@@ -82,9 +82,6 @@ const AdminLoginForm = () => {
       >
         {loading ? 'Signing in...' : 'Sign In as Admin'}
       </Button>
-      <p className="text-xs text-center text-gray-500 mt-4">
-        Demo credentials: <span className="font-semibold">admin / admin123</span>
-      </p>
     </form>
   );
 };
@@ -113,7 +110,8 @@ const OrderTrackingForm = () => {
     setOrder(null);
 
     try {
-      const response = await ordersAPI.getById(trackingNumber.trim());
+      const id = trackingNumber.trim();
+      const response = await trackPublic(id);
       if (response.data) {
         setOrder(response.data);
       } else {
@@ -152,7 +150,7 @@ const OrderTrackingForm = () => {
             <Input
               id="tracking"
               type="text"
-              placeholder="Enter your order tracking number (e.g., ORD-001)"
+              placeholder="Enter your order tracking number"
               value={trackingNumber}
               onChange={(e) => setTrackingNumber(e.target.value)}
               className="pl-10 h-12"
@@ -171,9 +169,6 @@ const OrderTrackingForm = () => {
           <Search className="h-4 w-4 mr-2" />
           {loading ? 'Tracking...' : 'Track My Order'}
         </Button>
-        <p className="text-xs text-center text-gray-500">
-          Demo tracking: try <span className="font-semibold">order_1</span>
-        </p>
       </form>
 
       {order && (
@@ -181,7 +176,7 @@ const OrderTrackingForm = () => {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs text-gray-500 font-medium uppercase">Tracking Number</p>
-              <h3 className="text-xl font-bold" style={{ color: '#2E2E2E' }}>{order.orderId}</h3>
+              <h3 className="text-xl font-bold" style={{ color: '#2E2E2E' }}>{order.trackingNumber || order.orderId}</h3>
             </div>
             <Badge className={`${getStatusColor(order.status)} text-sm px-3 py-1`}>
               {order.status}
@@ -208,7 +203,7 @@ const OrderTrackingForm = () => {
           <div>
             <p className="text-xs text-gray-500 font-medium uppercase mb-3">Order Progress</p>
             <div className="space-y-3">
-              {WORKFLOW_STEPS.map((step, idx) => {
+              {WORKFLOW_STEPS.map((step) => {
                 const status = getStepStatus(step.key);
                 const StepIcon = step.icon;
                 return (
@@ -271,16 +266,35 @@ const OrderTrackingForm = () => {
 };
 
 const Login = () => {
+  const { company, primary } = useBrand();
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #F5F7FB 0%, #E8ECF4 100%)' }}>
       <Card className="w-full max-w-md shadow-2xl" data-testid="login-card">
         <CardHeader className="space-y-4 text-center pb-6">
-          <div className="mx-auto w-20 h-20 rounded-2xl flex items-center justify-center" style={{ backgroundColor: '#F26522' }}>
-            <Building2 className="w-10 h-10 text-white" />
-          </div>
+          {company.logo ? (
+            <img
+              src={company.logo}
+              alt={company.name || 'Company logo'}
+              className="mx-auto w-20 h-20 object-contain rounded-2xl"
+            />
+          ) : (
+            <div
+              className="mx-auto w-20 h-20 rounded-2xl flex items-center justify-center"
+              style={{ backgroundColor: primary || '#F26522' }}
+            >
+              <span className="text-white font-bold text-3xl">
+                {(company.name || 'A').charAt(0)}
+              </span>
+            </div>
+          )}
           <div>
-            <CardTitle className="text-3xl font-bold" style={{ color: '#2E2E2E' }}>AMZ Prints</CardTitle>
-            <CardDescription className="text-base mt-2">Enterprise Resource Planning</CardDescription>
+            <CardTitle className="text-3xl font-bold" style={{ color: '#2E2E2E' }}>
+              {company.name || 'AMZ Prints'}
+            </CardTitle>
+            <CardDescription className="text-base mt-2">
+              {company.tagline || 'Enterprise Resource Planning'}
+            </CardDescription>
           </div>
         </CardHeader>
         <CardContent>

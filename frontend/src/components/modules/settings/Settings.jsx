@@ -8,13 +8,14 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
-import { settingsAPI } from '@/services/api';
-import { Save, Building2, FileText, Palette, Users, ShoppingCart, Package, UserCog, CreditCard, Bell, Shield, Database, Trash2, Plus, X } from 'lucide-react';
+import { settingsAPI, usersAPI } from '@/services/api';
+import { useBrand } from '@/context/BrandContext';
+import { Save, Building2, FileText, Palette, Users, ShoppingCart, Package, UserCog, CreditCard, Bell, Shield, Database, Trash2, Plus, X, Edit } from 'lucide-react';
 import { toast } from 'sonner';
 
 const defaultSettings = {
   company: { name: 'AMZ Prints', tagline: 'Professional Printing & Advertising Services', address: '', phone: '', email: '', website: '', taxId: '', authorizedSignatory: 'Authorized Person', logo: '', stamp: '' },
-  invoice: { prefix: 'INV-', taxRate: 0, terms: 'Payment due within 30 days.', showQR: true, showStamp: true, showSignature: true },
+  invoice: { prefix: 'INV-', taxRate: 0, terms: 'Payment due within 30 days.', showQR: true, showStamp: true, showSignature: true, template: 'classic' },
   theme: { primary: '#F26522', secondary: '#2E2E2E', accent: '#10B981' },
   orders: { autoNumber: true, orderPrefix: 'ORD-', defaultStatus: 'Order Received', requireDeliveryDate: true },
   customers: { autoCode: true, codePrefix: 'CUST-', creditLimit: 50000, requirePhone: true },
@@ -22,26 +23,67 @@ const defaultSettings = {
   designers: { assignAuto: false, trackHours: true, showWorkload: true },
   employees: { attendanceEnabled: true, salaryPeriod: 'monthly' },
   payments: { methods: [{ name: 'Cash', enabled: true }, { name: 'Bank Transfer', enabled: true }, { name: 'UPI', enabled: true }, { name: 'Card', enabled: true }, { name: 'Cheque', enabled: true }] },
-  users: { roles: ['Super Admin', 'Admin', 'Manager', 'Sales', 'Designer', 'Production', 'Accounts', 'Cashier'], passwordPolicy: 'strong', sessionTimeout: 60 },
+  users: {
+    roles: ['Super Admin', 'Admin', 'Manager', 'Sales', 'Designer', 'Production', 'Accounts', 'Cashier'],
+    passwordPolicy: 'strong',
+    sessionTimeout: 60,
+    /** Optional local mirror — login still uses Users sheet via usersAPI */
+    accounts: [],
+  },
   notifications: { emailNewOrder: true, emailOrderStatus: true, emailInvoice: true, smsEnabled: false, whatsappEnabled: true },
   system: { currency: 'PKR', dateFormat: 'DD MMM YYYY', backupEnabled: true, backupFrequency: 'daily' }
 };
 
+const emptyUser = { username: '', password: '', name: '', role: 'Sales', status: 'Active', permissions: [] };
+
+const readFileAsDataURL = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
 const Settings = () => {
+  const { refreshBrand, primary } = useBrand();
   const [settings, setSettings] = useState(defaultSettings);
   const [saving, setSaving] = useState(false);
   const [newMethod, setNewMethod] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [newRole, setNewRole] = useState('');
+  const [sheetUsers, setSheetUsers] = useState([]);
+  const [userForm, setUserForm] = useState(emptyUser);
+  const [editingUserId, setEditingUserId] = useState(null);
+  const [usersLoading, setUsersLoading] = useState(false);
 
   const loadSettings = useCallback(async () => {
     try {
       const res = await settingsAPI.get();
       if (res.data) {
-        setSettings({ ...defaultSettings, ...res.data, company: { ...defaultSettings.company, ...(res.data.company || {}) } });
+        setSettings({
+          ...defaultSettings,
+          ...res.data,
+          company: { ...defaultSettings.company, ...(res.data.company || {}) },
+          invoice: { ...defaultSettings.invoice, ...(res.data.invoice || {}) },
+          theme: { ...defaultSettings.theme, ...(res.data.theme || {}) },
+          users: { ...defaultSettings.users, ...(res.data.users || {}) },
+        });
       }
     } catch (err) {
       console.error('Failed to load settings', err);
+    }
+  }, []);
+
+  const loadUsers = useCallback(async () => {
+    setUsersLoading(true);
+    try {
+      const res = await usersAPI.getAll();
+      setSheetUsers(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to load users from Users sheet');
+    } finally {
+      setUsersLoading(false);
     }
   }, []);
 
@@ -51,12 +93,90 @@ const Settings = () => {
 
   const save = async () => {
     setSaving(true);
-    try { await settingsAPI.update(settings); toast.success('Settings saved'); }
-    catch (e) { toast.error('Failed'); }
-    finally { setSaving(false); }
+    try {
+      await settingsAPI.update(settings);
+      await refreshBrand();
+      toast.success('Settings saved');
+    } catch (e) {
+      toast.error('Failed');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const update = (section, field, value) => setSettings({ ...settings, [section]: { ...settings[section], [field]: value } });
+  const update = (section, field, value) =>
+    setSettings({ ...settings, [section]: { ...settings[section], [field]: value } });
+
+  const onImagePick = async (field, file) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
+    try {
+      const dataUrl = await readFileAsDataURL(file);
+      update('company', field, dataUrl);
+      toast.success(`${field === 'logo' ? 'Logo' : 'Stamp'} loaded`);
+    } catch {
+      toast.error('Failed to read file');
+    }
+  };
+
+  const saveUser = async () => {
+    if (!userForm.username.trim()) {
+      toast.error('Username required');
+      return;
+    }
+    try {
+      const payload = {
+        username: userForm.username.trim(),
+        password: userForm.password,
+        name: userForm.name || userForm.username,
+        role: userForm.role,
+        status: userForm.status,
+        permissions: userForm.permissions || [],
+      };
+      if (editingUserId) {
+        await usersAPI.update(editingUserId, payload);
+        toast.success('User updated (Users sheet)');
+      } else {
+        if (!payload.password) {
+          toast.error('Password required for new user');
+          return;
+        }
+        await usersAPI.create(payload);
+        toast.success('User created (Users sheet — used for login)');
+      }
+      setUserForm(emptyUser);
+      setEditingUserId(null);
+      loadUsers();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to save user');
+    }
+  };
+
+  const editUser = (u) => {
+    setEditingUserId(u.id || u.username);
+    setUserForm({
+      username: u.username || '',
+      password: '',
+      name: u.name || '',
+      role: u.role || 'Sales',
+      status: u.status || 'Active',
+      permissions: u.permissions || [],
+    });
+  };
+
+  const deleteUser = async (u) => {
+    if (!window.confirm(`Delete user ${u.username}?`)) return;
+    try {
+      await usersAPI.delete(u.id || u.username);
+      toast.success('User deleted');
+      loadUsers();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete');
+    }
+  };
 
   return (
     <div className="space-y-6" data-testid="settings-page">
@@ -65,12 +185,12 @@ const Settings = () => {
           <h1 className="text-3xl font-bold" style={{ color: '#2E2E2E' }}>Settings</h1>
           <p className="text-gray-600 mt-1">Complete system configuration & preferences</p>
         </div>
-        <Button onClick={save} style={{ backgroundColor: '#F26522' }} className="text-white" disabled={saving} data-testid="save-settings-button">
+        <Button onClick={save} style={{ backgroundColor: primary || '#F26522' }} className="text-white" disabled={saving} data-testid="save-settings-button">
           <Save className="h-4 w-4 mr-2" />{saving ? 'Saving...' : 'Save All Settings'}
         </Button>
       </div>
 
-      <Tabs defaultValue="company">
+      <Tabs defaultValue="company" onValueChange={(v) => { if (v === 'users') loadUsers(); }}>
         <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6 h-auto">
           <TabsTrigger value="company"><Building2 className="h-4 w-4 mr-1" />Company</TabsTrigger>
           <TabsTrigger value="invoice"><FileText className="h-4 w-4 mr-1" />Invoice</TabsTrigger>
@@ -91,8 +211,26 @@ const Settings = () => {
               <div><Label>Website</Label><Input value={settings.company.website} onChange={(e) => update('company', 'website', e.target.value)} /></div>
               <div><Label>Tax ID / GST</Label><Input value={settings.company.taxId} onChange={(e) => update('company', 'taxId', e.target.value)} /></div>
               <div><Label>Authorized Signatory</Label><Input value={settings.company.authorizedSignatory} onChange={(e) => update('company', 'authorizedSignatory', e.target.value)} /></div>
-              <div><Label>Logo URL</Label><Input placeholder="https://..." value={settings.company.logo} onChange={(e) => update('company', 'logo', e.target.value)} /></div>
-              <div><Label>Stamp URL</Label><Input placeholder="https://..." value={settings.company.stamp} onChange={(e) => update('company', 'stamp', e.target.value)} /></div>
+              <div>
+                <Label>Logo (image file → saved as Data URL)</Label>
+                <Input type="file" accept="image/*" onChange={(e) => onImagePick('logo', e.target.files?.[0])} data-testid="logo-file-input" />
+                {settings.company.logo && (
+                  <div className="mt-2 flex items-center gap-3">
+                    <img src={settings.company.logo} alt="Logo preview" className="h-14 object-contain border rounded p-1" />
+                    <Button type="button" size="sm" variant="ghost" onClick={() => update('company', 'logo', '')}>Clear</Button>
+                  </div>
+                )}
+              </div>
+              <div>
+                <Label>Stamp (image file → saved as Data URL)</Label>
+                <Input type="file" accept="image/*" onChange={(e) => onImagePick('stamp', e.target.files?.[0])} data-testid="stamp-file-input" />
+                {settings.company.stamp && (
+                  <div className="mt-2 flex items-center gap-3">
+                    <img src={settings.company.stamp} alt="Stamp preview" className="h-14 object-contain border rounded p-1" />
+                    <Button type="button" size="sm" variant="ghost" onClick={() => update('company', 'stamp', '')}>Clear</Button>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -103,6 +241,18 @@ const Settings = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div><Label>Prefix</Label><Input value={settings.invoice.prefix} onChange={(e) => update('invoice', 'prefix', e.target.value)} /></div>
                 <div><Label>Tax Rate (%)</Label><Input type="number" value={settings.invoice.taxRate} onChange={(e) => update('invoice', 'taxRate', parseFloat(e.target.value) || 0)} /></div>
+              </div>
+              <div>
+                <Label>Invoice Template</Label>
+                <Select value={settings.invoice.template || 'classic'} onValueChange={(v) => update('invoice', 'template', v)}>
+                  <SelectTrigger data-testid="invoice-template-select"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="classic">Classic</SelectItem>
+                    <SelectItem value="modern">Modern</SelectItem>
+                    <SelectItem value="minimal">Minimal</SelectItem>
+                    <SelectItem value="bold">Bold</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div><Label>Terms & Conditions</Label><Textarea rows={5} value={settings.invoice.terms} onChange={(e) => update('invoice', 'terms', e.target.value)} /></div>
               <div className="space-y-3 p-4 border rounded-lg">
@@ -211,6 +361,83 @@ const Settings = () => {
 
         <TabsContent value="users">
           <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5" />User Access (Users sheet)</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  These accounts live on the Google Sheet <strong>Users</strong> and are used for login.
+                  Redeploy Code.gs after first deploy so <code>/users</code> CRUD is available. Run Sync Sheets / prepareDatabase to add the Permissions column.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                  <div><Label>Username</Label><Input value={userForm.username} onChange={(e) => setUserForm({ ...userForm, username: e.target.value })} /></div>
+                  <div><Label>Password{editingUserId ? ' (blank = keep)' : ''}</Label><Input type="password" value={userForm.password} onChange={(e) => setUserForm({ ...userForm, password: e.target.value })} /></div>
+                  <div><Label>Name</Label><Input value={userForm.name} onChange={(e) => setUserForm({ ...userForm, name: e.target.value })} /></div>
+                  <div><Label>Role</Label>
+                    <Select value={userForm.role} onValueChange={(v) => setUserForm({ ...userForm, role: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {(settings.users.roles || []).map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div><Label>Status</Label>
+                    <Select value={userForm.status} onValueChange={(v) => setUserForm({ ...userForm, status: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Active">Active</SelectItem>
+                        <SelectItem value="Inactive">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={saveUser} className="text-white" style={{ backgroundColor: primary || '#F26522' }}>
+                    <Save className="h-4 w-4 mr-2" />{editingUserId ? 'Update User' : 'Add User'}
+                  </Button>
+                  {editingUserId && (
+                    <Button variant="outline" onClick={() => { setEditingUserId(null); setUserForm(emptyUser); }}>Cancel edit</Button>
+                  )}
+                  <Button variant="outline" onClick={loadUsers}>Refresh</Button>
+                </div>
+                {usersLoading ? (
+                  <p className="text-sm text-gray-500">Loading users…</p>
+                ) : (
+                  <div className="overflow-x-auto border rounded-lg">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-gray-50 border-b">
+                          <th className="text-left p-2">Username</th>
+                          <th className="text-left p-2">Name</th>
+                          <th className="text-left p-2">Role</th>
+                          <th className="text-left p-2">Status</th>
+                          <th className="text-right p-2">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sheetUsers.map((u) => (
+                          <tr key={u.id || u.username} className="border-b">
+                            <td className="p-2 font-medium">{u.username}</td>
+                            <td className="p-2">{u.name}</td>
+                            <td className="p-2"><Badge variant="outline">{u.role}</Badge></td>
+                            <td className="p-2">{u.status}</td>
+                            <td className="p-2 text-right">
+                              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => editUser(u)}><Edit className="h-4 w-4" /></Button>
+                              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => deleteUser(u)}><Trash2 className="h-4 w-4 text-red-600" /></Button>
+                            </td>
+                          </tr>
+                        ))}
+                        {!sheetUsers.length && (
+                          <tr><td colSpan={5} className="p-4 text-center text-gray-500">No users loaded — check GAS /users endpoint</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             <Card><CardHeader><CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5" />Roles & Permissions</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 <div>

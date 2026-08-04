@@ -1,30 +1,44 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, ShoppingCart, Users, Package, Palette, Factory, Warehouse, FileText, CreditCard, Receipt, UsersRound, BarChart3, Settings, X, Building2, ShoppingBag, Ticket } from 'lucide-react';
+import {
+  LayoutDashboard, ShoppingCart, Users, Package, Warehouse, FileText,
+  CreditCard, Receipt, BarChart3, Settings, X, Ticket, ClipboardList,
+  Store, Quote
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useBrand } from '@/context/BrandContext';
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', testId: 'nav-dashboard' },
-  { icon: Ticket, label: 'Token Booking', path: '/tokens', testId: 'nav-tokens' },
+  { icon: Quote, label: 'Quotation', path: '/quotations', testId: 'nav-quotations' },
   { icon: ShoppingCart, label: 'Orders', path: '/orders', testId: 'nav-orders' },
-  { icon: Users, label: 'Customers', path: '/customers', testId: 'nav-customers' },
-  { icon: Package, label: 'Products', path: '/products', testId: 'nav-products' },
-  { icon: Palette, label: 'Designers', path: '/designers', testId: 'nav-designers' },
-  { icon: Factory, label: 'Production', path: '/production', testId: 'nav-production' },
-  { icon: Building2, label: 'Vendors', path: '/vendors', testId: 'nav-vendors' },
-  { icon: ShoppingBag, label: 'Purchases', path: '/purchases', testId: 'nav-purchases' },
-  { icon: Warehouse, label: 'Inventory', path: '/inventory', testId: 'nav-inventory' },
+  { icon: Ticket, label: 'Token Booking', path: '/tokens', testId: 'nav-tokens' },
   { icon: FileText, label: 'Invoices', path: '/invoices', testId: 'nav-invoices' },
-  { icon: CreditCard, label: 'Payments', path: '/payments', testId: 'nav-payments' },
-  { icon: Receipt, label: 'Expenses', path: '/expenses', testId: 'nav-expenses' },
-  { icon: UsersRound, label: 'Employees', path: '/employees', testId: 'nav-employees' },
+  { icon: Users, label: 'Customers', path: '/customers', testId: 'nav-customers' },
+  { icon: Warehouse, label: 'Warehouse', path: '/warehouse', testId: 'nav-warehouse',
+    children: [
+      { label: 'Products', path: '/warehouse/products' },
+      { label: 'Purchase Orders', path: '/warehouse/purchases' },
+      { label: 'Inventory', path: '/warehouse/inventory' },
+    ]
+  },
+  { icon: Store, label: 'POS', path: '/pos', testId: 'nav-pos' },
+  { icon: CreditCard, label: 'Accounts', path: '/accounts', testId: 'nav-accounts',
+    children: [
+      { label: 'Payments', path: '/accounts/payments' },
+      { label: 'Expenses', path: '/accounts/expenses' },
+      { label: 'Vendors', path: '/accounts/vendors' },
+    ]
+  },
   { icon: BarChart3, label: 'Reports', path: '/reports', testId: 'nav-reports' },
-  { icon: Settings, label: 'Settings', path: '/settings', testId: 'nav-settings' }
+  { icon: Settings, label: 'Settings', path: '/settings', testId: 'nav-settings' },
 ];
 
 const Sidebar = ({ isOpen, closeSidebar }) => {
+  const { company, primary } = useBrand();
+
   return (
     <>
       {isOpen && (<div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={closeSidebar} />)}
@@ -35,28 +49,44 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
       >
         <div className="h-full flex flex-col">
           <div className="flex items-center justify-between p-4 lg:hidden">
-            <h2 className="text-lg font-semibold" style={{ color: '#2E2E2E' }}>Menu</h2>
+            <h2 className="text-lg font-semibold" style={{ color: '#2E2E2E' }}>{company.name || 'Menu'}</h2>
             <Button variant="ghost" size="icon" onClick={closeSidebar}><X className="h-5 w-5" /></Button>
           </div>
           <ScrollArea className="flex-1 px-3 py-4">
             <nav className="space-y-1">
               {menuItems.map((item) => (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  onClick={closeSidebar}
-                  data-testid={item.testId}
-                  className={({ isActive }) => cn('flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                    isActive ? 'text-white' : 'text-gray-700 hover:bg-gray-100')}
-                  style={({ isActive }) => ({ backgroundColor: isActive ? '#F26522' : 'transparent' })}
-                >
-                  {({ isActive }) => (
-                    <>
-                      <item.icon className={cn('h-5 w-5', isActive ? 'text-white' : 'text-gray-500')} />
-                      <span>{item.label}</span>
-                    </>
+                <div key={item.path}>
+                  <NavLink
+                    to={item.path}
+                    onClick={closeSidebar}
+                    data-testid={item.testId}
+                    className={({ isActive }) => cn('flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                      isActive ? 'text-white' : 'text-gray-700 hover:bg-gray-100')}
+                    style={({ isActive }) => ({ backgroundColor: isActive ? (primary || '#F26522') : 'transparent' })}
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <item.icon className={cn('h-5 w-5', isActive ? 'text-white' : 'text-gray-500')} />
+                        <span>{item.label}</span>
+                      </>
+                    )}
+                  </NavLink>
+                  {item.children && (
+                    <div className="ml-8 mt-1 mb-2 space-y-1">
+                      {item.children.map((child) => (
+                        <NavLink
+                          key={child.path}
+                          to={child.path}
+                          onClick={closeSidebar}
+                          className={({ isActive }) => cn('block text-xs py-1.5 px-2 rounded', isActive ? 'font-semibold' : 'text-gray-500 hover:text-gray-800')}
+                          style={({ isActive }) => ({ color: isActive ? primary : undefined })}
+                        >
+                          {child.label}
+                        </NavLink>
+                      ))}
+                    </div>
                   )}
-                </NavLink>
+                </div>
               ))}
             </nav>
           </ScrollArea>

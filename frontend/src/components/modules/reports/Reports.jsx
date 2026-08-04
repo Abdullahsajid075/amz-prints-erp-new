@@ -5,33 +5,144 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { reportsAPI } from '@/services/api';
-import { formatCurrency } from '@/utils/helpers';
-import { TrendingUp, TrendingDown, DollarSign, ShoppingCart, ShoppingBag, Wallet, Download, Calendar, FileText } from 'lucide-react';
+import { reportsAPI, ordersAPI, expensesAPI, paymentsAPI, purchasesAPI } from '@/services/api';
+import { formatCurrency, formatDate } from '@/utils/helpers';
+import { useBrand } from '@/context/BrandContext';
+import { TrendingUp, TrendingDown, DollarSign, ShoppingBag, Calendar, Printer, FileSpreadsheet } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend, AreaChart, Area } from 'recharts';
 import { toast } from 'sonner';
 
 const COLORS = ['#F26522', '#2E2E2E', '#10B981', '#F59E0B', '#3B82F6', '#8B5CF6', '#EC4899'];
 
+const REPORT_TYPES = [
+  { value: 'pl', label: 'Profit & Loss' },
+  { value: 'sales', label: 'Sales Report' },
+  { value: 'purchases', label: 'Purchase Report' },
+  { value: 'expenses', label: 'Expense Report' },
+  { value: 'payments', label: 'Payments Report' },
+  { value: 'orders', label: 'Orders Detail' },
+  { value: 'customers', label: 'Top Customers / Products' },
+  { value: 'assets', label: 'Assets' },
+];
+
+function inRange(dateStr, from, to) {
+  if (!dateStr) return true;
+  const d = String(dateStr).slice(0, 10);
+  if (from && d < from) return false;
+  if (to && d > to) return false;
+  return true;
+}
+
+function toCsv(rows, columns) {
+  const escape = (v) => {
+    const s = v == null ? '' : String(v);
+    if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  };
+  const header = columns.map((c) => escape(c.label)).join(',');
+  const body = rows.map((row) => columns.map((c) => escape(typeof c.get === 'function' ? c.get(row) : row[c.key])).join(',')).join('\n');
+  return `${header}\n${body}`;
+}
+
+function downloadCsv(filename, csv) {
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 const Reports = () => {
+  const { primary, company } = useBrand();
   const [period, setPeriod] = useState('monthly');
+  const [reportType, setReportType] = useState('pl');
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
   const [data, setData] = useState({ sales: [], purchases: [], expenses: [], profitLoss: null, topCustomers: [], topProducts: [], assets: [], comparison: [] });
+  const [orders, setOrders] = useState([]);
+  const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const fetchReports = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await reportsAPI.getAll({ period, from: dateRange.from, to: dateRange.to });
-      setData(prev => res.data || prev);
+      const [rep, ord, exp, pay, pur] = await Promise.allSettled([
+        reportsAPI.getAll({ period, from: dateRange.from, to: dateRange.to, type: reportType }),
+        ordersAPI.getAll(),
+        expensesAPI.getAll(),
+        paymentsAPI.getAll(),
+        purchasesAPI.getAll(),
+      ]);
+
+      if (rep.status === 'fulfilled' && rep.value.data) {
+        setData((prev) => ({ ...prev, ...rep.value.data }));
+      }
+
+      const orderList = ord.status === 'fulfilled' ? (ord.value.data || []) : [];
+      const expenseList = exp.status === 'fulfilled' ? (exp.value.data || []) : [];
+      const paymentList = pay.status === 'fulfilled' ? (pay.value.data || []) : [];
+      const purchaseList = pur.status === 'fulfilled' ? (pur.value.data || []) : [];
+
+      setOrders(orderList);
+      setPayments(paymentList);
+
+      // Build client-side summary when GAS reports are thin
+      const filteredOrders = orderList.filter((o) => inRange(o.date, dateRange.from, dateRange.to) && String(o.docType || 'Order').toLowerCase() !== 'quotation');
+      const filteredExpenses = expenseList.filter((e) => inRange(e.date, dateRange.from, dateRange.to));
+      const filteredPurchases = purchaseList.filter((p) => inRange(p.date, dateRange.from, dateRange.to));
+      const income = filteredOrders.reduce((s, o) => s + Number(o.totalAmount || 0), 0);
+      const expenseSum = filteredExpenses.reduce((s, e) => s + Number(e.amount || 0), 0);
+      const purchaseSum = filteredPurchases.reduce((s, p) => s + Number(p.total || p.totalAmount || 0), 0);
+
+      const expenseByCat = {};
+      filteredExpenses.forEach((e) => {
+        const cat = e.category || 'Other';
+        expenseByCat[cat] = (expenseByCat[cat] || 0) + Number(e.amount || 0);
+      });
+
+      const customerMap = {};
+      const productMap = {};
+      filteredOrders.forEach((o) => {
+        const name = o.customerName || 'Unknown';
+        customerMap[name] = (customerMap[name] || 0) + Number(o.totalAmount || 0);
+        (o.products || []).forEach((p) => {
+          const pn = p.name || 'Item';
+          if (!productMap[pn]) productMap[pn] = { name: pn, quantity: 0, revenue: 0 };
+          productMap[pn].quantity += Number(p.quantity || 0);
+          productMap[pn].revenue += Number(p.quantity || 0) * Number(p.rate || 0);
+        });
+      });
+
+      setData((prev) => ({
+        ...prev,
+        profitLoss: prev.profitLoss?.income != null
+          ? prev.profitLoss
+          : { income, expenses: expenseSum, purchases: purchaseSum, profit: income - expenseSum - purchaseSum },
+        expenses: (prev.expenses || []).length ? prev.expenses : Object.entries(expenseByCat).map(([category, amount]) => ({ category, amount })),
+        topCustomers: (prev.topCustomers || []).length
+          ? prev.topCustomers
+          : Object.entries(customerMap).map(([name, amount]) => ({ name, amount })).sort((a, b) => b.amount - a.amount).slice(0, 10),
+        topProducts: (prev.topProducts || []).length
+          ? prev.topProducts
+          : Object.values(productMap).sort((a, b) => b.revenue - a.revenue).slice(0, 10),
+        sales: (prev.sales || []).length ? prev.sales : [{ period: 'Selected', amount: income, orders: filteredOrders.length }],
+        purchases: (prev.purchases || []).length ? prev.purchases : [{ period: 'Selected', amount: purchaseSum }],
+        comparison: (prev.comparison || []).length
+          ? prev.comparison
+          : [{ period: 'Selected', income, expenses: expenseSum, purchases: purchaseSum, profit: income - expenseSum - purchaseSum }],
+      }));
     } catch (err) {
       console.error('Failed to fetch reports', err);
       toast.error('Failed to load reports');
+    } finally {
+      setLoading(false);
     }
-    finally { setLoading(false); }
-  }, [period, dateRange.from, dateRange.to]);
+  }, [period, dateRange.from, dateRange.to, reportType]);
 
-  useEffect(() => { fetchReports(); }, [fetchReports]);
+  useEffect(() => {
+    fetchReports();
+  }, [fetchReports]);
 
   const pl = data.profitLoss || { income: 0, expenses: 0, purchases: 0, profit: 0 };
   const plBreakdown = useMemo(
@@ -39,19 +150,98 @@ const Reports = () => {
     [pl.income, pl.expenses, pl.purchases]
   );
 
+  const filteredOrders = useMemo(
+    () => orders.filter((o) => inRange(o.date, dateRange.from, dateRange.to) && String(o.docType || 'Order').toLowerCase() !== 'quotation'),
+    [orders, dateRange.from, dateRange.to]
+  );
+  const filteredPayments = useMemo(
+    () => payments.filter((p) => inRange(p.date, dateRange.from, dateRange.to)),
+    [payments, dateRange.from, dateRange.to]
+  );
+
+  const exportCsv = () => {
+    let csv = '';
+    let name = `report-${reportType}`;
+    if (reportType === 'orders') {
+      csv = toCsv(filteredOrders, [
+        { label: 'Order', key: 'orderId' },
+        { label: 'Date', key: 'date' },
+        { label: 'Customer', key: 'customerName' },
+        { label: 'Status', key: 'status' },
+        { label: 'Total', key: 'totalAmount' },
+        { label: 'Advance', key: 'advancePayment' },
+      ]);
+    } else if (reportType === 'payments') {
+      csv = toCsv(filteredPayments, [
+        { label: 'Date', key: 'date' },
+        { label: 'Type', key: 'type' },
+        { label: 'Party', get: (r) => r.party || r.customerName || '' },
+        { label: 'Amount', key: 'amount' },
+        { label: 'Method', get: (r) => r.method || r.Method || '' },
+      ]);
+    } else if (reportType === 'expenses') {
+      csv = toCsv(data.expenses || [], [
+        { label: 'Category', key: 'category' },
+        { label: 'Amount', key: 'amount' },
+      ]);
+    } else if (reportType === 'customers') {
+      csv = toCsv(data.topCustomers || [], [
+        { label: 'Customer', key: 'name' },
+        { label: 'Amount', key: 'amount' },
+      ]);
+    } else {
+      csv = toCsv(
+        [
+          { metric: 'Income', value: pl.income },
+          { metric: 'Expenses', value: pl.expenses },
+          { metric: 'Purchases', value: pl.purchases },
+          { metric: 'Profit', value: pl.profit },
+        ],
+        [
+          { label: 'Metric', key: 'metric' },
+          { label: 'Value', key: 'value' },
+        ]
+      );
+      name = 'report-pl';
+    }
+    downloadCsv(`${name}-${dateRange.from || 'all'}-${dateRange.to || 'all'}.csv`, csv);
+    toast.success('CSV exported');
+  };
+
+  const printReport = () => window.print();
+
   return (
     <div className="space-y-6" data-testid="reports-page">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 no-print">
         <div>
           <h1 className="text-3xl font-bold" style={{ color: '#2E2E2E' }}>Reports & Analytics</h1>
-          <p className="text-gray-600 mt-1">Business insights, profit/loss & financial reports</p>
+          <p className="text-gray-600 mt-1">Filter by date · export CSV · print PDF</p>
         </div>
-        <Button variant="outline"><Download className="h-4 w-4 mr-2" />Export Report</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={exportCsv} data-testid="export-csv">
+            <FileSpreadsheet className="h-4 w-4 mr-2" />CSV / Excel
+          </Button>
+          <Button variant="outline" onClick={printReport} data-testid="print-report">
+            <Printer className="h-4 w-4 mr-2" />Print / PDF
+          </Button>
+        </div>
       </div>
 
-      <Card><CardContent className="p-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <div><label className="text-xs text-gray-500 font-medium uppercase">Period</label>
+      <Card className="no-print"><CardContent className="p-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
+          <div>
+            <label className="text-xs text-gray-500 font-medium uppercase">Report Type</label>
+            <Select value={reportType} onValueChange={setReportType}>
+              <SelectTrigger data-testid="report-type-select"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {REPORT_TYPES.map((t) => (
+                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 font-medium uppercase">Period</label>
             <Select value={period} onValueChange={setPeriod}>
               <SelectTrigger data-testid="period-select"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -64,11 +254,26 @@ const Reports = () => {
               </SelectContent>
             </Select>
           </div>
-          <div><label className="text-xs text-gray-500 font-medium uppercase">From</label><Input type="date" value={dateRange.from} onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })} /></div>
-          <div><label className="text-xs text-gray-500 font-medium uppercase">To</label><Input type="date" value={dateRange.to} onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })} /></div>
-          <div className="flex items-end"><Button onClick={fetchReports} style={{ backgroundColor: '#F26522' }} className="text-white w-full"><Calendar className="h-4 w-4 mr-2" />Apply</Button></div>
+          <div>
+            <label className="text-xs text-gray-500 font-medium uppercase">From</label>
+            <Input type="date" value={dateRange.from} onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })} data-testid="report-from" />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 font-medium uppercase">To</label>
+            <Input type="date" value={dateRange.to} onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })} data-testid="report-to" />
+          </div>
+          <div className="flex items-end lg:col-span-2">
+            <Button onClick={fetchReports} style={{ backgroundColor: primary || '#F26522' }} className="text-white w-full" disabled={loading}>
+              <Calendar className="h-4 w-4 mr-2" />{loading ? 'Loading…' : 'Apply'}
+            </Button>
+          </div>
         </div>
       </CardContent></Card>
+
+      <div className="print-only hidden print:block text-center mb-4">
+        <h1 className="text-2xl font-bold">{company.name || 'AMZ Prints'} — {REPORT_TYPES.find((t) => t.value === reportType)?.label}</h1>
+        <p className="text-sm text-gray-600">{dateRange.from || 'Start'} → {dateRange.to || 'Today'}</p>
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card><CardContent className="p-4 flex items-center gap-3">
@@ -84,18 +289,18 @@ const Reports = () => {
           <div><p className="text-xs text-gray-500 uppercase font-medium">Purchases</p><p className="text-xl font-bold">{formatCurrency(pl.purchases)}</p></div>
         </CardContent></Card>
         <Card><CardContent className="p-4 flex items-center gap-3">
-          <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: pl.profit >= 0 ? '#F26522' : '#EF4444' }}><DollarSign className="h-6 w-6 text-white" /></div>
-          <div><p className="text-xs text-gray-500 uppercase font-medium">{pl.profit >= 0 ? 'Net Profit' : 'Net Loss'}</p><p className="text-xl font-bold" style={{ color: pl.profit >= 0 ? '#F26522' : '#EF4444' }}>{formatCurrency(Math.abs(pl.profit))}</p></div>
+          <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: pl.profit >= 0 ? (primary || '#F26522') : '#EF4444' }}><DollarSign className="h-6 w-6 text-white" /></div>
+          <div><p className="text-xs text-gray-500 uppercase font-medium">{pl.profit >= 0 ? 'Net Profit' : 'Net Loss'}</p><p className="text-xl font-bold" style={{ color: pl.profit >= 0 ? (primary || '#F26522') : '#EF4444' }}>{formatCurrency(Math.abs(pl.profit))}</p></div>
         </CardContent></Card>
       </div>
 
-      <Tabs defaultValue="pl">
-        <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6">
+      <Tabs value={reportType} onValueChange={setReportType}>
+        <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6 no-print">
           <TabsTrigger value="pl">P&L</TabsTrigger>
           <TabsTrigger value="sales">Sales</TabsTrigger>
           <TabsTrigger value="purchases">Purchases</TabsTrigger>
           <TabsTrigger value="expenses">Expenses</TabsTrigger>
-          <TabsTrigger value="assets">Assets</TabsTrigger>
+          <TabsTrigger value="orders">Orders</TabsTrigger>
           <TabsTrigger value="customers">Top</TabsTrigger>
         </TabsList>
 
@@ -107,7 +312,7 @@ const Reports = () => {
                 <Bar dataKey="income" fill="#10B981" name="Income" />
                 <Bar dataKey="expenses" fill="#EF4444" name="Expenses" />
                 <Bar dataKey="purchases" fill="#8B5CF6" name="Purchases" />
-                <Bar dataKey="profit" fill="#F26522" name="Profit" />
+                <Bar dataKey="profit" fill={primary || '#F26522'} name="Profit" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent></Card>
@@ -115,9 +320,9 @@ const Reports = () => {
             <Card><CardHeader><CardTitle>Profit Trend</CardTitle></CardHeader><CardContent>
               <ResponsiveContainer width="100%" height={250}>
                 <AreaChart data={data.comparison}>
-                  <defs><linearGradient id="cP" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#F26522" stopOpacity={0.8} /><stop offset="95%" stopColor="#F26522" stopOpacity={0.1} /></linearGradient></defs>
+                  <defs><linearGradient id="cP" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={primary || '#F26522'} stopOpacity={0.8} /><stop offset="95%" stopColor={primary || '#F26522'} stopOpacity={0.1} /></linearGradient></defs>
                   <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="period" /><YAxis /><Tooltip />
-                  <Area type="monotone" dataKey="profit" stroke="#F26522" fill="url(#cP)" />
+                  <Area type="monotone" dataKey="profit" stroke={primary || '#F26522'} fill="url(#cP)" />
                 </AreaChart>
               </ResponsiveContainer>
             </CardContent></Card>
@@ -138,7 +343,7 @@ const Reports = () => {
           <ResponsiveContainer width="100%" height={350}>
             <LineChart data={data.sales}>
               <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="period" /><YAxis /><Tooltip /><Legend />
-              <Line type="monotone" dataKey="amount" stroke="#F26522" strokeWidth={2} name="Sales" />
+              <Line type="monotone" dataKey="amount" stroke={primary || '#F26522'} strokeWidth={2} name="Sales" />
               <Line type="monotone" dataKey="orders" stroke="#10B981" strokeWidth={2} name="Orders" />
             </LineChart>
           </ResponsiveContainer>
@@ -164,6 +369,53 @@ const Reports = () => {
           </ResponsiveContainer>
         </CardContent></Card></TabsContent>
 
+        <TabsContent value="payments">
+          <Card><CardHeader><CardTitle>Payments ({filteredPayments.length})</CardTitle></CardHeader><CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b bg-gray-50">
+                  <th className="text-left p-2">Date</th><th className="text-left p-2">Party</th><th className="text-left p-2">Type</th><th className="text-right p-2">Amount</th>
+                </tr></thead>
+                <tbody>
+                  {filteredPayments.map((p) => (
+                    <tr key={p.id} className="border-b">
+                      <td className="p-2">{formatDate(p.date)}</td>
+                      <td className="p-2">{p.party || p.customerName || '—'}</td>
+                      <td className="p-2">{p.type}</td>
+                      <td className="p-2 text-right font-semibold">{formatCurrency(p.amount)}</td>
+                    </tr>
+                  ))}
+                  {!filteredPayments.length && <tr><td colSpan={4} className="p-6 text-center text-gray-500">No payments in range</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </CardContent></Card>
+        </TabsContent>
+
+        <TabsContent value="orders">
+          <Card><CardHeader><CardTitle>Orders Detail ({filteredOrders.length})</CardTitle></CardHeader><CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b bg-gray-50">
+                  <th className="text-left p-2">Order</th><th className="text-left p-2">Date</th><th className="text-left p-2">Customer</th><th className="text-left p-2">Status</th><th className="text-right p-2">Total</th>
+                </tr></thead>
+                <tbody>
+                  {filteredOrders.map((o) => (
+                    <tr key={o.id} className="border-b">
+                      <td className="p-2 font-medium">{o.orderId}</td>
+                      <td className="p-2">{formatDate(o.date)}</td>
+                      <td className="p-2">{o.customerName}</td>
+                      <td className="p-2"><Badge variant="outline">{o.status}</Badge></td>
+                      <td className="p-2 text-right font-semibold" style={{ color: primary || '#F26522' }}>{formatCurrency(o.totalAmount)}</td>
+                    </tr>
+                  ))}
+                  {!filteredOrders.length && <tr><td colSpan={5} className="p-6 text-center text-gray-500">No orders in range</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </CardContent></Card>
+        </TabsContent>
+
         <TabsContent value="assets"><Card><CardHeader><CardTitle>Assets Management</CardTitle></CardHeader><CardContent>
           {(data.assets || []).length === 0 ? (<p className="text-center py-8 text-gray-500">No assets recorded.</p>) : (
             <table className="w-full">
@@ -184,11 +436,6 @@ const Reports = () => {
                     <td className="py-2 px-3 text-right text-red-600">-{formatCurrency(a.purchaseValue - a.currentValue)}</td>
                   </tr>
                 ))}
-                <tr className="font-bold bg-orange-50">
-                  <td colSpan="3" className="py-2 px-3 text-right">Total Asset Value:</td>
-                  <td className="py-2 px-3 text-right" style={{ color: '#F26522' }}>{formatCurrency(data.assets.reduce((s, a) => s + a.currentValue, 0))}</td>
-                  <td></td>
-                </tr>
               </tbody>
             </table>
           )}
@@ -202,9 +449,10 @@ const Reports = () => {
                   <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ backgroundColor: COLORS[i % COLORS.length] }}>{i + 1}</div>
                   <span className="font-medium">{c.name}</span>
                 </div>
-                <span className="font-bold" style={{ color: '#F26522' }}>{formatCurrency(c.amount)}</span>
+                <span className="font-bold" style={{ color: primary || '#F26522' }}>{formatCurrency(c.amount)}</span>
               </div>
             ))}
+            {!(data.topCustomers || []).length && <p className="text-sm text-gray-500 text-center py-6">No data</p>}
           </CardContent></Card>
           <Card><CardHeader><CardTitle>Top Products</CardTitle></CardHeader><CardContent>
             {(data.topProducts || []).map((p, i) => (
@@ -213,9 +461,10 @@ const Reports = () => {
                   <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ backgroundColor: COLORS[i % COLORS.length] }}>{i + 1}</div>
                   <span className="font-medium">{p.name}</span>
                 </div>
-                <div className="text-right"><p className="font-bold" style={{ color: '#F26522' }}>{formatCurrency(p.revenue)}</p><p className="text-xs text-gray-500">{p.quantity} sold</p></div>
+                <div className="text-right"><p className="font-bold" style={{ color: primary || '#F26522' }}>{formatCurrency(p.revenue)}</p><p className="text-xs text-gray-500">{p.quantity} sold</p></div>
               </div>
             ))}
+            {!(data.topProducts || []).length && <p className="text-sm text-gray-500 text-center py-6">No data</p>}
           </CardContent></Card>
         </div></TabsContent>
       </Tabs>

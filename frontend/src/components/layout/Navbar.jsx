@@ -1,13 +1,15 @@
 import React from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { useBrand } from '@/context/BrandContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Bell, Search, Menu, LogOut, User, Settings } from 'lucide-react';
+import { Bell, Menu, LogOut, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const Navbar = ({ toggleSidebar }) => {
   const { user, logout } = useAuth();
+  const { company, primary } = useBrand();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -24,66 +26,53 @@ const Navbar = ({ toggleSidebar }) => {
     <nav className="fixed top-0 left-0 right-0 h-16 bg-white border-b border-gray-200 z-50 shadow-sm" data-testid="navbar">
       <div className="h-full px-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="lg:hidden"
-            onClick={toggleSidebar}
-            data-testid="sidebar-toggle"
-          >
+          <Button variant="ghost" size="icon" className="lg:hidden" onClick={toggleSidebar} data-testid="sidebar-toggle">
             <Menu className="h-5 w-5" />
           </Button>
-          
+
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#F26522' }}>
-              <span className="text-white font-bold text-lg">A</span>
-            </div>
+            {company.logo ? (
+              <img src={company.logo} alt={company.name} className="h-10 w-10 object-contain rounded-lg" />
+            ) : (
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: primary || '#F26522' }}>
+                <span className="text-white font-bold text-lg">{(company.name || 'A').charAt(0)}</span>
+              </div>
+            )}
             <div className="hidden sm:block">
-              <h1 className="text-xl font-bold" style={{ color: '#2E2E2E' }}>AMZ Prints</h1>
-              <p className="text-xs text-gray-500">Enterprise Resource Planning</p>
+              <h1 className="text-lg font-bold" style={{ color: '#2E2E2E' }}>{company.name || 'AMZ Prints'}</h1>
+              <p className="text-xs text-gray-500 -mt-0.5">{company.tagline || 'ERP'}</p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" className="hidden md:flex" data-testid="search-button">
-            <Search className="h-5 w-5" />
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" className="relative">
+            <Bell className="h-5 w-5 text-gray-600" />
           </Button>
-          
-          <Button variant="ghost" size="icon" className="relative" data-testid="notifications-button">
-            <Bell className="h-5 w-5" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-          </Button>
-
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="flex items-center gap-2" data-testid="user-menu-trigger">
+              <Button variant="ghost" className="flex items-center gap-2 h-10 px-2">
                 <Avatar className="h-8 w-8">
-                  <AvatarFallback style={{ backgroundColor: '#F26522', color: 'white' }}>
+                  <AvatarFallback style={{ backgroundColor: primary || '#F26522', color: 'white' }}>
                     {getInitials(user?.name)}
                   </AvatarFallback>
                 </Avatar>
-                <div className="hidden md:block text-left">
-                  <p className="text-sm font-medium">{user?.name || 'User'}</p>
-                  <p className="text-xs text-gray-500">{user?.role || 'Employee'}</p>
-                </div>
+                <span className="hidden md:inline text-sm font-medium">{user?.name || 'User'}</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>My Account</DropdownMenuLabel>
+              <DropdownMenuLabel>
+                <div className="flex flex-col">
+                  <span>{user?.name}</span>
+                  <span className="text-xs text-gray-500 font-normal">{user?.role}</span>
+                </div>
+              </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem data-testid="profile-menu-item">
-                <User className="mr-2 h-4 w-4" />
-                <span>Profile</span>
+              <DropdownMenuItem onClick={() => navigate('/settings')}>
+                <Settings className="mr-2 h-4 w-4" /> Settings
               </DropdownMenuItem>
-              <DropdownMenuItem data-testid="settings-menu-item">
-                <Settings className="mr-2 h-4 w-4" />
-                <span>Settings</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleLogout} data-testid="logout-menu-item">
-                <LogOut className="mr-2 h-4 w-4" />
-                <span>Logout</span>
+              <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+                <LogOut className="mr-2 h-4 w-4" /> Logout
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

@@ -6,16 +6,27 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { countersAPI, tokensAPI } from '@/services/api';
 import { toast } from 'sonner';
-import { ArrowLeft, Bell, CheckCircle2, ShoppingCart, SkipForward, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Bell, CheckCircle2, ShoppingCart, SkipForward, RefreshCw, Loader2, XCircle } from 'lucide-react';
 
-const statusColor = (status) => {
+const TOKEN_STATUSES = [
+  { key: 'waiting', label: 'Waiting', className: 'bg-amber-100 text-amber-800' },
+  { key: 'called', label: 'Called', className: 'bg-orange-100 text-orange-800' },
+  { key: 'in progress', label: 'In Progress', className: 'bg-blue-100 text-blue-800' },
+  { key: 'completed', label: 'Completed', className: 'bg-green-100 text-green-800' },
+  { key: 'cancelled', label: 'Cancelled', className: 'bg-red-100 text-red-800' },
+];
+
+const statusMeta = (status) => {
   const s = String(status || '').toLowerCase();
-  if (s === 'waiting') return 'bg-amber-100 text-amber-800';
-  if (s === 'called') return 'bg-orange-100 text-orange-800';
-  if (s === 'completed' || s === 'ordered') return 'bg-green-100 text-green-800';
-  if (s === 'skipped') return 'bg-gray-100 text-gray-700';
-  return 'bg-slate-100 text-slate-700';
+  const known = TOKEN_STATUSES.find((t) => t.key === s);
+  if (known) return known;
+  if (s === 'ordered') return { label: 'Completed', className: 'bg-green-100 text-green-800' };
+  if (s === 'skipped') return { label: status || 'Skipped', className: 'bg-gray-100 text-gray-700' };
+  return { label: status || 'Unknown', className: 'bg-slate-100 text-slate-700' };
 };
+
+const statusColor = (status) => statusMeta(status).className;
+const statusLabel = (status) => statusMeta(status).label;
 
 const CounterScreen = () => {
   const navigate = useNavigate();
@@ -65,11 +76,11 @@ const CounterScreen = () => {
     () => tokens.filter((t) => String(t.status).toLowerCase() === 'waiting'),
     [tokens]
   );
-  const called = useMemo(
-    () => tokens.filter((t) => String(t.status).toLowerCase() === 'called'),
+  const active = useMemo(
+    () => tokens.filter((t) => ['called', 'in progress'].includes(String(t.status).toLowerCase())),
     [tokens]
   );
-  const current = called[0] || null;
+  const current = active[0] || null;
   const nextWaiting = waiting[0] || null;
 
   const callToken = async (token) => {
@@ -106,6 +117,33 @@ const CounterScreen = () => {
       await loadTokens();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to complete');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const progressToken = async (token) => {
+    setLoading(true);
+    try {
+      await tokensAPI.progress(token.tokenNo || token.id);
+      toast.success(`${token.tokenNo} → In Progress`);
+      await loadTokens();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to mark in progress');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cancelToken = async (token) => {
+    if (!window.confirm(`Cancel token ${token.tokenNo}?`)) return;
+    setLoading(true);
+    try {
+      await tokensAPI.cancel(token.tokenNo || token.id);
+      toast.message(`${token.tokenNo} cancelled`);
+      await loadTokens();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to cancel');
     } finally {
       setLoading(false);
     }
@@ -154,6 +192,13 @@ const CounterScreen = () => {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2" data-testid="token-status-legend">
+        <span className="text-xs text-gray-500 uppercase font-medium mr-1">Statuses</span>
+        {TOKEN_STATUSES.map((s) => (
+          <Badge key={s.key} className={s.className}>{s.label}</Badge>
+        ))}
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2 overflow-hidden">
           <CardContent className="p-0">
@@ -189,6 +234,10 @@ const CounterScreen = () => {
               </Button>
               {current && (
                 <>
+                  <Button variant="outline" disabled={loading} onClick={() => progressToken(current)} data-testid="token-in-progress">
+                    <Loader2 className="h-4 w-4 mr-2" />
+                    In Progress
+                  </Button>
                   <Button variant="outline" disabled={loading} onClick={() => completeToken(current)}>
                     <CheckCircle2 className="h-4 w-4 mr-2" />
                     Complete
@@ -196,6 +245,10 @@ const CounterScreen = () => {
                   <Button variant="outline" disabled={loading} onClick={() => skipToken(current)}>
                     <SkipForward className="h-4 w-4 mr-2" />
                     Skip
+                  </Button>
+                  <Button variant="outline" disabled={loading} className="text-red-600" onClick={() => cancelToken(current)} data-testid="token-cancel">
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Cancel
                   </Button>
                   <Button
                     disabled={loading}
@@ -251,7 +304,17 @@ const CounterScreen = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge className={statusColor(t.status)}>{t.status}</Badge>
+                  <Badge className={statusColor(t.status)}>{statusLabel(t.status)}</Badge>
+                  {['called', 'waiting', 'in progress'].includes(String(t.status).toLowerCase()) && (
+                    <>
+                      <Button size="sm" variant="outline" disabled={loading} onClick={() => progressToken(t)}>
+                        In Progress
+                      </Button>
+                      <Button size="sm" variant="outline" className="text-red-600" disabled={loading} onClick={() => cancelToken(t)}>
+                        Cancel
+                      </Button>
+                    </>
+                  )}
                   {String(t.status).toLowerCase() === 'called' && (
                     <Button size="sm" onClick={() => createOrder(t)}>
                       Create Order

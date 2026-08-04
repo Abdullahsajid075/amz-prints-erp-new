@@ -27,14 +27,15 @@ var SHEET_NAMES = {
 };
 
 var DEFAULT_HEADERS = {
-  Users: ['Username', 'Password', 'Name', 'Role', 'Status'],
+  Users: ['Username', 'Password', 'Name', 'Role', 'Status', 'Permissions'],
   Customers: ['Id', 'Name', 'Phone', 'Email', 'Address', 'City', 'Notes'],
   Orders: [
     'Id', 'OrderId', 'Date', 'CustomerId', 'CustomerName', 'CustomerPhone',
     'CustomerEmail', 'CustomerAddress', 'Status', 'DeliveryDate', 'Products',
-    'TotalAmount', 'AdvancePayment', 'BalanceAmount', 'Remarks', 'AssignedDesigner', 'TokenNo'
+    'TotalAmount', 'AdvancePayment', 'BalanceAmount', 'Remarks', 'AssignedDesigner', 'TokenNo',
+    'DocType', 'TrackingNumber', 'StatusHistory', 'DeliveryAddress', 'QuotationId'
   ],
-  Products: ['Id', 'Name', 'Category', 'Rate', 'Unit', 'Description', 'Status'],
+  Products: ['Id', 'Name', 'Category', 'Rate', 'Unit', 'Description', 'Status', 'ProductType', 'Designer', 'Stock', 'Material', 'Size', 'MinQuantity'],
   Invoices: ['Id', 'InvoiceNo', 'Date', 'CustomerId', 'CustomerName', 'CustomerPhone', 'Items', 'Subtotal', 'Tax', 'Discount', 'Total', 'Paid', 'Status', 'ShareToken'],
   Vendors: ['Id', 'Name', 'Phone', 'Email', 'Address', 'Notes'],
   Purchases: ['Id', 'PurchaseNo', 'Date', 'VendorId', 'VendorName', 'Items', 'Total', 'Status'],
@@ -145,7 +146,12 @@ function normalizeHeader_(header) {
     name: 'name', fullname: 'name', customername: 'customername',
     phone: 'phone', mobile: 'phone', phoneno: 'phone', contact: 'phone', customerphone: 'customerphone',
     address: 'address', customeraddress: 'customeraddress', city: 'city', notes: 'notes', remarks: 'remarks',
-    role: 'role', status: 'status', category: 'category', rate: 'rate', unit: 'unit', description: 'description',
+    role: 'role', status: 'status', category: 'category', rate: 'rate',
+    baseprice: 'rate', price: 'rate', producttype: 'producttype', designer: 'designer',
+    stock: 'stock', material: 'material', size: 'size', minquantity: 'minquantity',
+    doctype: 'doctype', trackingnumber: 'trackingnumber', statushistory: 'statushistory',
+    deliveryaddress: 'deliveryaddress', quotationid: 'quotationid',
+    unit: 'unit', description: 'description',
     orderid: 'orderid', date: 'date', time: 'time', deliverydate: 'deliverydate',
     products: 'products', items: 'items', totalamount: 'totalamount', total: 'total',
     advancepayment: 'advancepayment', balanceamount: 'balanceamount', assigneddesigner: 'assigneddesigner',
@@ -539,6 +545,11 @@ function normalizeOrder_(body, existing) {
     remarks: body.remarks || existing.remarks || '',
     assigneddesigner: body.assignedDesigner || body.assigneddesigner || existing.assigneddesigner || '',
     tokenno: body.tokenNo || body.tokenno || existing.tokenno || '',
+    doctype: body.docType || body.doctype || existing.doctype || 'Order',
+    trackingnumber: body.trackingNumber || body.trackingnumber || existing.trackingnumber || '',
+    statushistory: body.statusHistory || body.statushistory || existing.statushistory || [],
+    deliveryaddress: body.deliveryAddress || body.deliveryaddress || existing.deliveryaddress || '',
+    quotationid: body.quotationId || body.quotationid || existing.quotationid || '',
   };
 }
 
@@ -561,14 +572,180 @@ function toApiOrder_(o) {
     remarks: o.remarks || '',
     assignedDesigner: o.assigneddesigner || '',
     tokenNo: o.tokenno || '',
+    docType: o.doctype || 'Order',
+    trackingNumber: o.trackingnumber || '',
+    statusHistory: Array.isArray(o.statushistory) ? o.statushistory : (o.statushistory ? o.statushistory : []),
+    deliveryAddress: o.deliveryaddress || '',
+    quotationId: o.quotationid || '',
   };
+}
+
+
+function handleQuotations_(path, method, body) {
+  var sheet = getSheet_(SHEET_NAMES.ORDERS);
+  var orders = getSheetRows_(SHEET_NAMES.ORDERS);
+  var quotations = orders.filter(function (o) {
+    return String(o.doctype || '').toLowerCase() === 'quotation';
+  });
+
+  if (path === '/quotations') {
+    if (method === 'GET') return quotations.map(toApiOrder_);
+
+    if (method === 'POST') {
+      if (body.customerPhone || body.customerName) {
+        var cust = upsertCustomer_({
+          name: body.customerName,
+          phone: body.customerPhone,
+          email: body.customerEmail,
+          address: body.customerAddress,
+        });
+        body.customerId = cust.id;
+      }
+      body.docType = 'Quotation';
+      body.doctype = 'Quotation';
+      if (!body.status) body.status = 'Draft';
+      if (!body.trackingNumber && !body.trackingnumber) {
+        body.trackingNumber = 'TRK-' + String(Math.floor(1000 + Math.random() * 9000));
+      }
+      var record = normalizeOrder_(body);
+      record.doctype = 'Quotation';
+      var hist = record.statushistory;
+      if (!hist || (Array.isArray(hist) && hist.length === 0) || hist === '') {
+        record.statushistory = [{
+          status: record.status || 'Draft',
+          at: nowDate_() + ' ' + nowTime_(),
+          note: 'Quotation created',
+        }];
+      }
+      appendObject_(sheet, SHEET_NAMES.ORDERS, record);
+      return toApiOrder_(record);
+    }
+    throw new Error('Method not allowed');
+  }
+
+  // /quotations/:id
+  var id = path.split('/')[2];
+  var index = findById_(orders, id);
+  if (index < 0) throw new Error('Quotation not found');
+  if (String(orders[index].doctype || '').toLowerCase() !== 'quotation') {
+    throw new Error('Not a quotation');
+  }
+
+  if (method === 'GET') return toApiOrder_(orders[index]);
+  if (method === 'PUT') {
+    var updated = normalizeOrder_(body, orders[index]);
+    updated.id = orders[index].id;
+    updated.orderid = orders[index].orderid;
+    updated.doctype = 'Quotation';
+    updateObjectProps_(sheet, SHEET_NAMES.ORDERS, orders[index]._row, updated);
+    return toApiOrder_(updated);
+  }
+  if (method === 'DELETE') {
+    deleteRow_(sheet, orders[index]._row, SHEET_NAMES.ORDERS);
+    return { success: true };
+  }
+  throw new Error('Method not allowed');
+}
+
+/* ===================== USERS ===================== */
+
+function parsePermissions_(raw) {
+  if (raw == null || raw === '') return [];
+  if (Array.isArray(raw)) return raw;
+  try {
+    var parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    return [];
+  }
+}
+
+function toApiUser_(u, includePassword) {
+  var out = {
+    id: String(u.id || u.username || ''),
+    username: u.username || u.email || '',
+    name: u.name || '',
+    role: u.role || 'Sales',
+    status: u.status || 'Active',
+    permissions: parsePermissions_(u.permissions),
+  };
+  if (includePassword) out.password = u.password || '';
+  return out;
+}
+
+function handleUsers_(path, method, body) {
+  var sheet = getSheet_(SHEET_NAMES.USERS);
+  ensureHeaders_(sheet, SHEET_NAMES.USERS);
+  var users = getSheetRows_(SHEET_NAMES.USERS);
+
+  if (path === '/users') {
+    if (method === 'GET') {
+      return users.map(function (u) { return toApiUser_(u, true); });
+    }
+    if (method === 'POST') {
+      var username = String(body.username || body.email || '').trim();
+      if (!username) throw new Error('Username required');
+      var exists = users.some(function (u) {
+        return String(u.username || u.email || '').toLowerCase() === username.toLowerCase();
+      });
+      if (exists) throw new Error('Username already exists');
+      var record = {
+        username: username,
+        password: String(body.password || ''),
+        name: body.name || username,
+        role: body.role || 'Sales',
+        status: body.status || 'Active',
+        permissions: Array.isArray(body.permissions) || Array.isArray(body.menus)
+          ? JSON.stringify(body.permissions || body.menus || [])
+          : (body.permissions || '[]'),
+        id: body.id || ('user_' + Date.now()),
+      };
+      appendObject_(sheet, SHEET_NAMES.USERS, record);
+      return toApiUser_(record, true);
+    }
+    throw new Error('Method not allowed');
+  }
+
+  var id = path.split('/')[2];
+  var index = users.findIndex(function (u) {
+    return String(u.id || '') === String(id)
+      || String(u.username || '').toLowerCase() === String(id).toLowerCase()
+      || String(u.email || '').toLowerCase() === String(id).toLowerCase();
+  });
+  if (index < 0) throw new Error('User not found');
+
+  if (method === 'GET') return toApiUser_(users[index], true);
+  if (method === 'PUT') {
+    var updates = {
+      username: body.username != null ? body.username : users[index].username,
+      password: body.password != null && body.password !== '' ? body.password : users[index].password,
+      name: body.name != null ? body.name : users[index].name,
+      role: body.role != null ? body.role : users[index].role,
+      status: body.status != null ? body.status : users[index].status,
+      permissions: body.permissions != null || body.menus != null
+        ? JSON.stringify(body.permissions || body.menus || [])
+        : users[index].permissions,
+    };
+    updateObjectProps_(sheet, SHEET_NAMES.USERS, users[index]._row, updates);
+    return toApiUser_(Object.assign({}, users[index], updates), true);
+  }
+  if (method === 'DELETE') {
+    deleteRow_(sheet, users[index]._row, SHEET_NAMES.USERS);
+    return { success: true };
+  }
+  throw new Error('Method not allowed');
 }
 
 function handleOrders_(method, body) {
   var sheet = getSheet_(SHEET_NAMES.ORDERS);
   var orders = getSheetRows_(SHEET_NAMES.ORDERS);
 
-  if (method === 'GET') return orders.map(toApiOrder_);
+  if (method === 'GET') {
+    return orders.filter(function (o) {
+      var dt = String(o.doctype || 'Order').toLowerCase();
+      return dt !== 'quotation';
+    }).map(toApiOrder_);
+  }
 
   if (method === 'POST') {
     // Auto upsert customer from order fields
@@ -581,7 +758,19 @@ function handleOrders_(method, body) {
       });
       body.customerId = cust.id;
     }
+    if (!body.trackingNumber && !body.trackingnumber) {
+      body.trackingNumber = 'TRK-' + String(Math.floor(1000 + Math.random() * 9000));
+    }
     var record = normalizeOrder_(body);
+    if (!record.doctype) record.doctype = 'Order';
+    var hist = record.statushistory;
+    if (!hist || (Array.isArray(hist) && hist.length === 0) || hist === '') {
+      record.statushistory = [{
+        status: record.status || 'Order Received',
+        at: nowDate_() + ' ' + nowTime_(),
+        note: 'Created',
+      }];
+    }
     appendObject_(sheet, SHEET_NAMES.ORDERS, record);
     return toApiOrder_(record);
   }
@@ -832,6 +1021,18 @@ function handleTokens_(path, method, body, params) {
     return toApiToken_(tokenRow);
   }
 
+  if (path.indexOf('/progress') !== -1 && method === 'POST') {
+    updateObjectProps_(sheet, SHEET_NAMES.COUNTERS, tokenRow._row, { tokenstatus: 'In Progress' });
+    tokenRow.tokenstatus = 'In Progress';
+    return toApiToken_(tokenRow);
+  }
+
+  if (path.indexOf('/cancel') !== -1 && method === 'POST') {
+    updateObjectProps_(sheet, SHEET_NAMES.COUNTERS, tokenRow._row, { tokenstatus: 'Cancelled' });
+    tokenRow.tokenstatus = 'Cancelled';
+    return toApiToken_(tokenRow);
+  }
+
   if (path.indexOf('/link-order') !== -1 && method === 'POST') {
     updateObjectProps_(sheet, SHEET_NAMES.COUNTERS, tokenRow._row, {
       orderid: body.orderId || body.orderid || '',
@@ -1007,6 +1208,14 @@ function getReports_(params) {
 }
 
 function handlePublic_(path, method) {
+  if (method === 'GET' && path === '/public/branding') {
+    var settings = getSettings_();
+    return {
+      company: settings.company || {},
+      theme: settings.theme || {},
+      invoice: settings.invoice || {},
+    };
+  }
   if (method === 'GET' && path.indexOf('/public/invoice/') === 0) {
     var token = path.replace('/public/invoice/', '');
     var invoices = getSheetRows_(SHEET_NAMES.INVOICES);
@@ -1014,25 +1223,88 @@ function handlePublic_(path, method) {
     if (!invoice) throw new Error('Invoice not found');
     return invoice;
   }
+  if (method === 'GET' && path.indexOf('/public/track/') === 0) {
+    var tracking = path.replace('/public/track/', '');
+    var orders = getSheetRows_(SHEET_NAMES.ORDERS);
+    var order = orders.find(function (o) {
+      return String(o.trackingnumber) === String(tracking) || String(o.orderid) === String(tracking) || String(o.id) === String(tracking);
+    });
+    if (!order) throw new Error('Order not found');
+    return toApiOrder_(order);
+  }
   throw new Error('Not found');
 }
 
+function toApiProduct_(p) {
+  var rate = Number(p.rate || p.baseprice || 0);
+  return {
+    id: p.id,
+    name: p.name,
+    category: p.category || '',
+    productType: p.producttype || (String(p.category || '').toLowerCase().indexOf('service') >= 0 ? 'Service' : 'Product'),
+    basePrice: rate,
+    rate: rate,
+    unit: p.unit || 'per piece',
+    description: p.description || '',
+    material: p.material || '',
+    size: p.size || '',
+    minQuantity: Number(p.minquantity || 1),
+    stock: Number(p.stock || 0),
+    designer: p.designer || '',
+    active: String(p.status || 'Active').toLowerCase() !== 'inactive',
+    status: p.status || 'Active',
+  };
+}
+
+function normalizeProduct_(body, existing) {
+  existing = existing || {};
+  var rate = body.basePrice != null ? body.basePrice : (body.rate != null ? body.rate : (existing.rate || 0));
+  return {
+    id: body.id || existing.id || ('product_' + Date.now()),
+    name: body.name || existing.name || '',
+    category: body.category || existing.category || '',
+    producttype: body.productType || body.producttype || existing.producttype || 'Product',
+    rate: Number(rate || 0),
+    unit: body.unit || existing.unit || 'per piece',
+    description: body.description || existing.description || '',
+    material: body.material || existing.material || '',
+    size: body.size || existing.size || '',
+    minquantity: Number(body.minQuantity != null ? body.minQuantity : (existing.minquantity || 1)),
+    stock: Number(body.stock != null ? body.stock : (existing.stock || 0)),
+    designer: body.designer || existing.designer || '',
+    status: body.active === false ? 'Inactive' : (body.status || existing.status || 'Active'),
+  };
+}
+
 function handleProducts_(path, method, body) {
-  var result = handleCollection_(SHEET_NAMES.PRODUCTS, path, method, body, '/products');
-  if (Array.isArray(result)) {
-    return result.map(function (p) {
-      return {
-        id: p.id,
-        name: p.name,
-        category: p.category || '',
-        rate: Number(p.rate || 0),
-        unit: p.unit || '',
-        description: p.description || '',
-        status: p.status || 'Active',
-      };
-    });
+  var sheet = getSheet_(SHEET_NAMES.PRODUCTS);
+  var rows = getSheetRows_(SHEET_NAMES.PRODUCTS);
+
+  if (path === '/products') {
+    if (method === 'GET') return rows.map(toApiProduct_);
+    if (method === 'POST') {
+      var created = normalizeProduct_(body);
+      appendObject_(sheet, SHEET_NAMES.PRODUCTS, created);
+      return toApiProduct_(created);
+    }
   }
-  return result;
+
+  var id = path.split('/')[2];
+  var index = findById_(rows, id);
+  if (index < 0) throw new Error('Product not found');
+
+  if (method === 'GET') return toApiProduct_(rows[index]);
+  if (method === 'PUT') {
+    var updated = normalizeProduct_(body, rows[index]);
+    updated.id = rows[index].id;
+    updateObjectProps_(sheet, SHEET_NAMES.PRODUCTS, rows[index]._row, updated);
+    return toApiProduct_(updated);
+  }
+  if (method === 'DELETE') {
+    deleteRow_(sheet, rows[index]._row, SHEET_NAMES.PRODUCTS);
+    return { success: true };
+  }
+  throw new Error('Method not allowed');
 }
 
 /* ===================== ROUTER ===================== */
@@ -1076,6 +1348,14 @@ function handleRequest_(e) {
     if (path === '/orders') return jsonResponse_(handleOrders_(method, body));
     if (path.indexOf('/orders/') === 0) return jsonResponse_(handleOrderById_(path, method, body));
 
+    if (path === '/quotations' || path.indexOf('/quotations/') === 0) {
+      return jsonResponse_(handleQuotations_(path, method, body));
+    }
+
+    if (path === '/users' || path.indexOf('/users/') === 0) {
+      return jsonResponse_(handleUsers_(path, method, body));
+    }
+
     if (path === '/customers' || path.indexOf('/customers/') === 0) {
       return jsonResponse_(handleCustomers_(path, method, body));
     }
@@ -1100,9 +1380,29 @@ function handleRequest_(e) {
       return jsonResponse_(handleCollection_(SHEET_NAMES.PAYMENTS, path, method, body, '/payments'));
     }
 
-    // No Designers sheet — return empty / no-op friendly responses
-    if (path === '/designers' && method === 'GET') return jsonResponse_([]);
-    if (path.indexOf('/designers/') === 0) return jsonResponse_({ message: 'Designers sheet not configured' }, 404);
+    if (path === '/designers' && method === 'GET') {
+      var users = getSheetRows_(SHEET_NAMES.USERS);
+      var designers = users.filter(function (u) {
+        var role = String(u.role || '');
+        var status = String(u.status || 'Active').toLowerCase();
+        if (status === 'inactive') return false;
+        return role.toLowerCase().indexOf('designer') !== -1;
+      });
+      if (!designers.length) {
+        designers = users.filter(function (u) {
+          return String(u.status || 'Active').toLowerCase() !== 'inactive';
+        });
+      }
+      return jsonResponse_(designers.map(function (u) {
+        return {
+          id: u.id || u.username || '',
+          name: u.name || u.username || '',
+          email: u.email || '',
+          role: u.role || '',
+        };
+      }));
+    }
+    if (path.indexOf('/designers/') === 0) return jsonResponse_({ message: 'Not found' }, 404);
 
     if (path === '/counters' || path.indexOf('/counters/') === 0) {
       return jsonResponse_(handleCounters_(path, method, body));
@@ -1151,6 +1451,7 @@ function setupCounters() {
  */
 function prepareDatabase() {
   var names = [
+    SHEET_NAMES.USERS,
     SHEET_NAMES.CUSTOMERS,
     SHEET_NAMES.ORDERS,
     SHEET_NAMES.PRODUCTS,

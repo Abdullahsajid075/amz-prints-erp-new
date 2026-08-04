@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { ordersAPI, invoicesAPI, settingsAPI } from '@/services/api';
 import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
 import { ORDER_STATUS } from '@/utils/constants';
-import { Plus, Search, Eye, Edit, Copy, Trash2, User, Phone, Mail, MapPin, Calendar, Package, FileText, X, Printer, MessageCircle, Receipt } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Copy, Trash2, User, Phone, Mail, MapPin, Calendar, Package, FileText, X, Printer, MessageCircle, Receipt, Truck } from 'lucide-react';
 import { toast } from 'sonner';
 
 const IN_PROGRESS_STATUSES = ['Order Received', 'Designing', 'Proof Approval', 'Printing', 'Finishing', 'Packing', 'Ready'];
@@ -230,6 +230,18 @@ const OrdersList = () => {
         <Button size="sm" className="flex-1 text-white text-xs h-8" style={{ backgroundColor: '#F26522' }} onClick={() => handleView(order.id)} data-testid={`view-order-${order.id}`}>
           <Eye className="h-3 w-3 mr-1" />View
         </Button>
+        {order.status === 'Ready' && (
+          <Button
+            size="icon"
+            variant="outline"
+            className="h-8 w-8"
+            title="Delivery Slip"
+            onClick={() => navigate(`/orders/${order.id}/delivery-slip`)}
+            data-testid={`delivery-slip-${order.id}`}
+          >
+            <Truck className="h-3.5 w-3.5" style={{ color: '#F26522' }} />
+          </Button>
+        )}
         <Button size="icon" variant="outline" className="h-8 w-8" title="Generate Invoice" onClick={() => handleGenerateInvoice(order)} data-testid={`invoice-order-${order.id}`}>
           <Receipt className="h-3.5 w-3.5" style={{ color: '#F26522' }} />
         </Button>
@@ -431,6 +443,11 @@ const OrdersList = () => {
             {viewOrder && (
               <>
                 <Button variant="outline" onClick={() => handlePrint(viewOrder)}><Printer className="h-4 w-4 mr-1" />Print</Button>
+                {viewOrder.status === 'Ready' && (
+                  <Button variant="outline" onClick={() => { setViewOpen(false); navigate(`/orders/${viewOrder.id}/delivery-slip`); }}>
+                    <Truck className="h-4 w-4 mr-1" />Delivery Slip
+                  </Button>
+                )}
                 <Button variant="outline" className="text-green-700" onClick={() => handleWhatsApp(viewOrder)}><MessageCircle className="h-4 w-4 mr-1" />WhatsApp</Button>
                 <Button variant="outline" onClick={() => handleGenerateInvoice(viewOrder)}><Receipt className="h-4 w-4 mr-1" style={{ color: '#F26522' }} />Invoice</Button>
                 <Button style={{ backgroundColor: '#F26522' }} className="text-white" onClick={() => { setViewOpen(false); navigate(`/orders/${viewOrder.id}/edit`); }} data-testid="edit-from-dialog-button">

@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { productsAPI } from '@/services/api';
+import { productsAPI, designersAPI } from '@/services/api';
 import { formatCurrency } from '@/utils/helpers';
 import { Plus, Search, Edit, Trash2, Package, Layers, Ruler, DollarSign, X, Save } from 'lucide-react';
 import { toast } from 'sonner';
@@ -56,6 +56,7 @@ const CATEGORY_COLORS = {
 const emptyProduct = {
   name: '',
   category: '',
+  productType: 'Product',
   description: '',
   basePrice: 0,
   unit: 'per piece',
@@ -63,14 +64,17 @@ const emptyProduct = {
   size: '',
   minQuantity: 1,
   stock: 0,
+  designer: '',
   active: true
 };
 
 const Products = () => {
   const [products, setProducts] = useState([]);
+  const [designers, setDesigners] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState(undefined);
+  const [typeFilter, setTypeFilter] = useState('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [formData, setFormData] = useState(emptyProduct);
@@ -80,7 +84,11 @@ const Products = () => {
     setLoading(true);
     try {
       const response = await productsAPI.getAll();
-      setProducts(response.data || []);
+      const list = (response.data || []).map((p) => ({
+        ...p,
+        basePrice: p.basePrice ?? p.rate ?? 0,
+      }));
+      setProducts(list);
     } catch (error) {
       console.error('Error fetching products:', error);
       setProducts([]);
@@ -89,14 +97,27 @@ const Products = () => {
     }
   }, []);
 
+  const fetchDesigners = useCallback(async () => {
+    try {
+      const response = await designersAPI.getAll();
+      setDesigners(response.data || []);
+    } catch (error) {
+      console.error('Error fetching designers:', error);
+      setDesigners([]);
+    }
+  }, []);
+
   useEffect(() => {
     fetchProducts();
-  }, [fetchProducts]);
+    fetchDesigners();
+  }, [fetchProducts, fetchDesigners]);
 
   const filteredProducts = products.filter(p => {
     const matchSearch = !search || p.name?.toLowerCase().includes(search.toLowerCase());
     const matchCategory = !categoryFilter || p.category === categoryFilter;
-    return matchSearch && matchCategory;
+    const productType = p.productType || 'Product';
+    const matchType = typeFilter === 'all' || productType === typeFilter;
+    return matchSearch && matchCategory && matchType;
   });
 
   const openCreateDialog = () => {
@@ -107,7 +128,13 @@ const Products = () => {
 
   const openEditDialog = (product) => {
     setEditingProduct(product);
-    setFormData(product);
+    setFormData({
+      ...emptyProduct,
+      ...product,
+      basePrice: product.basePrice ?? product.rate ?? 0,
+      productType: product.productType || 'Product',
+      designer: product.designer || '',
+    });
     setDialogOpen(true);
   };
 
@@ -115,11 +142,18 @@ const Products = () => {
     e.preventDefault();
     setSaving(true);
     try {
+      const payload = {
+        ...formData,
+        basePrice: Number(formData.basePrice),
+        rate: Number(formData.basePrice),
+        productType: formData.productType,
+        designer: formData.designer,
+      };
       if (editingProduct) {
-        await productsAPI.update(editingProduct.id, formData);
+        await productsAPI.update(editingProduct.id, payload);
         toast.success('Product updated successfully');
       } else {
-        await productsAPI.create(formData);
+        await productsAPI.create(payload);
         toast.success('Product created successfully');
       }
       setDialogOpen(false);
@@ -209,7 +243,7 @@ const Products = () => {
               <p className="text-xs text-gray-500 uppercase font-medium">Avg Price</p>
               <p className="text-2xl font-bold" style={{ color: '#2E2E2E' }}>
                 {products.length > 0
-                  ? formatCurrency(products.reduce((s, p) => s + (p.basePrice || 0), 0) / products.length)
+                  ? formatCurrency(products.reduce((s, p) => s + (p.basePrice ?? p.rate ?? 0), 0) / products.length)
                   : formatCurrency(0)}
               </p>
             </div>
@@ -219,6 +253,26 @@ const Products = () => {
 
       <Card>
         <CardContent className="p-4">
+          <div className="flex flex-wrap gap-2 mb-3" data-testid="product-type-filter">
+            {[
+              { value: 'all', label: 'All' },
+              { value: 'Product', label: 'Products' },
+              { value: 'Service', label: 'Services' },
+            ].map((tab) => (
+              <Button
+                key={tab.value}
+                type="button"
+                size="sm"
+                variant={typeFilter === tab.value ? 'default' : 'outline'}
+                style={typeFilter === tab.value ? { backgroundColor: '#F26522' } : undefined}
+                className={typeFilter === tab.value ? 'text-white' : ''}
+                onClick={() => setTypeFilter(tab.value)}
+                data-testid={`type-filter-${tab.value}`}
+              >
+                {tab.label}
+              </Button>
+            ))}
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="md:col-span-2 relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
@@ -296,11 +350,16 @@ const Products = () => {
                     <h3 className="font-bold text-base mb-1 truncate" style={{ color: '#2E2E2E' }}>
                       {product.name}
                     </h3>
-                    {product.category && (
-                      <Badge className="mb-2 text-xs" style={{ backgroundColor: colors.bg, color: colors.text }}>
-                        {product.category}
+                    <div className="flex flex-wrap gap-1 mb-2">
+                      {product.category && (
+                        <Badge className="text-xs" style={{ backgroundColor: colors.bg, color: colors.text }}>
+                          {product.category}
+                        </Badge>
+                      )}
+                      <Badge className="text-xs bg-gray-100 text-gray-700">
+                        {product.productType || 'Product'}
                       </Badge>
-                    )}
+                    </div>
                     {product.description && (
                       <p className="text-xs text-gray-500 mb-3 line-clamp-2">{product.description}</p>
                     )}
@@ -318,6 +377,12 @@ const Products = () => {
                           <span className="font-medium" style={{ color: '#2E2E2E' }}>{product.size}</span>
                         </div>
                       )}
+                      {product.designer && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-gray-500">Designer:</span>
+                          <span className="font-medium" style={{ color: '#2E2E2E' }}>{product.designer}</span>
+                        </div>
+                      )}
                       <div className="flex justify-between text-xs">
                         <span className="text-gray-500">Min Qty:</span>
                         <span className="font-medium" style={{ color: '#2E2E2E' }}>{product.minQuantity}</span>
@@ -328,7 +393,7 @@ const Products = () => {
                       <div>
                         <p className="text-xs text-gray-500">Base Price</p>
                         <p className="text-xl font-bold" style={{ color: '#F26522' }}>
-                          {formatCurrency(product.basePrice)}
+                          {formatCurrency(product.basePrice ?? product.rate ?? 0)}
                         </p>
                         <p className="text-xs text-gray-500">{product.unit || 'per piece'}</p>
                       </div>
@@ -398,6 +463,42 @@ const Products = () => {
                   <SelectContent>
                     {PRODUCT_CATEGORIES.map(cat => (
                       <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="productType">Product Type</Label>
+                <Select
+                  value={formData.productType || 'Product'}
+                  onValueChange={(v) => setFormData({ ...formData, productType: v })}
+                >
+                  <SelectTrigger data-testid="product-type-select">
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Product">Product</SelectItem>
+                    <SelectItem value="Service">Service</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="designer">Designer</Label>
+                <Select
+                  value={formData.designer || undefined}
+                  onValueChange={(v) => setFormData({ ...formData, designer: v === 'none' ? '' : v })}
+                >
+                  <SelectTrigger data-testid="product-designer-select">
+                    <SelectValue placeholder="Select designer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {designers.map((d) => (
+                      <SelectItem key={d.id || d.name} value={d.name || d.id}>
+                        {d.name || d.id}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

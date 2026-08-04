@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { countersAPI, tokensAPI, customersAPI, debugAPI } from '@/services/api';
 import { toast } from 'sonner';
-import { Ticket, Printer, MessageCircle, Monitor, Search, Plus } from 'lucide-react';
+import { Ticket, Printer, MessageCircle, Monitor, Search, Plus, XCircle, Loader2 } from 'lucide-react';
 
 function buildWhatsAppUrl(phone, text) {
   const digits = String(phone || '').replace(/\D/g, '');
@@ -193,6 +193,27 @@ const TokenBooking = () => {
     window.open(buildWhatsAppUrl(token.customerPhone, text), '_blank');
   };
 
+  const markProgress = async (token) => {
+    try {
+      const res = await tokensAPI.progress(token.tokenNo || token.id);
+      setLastToken(res.data || { ...token, status: 'In Progress' });
+      toast.success(`${token.tokenNo} → In Progress`);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to mark in progress');
+    }
+  };
+
+  const cancelLastToken = async (token) => {
+    if (!window.confirm(`Cancel token ${token.tokenNo}?`)) return;
+    try {
+      const res = await tokensAPI.cancel(token.tokenNo || token.id);
+      setLastToken(res.data || { ...token, status: 'Cancelled' });
+      toast.message(`${token.tokenNo} cancelled`);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to cancel');
+    }
+  };
+
   return (
     <div className="space-y-6" data-testid="token-booking">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -363,6 +384,14 @@ const TokenBooking = () => {
                   <Button variant="outline" onClick={() => sendWhatsApp(lastToken)} data-testid="token-whatsapp">
                     <MessageCircle className="h-4 w-4 mr-2" />
                     Send WhatsApp
+                  </Button>
+                  <Button variant="outline" onClick={() => markProgress(lastToken)} data-testid="token-booking-progress">
+                    <Loader2 className="h-4 w-4 mr-2" />
+                    In Progress
+                  </Button>
+                  <Button variant="outline" className="text-red-600" onClick={() => cancelLastToken(lastToken)} data-testid="token-booking-cancel">
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Cancelled
                   </Button>
                   <Button
                     variant="outline"

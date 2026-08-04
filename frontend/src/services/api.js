@@ -117,8 +117,29 @@ export const tokensAPI = {
   call: (id) => gasRequest('POST', `/tokens/${id}/call`, withToken()),
   complete: (id) => gasRequest('POST', `/tokens/${id}/complete`, withToken()),
   skip: (id) => gasRequest('POST', `/tokens/${id}/skip`, withToken()),
+  progress: (id) => gasRequest('POST', `/tokens/${id}/progress`, withToken()),
+  cancel: (id) => gasRequest('POST', `/tokens/${id}/cancel`, withToken()),
   linkOrder: (id, data) => gasRequest('POST', `/tokens/${id}/link-order`, withToken({ data })),
 };
+
+export const quotationsAPI = {
+  getAll: (params) => gasRequest('GET', '/quotations', withToken({ params })),
+  getById: (id) => gasRequest('GET', `/quotations/${id}`, withToken()),
+  create: (data) => gasRequest('POST', '/quotations', withToken({ data })),
+  update: (id, data) => gasRequest('PUT', `/quotations/${id}`, withToken({ data })),
+  delete: (id) => gasRequest('DELETE', `/quotations/${id}`, withToken()),
+};
+
+/** Users sheet CRUD — login still reads the same Users sheet. */
+export const usersAPI = {
+  getAll: (params) => gasRequest('GET', '/users', withToken({ params })),
+  getById: (id) => gasRequest('GET', `/users/${id}`, withToken()),
+  create: (data) => gasRequest('POST', '/users', withToken({ data })),
+  update: (id, data) => gasRequest('PUT', `/users/${id}`, withToken({ data })),
+  delete: (id) => gasRequest('DELETE', `/users/${id}`, withToken()),
+};
+
+export const trackPublic = (id) => gasRequest('GET', `/public/track/${id}`);
 
 export const debugAPI = {
   schema: () => gasRequest('GET', '/debug/schema', withToken()),
@@ -142,4 +163,7 @@ export default {
   paymentsAPI,
   countersAPI,
   tokensAPI,
+  quotationsAPI,
+  usersAPI,
+  trackPublic,
 };
