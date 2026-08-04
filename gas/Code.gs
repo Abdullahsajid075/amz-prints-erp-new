@@ -48,6 +48,9 @@ function jsonResponse_(payload, statusCode) {
 }
 
 function parseAuthToken_(e) {
+  if (e.parameter && e.parameter.token) {
+    return String(e.parameter.token);
+  }
   const headers = e.headers || {};
   const auth = headers.Authorization || headers.authorization || '';
   const match = String(auth).match(/^Bearer\s+(.+)$/i);
@@ -78,7 +81,7 @@ function sheetToObjects_(sheet) {
   if (!sheet) return [];
   const values = sheet.getDataRange().getValues();
   if (values.length < 2) return [];
-  const headers = values[0].map(String);
+  const headers = values[0].map((header) => String(header).trim().toLowerCase());
   return values.slice(1)
     .filter(row => row.some(cell => cell !== '' && cell !== null))
     .map(row => {
@@ -98,7 +101,11 @@ function handleRequest_(e) {
 
   try {
     if (method === 'POST' && path === '/auth/login') {
-      return jsonResponse_(handleLogin_(body));
+      const result = handleLogin_(body);
+      if (result.error) {
+        return jsonResponse_({ message: result.error }, 401);
+      }
+      return jsonResponse_(result);
     }
 
     if (path.startsWith('/public/')) {
@@ -177,18 +184,21 @@ function sanitizeUser_(user) {
 }
 
 function handleLogin_(body) {
-  const email = String(body.email || '').trim();
+  const email = String(body.email || body.username || '').trim();
   const password = String(body.password || '');
   const sheet = getSheet_(SHEET_NAMES.USERS);
   const users = sheetToObjects_(sheet);
+  const loginId = email.toLowerCase();
 
-  const user = users.find(u =>
-    (String(u.email) === email || String(u.username) === email) &&
-    String(u.password) === password
-  );
+  const user = users.find((u) => {
+    const identifiers = [u.email, u.username, u.name]
+      .map((value) => String(value || '').trim().toLowerCase())
+      .filter(Boolean);
+    return identifiers.includes(loginId) && String(u.password || '').trim() === password.trim();
+  });
 
   if (!user) {
-    throw new Error('Invalid credentials');
+    return { error: 'Invalid credentials' };
   }
 
   const token = Utilities.base64EncodeWebSafe(JSON.stringify({

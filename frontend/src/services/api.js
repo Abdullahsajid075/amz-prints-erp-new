@@ -1,204 +1,121 @@
-import axios from 'axios';
-import {
-  mockAuthAPI, mockDashboardAPI, mockOrdersAPI, mockCustomersAPI,
-  mockDesignersAPI, mockProductsAPI, mockInvoicesAPI, mockExpensesAPI, mockSettingsAPI,
-  mockVendorsAPI, mockPurchasesAPI, mockReportsAPI, mockPaymentsAPI
-} from './mockAuth';
+import { gasRequest, withToken } from './gasClient';
 import { tokenStorage } from './tokenStorage';
 
-const GAS_API_BASE_URL = process.env.REACT_APP_GAS_API_URL || '';
-const USE_MOCK = !GAS_API_BASE_URL || GAS_API_BASE_URL === '';
-
-if (USE_MOCK) {
-  console.log('%c🔶 MOCK MODE ENABLED', 'background: #F26522; color: white; padding: 8px; font-weight: bold; font-size: 14px;');
-  console.log('%cUsing demo credentials: admin / admin123', 'color: #F26522; font-size: 12px;');
-  console.log('%cTo use real backend, set REACT_APP_GAS_API_URL in .env file', 'color: #666; font-size: 11px;');
-}
-
-const api = axios.create({
-  baseURL: GAS_API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json'
-  }
-});
-
-api.interceptors.request.use(
-  (config) => {
-    if (!USE_MOCK && config.url) {
-      const apiPath = config.url.startsWith('/') ? config.url : `/${config.url}`;
-      config.params = { ...config.params, path: apiPath };
-
-      const method = (config.method || 'get').toUpperCase();
-      if (method !== 'GET' && method !== 'POST') {
-        config.method = 'post';
-        config.params._method = method;
-      }
-
-      config.url = '';
-    }
-
-    const token = tokenStorage.getToken();
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      tokenStorage.clear();
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  }
-);
-
-const createAPIWrapper = (realAPI, mockAPI) => {
-  return new Proxy(realAPI, {
-    get: (target, prop) => {
-      return async (...args) => {
-        if (USE_MOCK) {
-          return mockAPI[prop](...args);
-        }
-        try {
-          return await target[prop](...args);
-        } catch (error) {
-          if (error.code === 'ERR_NETWORK' || error.message.includes('Network Error')) {
-            console.warn('Backend unreachable, falling back to mock mode');
-            if (mockAPI[prop]) {
-              return mockAPI[prop](...args);
-            }
-          }
-          throw error;
-        }
-      };
-    }
-  });
+export const authAPI = {
+  login: (credentials) => gasRequest('POST', '/auth/login', { data: credentials }),
+  logout: () => gasRequest('POST', '/auth/logout', withToken()),
+  getCurrentUser: () => gasRequest('GET', '/auth/me', withToken()),
 };
 
-const realAuthAPI = {
-  login: (credentials) => api.post('/auth/login', credentials),
-  logout: () => api.post('/auth/logout'),
-  getCurrentUser: () => api.get('/auth/me')
+export const dashboardAPI = {
+  getStats: (params) => gasRequest('GET', '/dashboard/stats', withToken({ params })),
+  getCharts: (params) => gasRequest('GET', '/dashboard/charts', withToken({ params })),
+  getRecentOrders: (params) => gasRequest('GET', '/dashboard/recent-orders', withToken({ params })),
 };
 
-const realDashboardAPI = {
-  getStats: (params) => api.get('/dashboard/stats', { params }),
-  getCharts: (params) => api.get('/dashboard/charts', { params }),
-  getRecentOrders: (params) => api.get('/dashboard/recent-orders', { params })
+export const ordersAPI = {
+  getAll: (params) => gasRequest('GET', '/orders', withToken({ params })),
+  getById: (id) => gasRequest('GET', `/orders/${id}`, withToken()),
+  create: (data) => gasRequest('POST', '/orders', withToken({ data })),
+  update: (id, data) => gasRequest('PUT', `/orders/${id}`, withToken({ data })),
+  delete: (id) => gasRequest('DELETE', `/orders/${id}`, withToken()),
+  duplicate: (id) => gasRequest('POST', `/orders/${id}/duplicate`, withToken()),
+  updateStatus: (id, status) => gasRequest('PATCH', `/orders/${id}/status`, withToken({ data: { status } })),
 };
 
-const realOrdersAPI = {
-  getAll: (params) => api.get('/orders', { params }),
-  getById: (id) => api.get(`/orders/${id}`),
-  create: (data) => api.post('/orders', data),
-  update: (id, data) => api.put(`/orders/${id}`, data),
-  delete: (id) => api.delete(`/orders/${id}`),
-  duplicate: (id) => api.post(`/orders/${id}/duplicate`),
-  updateStatus: (id, status) => api.patch(`/orders/${id}/status`, { status })
+export const customersAPI = {
+  getAll: (params) => gasRequest('GET', '/customers', withToken({ params })),
+  getById: (id) => gasRequest('GET', `/customers/${id}`, withToken()),
+  create: (data) => gasRequest('POST', '/customers', withToken({ data })),
+  update: (id, data) => gasRequest('PUT', `/customers/${id}`, withToken({ data })),
+  delete: (id) => gasRequest('DELETE', `/customers/${id}`, withToken()),
+  getLedger: (id) => gasRequest('GET', `/customers/${id}/ledger`, withToken()),
 };
 
-const realCustomersAPI = {
-  getAll: (params) => api.get('/customers', { params }),
-  getById: (id) => api.get(`/customers/${id}`),
-  create: (data) => api.post('/customers', data),
-  update: (id, data) => api.put(`/customers/${id}`, data),
-  delete: (id) => api.delete(`/customers/${id}`),
-  getLedger: (id) => api.get(`/customers/${id}/ledger`)
-};
-const realProductsAPI = {
-  getAll: (params) => api.get('/products', { params }),
-  getById: (id) => api.get(`/products/${id}`),
-  create: (data) => api.post('/products', data),
-  update: (id, data) => api.put(`/products/${id}`, data),
-  delete: (id) => api.delete(`/products/${id}`)
+export const productsAPI = {
+  getAll: (params) => gasRequest('GET', '/products', withToken({ params })),
+  getById: (id) => gasRequest('GET', `/products/${id}`, withToken()),
+  create: (data) => gasRequest('POST', '/products', withToken({ data })),
+  update: (id, data) => gasRequest('PUT', `/products/${id}`, withToken({ data })),
+  delete: (id) => gasRequest('DELETE', `/products/${id}`, withToken()),
 };
 
-const realDesignersAPI = {
-  getAll: (params) => api.get('/designers', { params }),
-  getById: (id) => api.get(`/designers/${id}`),
-  create: (data) => api.post('/designers', data),
-  update: (id, data) => api.put(`/designers/${id}`, data),
-  delete: (id) => api.delete(`/designers/${id}`),
-  getWorkload: (id) => api.get(`/designers/${id}/workload`)
+export const designersAPI = {
+  getAll: (params) => gasRequest('GET', '/designers', withToken({ params })),
+  getById: (id) => gasRequest('GET', `/designers/${id}`, withToken()),
+  create: (data) => gasRequest('POST', '/designers', withToken({ data })),
+  update: (id, data) => gasRequest('PUT', `/designers/${id}`, withToken({ data })),
+  delete: (id) => gasRequest('DELETE', `/designers/${id}`, withToken()),
+  getWorkload: (id) => gasRequest('GET', `/designers/${id}/workload`, withToken()),
 };
 
-const realFilesAPI = {
-  upload: (formData) => api.post('/files/upload', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }),
-  delete: (fileId) => api.delete(`/files/${fileId}`),
-  getDownloadUrl: (fileId) => api.get(`/files/${fileId}/download-url`)
+export const filesAPI = {
+  upload: (formData) => gasRequest('POST', '/files/upload', withToken({ data: Object.fromEntries(formData.entries()) })),
+  delete: (fileId) => gasRequest('DELETE', `/files/${fileId}`, withToken()),
+  getDownloadUrl: (fileId) => gasRequest('GET', `/files/${fileId}/download-url`, withToken()),
 };
 
-const realInvoicesAPI = {
-  getAll: (params) => api.get('/invoices', { params }),
-  getById: (id) => api.get(`/invoices/${id}`),
-  getByToken: (token) => api.get(`/public/invoice/${token}`),
-  create: (data) => api.post('/invoices', data),
-  update: (id, data) => api.put(`/invoices/${id}`, data),
-  delete: (id) => api.delete(`/invoices/${id}`)
+export const invoicesAPI = {
+  getAll: (params) => gasRequest('GET', '/invoices', withToken({ params })),
+  getById: (id) => gasRequest('GET', `/invoices/${id}`, withToken()),
+  getByToken: (token) => gasRequest('GET', `/public/invoice/${token}`),
+  create: (data) => gasRequest('POST', '/invoices', withToken({ data })),
+  update: (id, data) => gasRequest('PUT', `/invoices/${id}`, withToken({ data })),
+  delete: (id) => gasRequest('DELETE', `/invoices/${id}`, withToken()),
 };
 
-const realExpensesAPI = {
-  getAll: (params) => api.get('/expenses', { params }),
-  create: (data) => api.post('/expenses', data),
-  update: (id, data) => api.put(`/expenses/${id}`, data),
-  delete: (id) => api.delete(`/expenses/${id}`)
+export const expensesAPI = {
+  getAll: (params) => gasRequest('GET', '/expenses', withToken({ params })),
+  create: (data) => gasRequest('POST', '/expenses', withToken({ data })),
+  update: (id, data) => gasRequest('PUT', `/expenses/${id}`, withToken({ data })),
+  delete: (id) => gasRequest('DELETE', `/expenses/${id}`, withToken()),
 };
 
-const realSettingsAPI = {
-  get: () => api.get('/settings'),
-  update: (data) => api.put('/settings', data)
+export const settingsAPI = {
+  get: () => gasRequest('GET', '/settings', withToken()),
+  update: (data) => gasRequest('PUT', '/settings', withToken({ data })),
 };
 
-const realVendorsAPI = {
-  getAll: (params) => api.get('/vendors', { params }),
-  getById: (id) => api.get(`/vendors/${id}`),
-  create: (data) => api.post('/vendors', data),
-  update: (id, data) => api.put(`/vendors/${id}`, data),
-  delete: (id) => api.delete(`/vendors/${id}`)
+export const vendorsAPI = {
+  getAll: (params) => gasRequest('GET', '/vendors', withToken({ params })),
+  getById: (id) => gasRequest('GET', `/vendors/${id}`, withToken()),
+  create: (data) => gasRequest('POST', '/vendors', withToken({ data })),
+  update: (id, data) => gasRequest('PUT', `/vendors/${id}`, withToken({ data })),
+  delete: (id) => gasRequest('DELETE', `/vendors/${id}`, withToken()),
 };
 
-const realPurchasesAPI = {
-  getAll: (params) => api.get('/purchases', { params }),
-  getById: (id) => api.get(`/purchases/${id}`),
-  create: (data) => api.post('/purchases', data),
-  update: (id, data) => api.put(`/purchases/${id}`, data),
-  delete: (id) => api.delete(`/purchases/${id}`)
+export const purchasesAPI = {
+  getAll: (params) => gasRequest('GET', '/purchases', withToken({ params })),
+  getById: (id) => gasRequest('GET', `/purchases/${id}`, withToken()),
+  create: (data) => gasRequest('POST', '/purchases', withToken({ data })),
+  update: (id, data) => gasRequest('PUT', `/purchases/${id}`, withToken({ data })),
+  delete: (id) => gasRequest('DELETE', `/purchases/${id}`, withToken()),
 };
 
-const realReportsAPI = {
-  getAll: (params) => api.get('/reports', { params })
+export const reportsAPI = {
+  getAll: (params) => gasRequest('GET', '/reports', withToken({ params })),
 };
 
-const realPaymentsAPI = {
-  getAll: (params) => api.get('/payments', { params }),
-  create: (data) => api.post('/payments', data),
-  update: (id, data) => api.put(`/payments/${id}`, data),
-  delete: (id) => api.delete(`/payments/${id}`)
+export const paymentsAPI = {
+  getAll: (params) => gasRequest('GET', '/payments', withToken({ params })),
+  create: (data) => gasRequest('POST', '/payments', withToken({ data })),
+  update: (id, data) => gasRequest('PUT', `/payments/${id}`, withToken({ data })),
+  delete: (id) => gasRequest('DELETE', `/payments/${id}`, withToken()),
 };
 
-export const authAPI = createAPIWrapper(realAuthAPI, mockAuthAPI);
-export const dashboardAPI = createAPIWrapper(realDashboardAPI, mockDashboardAPI);
-export const ordersAPI = createAPIWrapper(realOrdersAPI, mockOrdersAPI);
-export const customersAPI = createAPIWrapper(realCustomersAPI, mockCustomersAPI);
-export const designersAPI = createAPIWrapper(realDesignersAPI, mockDesignersAPI);
-export const productsAPI = createAPIWrapper(realProductsAPI, mockProductsAPI);
-export const invoicesAPI = createAPIWrapper(realInvoicesAPI, mockInvoicesAPI);
-export const expensesAPI = createAPIWrapper(realExpensesAPI, mockExpensesAPI);
-export const settingsAPI = createAPIWrapper(realSettingsAPI, mockSettingsAPI);
-export const vendorsAPI = createAPIWrapper(realVendorsAPI, mockVendorsAPI);
-export const purchasesAPI = createAPIWrapper(realPurchasesAPI, mockPurchasesAPI);
-export const reportsAPI = createAPIWrapper(realReportsAPI, mockReportsAPI);
-export const paymentsAPI = createAPIWrapper(realPaymentsAPI, mockPaymentsAPI);
-
-export const filesAPI = realFilesAPI;
-
-export default api;
+export default {
+  authAPI,
+  dashboardAPI,
+  ordersAPI,
+  customersAPI,
+  productsAPI,
+  designersAPI,
+  filesAPI,
+  invoicesAPI,
+  expensesAPI,
+  settingsAPI,
+  vendorsAPI,
+  purchasesAPI,
+  reportsAPI,
+  paymentsAPI,
+};

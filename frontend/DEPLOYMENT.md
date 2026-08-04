@@ -1,24 +1,21 @@
 # AMZ Prints ERP — Deployment Guide (Vercel)
 
-The frontend is a React (CRA + craco) app that talks directly to a Google Apps Script (GAS) Web App backed by Google Sheets and Google Drive. The backend is **not** hosted on Vercel.
+The frontend is a Vite + React app that talks directly to a Google Apps Script (GAS) Web App backed by Google Sheets and Google Drive. The backend is **not** hosted on Vercel.
 
 ## Deploy to Vercel
 
 1. Push this repo to GitHub / GitLab / Bitbucket.
 2. In Vercel → **Add New Project** → import the repo.
 3. Set **Root Directory** to `frontend`.
-4. Vercel will auto-detect the settings from `frontend/vercel.json`:
-   - Framework: Create React App
-   - Install: `yarn install --frozen-lockfile`
-   - Build: `yarn build`
-   - Output: `build`
-5. Add environment variables (Project → Settings → Environment Variables):
+4. Vercel settings (also in `frontend/vercel.json`):
+   - Framework: Vite
+   - Build: `npm run build`
+   - Output: `dist`
+5. Environment variable (optional if using `vercel.json` build env):
 
-   | Key | Value | Notes |
-   | --- | --- | --- |
-   | `REACT_APP_GAS_API_URL` | `https://script.google.com/macros/s/…/exec` | Your deployed Apps Script Web App URL |
-   | `REACT_APP_DEMO_PASSWORD` | *(leave unset in prod)* | Mock only |
-   | `REACT_APP_DEMO_TOKEN` | *(leave unset in prod)* | Mock only |
+   | Key | Value |
+   | --- | --- |
+   | `REACT_APP_GAS_API_URL` | `https://script.google.com/macros/s/…/exec` |
 
 6. Click **Deploy**.
 
@@ -27,16 +24,15 @@ The frontend is a React (CRA + craco) app that talks directly to a Google Apps S
 ```bash
 cd frontend
 cp .env.example .env
-# edit .env — set REACT_APP_GAS_API_URL or leave empty for mock mode
-yarn install
-yarn start
+npm install
+npm run dev
 ```
 
-## Switching from Mock → Real Backend
-Only one action is required after deployment: set `REACT_APP_GAS_API_URL` in Vercel → **Redeploy**. No code changes needed.
+Login uses credentials from the **Users** sheet in your Google Spreadsheet (connected via GAS `SPREADSHEET_ID`).
 
 ## Google Apps Script API Contract
-The GAS Web App must expose the following JSON endpoints (all prefixed after the base URL):
+
+The GAS Web App must expose these JSON endpoints via `?path=` query routing:
 
 - `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`
 - `GET /dashboard/stats`, `GET /dashboard/charts`, `GET /dashboard/recent-orders`
@@ -44,11 +40,13 @@ The GAS Web App must expose the following JSON endpoints (all prefixed after the
 - `GET /public/invoice/:token` (public share)
 - `GET /settings`, `PUT /settings`
 - `GET /reports?period=…`
-- File upload: `POST /files/upload` (multipart) → returns Google Drive file ID.
+
+Auth token is passed as `?token=` (GAS web apps do not receive `Authorization` headers reliably).
 
 ## Files of Interest
-- `frontend/vercel.json` — build + rewrites + headers
+
+- `frontend/vercel.json` — build env + SPA rewrites
 - `frontend/.env.example` — env template
-- `frontend/src/services/api.js` — smart wrapper
-- `frontend/src/services/mockAuth.js` — mock backend
-- `frontend/src/services/tokenStorage.js` — secure token wrapper
+- `frontend/src/services/gasClient.js` — GAS fetch client
+- `frontend/src/services/api.js` — API modules
+- `gas/Code.gs` — Apps Script backend source
