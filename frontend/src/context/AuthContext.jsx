@@ -12,14 +12,14 @@ export const useAuth = () => {
   return context;
 };
 
-/** Prefer Users sheet "Name"; fall back to username/email. */
+/** Users sheet "Name" column — same text shown after Welcome Back. */
 export function getUserDisplayName(user) {
   if (!user) return 'User';
   const name = String(user.name || '').trim();
-  const username = String(user.username || '').trim();
-  const email = String(user.email || '').trim();
   if (name) return name;
+  const username = String(user.username || '').trim();
   if (username) return username;
+  const email = String(user.email || '').trim();
   if (email) return email.split('@')[0] || email;
   return 'User';
 }

@@ -135,7 +135,7 @@ const Dashboard = () => {
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-orange-600">Dashboard</p>
           <h1 className="mt-1 text-2xl sm:text-3xl font-bold text-gray-900">
-            Welcome back, {displayName}
+            Welcome Back, {displayName}
           </h1>
           <p className="mt-1 text-sm text-gray-500">
             Business overview — documents, finance, and operations in one place.

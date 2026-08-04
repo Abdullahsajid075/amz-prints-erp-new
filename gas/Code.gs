@@ -274,13 +274,36 @@ function ensureHeaders_(sheet, sheetName) {
   return existing;
 }
 
+/**
+ * Users sheet may have duplicate "Name" headers (e.g. Name + mislabeled Permissions).
+ * Collect every Name column; prefer the last non-empty, non-JSON value for Welcome display.
+ */
+function pickUserDisplayName_(headers, row) {
+  var candidates = [];
+  for (var i = 0; i < headers.length; i++) {
+    if (normalizeHeader_(headers[i]) !== 'name') continue;
+    var v = String(row[i] != null ? row[i] : '').trim();
+    if (!v) continue;
+    // Skip permission arrays accidentally placed under a Name header
+    if (v.charAt(0) === '[' || v.charAt(0) === '{') continue;
+    candidates.push(v);
+  }
+  if (!candidates.length) return '';
+  return candidates[candidates.length - 1];
+}
+
 function sheetToObjects_(sheet, sheetName) {
   if (!sheet) return [];
-  var headers = getRawHeaders_(sheet, sheetName || sheet.getName());
+  // Keep blank header slots so column indexes stay aligned with row cells
+  var headers = readHeaders_(sheet);
+  if (!headers.some(function (h) { return h; })) {
+    headers = (DEFAULT_HEADERS[sheetName || sheet.getName()] || ['Id', 'Name']).slice();
+  }
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
-  var values = sheet.getRange(2, 1, lastRow, headers.length).getValues();
+  var values = sheet.getRange(2, 1, lastRow, Math.max(headers.length, 1)).getValues();
   var normalized = headers.map(normalizeHeader_);
+  var isUsers = String(sheetName || sheet.getName()) === SHEET_NAMES.USERS;
 
   return values
     .filter(function (row) {
@@ -292,6 +315,21 @@ function sheetToObjects_(sheet, sheetName) {
         if (!header) return;
         obj[header] = parseCell_(row[i]);
       });
+      if (isUsers) {
+        var displayName = pickUserDisplayName_(headers, row);
+        if (displayName) obj.name = displayName;
+        // 6th column is Permissions even if the header was typed as "Name"
+        if (obj.permissions == null || obj.permissions === '') {
+          var permIdx = -1;
+          for (var p = 0; p < headers.length; p++) {
+            if (normalizeHeader_(headers[p]) === 'permissions') { permIdx = p; break; }
+          }
+          if (permIdx < 0 && headers.length >= 6) {
+            var sixth = String(row[5] != null ? row[5] : '').trim();
+            if (sixth.charAt(0) === '[') obj.permissions = parseCell_(sixth);
+          }
+        }
+      }
       if (!obj.id) {
         obj.id = obj.orderid || obj.tokenno || obj.username || obj.email || obj.phone || obj.name || ('row_' + obj._row);
       }
@@ -411,11 +449,12 @@ function pad_(n, width) {
 function sanitizeUser_(user) {
   if (!user) return null;
   var username = String(user.username || user.email || user.id || '').trim();
+  // Always expose Users sheet Name column for "Welcome Back, {Name}"
   var name = String(user.name || '').trim();
   return {
     id: String(user.id || username || ''),
     username: username,
-    name: name || username || 'User',
+    name: name,
     email: String(user.email || username || '').trim(),
     role: String(user.role || 'Admin').trim(),
   };
