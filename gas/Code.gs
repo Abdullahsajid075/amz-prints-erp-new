@@ -410,11 +410,14 @@ function pad_(n, width) {
 
 function sanitizeUser_(user) {
   if (!user) return null;
+  var username = String(user.username || user.email || user.id || '').trim();
+  var name = String(user.name || '').trim();
   return {
-    id: String(user.id || user.username || user.email || ''),
-    name: user.name || user.username || '',
-    email: user.email || user.username || '',
-    role: user.role || 'Admin',
+    id: String(user.id || username || ''),
+    username: username,
+    name: name || username || 'User',
+    email: String(user.email || username || '').trim(),
+    role: String(user.role || 'Admin').trim(),
   };
 }
 

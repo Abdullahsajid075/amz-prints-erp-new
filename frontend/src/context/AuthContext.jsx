@@ -12,20 +12,65 @@ export const useAuth = () => {
   return context;
 };
 
+/** Prefer Users sheet "Name"; fall back to username/email. */
+export function getUserDisplayName(user) {
+  if (!user) return 'User';
+  const name = String(user.name || '').trim();
+  const username = String(user.username || '').trim();
+  const email = String(user.email || '').trim();
+  if (name) return name;
+  if (username) return username;
+  if (email) return email.split('@')[0] || email;
+  return 'User';
+}
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  const initAuth = useCallback(() => {
+  const applyUser = useCallback((userData) => {
+    if (!userData) {
+      setUser(null);
+      setIsAuthenticated(false);
+      return;
+    }
+    setUser(userData);
+    setIsAuthenticated(true);
+    tokenStorage.setUser(userData);
+  }, []);
+
+  const initAuth = useCallback(async () => {
     const token = tokenStorage.getToken();
     const savedUser = tokenStorage.getUser();
-    if (token && savedUser) {
+
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+
+    // Show cached user immediately, then refresh Name/Role from server
+    if (savedUser) {
       setUser(savedUser);
       setIsAuthenticated(true);
     }
-    setLoading(false);
-  }, []);
+
+    try {
+      const res = await authAPI.getCurrentUser();
+      if (res?.data) {
+        applyUser(res.data);
+      }
+    } catch {
+      // Keep cached user if /auth/me fails (e.g. brief GAS cold start)
+      if (!savedUser) {
+        tokenStorage.clear();
+        setUser(null);
+        setIsAuthenticated(false);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [applyUser]);
 
   useEffect(() => {
     initAuth();
@@ -36,9 +81,7 @@ export const AuthProvider = ({ children }) => {
       const response = await authAPI.login(credentials);
       const { token, user: userData } = response.data;
       tokenStorage.setToken(token);
-      tokenStorage.setUser(userData);
-      setUser(userData);
-      setIsAuthenticated(true);
+      applyUser(userData);
       return { success: true };
     } catch (error) {
       console.error('Login error:', error);
@@ -55,6 +98,8 @@ export const AuthProvider = ({ children }) => {
     setIsAuthenticated(false);
   };
 
-  const value = { user, loading, isAuthenticated, login, logout };
+  const value = { user, loading, isAuthenticated, login, logout, displayName: getUserDisplayName(user) };
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
+
+export default AuthContext;

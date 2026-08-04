@@ -45,9 +45,16 @@ const readFileAsDataURL = (file) =>
     reader.readAsDataURL(file);
   });
 
-/** Compress images so Settings cells stay under Google Sheets ~50k limit. */
-async function compressImageFile(file, maxEdge = 320, quality = 0.72) {
+/**
+ * Resize image for Sheets cell size.
+ * forcePng=true keeps alpha (JPEG conversion was painting transparent pixels black).
+ */
+async function compressImageFile(file, { maxEdge = 360, quality = 0.78, forcePng = false } = {}) {
   const dataUrl = await readFileAsDataURL(file);
+  const keepAlpha = forcePng
+    || /png|webp|gif/i.test(file.type || '')
+    || /\.(png|webp|gif)$/i.test(file.name || '');
+
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
@@ -57,9 +64,10 @@ async function compressImageFile(file, maxEdge = 320, quality = 0.72) {
       const canvas = document.createElement('canvas');
       canvas.width = w;
       canvas.height = h;
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext('2d', { alpha: true });
+      ctx.clearRect(0, 0, w, h);
       ctx.drawImage(img, 0, 0, w, h);
-      resolve(canvas.toDataURL('image/jpeg', quality));
+      resolve(keepAlpha ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', quality));
     };
     img.onerror = reject;
     img.src = dataUrl;
@@ -201,9 +209,9 @@ const Settings = () => {
       return;
     }
     try {
-      const dataUrl = await compressImageFile(file);
+      const dataUrl = await compressImageFile(file, { forcePng: true, maxEdge: 360 });
       update('company', field, dataUrl);
-      toast.success(`${field === 'logo' ? 'Logo' : 'Stamp'} ready (compressed for Sheets)`);
+      toast.success(`${field === 'logo' ? 'Logo' : 'Stamp'} ready (PNG, transparent background)`);
     } catch {
       toast.error('Failed to read file');
     }
@@ -299,11 +307,16 @@ const Settings = () => {
               <div><Label>Tax ID / GST</Label><Input value={settings.company.taxId} onChange={(e) => update('company', 'taxId', e.target.value)} /></div>
               <div><Label>Authorized Signatory</Label><Input value={settings.company.authorizedSignatory} onChange={(e) => update('company', 'authorizedSignatory', e.target.value)} /></div>
               <div>
-                <Label>Logo (image file → saved as Data URL)</Label>
-                <Input type="file" accept="image/*" onChange={(e) => onImagePick('logo', e.target.files?.[0])} data-testid="logo-file-input" />
+                <Label>Logo (PNG preferred — transparent background kept)</Label>
+                <Input type="file" accept="image/png,image/webp,image/gif,image/*" onChange={(e) => onImagePick('logo', e.target.files?.[0])} data-testid="logo-file-input" />
+                <p className="text-xs text-gray-500 mt-1">Re-upload your PNG after this fix if the old logo still shows a black background.</p>
                 {settings.company.logo && (
                   <div className="mt-2 flex items-center gap-3">
-                    <img src={settings.company.logo} alt="Logo preview" className="h-14 object-contain border rounded p-1" />
+                    <img
+                      src={settings.company.logo}
+                      alt="Logo preview"
+                      className="h-14 object-contain border rounded p-1 bg-[linear-gradient(45deg,#eee_25%,transparent_25%),linear-gradient(-45deg,#eee_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#eee_75%),linear-gradient(-45deg,transparent_75%,#eee_75%)] bg-[length:12px_12px] bg-[position:0_0,0_6px,6px_-6px,-6px_0]"
+                    />
                     <Button type="button" size="sm" variant="ghost" onClick={() => update('company', 'logo', '')}>Clear</Button>
                   </div>
                 )}

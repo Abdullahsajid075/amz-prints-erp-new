@@ -285,7 +285,7 @@ const Login = () => {
             <img
               src={company.logo}
               alt={company.name || 'Company logo'}
-              className="mx-auto w-20 h-20 object-contain rounded-2xl"
+              className="mx-auto h-20 w-auto max-w-[180px] object-contain bg-transparent"
             />
           ) : (
             <div

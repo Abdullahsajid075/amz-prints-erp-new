@@ -1,5 +1,5 @@
 import React from 'react';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth, getUserDisplayName } from '@/context/AuthContext';
 import { useBrand } from '@/context/BrandContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -11,6 +11,7 @@ const Navbar = ({ toggleSidebar }) => {
   const { user, logout } = useAuth();
   const { company, primary } = useBrand();
   const navigate = useNavigate();
+  const displayName = getUserDisplayName(user);
 
   const handleLogout = () => {
     logout();
@@ -32,7 +33,7 @@ const Navbar = ({ toggleSidebar }) => {
 
           <div className="flex items-center gap-3">
             {company.logo ? (
-              <img src={company.logo} alt={company.name} className="h-10 w-10 object-contain rounded-lg" />
+              <img src={company.logo} alt={company.name} className="h-10 w-auto max-w-[120px] object-contain bg-transparent" />
             ) : (
               <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: primary || '#F26522' }}>
                 <span className="text-white font-bold text-lg">{(company.name || 'A').charAt(0)}</span>
@@ -54,16 +55,16 @@ const Navbar = ({ toggleSidebar }) => {
               <Button variant="ghost" className="flex items-center gap-2 h-10 px-2">
                 <Avatar className="h-8 w-8">
                   <AvatarFallback style={{ backgroundColor: primary || '#F26522', color: 'white' }}>
-                    {getInitials(user?.name)}
+                    {getInitials(displayName)}
                   </AvatarFallback>
                 </Avatar>
-                <span className="hidden md:inline text-sm font-medium">{user?.name || 'User'}</span>
+                <span className="hidden md:inline text-sm font-medium">{displayName}</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>
                 <div className="flex flex-col">
-                  <span>{user?.name}</span>
+                  <span>{displayName}</span>
                   <span className="text-xs text-gray-500 font-normal">{user?.role}</span>
                 </div>
               </DropdownMenuLabel>

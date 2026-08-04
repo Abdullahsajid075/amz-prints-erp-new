@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { dashboardAPI, expensesAPI } from '@/services/api';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth, getUserDisplayName } from '@/context/AuthContext';
 import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
 import {
   TrendingUp, TrendingDown, ShoppingCart, Clock, CheckCircle, DollarSign,
@@ -125,7 +125,7 @@ const Dashboard = () => {
     setTimeout(fetchDashboardData, 60);
   };
 
-  const displayName = user?.name || user?.username || 'Admin';
+  const displayName = getUserDisplayName(user);
   const net = Number(stats.revenue || 0) - Number(stats.expenses || 0);
 
   return (
