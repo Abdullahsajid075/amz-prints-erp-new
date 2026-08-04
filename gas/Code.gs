@@ -77,18 +77,44 @@ function parseBody_(e) {
   }
 }
 
+function normalizeHeader_(header) {
+  const key = String(header || '').trim().toLowerCase().replace(/\s+/g, '');
+  const aliases = {
+    username: 'username',
+    user: 'username',
+    userid: 'id',
+    id: 'id',
+    email: 'email',
+    password: 'password',
+    pass: 'password',
+    name: 'name',
+    fullname: 'name',
+    role: 'role',
+    status: 'status',
+  };
+  return aliases[key] || key;
+}
+
 function sheetToObjects_(sheet) {
   if (!sheet) return [];
   const values = sheet.getDataRange().getValues();
   if (values.length < 2) return [];
-  const headers = values[0].map((header) => String(header).trim().toLowerCase());
+  const headers = values[0].map(normalizeHeader_);
   return values.slice(1)
     .filter(row => row.some(cell => cell !== '' && cell !== null))
     .map(row => {
       const obj = {};
       headers.forEach((header, i) => {
+        if (!header) return;
         obj[header] = row[i];
       });
+      // Your Users sheet has Username/Password/Name/Role/Status (no id column)
+      if (!obj.id) {
+        obj.id = obj.username || obj.email || obj.name || '';
+      }
+      if (!obj.email && obj.username) {
+        obj.email = obj.username;
+      }
       return obj;
     });
 }
@@ -176,22 +202,31 @@ function handleRequest_(e) {
 function sanitizeUser_(user) {
   if (!user) return null;
   return {
-    id: user.id,
-    name: user.name,
-    email: user.email || user.username,
+    id: String(user.id || user.username || user.email || ''),
+    name: user.name || user.username || '',
+    email: user.email || user.username || '',
     role: user.role || 'Admin',
   };
+}
+
+function isActiveUser_(user) {
+  const status = String(user.status || 'active').trim().toLowerCase();
+  return !status || status === 'active' || status === 'enabled' || status === '1' || status === 'true';
 }
 
 function handleLogin_(body) {
   const email = String(body.email || body.username || '').trim();
   const password = String(body.password || '');
   const sheet = getSheet_(SHEET_NAMES.USERS);
+  if (!sheet) {
+    return { error: 'Users sheet not found' };
+  }
   const users = sheetToObjects_(sheet);
   const loginId = email.toLowerCase();
 
   const user = users.find((u) => {
-    const identifiers = [u.email, u.username, u.name]
+    if (!isActiveUser_(u)) return false;
+    const identifiers = [u.email, u.username, u.name, u.id]
       .map((value) => String(value || '').trim().toLowerCase())
       .filter(Boolean);
     return identifiers.includes(loginId) && String(u.password || '').trim() === password.trim();
@@ -201,8 +236,9 @@ function handleLogin_(body) {
     return { error: 'Invalid credentials' };
   }
 
+  const userId = String(user.id || user.username || user.email);
   const token = Utilities.base64EncodeWebSafe(JSON.stringify({
-    id: user.id,
+    id: userId,
     email: user.email || user.username,
     exp: Date.now() + 24 * 60 * 60 * 1000,
   }));
@@ -220,7 +256,14 @@ function validateToken_(token) {
     if (payload.exp && Date.now() > payload.exp) return null;
     const sheet = getSheet_(SHEET_NAMES.USERS);
     const users = sheetToObjects_(sheet);
-    return users.find(u => u.id === payload.id) || null;
+    const payloadId = String(payload.id || '').toLowerCase();
+    return users.find((u) => {
+      if (!isActiveUser_(u)) return false;
+      const ids = [u.id, u.username, u.email]
+        .map((value) => String(value || '').trim().toLowerCase())
+        .filter(Boolean);
+      return ids.includes(payloadId);
+    }) || null;
   } catch (err) {
     return null;
   }
@@ -432,7 +475,7 @@ function setupSheets() {
 
   const users = getSheet_(SHEET_NAMES.USERS);
   if (users.getLastRow() < 2) {
-    users.getRange(1, 1, 1, 5).setValues([['id', 'name', 'email', 'password', 'role']]);
-    users.getRange(2, 1, 1, 5).setValues([['user_1', 'Admin User', 'admin', 'admin123', 'Super Admin']]);
+    users.getRange(1, 1, 1, 5).setValues([['Username', 'Password', 'Name', 'Role', 'Status']]);
+    users.getRange(2, 1, 1, 5).setValues([['admin', 'admin123', 'Administrator', 'Admin', 'Active']]);
   }
 }

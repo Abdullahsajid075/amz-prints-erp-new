@@ -11,15 +11,17 @@ Copy the latest `gas/Code.gs` into Apps Script and **Deploy → New version** so
 - Flexible Users sheet column names (`Email`, `email`, `Username`, etc.)
 - Proper 401 responses for invalid login
 
-## Users sheet format
+## Users sheet format (your current sheet)
 
 Tab name: **Users**
 
-| id | name | email | password | role |
-|----|------|-------|----------|------|
-| user_1 | Admin User | admin | your-password | Super Admin |
+| Username | Password | Name | Role | Status |
+|----------|----------|------|------|--------|
+| admin | admin123 | Administrator | Admin | Active |
 
-Login with the **email** (or username) and **password** exactly as stored in the sheet.
+Login with **Username** + **Password** (e.g. `admin` / `admin123`).
+
+`Code.gs` maps these columns automatically. After updating `Code.gs`, you must **Deploy → New version**.
 
 ## Verify from frontend folder
 
