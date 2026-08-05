@@ -16,7 +16,14 @@ import {
 import { openWhatsAppChat } from './whatsappChannel';
 import { settingsAPI } from '../api';
 
-export { listChannels, fillTemplate, buildTemplateVars, DEFAULT_WHATSAPP_TEMPLATES, DEFAULT_EMAIL_SUBJECTS };
+export {
+  listChannels,
+  fillTemplate,
+  buildTemplateVars,
+  resolveWhatsAppTemplate,
+  DEFAULT_WHATSAPP_TEMPLATES,
+  DEFAULT_EMAIL_SUBJECTS,
+};
 export { openWhatsAppChat, buildWhatsAppAppUrl, normalizeWhatsAppPhone } from './whatsappChannel';
 export { sendTestEmail } from './emailChannel';
 
