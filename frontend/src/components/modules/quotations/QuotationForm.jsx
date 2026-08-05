@@ -201,9 +201,13 @@ const QuotationForm = ({ printMode = false }) => {
       toast.error('Add at least one line item');
       return;
     }
+    if (isEdit && !quotationId) {
+      toast.error('Missing quotation id — refresh (will not create duplicate)');
+      return;
+    }
     setSaving(true);
     try {
-      const payload = buildPayload();
+      const payload = { ...buildPayload(), id: isEdit ? quotationId : undefined };
       if (isEdit) {
         const updated = await quotationsAPI.update(quotationId, payload);
         toast.success('Quotation updated');

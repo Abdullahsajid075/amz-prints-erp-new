@@ -199,12 +199,24 @@ export async function notifyPaymentEvent(payment, options = {}) {
   const event = String(payment?.type || '').toLowerCase() === 'outflow'
     ? 'payment_sent'
     : 'payment_received';
+  const total = Number(payment?.totalAmount || payment?.total || 0);
+  const received = Number(payment?.amount || 0);
+  const balance = payment?.balanceDue != null
+    ? Number(payment.balanceDue)
+    : (total > 0 ? Math.max(0, total - received) : 0);
+
   return notifyOrderEvent({
     event,
-    payment,
+    payment: {
+      ...payment,
+      amount: received,
+      balanceDue: balance,
+    },
     order: {
-      customerName: payment?.party,
+      customerName: payment?.party || payment?.customerName,
       customerPhone: payment?.partyPhone || payment?.phone,
+      totalAmount: total || received,
+      balanceAmount: balance,
     },
     openWhatsApp: options.openWhatsApp !== false,
   });

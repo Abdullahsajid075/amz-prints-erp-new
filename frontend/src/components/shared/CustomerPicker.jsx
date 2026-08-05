@@ -31,16 +31,23 @@ export default function CustomerPicker({
   const [draft, setDraft] = useState({ name: '', phone: '', email: '', address: '' });
 
   const options = useMemo(() => {
-    const list = Array.isArray(customers) ? [...customers] : [];
+    const list = (Array.isArray(customers) ? customers : [])
+      .filter((c) => c && (c.id || c.name))
+      .map((c) => ({
+        ...c,
+        id: String(c.id || c.phone || c.name),
+      }));
     if (customerId && !list.some((c) => String(c.id) === String(customerId))) {
       list.unshift({
-        id: customerId,
+        id: String(customerId),
         name: customerName || 'Selected customer',
         phone: customerPhone,
+        email: customerEmail,
+        address: customerAddress,
       });
     }
     return list;
-  }, [customers, customerId, customerName, customerPhone]);
+  }, [customers, customerId, customerName, customerPhone, customerEmail, customerAddress]);
 
   const selectId = customerId ? String(customerId) : undefined;
 
@@ -130,7 +137,8 @@ export default function CustomerPicker({
         </Select>
         {!customerId && (
           <p className="mt-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-md px-2 py-1">
-            Customer select / add required — quotation, order & invoice cannot save without it.
+            Customer select / add required — quotation, order, invoice & customer payments cannot save without it.
+            {options.length === 0 ? ' No customers yet — use “Add new customer”.' : ''}
           </p>
         )}
       </div>

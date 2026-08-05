@@ -159,10 +159,13 @@ Kindly arrange payment at your earliest convenience. Thank you for choosing *Ama
 
   payment_received: `Dear *{CustomerName}*,
 
-We have received your payment of *{payment_amount}* via {payment_method}.
+We have received your payment of *{payment_amount}*.
 
-Txn: {transaction_number}
-Remaining balance: *{balance_due}*
+Total: *{Amount}*
+Received: *{payment_amount}*
+Balance due: *{balance_due}*
+Method: {payment_method}
+Ref: {transaction_number}
 
 Thank you for your prompt payment.
 

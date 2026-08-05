@@ -56,6 +56,7 @@ const OrderForm = () => {
   const [pageLoading, setPageLoading] = useState(isEdit);
   const [prefilled, setPrefilled] = useState(false);
   const [originalStatus, setOriginalStatus] = useState('');
+  const [originalAdvance, setOriginalAdvance] = useState(0);
   const [loaded, setLoaded] = useState(!isEdit);
 
   const fetchCustomers = useCallback(async () => {
@@ -129,6 +130,7 @@ const OrderForm = () => {
         quotationId: o.quotationId || '',
       });
       setOriginalStatus(o.status || ORDER_STATUS.RECEIVED);
+      setOriginalAdvance(Number(o.advancePayment) || 0);
       setLoaded(true);
     } catch (error) {
       console.error('Error fetching order:', error);
@@ -250,27 +252,54 @@ const OrderForm = () => {
       toast.error('Add at least one product');
       return;
     }
+    if (isEdit && !orderId) {
+      toast.error('Missing order id — refresh and try again (will not create duplicate)');
+      return;
+    }
 
     setLoading(true);
     try {
       const orderData = {
         ...formData,
+        id: isEdit ? orderId : formData.id,
+        orderId: formData.orderId || undefined,
         totalAmount: calculateTotal(),
         balanceAmount: calculateBalance(),
       };
 
       const prevStatus = isEdit ? originalStatus : '';
+      const prevAdvance = isEdit ? Number(originalAdvance) || 0 : 0;
+      const nextAdvance = Number(orderData.advancePayment) || 0;
+      const receivedDelta = Math.max(0, nextAdvance - prevAdvance);
 
       if (isEdit) {
         const updated = await ordersAPI.update(orderId, orderData);
         toast.success('Order updated successfully');
-        const data = updated.data || orderData;
+        const data = { ...orderData, ...(updated.data || {}) };
+
+        if (receivedDelta > 0) {
+          await notifyOrderEvent({
+            event: 'payment_received',
+            order: data,
+            payment: {
+              party: data.customerName,
+              partyPhone: data.customerPhone,
+              amount: receivedDelta,
+              method: 'Cash / Advance',
+              reference: data.orderId || orderId,
+              type: 'inflow',
+              balanceDue: data.balanceAmount,
+            },
+          });
+          toast.message('Payment WhatsApp opened — Total / Received / Balance');
+        }
+
         if (String(prevStatus) !== String(data.status || orderData.status)) {
           if (applyServerNotificationHint(data)) {
             toast.message('WhatsApp opened — tap Send to notify customer');
           } else {
-            await notifyOrderEvent({ event: 'status', order: { ...orderData, ...data } });
-            toast.message('Customer notification prepared');
+            await notifyOrderEvent({ event: 'status', order: data });
+            toast.message('Status WhatsApp prepared');
           }
         }
       } else {
@@ -287,12 +316,27 @@ const OrderForm = () => {
           }
         }
         toast.success('Order created successfully');
-        const data = created.data || orderData;
+        const data = { ...orderData, ...(created.data || {}) };
         if (applyServerNotificationHint(data)) {
           toast.message('WhatsApp opened — tap Send to notify customer');
         } else {
-          await notifyOrderEvent({ event: 'created', order: { ...orderData, ...data } });
+          await notifyOrderEvent({ event: 'created', order: data });
           toast.message('Customer notification prepared');
+        }
+        if (nextAdvance > 0) {
+          await notifyOrderEvent({
+            event: 'payment_received',
+            order: data,
+            payment: {
+              party: data.customerName,
+              partyPhone: data.customerPhone,
+              amount: nextAdvance,
+              method: 'Cash / Advance',
+              reference: data.orderId || data.id,
+              type: 'inflow',
+              balanceDue: data.balanceAmount,
+            },
+          });
         }
       }
       navigate('/orders');

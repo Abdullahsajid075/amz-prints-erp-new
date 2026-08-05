@@ -7,8 +7,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { paymentsAPI, settingsAPI } from '@/services/api';
+import { paymentsAPI, settingsAPI, customersAPI } from '@/services/api';
 import { notifyPaymentEvent, printPaymentSlip } from '@/services/notifications';
+import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 import { useBrand } from '@/context/BrandContext';
 import { Plus, Search, Edit, Trash2, CreditCard, TrendingUp, TrendingDown, Wallet, Building, Save, X, ArrowDownLeft, ArrowUpRight, Printer, MessageCircle } from 'lucide-react';
@@ -25,12 +26,16 @@ const empty = {
   type: 'inflow',
   category: 'Invoice Payment',
   method: 'Cash',
+  customerId: '',
   party: '',
   partyPhone: '',
+  partyEmail: '',
+  partyAddress: '',
   reference: '',
   amount: 0,
   notes: '',
   balanceDue: 0,
+  totalAmount: 0,
 };
 
 function normalizePayment(p = {}) {
@@ -39,19 +44,24 @@ function normalizePayment(p = {}) {
     date: p.date || '',
     type: p.type || 'inflow',
     category: p.category || '',
+    customerId: p.customerId || p.customerid || '',
     party: p.party || p.customerName || p.customername || '',
     partyPhone: p.partyPhone || p.partyphone || p.phone || '',
+    partyEmail: p.partyEmail || p.email || '',
+    partyAddress: p.partyAddress || p.address || '',
     reference: p.reference || p.refId || p.refid || '',
     amount: Number(p.amount) || 0,
     method: p.method || 'Cash',
     notes: p.notes || '',
     balanceDue: Number(p.balanceDue ?? p.balancedue ?? 0) || 0,
+    totalAmount: Number(p.totalAmount ?? p.totalamount ?? 0) || 0,
   };
 }
 
 const Payments = () => {
   const { company } = useBrand();
   const [payments, setPayments] = useState([]);
+  const [customers, setCustomers] = useState([]);
   const [methods, setMethods] = useState(['Cash', 'Bank Transfer', 'UPI', 'Card', 'Cheque']);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({ search: '', category: undefined, method: undefined, from: '', to: '' });
@@ -59,6 +69,15 @@ const Payments = () => {
   const [editing, setEditing] = useState(null);
   const [formData, setFormData] = useState(empty);
   const [saving, setSaving] = useState(false);
+
+  const loadCustomers = useCallback(async () => {
+    try {
+      const res = await customersAPI.getAll();
+      setCustomers(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
 
   const loadPayments = useCallback(async () => {
     setLoading(true);
@@ -80,6 +99,7 @@ const Payments = () => {
   }, [filters.from, filters.to, filters.category, filters.method]);
 
   useEffect(() => {
+    loadCustomers();
     settingsAPI.get().then(res => {
       const enabled = (res.data?.payments?.methods || []).filter(m => m.enabled).map(m => m.name);
       if (enabled.length) setMethods(enabled);
@@ -109,8 +129,10 @@ const Payments = () => {
     setFormData({
       ...empty,
       ...p,
+      customerId: p.customerId || '',
       partyPhone: p.partyPhone || p.phone || '',
       balanceDue: Number(p.balanceDue) || 0,
+      totalAmount: Number(p.totalAmount) || 0,
     });
     setDialogOpen(true);
   };
@@ -121,17 +143,31 @@ const Payments = () => {
     else toast.message('Pocket slip sent to printer');
 
     if (payment.partyPhone || payment.phone) {
-      const notify = await notifyPaymentEvent(payment);
-      if (notify?.whatsappOpened) toast.message('WhatsApp opened — tap Send');
-      else if (!notify?.results?.whatsapp?.ok) toast.message('Payment saved (add phone for WhatsApp)');
+      const notify = await notifyPaymentEvent({
+        ...payment,
+        // Ensure template gets Total / Received / Balance
+        amount: payment.amount,
+        balanceDue: payment.balanceDue,
+      }, {
+        openWhatsApp: true,
+      });
+      // Pass total via notifyOrderEvent extras — notifyPaymentEvent uses order.totalAmount
+      if (notify?.whatsappOpened) toast.message('WhatsApp opened — Total / Received / Balance');
+      else toast.message('Payment saved (check phone / WhatsApp settings)');
     } else {
-      toast.message('Payment saved — add party phone next time for WhatsApp');
+      toast.error('Customer phone missing — WhatsApp not sent');
     }
   };
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!formData.party?.trim()) {
+    if (formData.type === 'inflow') {
+      if (!requireCustomer({
+        customerId: formData.customerId,
+        customerName: formData.party,
+        customerPhone: formData.partyPhone,
+      })) return;
+    } else if (!formData.party?.trim()) {
       toast.error('Party / person is required');
       return;
     }
@@ -139,22 +175,30 @@ const Payments = () => {
       toast.error('Enter a valid amount');
       return;
     }
+    if (editing && !editing.id) {
+      toast.error('Missing payment id — will not create duplicate');
+      return;
+    }
     setSaving(true);
     try {
+      const ref = formData.reference || `TXN-${Date.now().toString().slice(-8)}`;
       const payload = {
+        id: editing?.id,
         date: formData.date,
         type: formData.type,
         category: formData.category,
         method: formData.method,
+        customerId: formData.customerId || '',
         party: formData.party,
         customerName: formData.party,
         partyPhone: formData.partyPhone || '',
         phone: formData.partyPhone || '',
-        reference: formData.reference || `TXN-${Date.now().toString().slice(-8)}`,
-        refId: formData.reference || `TXN-${Date.now().toString().slice(-8)}`,
+        reference: ref,
+        refId: ref,
         amount: Number(formData.amount) || 0,
         notes: formData.notes || '',
         balanceDue: Number(formData.balanceDue) || 0,
+        totalAmount: Number(formData.totalAmount) || 0,
       };
       let saved;
       if (editing) {
@@ -163,12 +207,18 @@ const Payments = () => {
         toast.success('Payment updated');
       } else {
         const res = await paymentsAPI.create(payload);
-        saved = normalizePayment(res.data || payload);
+        saved = normalizePayment({ ...payload, ...(res.data || {}) });
         toast.success(payload.type === 'outflow' ? 'Cash Out recorded' : 'Cash In recorded');
       }
       setDialogOpen(false);
       loadPayments();
-      if (!editing) await afterSaveActions(saved);
+      if (!editing) {
+        await afterSaveActions({
+          ...saved,
+          // For WhatsApp Amount placeholder = bill total when provided
+          totalAmount: saved.totalAmount || payload.totalAmount,
+        });
+      }
     } catch (err) {
       console.error(err);
       toast.error(err.response?.data?.message || 'Failed to save payment');
@@ -343,7 +393,7 @@ const Payments = () => {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div><Label>Date *</Label><Input type="date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} required data-testid="payment-date-input" /></div>
-              <div><Label>Amount (Rs) *</Label><Input type="number" min="0" step="0.01" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })} required data-testid="payment-amount-input" /></div>
+              <div><Label>Received Amount (Rs) *</Label><Input type="number" min="0" step="0.01" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })} required data-testid="payment-amount-input" /></div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div><Label>Category *</Label>
@@ -359,16 +409,39 @@ const Payments = () => {
                 </Select>
               </div>
             </div>
+
+            {formData.type === 'inflow' ? (
+              <CustomerPicker
+                customers={customers}
+                customerId={formData.customerId}
+                customerName={formData.party}
+                customerPhone={formData.partyPhone}
+                customerEmail={formData.partyEmail}
+                customerAddress={formData.partyAddress}
+                onCustomersChange={(c) => setCustomers((prev) => [c, ...prev.filter((x) => x.id !== c.id)])}
+                onChange={(next) => setFormData((prev) => ({
+                  ...prev,
+                  customerId: next.customerId,
+                  party: next.customerName,
+                  partyPhone: next.customerPhone,
+                  partyEmail: next.customerEmail,
+                  partyAddress: next.customerAddress,
+                }))}
+              />
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                <div><Label>Party / Person *</Label><Input value={formData.party} onChange={(e) => setFormData({ ...formData, party: e.target.value })} required placeholder="Vendor / recipient" /></div>
+                <div><Label>Phone (WhatsApp)</Label><Input value={formData.partyPhone || ''} onChange={(e) => setFormData({ ...formData, partyPhone: e.target.value })} placeholder="03XXXXXXXXX" /></div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
-              <div><Label>Party / Person *</Label><Input value={formData.party} onChange={(e) => setFormData({ ...formData, party: e.target.value })} required placeholder="Customer or vendor name" data-testid="payment-party-input" /></div>
-              <div><Label>Party Phone (WhatsApp)</Label><Input value={formData.partyPhone || ''} onChange={(e) => setFormData({ ...formData, partyPhone: e.target.value })} placeholder="03XXXXXXXXX" data-testid="payment-phone-input" /></div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div><Label>Reference / Txn #</Label><Input value={formData.reference} onChange={(e) => setFormData({ ...formData, reference: e.target.value })} placeholder="Invoice, PO or Txn ID" /></div>
+              <div><Label>Bill / Order Total (optional)</Label><Input type="number" min="0" step="0.01" value={formData.totalAmount || 0} onChange={(e) => setFormData({ ...formData, totalAmount: parseFloat(e.target.value) || 0 })} placeholder="For WhatsApp Total" /></div>
               <div><Label>Balance Due (optional)</Label><Input type="number" min="0" step="0.01" value={formData.balanceDue || 0} onChange={(e) => setFormData({ ...formData, balanceDue: parseFloat(e.target.value) || 0 })} /></div>
             </div>
+            <div><Label>Reference / Txn #</Label><Input value={formData.reference} onChange={(e) => setFormData({ ...formData, reference: e.target.value })} placeholder="Invoice, Order or Txn ID" /></div>
             <div><Label>Notes</Label><Textarea rows={2} value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} /></div>
-            <p className="text-xs text-gray-500">On save: pocket slip prints automatically + WhatsApp message opens (if phone given).</p>
+            <p className="text-xs text-gray-500">Save → pocket slip + WhatsApp (Total / Received / Balance). Edit never creates a duplicate payment.</p>
             <DialogFooter className="gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}><X className="h-4 w-4 mr-1" />Cancel</Button>
               <Button type="submit" style={{ backgroundColor: '#F26522' }} className="text-white" disabled={saving} data-testid="save-payment-button"><Save className="h-4 w-4 mr-1" />{saving ? 'Saving...' : editing ? 'Update' : 'Record'}</Button>

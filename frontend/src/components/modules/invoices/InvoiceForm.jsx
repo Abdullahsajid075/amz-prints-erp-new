@@ -54,6 +54,7 @@ const InvoiceForm = () => {
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(!isEdit);
   const [pageLoading, setPageLoading] = useState(isEdit);
+  const [originalPaid, setOriginalPaid] = useState(0);
 
   const loadCustomers = useCallback(async () => {
     try {
@@ -113,6 +114,7 @@ const InvoiceForm = () => {
         notes: inv.notes || '',
         shareToken: inv.shareToken || '',
       });
+      setOriginalPaid(Number(inv.paidAmount) || 0);
       setLoaded(true);
     } catch (err) {
       console.error(err);
@@ -171,10 +173,15 @@ const InvoiceForm = () => {
       toast.error('Please add at least one item');
       return;
     }
+    if (isEdit && !invoiceId) {
+      toast.error('Missing invoice id — refresh and try again (will not create duplicate)');
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
         ...formData,
+        id: isEdit ? invoiceId : formData.id,
         subtotal,
         tax,
         totalAmount: total,
@@ -184,13 +191,47 @@ const InvoiceForm = () => {
       if (isEdit) {
         res = await invoicesAPI.update(invoiceId, payload);
         toast.success('Invoice updated');
+        const data = { ...payload, ...(res.data || {}) };
+        const prevPaid = Number(originalPaid) || 0;
+        const nextPaid = Number(payload.paidAmount) || 0;
+        const receivedDelta = Math.max(0, nextPaid - prevPaid);
+        if (receivedDelta > 0) {
+          await notifyOrderEvent({
+            event: 'payment_received',
+            order: {
+              customerName: payload.customerName,
+              customerPhone: payload.customerPhone,
+              customerEmail: payload.customerEmail,
+              orderId: payload.orderId,
+              totalAmount: grandTotal,
+              balanceAmount: balance,
+            },
+            invoice: {
+              ...data,
+              invoiceNumber: payload.invoiceNumber,
+              date: payload.date,
+              totalAmount: grandTotal,
+              balanceAmount: balance,
+            },
+            payment: {
+              party: payload.customerName,
+              partyPhone: payload.customerPhone,
+              amount: receivedDelta,
+              method: 'Invoice payment',
+              reference: payload.invoiceNumber,
+              type: 'inflow',
+              balanceDue: balance,
+            },
+          });
+          toast.message('Payment WhatsApp opened — Total / Received / Balance');
+        }
       } else {
         res = await invoicesAPI.create(payload);
         toast.success(`Invoice ${payload.invoiceNumber} created`);
         const data = res.data || payload;
         if (applyServerNotificationHint(data)) {
           toast.message('WhatsApp opened — tap Send to notify customer');
-        } else if (payload.customerEmail || payload.customerPhone) {
+        } else if (payload.customerPhone || payload.customerEmail) {
           await notifyOrderEvent({
             event: 'invoice_generated',
             order: {
@@ -208,6 +249,30 @@ const InvoiceForm = () => {
               date: payload.date,
               totalAmount: grandTotal,
               balanceAmount: balance,
+            },
+          });
+          toast.message('Invoice WhatsApp prepared');
+        }
+        const paidNow = Number(payload.paidAmount) || 0;
+        if (paidNow > 0 && payload.customerPhone) {
+          await notifyOrderEvent({
+            event: 'payment_received',
+            order: {
+              customerName: payload.customerName,
+              customerPhone: payload.customerPhone,
+              orderId: payload.orderId,
+              totalAmount: grandTotal,
+              balanceAmount: balance,
+            },
+            invoice: { invoiceNumber: payload.invoiceNumber, date: payload.date, totalAmount: grandTotal, balanceAmount: balance },
+            payment: {
+              party: payload.customerName,
+              partyPhone: payload.customerPhone,
+              amount: paidNow,
+              method: 'Invoice payment',
+              reference: payload.invoiceNumber,
+              type: 'inflow',
+              balanceDue: balance,
             },
           });
         }

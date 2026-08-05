@@ -44,7 +44,7 @@ var DEFAULT_HEADERS = {
   Vendors: ['Id', 'Name', 'Phone', 'Email', 'Address', 'Notes'],
   Purchases: ['Id', 'PurchaseNo', 'Date', 'VendorId', 'VendorName', 'Items', 'Total', 'Status'],
   Expenses: ['Id', 'Date', 'Category', 'Amount', 'Description', 'PaymentMethod'],
-  Payments: ['Id', 'Date', 'Type', 'Category', 'RefId', 'CustomerName', 'PartyPhone', 'Amount', 'Method', 'Notes', 'BalanceDue'],
+  Payments: ['Id', 'Date', 'Type', 'Category', 'RefId', 'CustomerName', 'CustomerId', 'PartyPhone', 'Amount', 'Method', 'Notes', 'BalanceDue', 'TotalAmount'],
   Counters: [
     'RecordType', 'CounterName', 'AccessHolder', 'Prefix', 'LastNumber', 'Status',
     'TokenNo', 'Date', 'Time', 'CustomerId', 'CustomerName', 'CustomerPhone',
@@ -1096,6 +1096,18 @@ function handleQuotations_(path, method, body) {
     if (method === 'GET') return quotations.map(toApiOrder_);
 
     if (method === 'POST') {
+      var existingQ = body.id || body.orderId || body.orderid;
+      if (existingQ) {
+        var qIdx = findById_(orders, existingQ);
+        if (qIdx >= 0 && String(orders[qIdx].doctype || '').toLowerCase() === 'quotation') {
+          var qUpd = normalizeOrder_(body, orders[qIdx]);
+          qUpd.id = orders[qIdx].id;
+          qUpd.orderid = orders[qIdx].orderid;
+          qUpd.doctype = 'Quotation';
+          updateObjectProps_(sheet, SHEET_NAMES.ORDERS, orders[qIdx]._row, qUpd);
+          return toApiOrder_(qUpd);
+        }
+      }
       if (body.customerPhone || body.customerName) {
         var cust = upsertCustomer_({
           name: body.customerName,
@@ -1252,6 +1264,23 @@ function handleOrders_(method, body) {
   }
 
   if (method === 'POST') {
+    // Never create a duplicate if an existing id/orderId is sent (edit mis-routed as create)
+    var existingId = body.id || body.orderId || body.orderid;
+    if (existingId) {
+      var dupIdx = findById_(orders, existingId);
+      if (dupIdx >= 0) {
+        var prevDup = toApiOrder_(orders[dupIdx]);
+        var updatedDup = normalizeOrder_(body, orders[dupIdx]);
+        updatedDup.id = orders[dupIdx].id;
+        updatedDup.orderid = orders[dupIdx].orderid;
+        updateObjectProps_(sheet, SHEET_NAMES.ORDERS, orders[dupIdx]._row, updatedDup);
+        var apiDup = toApiOrder_(updatedDup);
+        if (String(prevDup.status || '') !== String(apiDup.status || '')) {
+          return withNotifications_(apiDup, 'status');
+        }
+        return apiDup;
+      }
+    }
     // Auto upsert customer from order fields
     if (body.customerPhone || body.customerName) {
       var cust = upsertCustomer_({
@@ -1465,6 +1494,22 @@ function handleInvoices_(path, method, body) {
   if (path === '/invoices') {
     if (method === 'GET') return rows.map(toApiInvoice_);
     if (method === 'POST') {
+      var existingInvId = body.id || body.invoiceNumber || body.invoiceno || body.invoiceNo;
+      if (existingInvId) {
+        var invDupIdx = findById_(rows, existingInvId);
+        if (invDupIdx < 0) {
+          invDupIdx = rows.findIndex(function (r) {
+            return String(r.invoiceno || '') === String(body.invoiceNumber || body.invoiceno || '');
+          });
+        }
+        if (invDupIdx >= 0) {
+          var updInv = normalizeInvoice_(body, rows[invDupIdx]);
+          updInv.id = rows[invDupIdx].id;
+          if (!updInv.sharetoken) updInv.sharetoken = rows[invDupIdx].sharetoken;
+          updateObjectProps_(sheet, SHEET_NAMES.INVOICES, rows[invDupIdx]._row, updInv);
+          return toApiInvoice_(updInv);
+        }
+      }
       if (body.customerPhone || body.customerName) {
         var cust = upsertCustomer_({
           name: body.customerName,
