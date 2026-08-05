@@ -25,25 +25,20 @@ export function getUserDisplayName(user) {
   return 'User';
 }
 
-function isLoginPath() {
-  if (typeof window === 'undefined') return false;
-  const path = window.location.pathname || '';
-  return path === '/login' || path.endsWith('/login') || /\/login\/?$/.test(path);
-}
-
+/**
+ * AuthProvider only mounts inside the authenticated app shell (not on /login).
+ */
 export const AuthProvider = ({ children }) => {
   const booted = useRef(false);
-  const [user, setUser] = useState(() => (isLoginPath() ? null : tokenStorage.getUser()));
+  const [user, setUser] = useState(() => tokenStorage.getUser());
   const [loading, setLoading] = useState(() => {
-    if (isLoginPath()) return false;
     const token = tokenStorage.getToken();
     const saved = tokenStorage.getUser();
     return Boolean(token && !saved);
   });
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    if (isLoginPath()) return false;
-    return Boolean(tokenStorage.getToken() && tokenStorage.getUser());
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState(() =>
+    Boolean(tokenStorage.getToken() && tokenStorage.getUser())
+  );
 
   const clearSession = useCallback(() => {
     tokenStorage.clear();
@@ -63,27 +58,13 @@ export const AuthProvider = ({ children }) => {
   }, [clearSession]);
 
   useEffect(() => {
-    setUnauthorizedHandler(() => {
-      // On login page ignore 401 side-effects entirely
-      if (isLoginPath()) {
-        tokenStorage.clear();
-        return;
-      }
-      clearSession();
-    });
+    setUnauthorizedHandler(() => clearSession());
     return () => setUnauthorizedHandler(null);
   }, [clearSession]);
 
   useEffect(() => {
     if (booted.current) return;
     booted.current = true;
-
-    // Login screen: do not touch session / do not call GAS
-    if (isLoginPath()) {
-      setLoading(false);
-      setIsAuthenticated(false);
-      return;
-    }
 
     const token = tokenStorage.getToken();
     const savedUser = tokenStorage.getUser();
@@ -123,7 +104,6 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
       return { success: true };
     } catch (error) {
-      console.error('Login error:', error);
       return {
         success: false,
         error: error.response?.data?.message || 'Login failed. Please check your credentials.',

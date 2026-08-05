@@ -56,7 +56,7 @@ function writeCachedBrand(brand) {
       invoice: brand.invoice,
     }));
   } catch {
-    /* quota — often from huge logos; keep UI brand anyway */
+    /* quota */
   }
 }
 
@@ -78,7 +78,7 @@ function brandSignature(b) {
   return [
     b.company?.name,
     b.company?.tagline,
-    b.company?.logo ? String(b.company.logo).slice(0, 64) : '',
+    b.company?.logo ? String(b.company.logo).slice(0, 80) : '',
     b.company?.logo ? String(b.company.logo).length : 0,
     b.theme?.primary,
   ].join('|');
@@ -92,6 +92,7 @@ export const useBrand = () => {
   return ctx;
 };
 
+/** Only mounts inside authenticated app shell — never on /login. */
 export const BrandProvider = ({ children }) => {
   const initial = useRef(readCachedBrand());
   const [brand, setBrand] = useState(initial.current || defaultBrand);
@@ -109,7 +110,6 @@ export const BrandProvider = ({ children }) => {
   const applyBrand = useCallback((next) => {
     if (!next) return;
     const sig = brandSignature(next);
-    // Skip no-op updates — prevents login logo flicker / re-render loops
     if (sig === sigRef.current) return;
     sigRef.current = sig;
     setBrand(next);
@@ -118,26 +118,22 @@ export const BrandProvider = ({ children }) => {
   }, [applyTheme]);
 
   const refreshBrand = useCallback(async () => {
-    setLoading(false);
     try {
       const pub = await gasRequest('GET', '/public/branding');
       const next = normalizeBrandPayload(pub.data);
       if (next) applyBrand(next);
     } catch {
-      /* keep cached / default — never redirect */
+      /* keep cache */
     } finally {
       setLoading(false);
     }
   }, [applyBrand]);
 
-  // Mount once. On /login skip network fetch — huge logo payloads were thrashing the form.
   useEffect(() => {
     if (booted.current) return;
     booted.current = true;
     if (initial.current?.theme) applyTheme(initial.current.theme);
     setLoading(false);
-    const path = typeof window !== 'undefined' ? window.location.pathname || '' : '';
-    if (path === '/login' || path.endsWith('/login')) return;
     refreshBrand();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

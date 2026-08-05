@@ -15,7 +15,8 @@ const Navbar = ({ toggleSidebar }) => {
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    // Full navigation unmounts app shell — avoids login remount loops
+    window.location.assign('/login');
   };
 
   const getInitials = (name) => {

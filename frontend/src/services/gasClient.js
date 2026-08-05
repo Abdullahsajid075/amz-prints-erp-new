@@ -45,6 +45,12 @@ function stripStatus(payload) {
   return rest;
 }
 
+function isLoginPath() {
+  if (typeof window === 'undefined') return false;
+  const path = window.location.pathname || '';
+  return path === '/login' || path.endsWith('/login') || /\/login\/?$/.test(path);
+}
+
 function handleUnauthorized(path) {
   const apiPath = path.startsWith('/') ? path : `/${path}`;
 
@@ -53,10 +59,15 @@ function handleUnauthorized(path) {
     return;
   }
 
+  // On login page: ignore completely (no state thrash, no navigation)
+  if (isLoginPath()) {
+    return;
+  }
+
   tokenStorage.clear();
   getCache.clear();
 
-  // Soft logout only — never hard-reload (window.location caused login form wipes)
+  // Soft logout only — never hard-reload
   if (unauthorizedHandler) {
     try {
       unauthorizedHandler();

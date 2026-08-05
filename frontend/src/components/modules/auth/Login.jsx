@@ -1,7 +1,4 @@
-import React, { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/context/AuthContext';
-import { useBrand } from '@/context/BrandContext';
+import React, { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,8 +6,35 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Lock, Mail, AlertCircle, Search, Package, Calendar, User, CheckCircle2, Circle, Clock, Truck } from 'lucide-react';
-import { trackPublic } from '@/services/api';
+import { authAPI, trackPublic } from '@/services/api';
+import { tokenStorage } from '@/services/tokenStorage';
+import { clearGasCache } from '@/services/gasClient';
 import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
+
+const BRAND_CACHE_KEY = 'amz_erp_brand_v1';
+
+const DEFAULT_COMPANY = {
+  name: 'AMZ Prints',
+  tagline: 'Enterprise Resource Planning',
+  logo: '',
+};
+
+/** Local cache only — no BrandProvider / no network on this page. */
+function readFrozenBrand() {
+  try {
+    const raw = localStorage.getItem(BRAND_CACHE_KEY);
+    if (!raw) return { company: DEFAULT_COMPANY, primary: '#F26522' };
+    const parsed = JSON.parse(raw);
+    const company = { ...DEFAULT_COMPANY, ...(parsed?.company || {}) };
+    if (parsed?.companyLogo && !company.logo) company.logo = parsed.companyLogo;
+    return {
+      company,
+      primary: parsed?.theme?.primary || '#F26522',
+    };
+  } catch {
+    return { company: DEFAULT_COMPANY, primary: '#F26522' };
+  }
+}
 
 const WORKFLOW_STEPS = [
   { key: 'Order Received', icon: Package, label: 'Order Received' },
@@ -20,20 +44,15 @@ const WORKFLOW_STEPS = [
   { key: 'Finishing', icon: Circle, label: 'Finishing' },
   { key: 'Packing', icon: Circle, label: 'Packing' },
   { key: 'Ready', icon: Circle, label: 'Ready' },
-  { key: 'Delivered', icon: Truck, label: 'Delivered' }
+  { key: 'Delivered', icon: Truck, label: 'Delivered' },
 ];
 
+/**
+ * Standalone login page — NOT under BrandProvider / AuthProvider.
+ * Providers were causing remount / API / 401 loops that wiped the form.
+ */
 const Login = () => {
-  // Freeze brand for this page visit — live branding updates were remounting the form mid-typing
-  const liveBrand = useBrand();
-  const frozen = useRef({
-    company: liveBrand.company,
-    primary: liveBrand.primary || '#F26522',
-  });
-  const { company, primary } = frozen.current;
-
-  const { login } = useAuth();
-  const navigate = useNavigate();
+  const { company, primary } = useMemo(() => readFrozenBrand(), []);
 
   const [tab, setTab] = useState('admin');
   const [credentials, setCredentials] = useState({ email: '', password: '' });
@@ -50,15 +69,22 @@ const Login = () => {
     setLoginError('');
     setLoginLoading(true);
     try {
-      const result = await login(credentials);
-      if (result.success) {
-        navigate('/dashboard', { replace: true });
-      } else {
-        setLoginError(result.error || 'Login failed');
+      const response = await authAPI.login(credentials);
+      const { token, user } = response.data || {};
+      if (!token) {
+        setLoginError('Login failed — no token returned.');
+        return;
       }
-    } catch {
-      setLoginError('Login failed. Please try again.');
-    } finally {
+      tokenStorage.setToken(token);
+      tokenStorage.setUser(user || null);
+      clearGasCache();
+      // Full navigation mounts the app shell once (no React bounce loop)
+      window.location.assign('/dashboard');
+    } catch (error) {
+      setLoginError(
+        error?.response?.data?.message
+        || 'Login failed. Please check your credentials.'
+      );
       setLoginLoading(false);
     }
   };
@@ -75,11 +101,8 @@ const Login = () => {
         return;
       }
       const response = await trackPublic(id);
-      if (response.data) {
-        setOrder(response.data);
-      } else {
-        setTrackError('No order found with this tracking number or order ID.');
-      }
+      if (response.data) setOrder(response.data);
+      else setTrackError('No order found with this tracking number or order ID.');
     } catch (err) {
       setTrackError(
         err?.response?.data?.message
@@ -160,7 +183,6 @@ const Login = () => {
             </button>
           </div>
 
-          {/* Keep both panels mounted so inputs never wipe on tab/brand updates */}
           <div className={tab === 'admin' ? 'block' : 'hidden'} data-testid="admin-tab-content">
             <form onSubmit={handleLogin} className="space-y-5" autoComplete="on">
               {loginError && (
@@ -299,10 +321,10 @@ const Login = () => {
                         return (
                           <div key={step.key} className="flex items-center gap-3">
                             <div
-                              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all"
+                              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
                               style={{
                                 backgroundColor: status === 'completed' ? '#10B981' : status === 'active' ? '#F26522' : '#E5E7EB',
-                                color: status === 'pending' ? '#9CA3AF' : 'white'
+                                color: status === 'pending' ? '#9CA3AF' : 'white',
                               }}
                             >
                               {status === 'completed' ? (
@@ -318,7 +340,7 @@ const Login = () => {
                                 className="text-sm font-medium"
                                 style={{
                                   color: status === 'completed' ? '#10B981' : status === 'active' ? '#F26522' : '#9CA3AF',
-                                  fontWeight: status === 'active' ? '700' : '500'
+                                  fontWeight: status === 'active' ? '700' : '500',
                                 }}
                               >
                                 {step.label}
