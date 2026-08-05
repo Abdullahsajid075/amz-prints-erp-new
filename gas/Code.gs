@@ -1842,6 +1842,18 @@ function getDashboardBootstrap_() {
   var completed = orders.filter(function (o) {
     return String(o.status).toLowerCase().indexOf('deliver') !== -1;
   }).length;
+  var readyCount = orders.filter(function (o) {
+    return String(o.status || '').toLowerCase() === 'ready';
+  }).length;
+  var designingCount = orders.filter(function (o) {
+    var s = String(o.status || '').toLowerCase();
+    return s.indexOf('design') !== -1 || s.indexOf('proof') !== -1;
+  }).length;
+  var printingCount = orders.filter(function (o) {
+    var s = String(o.status || '').toLowerCase();
+    return s.indexOf('print') !== -1 || s.indexOf('finish') !== -1 || s.indexOf('pack') !== -1;
+  }).length;
+
   var statusMap = {};
   orders.forEach(function (o) {
     var key = o.status || 'Unknown';
@@ -1854,27 +1866,72 @@ function getDashboardBootstrap_() {
   var orderRevenue = orders.reduce(function (s, o) {
     return s + Number(o.totalamount || 0);
   }, 0);
+  var revenue = invoiceRevenue || orderRevenue;
+  var receivables = orders.reduce(function (s, o) { return s + Number(o.balanceamount || 0); }, 0);
+  var collected = orders.reduce(function (s, o) { return s + Number(o.advancepayment || 0); }, 0);
+
+  // Last 6 months sales from orders
+  var monthMap = {};
+  var now = new Date();
+  for (var m = 5; m >= 0; m--) {
+    var d = new Date(now.getFullYear(), now.getMonth() - m, 1);
+    var key = Utilities.formatDate(d, Session.getScriptTimeZone() || 'Asia/Karachi', 'yyyy-MM');
+    var label = Utilities.formatDate(d, Session.getScriptTimeZone() || 'Asia/Karachi', 'MMM');
+    monthMap[key] = { month: label, sales: 0, orders: 0, key: key };
+  }
+  orders.forEach(function (o) {
+    var dk = dateKey_(o.date);
+    if (!dk || dk.length < 7) return;
+    var mk = dk.slice(0, 7);
+    if (monthMap[mk]) {
+      monthMap[mk].sales += Number(o.totalamount || 0);
+      monthMap[mk].orders += 1;
+    }
+  });
+  var monthlySales = Object.keys(monthMap).sort().map(function (k) {
+    return { month: monthMap[k].month, sales: monthMap[k].sales, orders: monthMap[k].orders };
+  });
+
+  // Needs attention: Ready + high balance
+  var attention = orders
+    .filter(function (o) {
+      var s = String(o.status || '').toLowerCase();
+      var bal = Number(o.balanceamount || 0);
+      return s === 'ready' || bal > 0;
+    })
+    .sort(function (a, b) {
+      return Number(b.balanceamount || 0) - Number(a.balanceamount || 0);
+    })
+    .slice(0, 6)
+    .map(toApiOrder_);
 
   return {
     stats: {
       totalQuotations: quotations.length,
       totalOrders: orders.length,
       totalInvoices: invoices.length,
-      pendingOrders: orders.length - completed,
+      pendingOrders: Math.max(0, orders.length - completed),
       completedOrders: completed,
-      revenue: invoiceRevenue || orderRevenue,
+      readyOrders: readyCount,
+      designingOrders: designingCount,
+      printingOrders: printingCount,
+      revenue: revenue,
       expenses: 0,
-      receivables: orders.reduce(function (s, o) { return s + Number(o.balanceamount || 0); }, 0),
+      receivables: receivables,
+      collected: collected,
       payables: 0,
       activeCustomers: customers.length,
+      fulfillmentRate: orders.length ? Math.round((completed / orders.length) * 100) : 0,
+      collectionRate: revenue > 0 ? Math.round((collected / revenue) * 100) : 0,
     },
     charts: {
-      monthlySales: [],
+      monthlySales: monthlySales,
       orderStatus: Object.keys(statusMap).map(function (name) {
         return { name: name, value: statusMap[name] };
       }),
     },
-    recentOrders: orders.slice(-5).reverse().map(toApiOrder_),
+    recentOrders: orders.slice(-8).reverse().map(toApiOrder_),
+    attention: attention,
   };
 }
 
