@@ -196,8 +196,10 @@ const OrderForm = () => {
             await tokensAPI.linkOrder(prefillTokenNo || formData.tokenNo, {
               orderId: created.data?.orderId || created.data?.id || '',
             });
+            toast.message(`Token ${prefillTokenNo || formData.tokenNo} linked to order`);
           } catch (linkError) {
             console.warn('Token link failed', linkError);
+            toast.error(linkError.response?.data?.message || 'Order saved, but token link failed');
           }
         }
         toast.success('Order created successfully');

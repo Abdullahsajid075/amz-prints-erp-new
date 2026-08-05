@@ -59,7 +59,16 @@ const CounterScreen = () => {
         params.counter = 'all';
       }
       const res = await tokensAPI.getAll(params);
-      setTokens(Array.isArray(res.data) ? res.data : []);
+      let list = Array.isArray(res.data) ? res.data : [];
+      // Fallback: if Today is empty, show recent open tokens so counter never looks broken
+      if (!list.length) {
+        const allRes = await tokensAPI.getAll({ date: 'all', counter: params.counter });
+        const all = Array.isArray(allRes.data) ? allRes.data : [];
+        list = all.filter((t) =>
+          ['waiting', 'called', 'in progress'].includes(String(t.status || '').toLowerCase())
+        ).slice(0, 40);
+      }
+      setTokens(list);
     } catch (error) {
       console.error(error);
       toast.error(error.response?.data?.message || 'Failed to load tokens');

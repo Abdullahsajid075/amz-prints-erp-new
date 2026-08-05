@@ -100,8 +100,13 @@ function invalidateSheetCache_(sheetName) {
 
 /**
  * Cached sheet rows (30s). Avoids re-reading Sheets on every API call.
+ * Counters (tokens queue) always reads live — booking must appear immediately.
  */
 function getSheetRows_(sheetName) {
+  if (sheetName === SHEET_NAMES.COUNTERS) {
+    return sheetToObjects_(getSheet_(sheetName), sheetName);
+  }
+
   var cache = CacheService.getScriptCache();
   var key = cacheKey_(sheetName);
   try {
@@ -360,8 +365,8 @@ function valueForHeader_(obj, rawHeader) {
     phone: ['phone', 'customerphone', 'mobile'],
     customername: ['customername', 'name'],
     customerphone: ['customerphone', 'phone', 'mobile'],
-    tokenstatus: ['tokenstatus', 'status'],
-    status: ['status', 'tokenstatus'],
+    tokenstatus: ['tokenstatus'],
+    status: ['status'],
     service: ['service', 'product', 'products'],
     total: ['total', 'totalamount'],
     paid: ['paid', 'paidamount'],
@@ -432,12 +437,27 @@ function slicePage_(rows, params) {
   return rows.slice(offset, offset + limit);
 }
 
+function spreadsheetTz_() {
+  try {
+    return getSpreadsheet_().getSpreadsheetTimeZone() || Session.getScriptTimeZone() || 'Asia/Karachi';
+  } catch (err) {
+    return Session.getScriptTimeZone() || 'Asia/Karachi';
+  }
+}
+
 function nowDate_() {
-  return Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Karachi', 'yyyy-MM-dd');
+  return Utilities.formatDate(new Date(), spreadsheetTz_(), 'yyyy-MM-dd');
 }
 
 function nowTime_() {
-  return Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Karachi', 'HH:mm:ss');
+  return Utilities.formatDate(new Date(), spreadsheetTz_(), 'HH:mm:ss');
+}
+
+/** Force yyyy-MM-dd as plain text so Sheets does not coerce to Date (breaks Today filter). */
+function sheetDateText_(value) {
+  var key = dateKey_(value) || String(value || '').trim();
+  if (!key) return '';
+  return "'" + key;
 }
 
 function pad_(n, width) {
@@ -1519,14 +1539,17 @@ function isTokenRow_(row) {
 /** Normalize sheet dates (Date objects / ISO) to yyyy-MM-dd for reliable filtering. */
 function dateKey_(value) {
   if (value === null || value === undefined || value === '') return '';
+  var tz = spreadsheetTz_();
   if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
-    return Utilities.formatDate(value, Session.getScriptTimeZone() || 'Asia/Karachi', 'yyyy-MM-dd');
+    return Utilities.formatDate(value, tz, 'yyyy-MM-dd');
   }
   var s = String(value).trim();
+  // Strip Sheets text-prefix apostrophe if present
+  if (s.charAt(0) === "'") s = s.slice(1).trim();
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
   var parsed = new Date(s);
   if (!isNaN(parsed.getTime())) {
-    return Utilities.formatDate(parsed, Session.getScriptTimeZone() || 'Asia/Karachi', 'yyyy-MM-dd');
+    return Utilities.formatDate(parsed, tz, 'yyyy-MM-dd');
   }
   return s;
 }
@@ -1603,6 +1626,7 @@ function resolveCounterForService_(serviceName, explicitCounter) {
 
 function handleTokens_(path, method, body, params) {
   var sheet = getSheet_(SHEET_NAMES.COUNTERS);
+  ensureHeaders_(sheet, SHEET_NAMES.COUNTERS);
   var rows = getSheetRows_(SHEET_NAMES.COUNTERS);
   var tokens = rows.filter(isTokenRow_);
 
@@ -1623,7 +1647,9 @@ function handleTokens_(path, method, body, params) {
     if (dateParam && dateParam.toLowerCase() !== 'all') {
       var want = dateParam.toLowerCase() === 'today' ? nowDate_() : dateKey_(dateParam);
       filtered = filtered.filter(function (t) {
-        return dateKey_(t.date) === want;
+        var dk = dateKey_(t.date);
+        // Include rows with blank date so new/legacy tokens still show in Today
+        return !dk || dk === want;
       });
     }
     // Newest first
@@ -1702,11 +1728,12 @@ function handleTokens_(path, method, body, params) {
     }) || counter;
 
     var tokenNo = nextTokenNo_(counter);
+    var today = nowDate_();
     var token = {
       recordtype: 'Token',
       countername: counter.counterName,
       tokenno: tokenNo,
-      date: nowDate_(),
+      date: sheetDateText_(today),
       time: nowTime_(),
       customerid: customer.id || '',
       customername: customer.name || customerName,
@@ -1720,6 +1747,9 @@ function handleTokens_(path, method, body, params) {
       id: 'token_' + Date.now(),
     };
     appendObject_(sheet, SHEET_NAMES.COUNTERS, token);
+    // Return clean date (without Sheets apostrophe) to the client
+    token.date = today;
+    invalidateSheetCache_(SHEET_NAMES.COUNTERS);
     return toApiToken_(token);
   }
 

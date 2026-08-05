@@ -136,7 +136,14 @@ export async function gasRequest(method, path, options = {}) {
   }
 
   const cacheKey = httpMethod === 'GET' ? url.toString() : null;
-  if (cacheKey) {
+  // Live queues must always hit GAS — never serve stale token/counter lists
+  const bypassCache =
+    apiPath === '/tokens'
+    || apiPath.startsWith('/tokens/')
+    || apiPath === '/counters'
+    || apiPath.startsWith('/counters/');
+
+  if (cacheKey && !bypassCache) {
     const cached = cacheGet(cacheKey);
     if (cached) return cached;
   }
@@ -180,9 +187,9 @@ export async function gasRequest(method, path, options = {}) {
     status: response.status,
   };
 
-  if (cacheKey) {
+  if (cacheKey && !bypassCache) {
     cacheSet(cacheKey, result);
-  } else {
+  } else if (!cacheKey) {
     getCache.clear();
   }
 

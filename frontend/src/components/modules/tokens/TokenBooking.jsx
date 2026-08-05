@@ -149,7 +149,7 @@ const TokenBooking = () => {
   const syncSheets = async () => {
     try {
       const res = await debugAPI.prepare();
-      const admin = res.data?.admin;
+      const admin = res.data?.report?.admin || res.data?.admin;
       toast.success(
         admin?.username
           ? `Sheets synced. Login: ${admin.username} / ${admin.password}`
@@ -265,8 +265,27 @@ const TokenBooking = () => {
         service: prev.service,
         counterName: prev.counterName,
       }));
+      // Show new token immediately even before list refresh
+      setTokens((prev) => {
+        const without = prev.filter((t) => t.tokenNo !== tokenNo);
+        return [normalized, ...without];
+      });
       await loadTokens();
       await loadMeta();
+      // If Today filter hid the row (legacy date issue), flip to All once
+      if (listFilter === 'today') {
+        try {
+          const check = await tokensAPI.getAll({ date: 'today', counter: 'all' });
+          const list = Array.isArray(check.data) ? check.data : [];
+          const found = list.some((t) => t.tokenNo === tokenNo);
+          if (!found) {
+            setListFilter('all');
+            toast.message('Token booked — switched list to All (date sync)');
+          }
+        } catch {
+          /* ignore */
+        }
+      }
     } catch (error) {
       console.error(error);
       const msg = error.response?.data?.message || error.message || 'Failed to book token';
