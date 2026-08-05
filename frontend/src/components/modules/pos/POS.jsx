@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { productsAPI, ordersAPI } from '@/services/api';
+import { applyServerNotificationHint } from '@/services/notifications';
 import { formatCurrency } from '@/utils/helpers';
 import { useBrand } from '@/context/BrandContext';
 import { Search, Plus, Minus, Trash2, Printer, ShoppingCart } from 'lucide-react';
@@ -180,6 +181,9 @@ const POS = () => {
       };
       setLastSale(sale);
       toast.success(`Sale ${sale.orderId} completed`);
+      if (customerPhone && applyServerNotificationHint(created.data)) {
+        toast.message('WhatsApp opened — tap Send');
+      }
       setCart([]);
       setCustomerName('Walk-in');
       setCustomerPhone('');

@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ordersAPI, customersAPI, designersAPI, tokensAPI } from '@/services/api';
+import { applyServerNotificationHint, notifyOrderEvent } from '@/services/notifications';
 import { ORDER_STATUS } from '@/utils/constants';
 import { Plus, Trash2, Save, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
@@ -39,6 +40,7 @@ const OrderForm = () => {
   const [designers, setDesigners] = useState([]);
   const [loading, setLoading] = useState(false);
   const [prefilled, setPrefilled] = useState(false);
+  const [originalStatus, setOriginalStatus] = useState('');
 
   const fetchCustomers = useCallback(async () => {
     try {
@@ -97,6 +99,7 @@ const OrderForm = () => {
         tokenNo: o.tokenNo || '',
         products,
       });
+      setOriginalStatus(o.status || ORDER_STATUS.RECEIVED);
     } catch (error) {
       console.error('Error fetching order:', error);
       toast.error('Failed to load order');
@@ -172,9 +175,20 @@ const OrderForm = () => {
         balanceAmount: calculateBalance()
       };
 
+      const prevStatus = isEdit ? originalStatus : '';
+
       if (isEdit) {
-        await ordersAPI.update(orderId, orderData);
+        const updated = await ordersAPI.update(orderId, orderData);
         toast.success('Order updated successfully');
+        const data = updated.data || orderData;
+        if (String(prevStatus) !== String(data.status || orderData.status)) {
+          if (applyServerNotificationHint(data)) {
+            toast.message('WhatsApp opened — tap Send to notify customer');
+          } else {
+            await notifyOrderEvent({ event: 'status', order: { ...orderData, ...data } });
+            toast.message('Customer notification prepared');
+          }
+        }
       } else {
         const created = await ordersAPI.create(orderData);
         if (prefillTokenNo || formData.tokenNo) {
@@ -187,6 +201,13 @@ const OrderForm = () => {
           }
         }
         toast.success('Order created successfully');
+        const data = created.data || orderData;
+        if (applyServerNotificationHint(data)) {
+          toast.message('WhatsApp opened — tap Send to notify customer');
+        } else {
+          await notifyOrderEvent({ event: 'created', order: { ...orderData, ...data } });
+          toast.message('Customer notification prepared');
+        }
       }
       navigate('/orders');
     } catch (error) {

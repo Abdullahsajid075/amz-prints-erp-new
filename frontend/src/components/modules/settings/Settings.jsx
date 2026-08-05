@@ -11,7 +11,13 @@ import { Switch } from '@/components/ui/switch';
 import { settingsAPI, usersAPI } from '@/services/api';
 import { clearGasCache } from '@/services/gasClient';
 import { useBrand } from '@/context/BrandContext';
-import { Save, Building2, FileText, Palette, Users, ShoppingCart, Package, UserCog, CreditCard, Bell, Shield, Database, Trash2, Plus, X, Edit } from 'lucide-react';
+import {
+  DEFAULT_WHATSAPP_TEMPLATES,
+  DEFAULT_EMAIL_SUBJECTS,
+  sendTestEmail,
+  openWhatsAppChat,
+} from '@/services/notifications';
+import { Save, Building2, FileText, Palette, Users, ShoppingCart, Package, UserCog, CreditCard, Bell, Shield, Database, Trash2, Plus, X, Edit, MessageCircle, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 
 const defaultSettings = {
@@ -31,7 +37,18 @@ const defaultSettings = {
     /** Optional local mirror — login still uses Users sheet via usersAPI */
     accounts: [],
   },
-  notifications: { emailNewOrder: true, emailOrderStatus: true, emailInvoice: true, smsEnabled: false, whatsappEnabled: true },
+  notifications: {
+    emailNewOrder: true,
+    emailOrderStatus: true,
+    emailInvoice: true,
+    emailReady: true,
+    emailDelivered: true,
+    smsEnabled: false,
+    whatsappEnabled: true,
+    autoOpenWhatsApp: true,
+    whatsappTemplates: {},
+    emailSubjects: {},
+  },
   system: { currency: 'PKR', dateFormat: 'DD MMM YYYY', backupEnabled: true, backupFrequency: 'daily' }
 };
 
@@ -286,12 +303,13 @@ const Settings = () => {
       </div>
 
       <Tabs defaultValue="company" onValueChange={(v) => { if (v === 'users') loadUsers(); }}>
-        <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6 h-auto">
+        <TabsList className="grid w-full grid-cols-3 lg:grid-cols-7 h-auto">
           <TabsTrigger value="company"><Building2 className="h-4 w-4 mr-1" />Company</TabsTrigger>
           <TabsTrigger value="invoice"><FileText className="h-4 w-4 mr-1" />Invoice</TabsTrigger>
           <TabsTrigger value="theme"><Palette className="h-4 w-4 mr-1" />Theme</TabsTrigger>
           <TabsTrigger value="modules"><ShoppingCart className="h-4 w-4 mr-1" />Modules</TabsTrigger>
           <TabsTrigger value="users"><Users className="h-4 w-4 mr-1" />Users</TabsTrigger>
+          <TabsTrigger value="notifications"><Bell className="h-4 w-4 mr-1" />Notifications</TabsTrigger>
           <TabsTrigger value="system"><Database className="h-4 w-4 mr-1" />System</TabsTrigger>
         </TabsList>
 
@@ -565,14 +583,126 @@ const Settings = () => {
                 </div>
               </CardContent>
             </Card>
-            <Card><CardHeader><CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5" />Notifications</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
-                {[{ k: 'emailNewOrder', l: 'Email on new order' }, { k: 'emailOrderStatus', l: 'Email on status change' }, { k: 'emailInvoice', l: 'Email invoice' }, { k: 'smsEnabled', l: 'SMS notifications' }, { k: 'whatsappEnabled', l: 'WhatsApp integration' }].map(o => (
-                  <div key={o.k} className="flex items-center justify-between"><Label>{o.l}</Label><Switch checked={settings.notifications[o.k]} onCheckedChange={(v) => update('notifications', o.k, v)} /></div>
-                ))}
-              </CardContent>
-            </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="notifications" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5" />Channels</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {[
+                { k: 'whatsappEnabled', l: 'WhatsApp notifications (opens Desktop / Mobile app)' },
+                { k: 'autoOpenWhatsApp', l: 'Auto-open WhatsApp on order create / status change' },
+                { k: 'emailNewOrder', l: 'Email on new order' },
+                { k: 'emailOrderStatus', l: 'Email on status change' },
+                { k: 'emailReady', l: 'Email when Ready for collection' },
+                { k: 'emailDelivered', l: 'Email when Delivered' },
+                { k: 'emailInvoice', l: 'Email when invoice generated' },
+                { k: 'smsEnabled', l: 'SMS notifications (future — reserved)' },
+              ].map((o) => (
+                <div key={o.k} className="flex items-center justify-between gap-4">
+                  <Label className="text-sm">{o.l}</Label>
+                  <Switch
+                    checked={!!settings.notifications[o.k]}
+                    onCheckedChange={(v) => update('notifications', o.k, v)}
+                  />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><MessageCircle className="h-5 w-5" />WhatsApp message templates</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-xs text-gray-500">
+                Placeholders: {'{Customer Name}'}, {'{Order Number}'}, {'{Tracking Number}'}, {'{Status}'}, {'{Company Name}'}
+              </p>
+              {['created', 'Proof Approval', 'Printing', 'Ready', 'Delivered', 'status', 'invoice'].map((key) => {
+                const templates = {
+                  ...DEFAULT_WHATSAPP_TEMPLATES,
+                  ...(settings.notifications.whatsappTemplates || {}),
+                };
+                const label = key === 'created' ? 'Order Created' : key === 'status' ? 'Generic status update' : key === 'invoice' ? 'Invoice' : key;
+                return (
+                  <div key={key}>
+                    <Label className="mb-1 block">{label}</Label>
+                    <Textarea
+                      rows={key === 'created' ? 8 : 5}
+                      value={templates[key] || ''}
+                      onChange={(e) => update('notifications', 'whatsappTemplates', {
+                        ...(settings.notifications.whatsappTemplates || {}),
+                        [key]: e.target.value,
+                      })}
+                    />
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Mail className="h-5 w-5" />Email subjects</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {['created', 'status', 'Ready', 'Delivered', 'invoice'].map((key) => {
+                const subjects = {
+                  ...DEFAULT_EMAIL_SUBJECTS,
+                  ...(settings.notifications.emailSubjects || {}),
+                };
+                return (
+                  <div key={key}>
+                    <Label className="mb-1 block">{key}</Label>
+                    <Input
+                      value={subjects[key] || ''}
+                      onChange={(e) => update('notifications', 'emailSubjects', {
+                        ...(settings.notifications.emailSubjects || {}),
+                        [key]: e.target.value,
+                      })}
+                    />
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>Test notifications</CardTitle></CardHeader>
+            <CardContent className="flex flex-wrap gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    const to = settings.company.email;
+                    if (!to) { toast.error('Set company email first'); return; }
+                    await sendTestEmail(to);
+                    toast.success(`Test email sent to ${to}`);
+                  } catch (err) {
+                    toast.error(err?.response?.data?.message || 'Test email failed — check Apps Script Gmail permissions');
+                  }
+                }}
+              >
+                <Mail className="h-4 w-4 mr-2" />Send test email
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  const phone = settings.company.phone;
+                  if (!phone) { toast.error('Set company phone first (as WhatsApp test number)'); return; }
+                  openWhatsAppChat(phone, 'Test WhatsApp notification from AMZ Prints ERP.');
+                  toast.message('WhatsApp opened — tap Send');
+                }}
+              >
+                <MessageCircle className="h-4 w-4 mr-2" />Test WhatsApp app
+              </Button>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="system">

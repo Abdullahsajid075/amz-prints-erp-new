@@ -28,7 +28,7 @@ var SHEET_NAMES = {
 
 var DEFAULT_HEADERS = {
   Users: ['Username', 'Password', 'Name', 'Role', 'Status', 'Permissions'],
-  Customers: ['Id', 'Name', 'Phone', 'Email', 'Address', 'City', 'Notes'],
+  Customers: ['Id', 'Name', 'Phone', 'Email', 'Address', 'City', 'Notes', 'NotifyWhatsApp', 'NotifyEmail'],
   Orders: [
     'Id', 'OrderId', 'Date', 'CustomerId', 'CustomerName', 'CustomerPhone',
     'CustomerEmail', 'CustomerAddress', 'Status', 'DeliveryDate', 'Products',
@@ -183,6 +183,8 @@ function normalizeHeader_(header) {
     vendorid: 'vendorid', purchaseno: 'purchaseno', refid: 'refid',
     paidamount: 'paid', paid: 'paid', totalamount: 'total', taxrate: 'taxrate',
     duedate: 'duedate', previousbalance: 'previousbalance', servicenote: 'servicenote',
+    notifywhatsapp: 'notifywhatsapp', whatsappnotify: 'notifywhatsapp',
+    notifyemail: 'notifyemail', emailnotify: 'notifyemail',
   };
   return aliases[key] || key;
 }
@@ -628,7 +630,31 @@ function normalizeCustomer_(body) {
     address: body.address || body.customerAddress || body.customeraddress || '',
     city: body.city || '',
     notes: body.notes || '',
+    notifywhatsapp: body.notifyWhatsApp != null ? body.notifyWhatsApp : (body.notifywhatsapp != null ? body.notifywhatsapp : true),
+    notifyemail: body.notifyEmail != null ? body.notifyEmail : (body.notifyemail != null ? body.notifyemail : true),
   };
+}
+
+function toApiCustomer_(c) {
+  return {
+    id: c.id,
+    name: c.name || '',
+    phone: c.phone || '',
+    email: c.email || '',
+    address: c.address || '',
+    city: c.city || '',
+    notes: c.notes || '',
+    notifyWhatsApp: isNotifyOn_(c.notifywhatsapp),
+    notifyEmail: isNotifyOn_(c.notifyemail),
+  };
+}
+
+function isNotifyOn_(value) {
+  if (value === undefined || value === null || value === '') return true;
+  if (value === true || value === false) return value;
+  var s = String(value).trim().toLowerCase();
+  if (s === '0' || s === 'false' || s === 'no' || s === 'off' || s === 'n') return false;
+  return true;
 }
 
 function findCustomerByPhone_(phone) {
@@ -657,13 +683,21 @@ function upsertCustomer_(body) {
       city: data.city || existing.city,
       notes: data.notes || existing.notes,
     };
+    if (body.notifyWhatsApp != null || body.notifywhatsapp != null) {
+      updates.notifywhatsapp = data.notifywhatsapp;
+    }
+    if (body.notifyEmail != null || body.notifyemail != null) {
+      updates.notifyemail = data.notifyemail;
+    }
     updateObjectProps_(sheet, SHEET_NAMES.CUSTOMERS, existing._row, updates);
-    return Object.assign({}, existing, updates, { id: existing.id });
+    return toApiCustomer_(Object.assign({}, existing, updates, { id: existing.id }));
   }
 
   data.id = data.id || ('cust_' + Date.now());
+  if (data.notifywhatsapp === undefined || data.notifywhatsapp === '') data.notifywhatsapp = true;
+  if (data.notifyemail === undefined || data.notifyemail === '') data.notifyemail = true;
   appendObject_(sheet, SHEET_NAMES.CUSTOMERS, data);
-  return data;
+  return toApiCustomer_(data);
 }
 
 function handleCustomers_(path, method, body) {
@@ -690,17 +724,7 @@ function handleCustomers_(path, method, body) {
 
   if (path === '/customers') {
     if (method === 'GET') {
-      return customers.map(function (c) {
-        return {
-          id: c.id,
-          name: c.name,
-          phone: c.phone,
-          email: c.email,
-          address: c.address,
-          city: c.city,
-          notes: c.notes,
-        };
-      });
+      return customers.map(toApiCustomer_);
     }
     if (method === 'POST') return upsertCustomer_(body);
   }
@@ -709,18 +733,265 @@ function handleCustomers_(path, method, body) {
   var index = findById_(customers, id);
   if (index < 0) throw new Error('Customer not found');
 
-  if (method === 'GET') return customers[index];
+  if (method === 'GET') return toApiCustomer_(customers[index]);
   if (method === 'PUT') {
     var updates = normalizeCustomer_(Object.assign({}, customers[index], body));
     updates.id = customers[index].id;
     updateObjectProps_(sheet, SHEET_NAMES.CUSTOMERS, customers[index]._row, updates);
-    return updates;
+    return toApiCustomer_(updates);
   }
   if (method === 'DELETE') {
     deleteRow_(sheet, customers[index]._row, SHEET_NAMES.CUSTOMERS);
     return { success: true };
   }
   throw new Error('Method not allowed');
+}
+
+/* ===================== NOTIFICATIONS (Email + WhatsApp hints) ===================== */
+
+function getNotificationSettings_() {
+  var settings = getSettings_() || {};
+  var n = settings.notifications;
+  if (typeof n === 'string') {
+    try { n = JSON.parse(n); } catch (e) { n = {}; }
+  }
+  if (!n || typeof n !== 'object') n = {};
+  return {
+    whatsappEnabled: isNotifyOn_(n.whatsappEnabled != null ? n.whatsappEnabled : true),
+    emailNewOrder: isNotifyOn_(n.emailNewOrder != null ? n.emailNewOrder : true),
+    emailOrderStatus: isNotifyOn_(n.emailOrderStatus != null ? n.emailOrderStatus : true),
+    emailInvoice: isNotifyOn_(n.emailInvoice != null ? n.emailInvoice : true),
+    emailReady: isNotifyOn_(n.emailReady != null ? n.emailReady : true),
+    emailDelivered: isNotifyOn_(n.emailDelivered != null ? n.emailDelivered : true),
+    whatsappTemplates: (n.whatsappTemplates && typeof n.whatsappTemplates === 'object') ? n.whatsappTemplates : {},
+    emailSubjects: (n.emailSubjects && typeof n.emailSubjects === 'object') ? n.emailSubjects : {},
+  };
+}
+
+function getCompanyForNotify_() {
+  var settings = getSettings_() || {};
+  var company = settings.company;
+  if (typeof company === 'string') {
+    try { company = JSON.parse(company); } catch (e) { company = {}; }
+  }
+  if (!company || typeof company !== 'object') company = {};
+  if (settings.companyLogo && !company.logo) company.logo = settings.companyLogo;
+  return company;
+}
+
+function findCustomerPrefs_(orderApi) {
+  var phone = String(orderApi.customerPhone || '').replace(/\D/g, '');
+  var email = String(orderApi.customerEmail || '').trim().toLowerCase();
+  var id = String(orderApi.customerId || '');
+  var customers = getSheetRows_(SHEET_NAMES.CUSTOMERS);
+  var match = customers.find(function (c) {
+    if (id && String(c.id) === id) return true;
+    var p = String(c.phone || '').replace(/\D/g, '');
+    if (phone && p && (p === phone || p.slice(-10) === phone.slice(-10))) return true;
+    if (email && String(c.email || '').trim().toLowerCase() === email) return true;
+    return false;
+  });
+  if (!match) return { notifyWhatsApp: true, notifyEmail: true };
+  return {
+    notifyWhatsApp: isNotifyOn_(match.notifywhatsapp),
+    notifyEmail: isNotifyOn_(match.notifyemail),
+    phone: match.phone,
+    email: match.email,
+    name: match.name,
+  };
+}
+
+function defaultWhatsAppTemplate_(event, status) {
+  if (event === 'created') {
+    return 'Dear {Customer Name},\n\nThank you for choosing {Company Name}.\n\nYour order has been created successfully.\n\nOrder No: {Order Number}\nTracking No: {Tracking Number}\n\nWe will keep you updated.\n\nThank you.\n{Company Name}';
+  }
+  if (event === 'invoice') {
+    return 'Dear {Customer Name},\n\nYour invoice {Invoice Number} has been generated.\n\nTotal: {Amount}\nOrder No: {Order Number}\n\nThank you.\n{Company Name}';
+  }
+  if (status === 'Proof Approval') {
+    return 'Dear {Customer Name},\n\nYour design has been completed and is ready for approval.\n\nOrder No: {Order Number}\n\n{Company Name}';
+  }
+  if (status === 'Printing') {
+    return 'Dear {Customer Name},\n\nYour order is now in production.\n\nOrder No: {Order Number}\n\n{Company Name}';
+  }
+  if (status === 'Ready') {
+    return 'Good news!\n\nYour order is ready for collection.\n\nOrder No: {Order Number}\nTracking No: {Tracking Number}\n\n{Company Name}';
+  }
+  if (status === 'Delivered') {
+    return 'Dear {Customer Name},\n\nYour order has been delivered successfully.\n\nOrder No: {Order Number}\n\nThank you for choosing {Company Name}.';
+  }
+  return 'Dear {Customer Name},\n\nYour order {Order Number} status is now: {Status}.\n\nTracking No: {Tracking Number}\n\n{Company Name}';
+}
+
+function fillNotifyTemplate_(template, vars) {
+  var out = String(template || '');
+  Object.keys(vars).forEach(function (key) {
+    var re = new RegExp('\\{' + key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\}', 'gi');
+    out = out.replace(re, vars[key] != null ? String(vars[key]) : '');
+  });
+  return out.trim();
+}
+
+function buildNotifyVars_(orderApi, company, extras) {
+  extras = extras || {};
+  return {
+    'Customer Name': orderApi.customerName || extras.customerName || 'Customer',
+    'Order Number': orderApi.orderId || orderApi.id || '',
+    'Tracking Number': orderApi.trackingNumber || '',
+    Status: orderApi.status || extras.status || '',
+    'Company Name': company.name || 'AMZ Prints',
+    'Company Phone': company.phone || '',
+    'Company Email': company.email || '',
+    'Invoice Number': extras.invoiceNumber || '',
+    Amount: extras.amount != null ? String(extras.amount) : String(orderApi.totalAmount || ''),
+  };
+}
+
+function buildOrderEmailHtml_(orderApi, company, bodyText) {
+  var logo = company.logo
+    ? '<img src="' + company.logo + '" alt="logo" style="max-height:64px;max-width:180px;margin-bottom:12px" />'
+    : '';
+  var primary = '#F26522';
+  return ''
+    + '<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#1F2937">'
+    + '<div style="background:linear-gradient(135deg,' + primary + ',#FF8A50);padding:20px;border-radius:12px 12px 0 0;color:#fff">'
+    + '<h2 style="margin:0">' + (company.name || 'AMZ Prints') + '</h2>'
+    + '<p style="margin:6px 0 0;opacity:.9">' + (company.tagline || 'Professional Printing Services') + '</p>'
+    + '</div>'
+    + '<div style="border:1px solid #E5E7EB;border-top:0;padding:20px;border-radius:0 0 12px 12px">'
+    + logo
+    + '<div style="white-space:pre-wrap;line-height:1.5;font-size:14px">' + String(bodyText || '').replace(/</g, '&lt;') + '</div>'
+    + '<hr style="border:none;border-top:1px solid #E5E7EB;margin:20px 0" />'
+    + '<p style="font-size:12px;color:#6B7280;margin:0">'
+    + (company.phone ? ('Phone: ' + company.phone + '<br/>') : '')
+    + (company.email ? ('Email: ' + company.email + '<br/>') : '')
+    + (company.address ? ('Address: ' + company.address) : '')
+    + '</p>'
+    + '</div></div>';
+}
+
+function sendMailSafe_(to, subject, htmlBody, textBody) {
+  if (!to) return { ok: false, reason: 'missing_email' };
+  try {
+    MailApp.sendEmail({
+      to: String(to).trim(),
+      subject: subject || 'Notification',
+      htmlBody: htmlBody || '',
+      body: textBody || String(htmlBody || '').replace(/<[^>]+>/g, ' '),
+      name: (getCompanyForNotify_().name || 'AMZ Prints'),
+    });
+    return { ok: true, to: to };
+  } catch (err) {
+    try {
+      GmailApp.sendEmail(String(to).trim(), subject || 'Notification', textBody || '', {
+        htmlBody: htmlBody || '',
+        name: (getCompanyForNotify_().name || 'AMZ Prints'),
+      });
+      return { ok: true, to: to, via: 'gmail' };
+    } catch (err2) {
+      return { ok: false, error: String(err2 && err2.message ? err2.message : err2) };
+    }
+  }
+}
+
+/**
+ * Server-side email + WhatsApp payload for the client to open the app.
+ * event: created | status | invoice
+ */
+function dispatchOrderNotifications_(orderApi, event, extras) {
+  extras = extras || {};
+  var notif = getNotificationSettings_();
+  var company = getCompanyForNotify_();
+  var prefs = findCustomerPrefs_(orderApi);
+  var status = orderApi.status || extras.status || '';
+  var vars = buildNotifyVars_(orderApi, company, extras);
+  var templates = notif.whatsappTemplates || {};
+  var template = templates[event === 'created' ? 'created' : (templates[status] ? status : 'status')]
+    || (event === 'created' ? templates.created : (templates[status] || templates.status))
+    || defaultWhatsAppTemplate_(event, status);
+  var text = fillNotifyTemplate_(template, vars);
+
+  var out = { email: null, whatsapp: null };
+
+  // WhatsApp: return payload for frontend (cannot open Desktop app from GAS)
+  if (notif.whatsappEnabled && prefs.notifyWhatsApp && (orderApi.customerPhone || prefs.phone)) {
+    out.whatsapp = {
+      phone: orderApi.customerPhone || prefs.phone,
+      text: text,
+    };
+  }
+
+  var wantEmail = false;
+  if (event === 'created') wantEmail = notif.emailNewOrder;
+  else if (event === 'invoice') wantEmail = notif.emailInvoice;
+  else if (status === 'Ready') wantEmail = notif.emailReady && notif.emailOrderStatus;
+  else if (status === 'Delivered') wantEmail = notif.emailDelivered && notif.emailOrderStatus;
+  else wantEmail = notif.emailOrderStatus;
+
+  var emailTo = orderApi.customerEmail || prefs.email || extras.email;
+  if (wantEmail && prefs.notifyEmail && emailTo) {
+    var subjects = notif.emailSubjects || {};
+    var subjectKey = event === 'created' ? 'created' : (event === 'invoice' ? 'invoice' : (status === 'Ready' || status === 'Delivered' ? status : 'status'));
+    var subjectTpl = subjects[subjectKey]
+      || (subjectKey === 'created' ? 'Order Confirmed — {Order Number} | {Company Name}'
+        : subjectKey === 'invoice' ? 'Invoice {Invoice Number} | {Company Name}'
+          : 'Order Update — {Order Number} is now {Status}');
+    var subject = fillNotifyTemplate_(subjectTpl, vars);
+    var html = buildOrderEmailHtml_(orderApi, company, text);
+    out.email = sendMailSafe_(emailTo, subject, html, text);
+  }
+
+  return out;
+}
+
+function withNotifications_(apiOrder, event, extras) {
+  var result = Object.assign({}, apiOrder);
+  try {
+    result._notifications = dispatchOrderNotifications_(apiOrder, event, extras);
+  } catch (err) {
+    result._notifications = { error: String(err && err.message ? err.message : err) };
+  }
+  return result;
+}
+
+function handleNotifications_(path, method, body) {
+  if (method === 'POST' && path === '/notifications/test') {
+    var channel = String(body.channel || 'email').toLowerCase();
+    if (channel === 'email') {
+      var company = getCompanyForNotify_();
+      var to = body.to || company.email;
+      if (!to) throw new Error('Provide a test email address (or set company email in Settings)');
+      var html = buildOrderEmailHtml_({
+        customerName: 'Test Customer',
+        orderId: 'ORD-TEST',
+        trackingNumber: 'TRK-TEST',
+        status: 'Order Received',
+        totalAmount: 0,
+      }, company, 'This is a test notification from AMZ Prints ERP.\n\nIf you received this, email notifications are working.');
+      return sendMailSafe_(to, 'Test Notification | ' + (company.name || 'AMZ Prints'), html, 'Test notification from AMZ Prints ERP');
+    }
+    if (channel === 'whatsapp') {
+      return {
+        ok: true,
+        whatsapp: {
+          phone: body.phone || '',
+          text: 'Test WhatsApp notification from AMZ Prints ERP.',
+        },
+        hint: 'Frontend should open WhatsApp Desktop/Mobile with this payload.',
+      };
+    }
+    throw new Error('Unsupported channel: ' + channel);
+  }
+
+  if (method === 'POST' && path === '/notifications/email') {
+    var order = body.order || {};
+    var company2 = getCompanyForNotify_();
+    var text = body.text || body.message || '';
+    var html2 = body.html || buildOrderEmailHtml_(order, company2, text);
+    return sendMailSafe_(body.to || order.customerEmail, body.subject || 'Notification', html2, text);
+  }
+
+  throw new Error('Not found');
 }
 
 /* ===================== ORDERS ===================== */
@@ -983,7 +1254,7 @@ function handleOrders_(method, body) {
       }];
     }
     appendObject_(sheet, SHEET_NAMES.ORDERS, record);
-    return toApiOrder_(record);
+    return withNotifications_(toApiOrder_(record), 'created');
   }
   throw new Error('Method not allowed');
 }
@@ -1006,20 +1277,30 @@ function handleOrderById_(path, method, body) {
 
   if (path.indexOf('/status') !== -1 && (method === 'PATCH' || method === 'POST')) {
     if (index < 0) throw new Error('Order not found');
+    var prevStatus = orders[index].status;
     updateObjectProps_(sheet, SHEET_NAMES.ORDERS, orders[index]._row, { status: body.status });
     orders[index].status = body.status;
-    return toApiOrder_(orders[index]);
+    var apiStatus = toApiOrder_(orders[index]);
+    if (String(prevStatus) !== String(body.status)) {
+      return withNotifications_(apiStatus, 'status');
+    }
+    return apiStatus;
   }
 
   if (index < 0) throw new Error('Order not found');
 
   if (method === 'GET') return toApiOrder_(orders[index]);
   if (method === 'PUT') {
+    var prev = toApiOrder_(orders[index]);
     var updated = normalizeOrder_(body, orders[index]);
     updated.id = orders[index].id;
     updated.orderid = orders[index].orderid;
     updateObjectProps_(sheet, SHEET_NAMES.ORDERS, orders[index]._row, updated);
-    return toApiOrder_(updated);
+    var apiUpdated = toApiOrder_(updated);
+    if (String(prev.status || '') !== String(apiUpdated.status || '')) {
+      return withNotifications_(apiUpdated, 'status');
+    }
+    return apiUpdated;
   }
   if (method === 'DELETE') {
     deleteRow_(sheet, orders[index]._row, SHEET_NAMES.ORDERS);
@@ -1173,7 +1454,26 @@ function handleInvoices_(path, method, body) {
       }
       var created = normalizeInvoice_(body);
       appendObject_(sheet, SHEET_NAMES.INVOICES, created);
-      return toApiInvoice_(created);
+      var apiInv = toApiInvoice_(created);
+      try {
+        apiInv._notifications = dispatchOrderNotifications_({
+          customerName: apiInv.customerName,
+          customerPhone: apiInv.customerPhone,
+          customerEmail: apiInv.customerEmail,
+          customerId: apiInv.customerId,
+          orderId: apiInv.orderId,
+          trackingNumber: '',
+          status: 'Invoice',
+          totalAmount: apiInv.totalAmount,
+        }, 'invoice', {
+          invoiceNumber: apiInv.invoiceNumber || apiInv.invoiceNo,
+          amount: apiInv.totalAmount,
+          email: apiInv.customerEmail,
+        });
+      } catch (notifyErr) {
+        apiInv._notifications = { error: String(notifyErr) };
+      }
+      return apiInv;
     }
     throw new Error('Method not allowed');
   }
@@ -1967,6 +2267,9 @@ function handleRequest_(e) {
     if (path === '/settings') {
       if (method === 'GET') return jsonResponse_(getSettings_());
       if (method === 'PUT' || method === 'POST') return jsonResponse_(updateSettings_(body));
+    }
+    if (path.indexOf('/notifications/') === 0) {
+      return jsonResponse_(handleNotifications_(path, method, body));
     }
     if (path === '/reports') return jsonResponse_(getReports_(e.parameter));
 

@@ -139,6 +139,11 @@ export const usersAPI = {
   delete: (id) => gasRequest('DELETE', `/users/${id}`, withToken()),
 };
 
+export const notificationsAPI = {
+  sendEmail: (data) => gasRequest('POST', '/notifications/email', withToken({ data })),
+  test: (data) => gasRequest('POST', '/notifications/test', withToken({ data })),
+};
+
 export const trackPublic = (id) =>
   gasRequest('GET', `/public/track/${encodeURIComponent(String(id || '').trim())}`);
 
@@ -166,5 +171,6 @@ export default {
   tokensAPI,
   quotationsAPI,
   usersAPI,
+  notificationsAPI,
   trackPublic,
 };

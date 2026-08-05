@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { ordersAPI, invoicesAPI, settingsAPI } from '@/services/api';
 import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
 import { ORDER_STATUS } from '@/utils/constants';
+import { openWhatsAppChat, fillTemplate, buildTemplateVars, resolveWhatsAppTemplate } from '@/services/notifications';
 import { Plus, Search, Eye, Edit, Copy, Trash2, User, Phone, Mail, MapPin, Calendar, Package, FileText, X, Printer, MessageCircle, Receipt, Truck } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -84,11 +85,13 @@ const OrdersList = () => {
   const handleWhatsApp = async (order) => {
     try {
       const full = order.customerPhone ? order : (await ordersAPI.getById(order.id)).data;
-      const phone = (full.customerPhone || '').replace(/\D/g, '');
-      if (!phone) { toast.error('Customer phone not available'); return; }
-      const msg = `Hi ${full.customerName},\n\nYour order *${full.orderId}* status: *${full.status}*.\nTotal: ${formatCurrency(full.totalAmount)}\nDelivery: ${formatDate(full.deliveryDate)}\n\nThank you for choosing ${company.name || 'AMZ Prints'}!`;
-      const win = window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
-      if (!win) toast.error('Popup blocked — please allow popups to share on WhatsApp');
+      if (!full.customerPhone) { toast.error('Customer phone not available'); return; }
+      const vars = buildTemplateVars(full, company);
+      const template = resolveWhatsAppTemplate(null, 'status', full.status);
+      const msg = fillTemplate(template, vars);
+      const result = openWhatsAppChat(full.customerPhone, msg);
+      if (!result.ok) toast.error('Could not open WhatsApp');
+      else toast.message('WhatsApp opened — tap Send');
     } catch (err) { console.error(err); toast.error('Failed to open WhatsApp'); }
   };
 

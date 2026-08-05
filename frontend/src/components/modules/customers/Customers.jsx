@@ -7,12 +7,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
 import { customersAPI } from '@/services/api';
 import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
-import { Plus, Search, Edit, Trash2, User, Phone, Mail, MapPin, FileText, Receipt, CreditCard, TrendingUp, X, Save, BookOpen } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, User, Phone, Mail, MapPin, FileText, Receipt, CreditCard, TrendingUp, X, Save, BookOpen, Bell } from 'lucide-react';
 import { toast } from 'sonner';
 
-const empty = { name: '', phone: '', email: '', address: '', city: '', notes: '' };
+const empty = {
+  name: '', phone: '', email: '', address: '', city: '', notes: '',
+  notifyWhatsApp: true, notifyEmail: true,
+};
 
 const Customers = () => {
   const [customers, setCustomers] = useState([]);
@@ -45,7 +49,16 @@ const Customers = () => {
   );
 
   const openCreate = () => { setEditing(null); setFormData(empty); setDialogOpen(true); };
-  const openEdit = (c) => { setEditing(c); setFormData(c); setDialogOpen(true); };
+  const openEdit = (c) => {
+    setEditing(c);
+    setFormData({
+      ...empty,
+      ...c,
+      notifyWhatsApp: c.notifyWhatsApp !== false,
+      notifyEmail: c.notifyEmail !== false,
+    });
+    setDialogOpen(true);
+  };
 
   const openLedger = async (c) => {
     setLedger(null); setLedgerOpen(true); setLedgerLoading(true);
@@ -169,6 +182,25 @@ const Customers = () => {
             <div><Label>Address</Label><Textarea rows={2} value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} /></div>
             <div><Label>City</Label><Input value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} /></div>
             <div><Label>Notes</Label><Textarea rows={2} value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} /></div>
+            <div className="rounded-lg border p-3 space-y-3" style={{ backgroundColor: '#FFF9F5' }}>
+              <p className="text-sm font-semibold flex items-center gap-2" style={{ color: '#2E2E2E' }}>
+                <Bell className="h-4 w-4" style={{ color: '#F26522' }} /> Notification preferences
+              </p>
+              <div className="flex items-center justify-between">
+                <Label>WhatsApp notifications</Label>
+                <Switch
+                  checked={formData.notifyWhatsApp !== false}
+                  onCheckedChange={(v) => setFormData({ ...formData, notifyWhatsApp: v })}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label>Email notifications</Label>
+                <Switch
+                  checked={formData.notifyEmail !== false}
+                  onCheckedChange={(v) => setFormData({ ...formData, notifyEmail: v })}
+                />
+              </div>
+            </div>
             <DialogFooter className="gap-2 pt-3">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}><X className="h-4 w-4 mr-1" />Cancel</Button>
               <Button type="submit" style={{ backgroundColor: '#F26522' }} className="text-white" disabled={saving}><Save className="h-4 w-4 mr-1" />{saving ? 'Saving...' : editing ? 'Update' : 'Add'}</Button>

@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { invoicesAPI, customersAPI } from '@/services/api';
+import { applyServerNotificationHint, notifyOrderEvent } from '@/services/notifications';
 import { formatCurrency } from '@/utils/helpers';
 import { ArrowLeft, Save, Plus, Trash2, UserPlus, User } from 'lucide-react';
 import { toast } from 'sonner';
@@ -174,7 +175,27 @@ const InvoiceForm = () => {
       };
       let res;
       if (isEdit) { res = await invoicesAPI.update(invoiceId, payload); toast.success('Invoice updated'); }
-      else { res = await invoicesAPI.create(payload); toast.success(`Invoice ${payload.invoiceNumber} created`); }
+      else {
+        res = await invoicesAPI.create(payload);
+        toast.success(`Invoice ${payload.invoiceNumber} created`);
+        const data = res.data || payload;
+        if (applyServerNotificationHint(data)) {
+          toast.message('WhatsApp opened — tap Send to notify customer');
+        } else if (payload.customerEmail || payload.customerPhone) {
+          await notifyOrderEvent({
+            event: 'invoice',
+            order: {
+              customerName: payload.customerName,
+              customerPhone: payload.customerPhone,
+              customerEmail: payload.customerEmail,
+              orderId: payload.orderId,
+              status: 'Invoice',
+              totalAmount: payload.totalAmount,
+            },
+            invoice: data,
+          });
+        }
+      }
       const id = res.data?.id || invoiceId;
       navigate(`/invoices/${id}`);
     } catch (err) { console.error(err); toast.error('Failed to save invoice'); }
