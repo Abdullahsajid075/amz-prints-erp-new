@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import '@/App.css';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from '@/context/AuthContext';
@@ -50,6 +50,10 @@ function AuthenticatedApp() {
 }
 
 function App() {
+  useEffect(() => {
+    document.title = 'AMAZON ERP';
+  }, []);
+
   return (
     <BrowserRouter>
       <Routes>
