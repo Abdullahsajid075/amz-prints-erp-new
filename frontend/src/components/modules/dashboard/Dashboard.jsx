@@ -192,78 +192,85 @@ const Dashboard = () => {
       {/* Hero */}
       <div
         className="relative overflow-hidden rounded-3xl text-white shadow-lg"
-        style={{ background: `linear-gradient(125deg, ${brand} 0%, #FF8A50 48%, #2E2E2E 130%)` }}
+        style={{ backgroundColor: brand }}
       >
-        <div
-          className="absolute inset-0 opacity-30"
-          style={{
-            backgroundImage:
-              'radial-gradient(circle at 12% 20%, rgba(255,255,255,.35), transparent 40%), radial-gradient(circle at 88% 10%, rgba(255,255,255,.2), transparent 35%)',
-          }}
-        />
         <div className="relative p-5 sm:p-7">
           <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-5">
             <div className="min-w-0">
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]">
-                <Sparkles className="h-3.5 w-3.5" />
+              <div className="inline-flex items-center gap-2 rounded-full bg-black/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]">
+                <Sparkles className="h-3.5 w-3.5 text-white" strokeWidth={2.25} />
                 {company?.name || 'AMZ Prints'} Command Center
               </div>
               <h1 className="mt-3 text-2xl sm:text-3xl lg:text-4xl font-bold leading-tight">
                 {greeting}, {displayName}
               </h1>
-              <p className="mt-1.5 text-sm text-white/85">{todayLabel}</p>
-              <p className="mt-2 text-sm text-white/80 max-w-xl">
+              <p className="mt-1.5 text-sm text-white/90">{todayLabel}</p>
+              <p className="mt-2 text-sm text-white/85 max-w-xl">
                 Track pipeline, cash, and customer work — jump into any module in one click.
               </p>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
+            <div className="flex flex-col gap-2 sm:items-stretch">
               <form onSubmit={handleJump} className="flex gap-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/70" />
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search
+                    className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-orange-600 pointer-events-none"
+                    strokeWidth={2.5}
+                  />
                   <Input
                     value={jumpQuery}
                     onChange={(e) => setJumpQuery(e.target.value)}
                     placeholder="Find order / tracking / customer"
-                    className="pl-9 h-10 w-[220px] sm:w-[260px] bg-white/15 border-white/25 text-white placeholder:text-white/60"
+                    className="pl-9 h-10 w-full sm:w-[260px] bg-white border-0 text-gray-900 placeholder:text-gray-400 shadow-sm"
                   />
                 </div>
-                <Button type="submit" className="h-10 bg-white text-orange-600 hover:bg-white/90 font-semibold">
+                <Button
+                  type="submit"
+                  className="h-10 shrink-0 bg-white text-orange-600 hover:bg-orange-50 font-semibold shadow-sm"
+                >
                   Go
                 </Button>
               </form>
-              <div className="flex gap-2">
-                <Input
-                  type="date"
-                  value={dateRange.from}
-                  onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
-                  className="h-10 w-[140px] bg-white/95 border-0 text-gray-800"
-                  data-testid="date-from-input"
-                />
-                <Input
-                  type="date"
-                  value={dateRange.to}
-                  onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
-                  className="h-10 w-[140px] bg-white/95 border-0 text-gray-800"
-                  data-testid="date-to-input"
-                />
+
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="flex items-end gap-2 rounded-xl bg-white p-1.5 shadow-sm">
+                  <label className="flex flex-col gap-0.5 px-1">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 px-1">From</span>
+                    <Input
+                      type="date"
+                      value={dateRange.from}
+                      onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
+                      className="h-9 w-[148px] border-gray-200 bg-white text-gray-900 [color-scheme:light]"
+                      data-testid="date-from-input"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-0.5 px-1">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 px-1">To</span>
+                    <Input
+                      type="date"
+                      value={dateRange.to}
+                      onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
+                      className="h-9 w-[148px] border-gray-200 bg-white text-gray-900 [color-scheme:light]"
+                      data-testid="date-to-input"
+                    />
+                  </label>
+                  <Button
+                    onClick={fetchDashboardData}
+                    className="h-9 mb-0.5 shrink-0 bg-orange-600 hover:bg-orange-700 text-white"
+                    data-testid="apply-filter-button"
+                    disabled={loading}
+                  >
+                    <Calendar className="h-4 w-4 mr-1.5 text-white" strokeWidth={2.5} />
+                    Apply
+                  </Button>
+                </div>
                 <Button
                   onClick={fetchDashboardData}
-                  className="h-10 bg-white/15 hover:bg-white/25 text-white border border-white/25"
-                  data-testid="apply-filter-button"
-                  disabled={loading}
-                >
-                  <Calendar className="h-4 w-4 mr-1.5" />
-                  Apply
-                </Button>
-                <Button
-                  onClick={fetchDashboardData}
-                  variant="ghost"
-                  className="h-10 px-2 text-white hover:bg-white/20"
+                  className="h-10 w-10 shrink-0 bg-white text-orange-600 hover:bg-orange-50 shadow-sm"
                   disabled={loading}
                   title="Refresh"
                 >
-                  <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} strokeWidth={2.5} />
                 </Button>
               </div>
             </div>
@@ -277,10 +284,10 @@ const Dashboard = () => {
               { label: 'Net position', value: formatCurrency(net), hint: 'Revenue − expenses' },
               { label: 'Open orders', value: stats.pendingOrders || 0, hint: `${stats.fulfillmentRate || 0}% fulfilled` },
             ].map((k) => (
-              <div key={k.label} className="rounded-2xl bg-white/12 border border-white/20 backdrop-blur-sm p-3.5">
-                <p className="text-[10px] uppercase tracking-wider text-white/70 font-semibold">{k.label}</p>
+              <div key={k.label} className="rounded-2xl bg-black/15 border border-white/25 p-3.5">
+                <p className="text-[10px] uppercase tracking-wider text-white/80 font-semibold">{k.label}</p>
                 <p className="mt-1 text-lg sm:text-xl font-bold">{k.value}</p>
-                <p className="text-[11px] text-white/65 mt-0.5">{k.hint}</p>
+                <p className="text-[11px] text-white/75 mt-0.5">{k.hint}</p>
               </div>
             ))}
           </div>
