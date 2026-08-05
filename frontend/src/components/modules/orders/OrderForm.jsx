@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,11 +6,24 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ordersAPI, customersAPI, designersAPI, tokensAPI } from '@/services/api';
+import { ordersAPI, customersAPI, designersAPI, tokensAPI, productsAPI } from '@/services/api';
 import { applyServerNotificationHint, notifyOrderEvent } from '@/services/notifications';
+import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import { ORDER_STATUS } from '@/utils/constants';
-import { Plus, Trash2, Save, ArrowLeft } from 'lucide-react';
+import { formatCurrency } from '@/utils/helpers';
+import { useBrand } from '@/context/BrandContext';
+import { Plus, Trash2, Save, ArrowLeft, ClipboardList } from 'lucide-react';
 import { toast } from 'sonner';
+
+const emptyProduct = () => ({
+  _key: `p_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+  name: '',
+  quantity: 1,
+  rate: 0,
+  size: '',
+  material: '',
+  notes: '',
+});
 
 const OrderForm = () => {
   const navigate = useNavigate();
@@ -18,6 +31,8 @@ const OrderForm = () => {
   const [searchParams] = useSearchParams();
   const isEdit = !!orderId;
   const prefillTokenNo = searchParams.get('tokenNo') || '';
+  const { primary } = useBrand();
+  const accent = primary || '#F26522';
 
   const [formData, setFormData] = useState({
     customerName: '',
@@ -25,27 +40,28 @@ const OrderForm = () => {
     customerPhone: '',
     customerAddress: '',
     customerId: '',
-    assignedDesigner: undefined,
+    assignedDesigner: '',
     deliveryDate: '',
     remarks: '',
     advancePayment: 0,
     status: ORDER_STATUS.RECEIVED,
     tokenNo: '',
-    products: [
-      { _key: 'p_init', name: '', quantity: 1, rate: 0, size: '', material: '', notes: '' }
-    ]
+    products: [emptyProduct()],
   });
 
   const [customers, setCustomers] = useState([]);
   const [designers, setDesigners] = useState([]);
+  const [catalog, setCatalog] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(isEdit);
   const [prefilled, setPrefilled] = useState(false);
   const [originalStatus, setOriginalStatus] = useState('');
+  const [loaded, setLoaded] = useState(!isEdit);
 
   const fetchCustomers = useCallback(async () => {
     try {
       const response = await customersAPI.getAll();
-      setCustomers(response.data);
+      setCustomers(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error('Error fetching customers:', error);
     }
@@ -60,7 +76,17 @@ const OrderForm = () => {
     }
   }, []);
 
+  const fetchCatalog = useCallback(async () => {
+    try {
+      const response = await productsAPI.getAll();
+      setCatalog(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error(error);
+    }
+  }, []);
+
   const fetchOrder = useCallback(async () => {
+    setPageLoading(true);
     try {
       const response = await ordersAPI.getById(orderId);
       const o = response.data || {};
@@ -76,7 +102,7 @@ const OrderForm = () => {
       };
       const products = Array.isArray(o.products) && o.products.length
         ? o.products.map((p, i) => ({
-            _key: p._key || p.id || `p_${i}`,
+            _key: p._key || p.id || `p_${i}_${Date.now()}`,
             name: p.name || '',
             quantity: Number(p.quantity) || 1,
             rate: Number(p.rate) || 0,
@@ -84,44 +110,50 @@ const OrderForm = () => {
             material: p.material || '',
             notes: p.notes || '',
           }))
-        : [{ _key: 'p_init', name: '', quantity: 1, rate: 0, size: '', material: '', notes: '' }];
+        : [emptyProduct()];
+
       setFormData({
         customerName: o.customerName || '',
         customerEmail: o.customerEmail || '',
         customerPhone: o.customerPhone || '',
         customerAddress: o.customerAddress || '',
         customerId: o.customerId || '',
-        assignedDesigner: o.assignedDesigner || undefined,
+        assignedDesigner: o.assignedDesigner || '',
         deliveryDate: dateOnly(o.deliveryDate),
         remarks: o.remarks || '',
         advancePayment: Number(o.advancePayment) || 0,
         status: o.status || ORDER_STATUS.RECEIVED,
         tokenNo: o.tokenNo || '',
         products,
+        orderId: o.orderId || '',
+        quotationId: o.quotationId || '',
       });
       setOriginalStatus(o.status || ORDER_STATUS.RECEIVED);
+      setLoaded(true);
     } catch (error) {
       console.error('Error fetching order:', error);
       toast.error('Failed to load order');
+    } finally {
+      setPageLoading(false);
     }
   }, [orderId]);
 
   useEffect(() => {
     fetchCustomers();
     fetchDesigners();
-    if (isEdit) {
-      fetchOrder();
-    }
-  }, [isEdit, fetchCustomers, fetchDesigners, fetchOrder]);
+    fetchCatalog();
+    if (isEdit) fetchOrder();
+  }, [isEdit, fetchCustomers, fetchDesigners, fetchCatalog, fetchOrder]);
 
+  // Prefill from token / query — never overwrite an edit load
   useEffect(() => {
-    if (isEdit || prefilled) return;
+    if (isEdit || prefilled || !loaded) return;
     const customerName = searchParams.get('customerName');
     const customerPhone = searchParams.get('customerPhone');
     const customerId = searchParams.get('customerId');
     const service = searchParams.get('service');
     const tokenNo = searchParams.get('tokenNo');
-    if (!customerName && !customerPhone && !service && !tokenNo) return;
+    if (!customerName && !customerPhone && !service && !tokenNo && !customerId) return;
 
     setFormData((prev) => ({
       ...prev,
@@ -130,49 +162,101 @@ const OrderForm = () => {
       customerId: customerId || prev.customerId,
       tokenNo: tokenNo || prev.tokenNo,
       products: service
-        ? [{ _key: 'p_token', name: service, quantity: 1, rate: 0, size: '', material: '', notes: '' }]
+        ? [{ ...emptyProduct(), name: service }]
         : prev.products,
     }));
     setPrefilled(true);
-  }, [isEdit, prefilled, searchParams]);
+  }, [isEdit, prefilled, loaded, searchParams]);
 
-  const handleProductChange = (index, field, value) => {
-    const updatedProducts = [...formData.products];
-    updatedProducts[index][field] = value;
-    setFormData({ ...formData, products: updatedProducts });
+  // Auto-link prefilled phone to existing customer record
+  useEffect(() => {
+    if (isEdit || formData.customerId || !formData.customerPhone || !customers.length) return;
+    const digits = String(formData.customerPhone).replace(/\D/g, '');
+    if (!digits) return;
+    const match = customers.find((c) => {
+      const p = String(c.phone || '').replace(/\D/g, '');
+      return p && (p === digits || p.slice(-10) === digits.slice(-10));
+    });
+    if (!match) return;
+    setFormData((prev) => ({
+      ...prev,
+      customerId: match.id,
+      customerName: match.name || prev.customerName,
+      customerPhone: match.phone || prev.customerPhone,
+      customerEmail: match.email || prev.customerEmail,
+      customerAddress: match.address || prev.customerAddress,
+    }));
+  }, [customers, formData.customerId, formData.customerPhone, isEdit]);
+
+  const designerSelectValue = useMemo(() => {
+    const v = formData.assignedDesigner;
+    if (!v) return undefined;
+    const byId = designers.find((d) => String(d.id) === String(v));
+    if (byId) return String(byId.id);
+    const byName = designers.find((d) => String(d.name).toLowerCase() === String(v).toLowerCase());
+    if (byName) return String(byName.id);
+    return String(v);
+  }, [formData.assignedDesigner, designers]);
+
+  const catalogValueFor = (line) => {
+    const match = catalog.find((p) => String(p.name).toLowerCase() === String(line.name || '').toLowerCase());
+    return match ? String(match.id) : undefined;
   };
 
-  const addProduct = () => {
-    setFormData({
-      ...formData,
-      products: [...formData.products, { _key: `p_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, name: '', quantity: 1, rate: 0, size: '', material: '', notes: '' }]
+  const handleProductChange = (index, field, value) => {
+    setFormData((prev) => {
+      const products = prev.products.map((p, i) => (i === index ? { ...p, [field]: value } : p));
+      return { ...prev, products };
     });
   };
 
+  const pickProduct = (index, productId) => {
+    const p = catalog.find((x) => String(x.id) === String(productId));
+    if (!p) return;
+    setFormData((prev) => {
+      const products = prev.products.map((line, i) => (
+        i === index
+          ? {
+              ...line,
+              name: p.name || line.name,
+              rate: Number(p.rate ?? p.basePrice ?? line.rate) || 0,
+              size: p.size || line.size || '',
+              material: p.material || line.material || '',
+            }
+          : line
+      ));
+      return { ...prev, products };
+    });
+  };
+
+  const addProduct = () => {
+    setFormData((prev) => ({ ...prev, products: [...prev.products, emptyProduct()] }));
+  };
+
   const removeProduct = (index) => {
-    const updatedProducts = formData.products.filter((_, i) => i !== index);
-    setFormData({ ...formData, products: updatedProducts });
+    setFormData((prev) => ({
+      ...prev,
+      products: prev.products.filter((_, i) => i !== index),
+    }));
   };
 
-  const calculateTotal = () => {
-    return formData.products.reduce((total, product) => {
-      return total + (product.quantity * product.rate);
-    }, 0);
-  };
-
-  const calculateBalance = () => {
-    return calculateTotal() - formData.advancePayment;
-  };
+  const calculateTotal = () => formData.products.reduce((t, p) => t + (Number(p.quantity) || 0) * (Number(p.rate) || 0), 0);
+  const calculateBalance = () => calculateTotal() - (Number(formData.advancePayment) || 0);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
+    if (!requireCustomer(formData)) return;
+    if (!formData.products.some((p) => String(p.name || '').trim())) {
+      toast.error('Add at least one product');
+      return;
+    }
 
+    setLoading(true);
     try {
       const orderData = {
         ...formData,
         totalAmount: calculateTotal(),
-        balanceAmount: calculateBalance()
+        balanceAmount: calculateBalance(),
       };
 
       const prevStatus = isEdit ? originalStatus : '';
@@ -214,285 +298,268 @@ const OrderForm = () => {
       navigate('/orders');
     } catch (error) {
       console.error('Error saving order:', error);
-      toast.error(isEdit ? 'Failed to update order' : 'Failed to create order');
+      toast.error(error.response?.data?.message || (isEdit ? 'Failed to update order' : 'Failed to create order'));
     } finally {
       setLoading(false);
     }
   };
 
+  if (pageLoading || (isEdit && !loaded)) {
+    return <div className="py-16 text-center text-gray-500">Loading order…</div>;
+  }
+
   return (
-    <div className="space-y-4" data-testid="order-form">
-      <div className="flex items-center gap-4">
-        <Button variant="outline" onClick={() => navigate('/orders')} data-testid="back-button">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: '#2E2E2E' }}>
-            {isEdit ? 'Edit Order' : 'Create New Order'}
-          </h1>
+    <div className="space-y-4 pb-8" data-testid="order-form">
+      <div className="rounded-2xl border border-orange-100 bg-white overflow-hidden shadow-sm">
+        <div className="h-1.5" style={{ backgroundColor: accent }} />
+        <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <Button variant="outline" size="sm" onClick={() => navigate('/orders')} data-testid="back-button">
+              <ArrowLeft className="h-4 w-4 mr-1.5" />Back
+            </Button>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <ClipboardList className="h-5 w-5 shrink-0" style={{ color: accent }} />
+                <h1 className="text-xl sm:text-2xl font-bold truncate" style={{ color: '#2E2E2E' }}>
+                  {isEdit ? 'Edit Order' : 'New Order'}
+                </h1>
+              </div>
+              {(formData.orderId || formData.tokenNo || formData.quotationId) && (
+                <p className="text-xs text-gray-500 mt-0.5 pl-7">
+                  {[formData.orderId, formData.tokenNo && `Token ${formData.tokenNo}`, formData.quotationId && `Quote ${formData.quotationId}`]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </p>
+              )}
+            </div>
+          </div>
+          <Button
+            type="submit"
+            form="order-form-el"
+            size="sm"
+            style={{ backgroundColor: accent }}
+            className="text-white"
+            disabled={loading}
+            data-testid="submit-order-button"
+          >
+            <Save className="h-4 w-4 mr-1.5" />
+            {loading ? 'Saving…' : (isEdit ? 'Update Order' : 'Create Order')}
+          </Button>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <Card>
-          <CardHeader className="py-3">
-            <CardTitle className="text-base">Customer Information</CardTitle>
+      <form id="order-form-el" onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Card className="border-orange-100/80 shadow-sm rounded-2xl">
+            <CardHeader className="py-3"><CardTitle className="text-base">Customer</CardTitle></CardHeader>
+            <CardContent className="pt-0">
+              <CustomerPicker
+                customers={customers}
+                customerId={formData.customerId}
+                customerName={formData.customerName}
+                customerPhone={formData.customerPhone}
+                customerEmail={formData.customerEmail}
+                customerAddress={formData.customerAddress}
+                accent={accent}
+                onCustomersChange={(c) => setCustomers((prev) => [c, ...prev.filter((x) => x.id !== c.id)])}
+                onChange={(next) => setFormData((prev) => ({ ...prev, ...next }))}
+              />
+            </CardContent>
+          </Card>
+
+          <Card className="lg:col-span-2 border-orange-100/80 shadow-sm rounded-2xl">
+            <CardHeader className="py-3"><CardTitle className="text-base">Order Details</CardTitle></CardHeader>
+            <CardContent className="pt-0 space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <Label className="text-xs">Assigned Designer</Label>
+                  <Select
+                    value={designerSelectValue}
+                    onValueChange={(value) => {
+                      const d = designers.find((x) => String(x.id) === String(value));
+                      setFormData((prev) => ({
+                        ...prev,
+                        assignedDesigner: d?.name || value,
+                      }));
+                    }}
+                  >
+                    <SelectTrigger data-testid="designer-select"><SelectValue placeholder="Select designer" /></SelectTrigger>
+                    <SelectContent>
+                      {designers.map((designer) => (
+                        <SelectItem key={designer.id} value={String(designer.id)}>
+                          {designer.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Delivery Date *</Label>
+                  <Input
+                    type="date"
+                    value={formData.deliveryDate}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, deliveryDate: e.target.value }))}
+                    required
+                    data-testid="delivery-date-input"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Status</Label>
+                  <Select
+                    value={formData.status || ORDER_STATUS.RECEIVED}
+                    onValueChange={(value) => setFormData((prev) => ({ ...prev, status: value }))}
+                  >
+                    <SelectTrigger data-testid="status-select"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Object.values(ORDER_STATUS).map((status) => (
+                        <SelectItem key={status} value={status}>{status}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs">Remarks</Label>
+                <Textarea
+                  value={formData.remarks}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, remarks: e.target.value }))}
+                  rows={2}
+                  data-testid="remarks-input"
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="border-orange-100/80 shadow-sm rounded-2xl">
+          <CardHeader className="py-3 flex flex-row items-center justify-between space-y-0">
+            <CardTitle className="text-base">Products</CardTitle>
+            <Button type="button" size="sm" variant="outline" onClick={addProduct} data-testid="add-product-button">
+              <Plus className="h-4 w-4 mr-1" />Add
+            </Button>
           </CardHeader>
           <CardContent className="space-y-3 pt-0">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="customerName">Customer Name *</Label>
-                <Input
-                  id="customerName"
-                  value={formData.customerName}
-                  onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
-                  required
-                  data-testid="customer-name-input"
-                />
-              </div>
-              <div>
-                <Label htmlFor="customerPhone">Phone Number *</Label>
-                <Input
-                  id="customerPhone"
-                  type="tel"
-                  value={formData.customerPhone}
-                  onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
-                  required
-                  data-testid="customer-phone-input"
-                />
-              </div>
-              <div>
-                <Label htmlFor="customerEmail">Email</Label>
-                <Input
-                  id="customerEmail"
-                  type="email"
-                  value={formData.customerEmail}
-                  onChange={(e) => setFormData({ ...formData, customerEmail: e.target.value })}
-                  data-testid="customer-email-input"
-                />
-              </div>
-              <div>
-                <Label htmlFor="customerAddress">Address</Label>
-                <Input
-                  id="customerAddress"
-                  value={formData.customerAddress}
-                  onChange={(e) => setFormData({ ...formData, customerAddress: e.target.value })}
-                  data-testid="customer-address-input"
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Order Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="assignedDesigner">Assigned Designer</Label>
-                <Select value={formData.assignedDesigner} onValueChange={(value) => setFormData({ ...formData, assignedDesigner: value })}>
-                  <SelectTrigger data-testid="designer-select">
-                    <SelectValue placeholder="Select Designer" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {designers.map((designer) => (
-                      <SelectItem key={designer.id} value={designer.id}>
-                        {designer.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="deliveryDate">Expected Delivery Date *</Label>
-                <Input
-                  id="deliveryDate"
-                  type="date"
-                  value={formData.deliveryDate}
-                  onChange={(e) => setFormData({ ...formData, deliveryDate: e.target.value })}
-                  required
-                  data-testid="delivery-date-input"
-                />
-              </div>
-              <div>
-                <Label htmlFor="status">Order Status</Label>
-                <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
-                  <SelectTrigger data-testid="status-select">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.values(ORDER_STATUS).map((status) => (
-                      <SelectItem key={status} value={status}>
-                        {status}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="remarks">Remarks</Label>
-              <Textarea
-                id="remarks"
-                value={formData.remarks}
-                onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-                rows={3}
-                data-testid="remarks-input"
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Products</CardTitle>
-              <Button type="button" onClick={addProduct} variant="outline" data-testid="add-product-button">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Product
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
             {formData.products.map((product, index) => (
-              <div key={product._key || product.id || `p-${index}`} className="p-4 border rounded-lg space-y-3" data-testid={`product-${index}`}>
+              <div key={product._key} className="rounded-xl border border-gray-100 bg-gray-50/50 p-3 space-y-2" data-testid={`product-${index}`}>
                 <div className="flex items-center justify-between">
-                  <h4 className="font-semibold">Product {index + 1}</h4>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Item {index + 1}</p>
                   {formData.products.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removeProduct(index)}
-                      data-testid={`remove-product-${index}`}
-                    >
+                    <Button type="button" variant="ghost" size="icon" onClick={() => removeProduct(index)}>
                       <Trash2 className="h-4 w-4 text-red-600" />
                     </Button>
                   )}
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div>
-                    <Label>Product Name *</Label>
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-2">
+                  <div className="md:col-span-4">
+                    <Label className="text-xs">Product *</Label>
+                    {catalog.length > 0 && (
+                      <Select value={catalogValueFor(product)} onValueChange={(v) => pickProduct(index, v)}>
+                        <SelectTrigger className="bg-white mb-1">
+                          <SelectValue placeholder="Pick from catalog" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {catalog.map((p) => (
+                            <SelectItem key={p.id} value={String(p.id)}>
+                              {p.name} · {formatCurrency(p.rate || p.basePrice)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                     <Input
+                      className="bg-white"
                       value={product.name}
                       onChange={(e) => handleProductChange(index, 'name', e.target.value)}
                       required
+                      placeholder="Product name"
                       data-testid={`product-name-${index}`}
                     />
                   </div>
-                  <div>
-                    <Label>Quantity *</Label>
+                  <div className="md:col-span-2">
+                    <Label className="text-xs">Qty *</Label>
                     <Input
+                      className="bg-white"
                       type="number"
                       min="1"
                       value={product.quantity}
-                      onChange={(e) => handleProductChange(index, 'quantity', parseInt(e.target.value) || 1)}
+                      onChange={(e) => handleProductChange(index, 'quantity', parseInt(e.target.value, 10) || 1)}
                       required
-                      data-testid={`product-quantity-${index}`}
                     />
                   </div>
-                  <div>
-                    <Label>Rate *</Label>
+                  <div className="md:col-span-2">
+                    <Label className="text-xs">Rate *</Label>
                     <Input
+                      className="bg-white"
                       type="number"
                       min="0"
                       step="0.01"
                       value={product.rate}
                       onChange={(e) => handleProductChange(index, 'rate', parseFloat(e.target.value) || 0)}
                       required
-                      data-testid={`product-rate-${index}`}
                     />
                   </div>
-                  <div>
-                    <Label>Size</Label>
-                    <Input
-                      value={product.size}
-                      onChange={(e) => handleProductChange(index, 'size', e.target.value)}
-                      data-testid={`product-size-${index}`}
-                    />
+                  <div className="md:col-span-2">
+                    <Label className="text-xs">Size</Label>
+                    <Input className="bg-white" value={product.size} onChange={(e) => handleProductChange(index, 'size', e.target.value)} />
                   </div>
-                  <div>
-                    <Label>Material</Label>
-                    <Input
-                      value={product.material}
-                      onChange={(e) => handleProductChange(index, 'material', e.target.value)}
-                      data-testid={`product-material-${index}`}
-                    />
-                  </div>
-                  <div>
-                    <Label>Subtotal</Label>
-                    <Input
-                      value={`Rs. ${(product.quantity * product.rate).toFixed(2)}`}
-                      disabled
-                      data-testid={`product-subtotal-${index}`}
-                    />
+                  <div className="md:col-span-2">
+                    <Label className="text-xs">Material</Label>
+                    <Input className="bg-white" value={product.material} onChange={(e) => handleProductChange(index, 'material', e.target.value)} />
                   </div>
                 </div>
-                <div>
-                  <Label>Notes</Label>
-                  <Textarea
-                    value={product.notes}
-                    onChange={(e) => handleProductChange(index, 'notes', e.target.value)}
-                    rows={2}
-                    data-testid={`product-notes-${index}`}
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs">Notes</Label>
+                    <Input className="bg-white" value={product.notes} onChange={(e) => handleProductChange(index, 'notes', e.target.value)} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Subtotal</Label>
+                    <Input className="bg-white font-semibold" value={formatCurrency((product.quantity || 0) * (product.rate || 0))} disabled />
+                  </div>
                 </div>
               </div>
             ))}
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Payment Summary</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="border-orange-100/80 shadow-sm rounded-2xl">
+          <CardHeader className="py-3"><CardTitle className="text-base">Payment</CardTitle></CardHeader>
+          <CardContent className="pt-0">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div>
-                <Label htmlFor="advancePayment">Advance Payment</Label>
+                <Label className="text-xs">Advance</Label>
                 <Input
-                  id="advancePayment"
                   type="number"
                   min="0"
                   step="0.01"
                   value={formData.advancePayment}
-                  onChange={(e) => setFormData({ ...formData, advancePayment: parseFloat(e.target.value) || 0 })}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, advancePayment: parseFloat(e.target.value) || 0 }))}
                   data-testid="advance-payment-input"
                 />
               </div>
-              <div>
-                <Label>Total Amount</Label>
-                <Input
-                  value={`Rs. ${calculateTotal().toFixed(2)}`}
-                  disabled
-                  data-testid="total-amount-display"
-                />
-              </div>
-              <div>
-                <Label>Balance Amount</Label>
-                <Input
-                  value={`Rs. ${calculateBalance().toFixed(2)}`}
-                  disabled
-                  data-testid="balance-amount-display"
-                />
+              <div className="md:col-span-3 rounded-xl p-3 flex flex-wrap gap-6 items-center justify-end" style={{ backgroundColor: '#FFF9F5' }}>
+                <div className="text-right">
+                  <p className="text-[10px] uppercase tracking-wide text-gray-500">Total</p>
+                  <p className="font-bold text-lg" style={{ color: accent }}>{formatCurrency(calculateTotal())}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] uppercase tracking-wide text-gray-500">Balance</p>
+                  <p className="font-bold text-lg text-gray-900">{formatCurrency(calculateBalance())}</p>
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <Button
             type="submit"
-            style={{ backgroundColor: '#F26522' }}
+            style={{ backgroundColor: accent }}
             className="text-white"
             disabled={loading}
-            data-testid="submit-order-button"
           >
             <Save className="h-4 w-4 mr-2" />
-            {loading ? 'Saving...' : (isEdit ? 'Update Order' : 'Create Order')}
+            {loading ? 'Saving…' : (isEdit ? 'Update Order' : 'Create Order')}
           </Button>
           <Button type="button" variant="outline" onClick={() => navigate('/orders')} data-testid="cancel-button">
             Cancel

@@ -6,15 +6,22 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { invoicesAPI, customersAPI } from '@/services/api';
 import { applyServerNotificationHint, notifyOrderEvent } from '@/services/notifications';
+import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import { formatCurrency } from '@/utils/helpers';
-import { ArrowLeft, Save, Plus, Trash2, UserPlus, User } from 'lucide-react';
+import { useBrand } from '@/context/BrandContext';
+import { ArrowLeft, Save, Plus, Trash2, User, Receipt } from 'lucide-react';
 import { toast } from 'sonner';
 
-const emptyItem = () => ({ _key: `i_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, name: '', quantity: 1, rate: 0, size: '', material: '' });
+const emptyItem = () => ({
+  _key: `i_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+  name: '',
+  quantity: 1,
+  rate: 0,
+  size: '',
+  material: '',
+});
 
 const emptyInvoice = {
   invoiceNumber: '',
@@ -32,32 +39,41 @@ const emptyInvoice = {
   previousBalance: 0,
   paidAmount: 0,
   status: 'Unpaid',
-  notes: 'Thank you for your business!'
+  notes: 'Thank you for your business!',
 };
 
 const InvoiceForm = () => {
   const navigate = useNavigate();
   const { invoiceId } = useParams();
   const isEdit = !!invoiceId;
+  const { primary } = useBrand();
+  const accent = primary || '#F26522';
 
   const [formData, setFormData] = useState(emptyInvoice);
   const [customers, setCustomers] = useState([]);
   const [saving, setSaving] = useState(false);
-  const [newCustomerOpen, setNewCustomerOpen] = useState(false);
-  const [newCustomer, setNewCustomer] = useState({ name: '', phone: '', email: '', address: '' });
+  const [loaded, setLoaded] = useState(!isEdit);
+  const [pageLoading, setPageLoading] = useState(isEdit);
 
   const loadCustomers = useCallback(async () => {
     try {
       const res = await customersAPI.getAll();
-      setCustomers(res.data || []);
-    } catch (err) { console.error(err); }
+      setCustomers(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error(err);
+    }
   }, []);
 
   const loadInvoice = useCallback(async () => {
     if (!isEdit) {
-      setFormData({ ...emptyInvoice, invoiceNumber: `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}` });
+      setFormData({
+        ...emptyInvoice,
+        invoiceNumber: `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`,
+      });
+      setLoaded(true);
       return;
     }
+    setPageLoading(true);
     try {
       const res = await invoicesAPI.getById(invoiceId);
       const inv = res.data || {};
@@ -97,56 +113,44 @@ const InvoiceForm = () => {
         notes: inv.notes || '',
         shareToken: inv.shareToken || '',
       });
-    } catch (err) { console.error(err); toast.error('Failed to load invoice'); }
+      setLoaded(true);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to load invoice');
+    } finally {
+      setPageLoading(false);
+    }
   }, [invoiceId, isEdit]);
 
-  useEffect(() => { loadCustomers(); loadInvoice(); }, [loadCustomers, loadInvoice]);
+  useEffect(() => {
+    loadCustomers();
+    loadInvoice();
+  }, [loadCustomers, loadInvoice]);
 
-  const selectCustomer = async (id) => {
-    if (id === '__new__') { setNewCustomerOpen(true); return; }
-    const c = customers.find(x => x.id === id);
-    if (!c) return;
-    // Fetch ledger for previous balance
-    let prev = 0;
-    try {
-      const led = await customersAPI.getLedger(id);
-      prev = led.data?.outstanding || 0;
-    } catch { /* no-op */ }
-    setFormData(f => ({
-      ...f,
-      customerId: c.id,
-      customerName: c.name,
-      customerEmail: c.email || '',
-      customerPhone: c.phone || '',
-      customerAddress: c.address || '',
-      previousBalance: prev
-    }));
-  };
-
-  const handleAddNewCustomer = async () => {
-    if (!newCustomer.name) { toast.error('Customer name is required'); return; }
-    try {
-      const res = await customersAPI.create(newCustomer);
-      const c = res.data;
-      setCustomers(prev => [c, ...prev]);
-      setFormData(f => ({
-        ...f, customerId: c.id, customerName: c.name,
-        customerPhone: c.phone || '', customerEmail: c.email || '', customerAddress: c.address || '',
-        previousBalance: 0
-      }));
-      setNewCustomer({ name: '', phone: '', email: '', address: '' });
-      setNewCustomerOpen(false);
-      toast.success('Customer added');
-    } catch (err) { console.error(err); toast.error('Failed to add customer'); }
+  const selectCustomer = async (next) => {
+    let prev = formData.previousBalance || 0;
+    if (next.customerId) {
+      try {
+        const led = await customersAPI.getLedger(next.customerId);
+        prev = led.data?.outstanding || 0;
+      } catch {
+        prev = 0;
+      }
+    }
+    setFormData((f) => ({ ...f, ...next, previousBalance: prev }));
   };
 
   const updateItem = (i, field, val) => {
-    const items = [...formData.items];
-    items[i] = { ...items[i], [field]: val };
-    setFormData({ ...formData, items });
+    setFormData((prev) => {
+      const items = prev.items.map((it, idx) => (idx === i ? { ...it, [field]: val } : it));
+      return { ...prev, items };
+    });
   };
-  const addItem = () => setFormData({ ...formData, items: [...formData.items, emptyItem()] });
-  const removeItem = (i) => setFormData({ ...formData, items: formData.items.filter((_, x) => x !== i) });
+  const addItem = () => setFormData((prev) => ({ ...prev, items: [...prev.items, emptyItem()] }));
+  const removeItem = (i) => setFormData((prev) => ({
+    ...prev,
+    items: prev.items.filter((_, x) => x !== i),
+  }));
 
   const subtotal = formData.items.reduce((s, it) => s + (it.quantity || 0) * (it.rate || 0), 0);
   const tax = (subtotal * (formData.taxRate || 0)) / 100;
@@ -162,8 +166,11 @@ const InvoiceForm = () => {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!formData.customerName) { toast.error('Please select or add a customer'); return; }
-    if (formData.items.length === 0 || !formData.items[0].name) { toast.error('Please add at least one item'); return; }
+    if (!requireCustomer(formData)) return;
+    if (formData.items.length === 0 || !formData.items[0].name) {
+      toast.error('Please add at least one item');
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
@@ -171,11 +178,13 @@ const InvoiceForm = () => {
         subtotal,
         tax,
         totalAmount: total,
-        status: derivedStatus()
+        status: derivedStatus(),
       };
       let res;
-      if (isEdit) { res = await invoicesAPI.update(invoiceId, payload); toast.success('Invoice updated'); }
-      else {
+      if (isEdit) {
+        res = await invoicesAPI.update(invoiceId, payload);
+        toast.success('Invoice updated');
+      } else {
         res = await invoicesAPI.create(payload);
         toast.success(`Invoice ${payload.invoiceNumber} created`);
         const data = res.data || payload;
@@ -183,119 +192,219 @@ const InvoiceForm = () => {
           toast.message('WhatsApp opened — tap Send to notify customer');
         } else if (payload.customerEmail || payload.customerPhone) {
           await notifyOrderEvent({
-            event: 'invoice',
+            event: 'invoice_generated',
             order: {
               customerName: payload.customerName,
               customerPhone: payload.customerPhone,
               customerEmail: payload.customerEmail,
               orderId: payload.orderId,
               status: 'Invoice',
-              totalAmount: payload.totalAmount,
+              totalAmount: grandTotal,
+              balanceAmount: balance,
             },
-            invoice: data,
+            invoice: {
+              ...data,
+              invoiceNumber: payload.invoiceNumber,
+              date: payload.date,
+              totalAmount: grandTotal,
+              balanceAmount: balance,
+            },
           });
         }
       }
       const id = res.data?.id || invoiceId;
       navigate(`/invoices/${id}`);
-    } catch (err) { console.error(err); toast.error('Failed to save invoice'); }
-    finally { setSaving(false); }
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || 'Failed to save invoice');
+    } finally {
+      setSaving(false);
+    }
   };
 
+  if (pageLoading || (isEdit && !loaded)) {
+    return <div className="py-16 text-center text-gray-500">Loading invoice…</div>;
+  }
+
   return (
-    <div className="space-y-4" data-testid="invoice-form">
-      <div className="flex items-center gap-4">
-        <Button variant="outline" onClick={() => navigate('/invoices')} data-testid="back-invoices">
-          <ArrowLeft className="h-4 w-4 mr-2" />Back
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: '#1F2937' }}>{isEdit ? 'Edit Invoice' : 'Create Invoice'}</h1>
-          <p className="text-gray-600 text-sm mt-0.5">{isEdit ? 'Update invoice details' : 'Fill in details — customer is auto-recorded'}</p>
+    <div className="space-y-4 pb-8" data-testid="invoice-form">
+      <div className="rounded-2xl border border-orange-100 bg-white overflow-hidden shadow-sm">
+        <div className="h-1.5" style={{ backgroundColor: accent }} />
+        <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <Button variant="outline" size="sm" onClick={() => navigate('/invoices')} data-testid="back-invoices">
+              <ArrowLeft className="h-4 w-4 mr-1.5" />Back
+            </Button>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <Receipt className="h-5 w-5 shrink-0" style={{ color: accent }} />
+                <h1 className="text-xl sm:text-2xl font-bold truncate" style={{ color: '#1F2937' }}>
+                  {isEdit ? 'Edit Invoice' : 'New Invoice'}
+                </h1>
+              </div>
+              {formData.invoiceNumber && (
+                <p className="text-xs text-gray-500 mt-0.5 pl-7">{formData.invoiceNumber}</p>
+              )}
+            </div>
+          </div>
+          <Button
+            type="submit"
+            form="invoice-form-el"
+            size="sm"
+            style={{ backgroundColor: accent }}
+            className="text-white"
+            disabled={saving}
+            data-testid="save-invoice"
+          >
+            <Save className="h-4 w-4 mr-1.5" />
+            {saving ? 'Saving…' : isEdit ? 'Update Invoice' : 'Create Invoice'}
+          </Button>
         </div>
       </div>
 
-      <form onSubmit={handleSave} className="space-y-3">
-        <Card>
-          <CardHeader className="py-3"><CardTitle className="text-base">Customer & Invoice Info</CardTitle></CardHeader>
-          <CardContent className="space-y-3 pt-0">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="md:col-span-2">
-                <Label>Customer *</Label>
-                <Select value={formData.customerId || ''} onValueChange={selectCustomer}>
-                  <SelectTrigger data-testid="customer-select"><SelectValue placeholder="Select existing customer or add new" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__new__" className="text-orange-600 font-semibold">
-                      <span className="inline-flex items-center gap-2"><UserPlus className="h-4 w-4" />Add new customer</span>
-                    </SelectItem>
-                    {customers.map(c => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}{c.phone ? ` — ${c.phone}` : ''}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+      <form id="invoice-form-el" onSubmit={handleSave} className="space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Card className="border-orange-100/80 shadow-sm rounded-2xl">
+            <CardHeader className="py-3"><CardTitle className="text-base">Customer</CardTitle></CardHeader>
+            <CardContent className="pt-0 space-y-3">
+              <CustomerPicker
+                customers={customers}
+                customerId={formData.customerId}
+                customerName={formData.customerName}
+                customerPhone={formData.customerPhone}
+                customerEmail={formData.customerEmail}
+                customerAddress={formData.customerAddress}
+                accent={accent}
+                onCustomersChange={(c) => setCustomers((prev) => [c, ...prev.filter((x) => x.id !== c.id)])}
+                onChange={selectCustomer}
+              />
+              {formData.customerId && formData.previousBalance !== 0 && (
+                <div className="p-3 rounded-lg bg-yellow-50 border border-yellow-200 flex items-center gap-2">
+                  <User className="h-4 w-4 text-yellow-700" />
+                  <p className="text-sm text-yellow-800">
+                    <span className="font-semibold">Previous outstanding:</span> {formatCurrency(formData.previousBalance)}
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="lg:col-span-2 border-orange-100/80 shadow-sm rounded-2xl">
+            <CardHeader className="py-3"><CardTitle className="text-base">Invoice Info</CardTitle></CardHeader>
+            <CardContent className="pt-0 grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <Label className="text-xs">Invoice #</Label>
+                <Input
+                  value={formData.invoiceNumber}
+                  onChange={(e) => setFormData((f) => ({ ...f, invoiceNumber: e.target.value }))}
+                  required
+                  data-testid="invoice-number-input"
+                />
               </div>
               <div>
-                <Label>Invoice #</Label>
-                <Input value={formData.invoiceNumber} onChange={(e) => setFormData({ ...formData, invoiceNumber: e.target.value })} required data-testid="invoice-number-input" />
+                <Label className="text-xs">Invoice Date *</Label>
+                <Input
+                  type="date"
+                  value={formData.date}
+                  onChange={(e) => setFormData((f) => ({ ...f, date: e.target.value }))}
+                  required
+                />
               </div>
-              <div><Label>Customer Name</Label><Input value={formData.customerName} onChange={(e) => setFormData({ ...formData, customerName: e.target.value })} placeholder="Name" required data-testid="customer-name-input" /></div>
-              <div><Label>Phone</Label><Input value={formData.customerPhone} onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })} placeholder="+92..." /></div>
-              <div><Label>Email</Label><Input type="email" value={formData.customerEmail} onChange={(e) => setFormData({ ...formData, customerEmail: e.target.value })} /></div>
-              <div className="md:col-span-3"><Label>Address</Label><Input value={formData.customerAddress} onChange={(e) => setFormData({ ...formData, customerAddress: e.target.value })} /></div>
-              <div><Label>Invoice Date *</Label><Input type="date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} required /></div>
-              <div><Label>Due Date</Label><Input type="date" value={formData.dueDate} onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })} /></div>
-              <div><Label>Order Ref</Label><Input value={formData.orderId} onChange={(e) => setFormData({ ...formData, orderId: e.target.value })} placeholder="ORD-001" /></div>
-            </div>
-
-            {formData.customerId && formData.previousBalance !== 0 && (
-              <div className="p-3 rounded-lg bg-yellow-50 border border-yellow-200 flex items-center gap-2">
-                <User className="h-4 w-4 text-yellow-700" />
-                <p className="text-sm text-yellow-800">
-                  <span className="font-semibold">Previous outstanding balance:</span> {formatCurrency(formData.previousBalance)} — added to grand total.
-                </p>
+              <div>
+                <Label className="text-xs">Due Date</Label>
+                <Input
+                  type="date"
+                  value={formData.dueDate}
+                  onChange={(e) => setFormData((f) => ({ ...f, dueDate: e.target.value }))}
+                />
               </div>
-            )}
-          </CardContent>
-        </Card>
+              <div className="md:col-span-3">
+                <Label className="text-xs">Order Ref</Label>
+                <Input
+                  value={formData.orderId}
+                  onChange={(e) => setFormData((f) => ({ ...f, orderId: e.target.value }))}
+                  placeholder="ORD-001"
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-        <Card>
-          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+        <Card className="border-orange-100/80 shadow-sm rounded-2xl">
+          <CardHeader className="py-3 flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-base">Line Items</CardTitle>
-            <Button type="button" size="sm" variant="outline" onClick={addItem} data-testid="add-item"><Plus className="h-3 w-3 mr-1" />Add Item</Button>
+            <Button type="button" size="sm" variant="outline" onClick={addItem} data-testid="add-item">
+              <Plus className="h-3 w-3 mr-1" />Add Item
+            </Button>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="space-y-2 pt-0">
             {formData.items.map((it, i) => (
-              <div key={it._key} className="grid grid-cols-12 gap-2 items-end p-2 border rounded" data-testid={`item-${i}`}>
-                <div className="col-span-4"><Label className="text-xs">Item / Description</Label><Input value={it.name} onChange={(e) => updateItem(i, 'name', e.target.value)} required /></div>
-                <div className="col-span-2"><Label className="text-xs">Size</Label><Input value={it.size} onChange={(e) => updateItem(i, 'size', e.target.value)} /></div>
-                <div className="col-span-1"><Label className="text-xs">Qty</Label><Input type="number" min="1" value={it.quantity} onChange={(e) => updateItem(i, 'quantity', parseInt(e.target.value) || 0)} /></div>
-                <div className="col-span-2"><Label className="text-xs">Rate</Label><Input type="number" step="0.01" min="0" value={it.rate} onChange={(e) => updateItem(i, 'rate', parseFloat(e.target.value) || 0)} /></div>
-                <div className="col-span-2"><Label className="text-xs">Amount</Label><Input disabled value={formatCurrency((it.quantity || 0) * (it.rate || 0))} /></div>
-                <div className="col-span-1"><Button type="button" size="icon" variant="ghost" onClick={() => removeItem(i)}><Trash2 className="h-4 w-4 text-red-600" /></Button></div>
+              <div key={it._key} className="grid grid-cols-12 gap-2 items-end p-2 border rounded-xl bg-gray-50/50" data-testid={`item-${i}`}>
+                <div className="col-span-12 md:col-span-4">
+                  <Label className="text-xs">Item</Label>
+                  <Input className="bg-white" value={it.name} onChange={(e) => updateItem(i, 'name', e.target.value)} required />
+                </div>
+                <div className="col-span-4 md:col-span-2">
+                  <Label className="text-xs">Size</Label>
+                  <Input className="bg-white" value={it.size} onChange={(e) => updateItem(i, 'size', e.target.value)} />
+                </div>
+                <div className="col-span-4 md:col-span-1">
+                  <Label className="text-xs">Qty</Label>
+                  <Input className="bg-white" type="number" min="1" value={it.quantity} onChange={(e) => updateItem(i, 'quantity', parseInt(e.target.value, 10) || 0)} />
+                </div>
+                <div className="col-span-4 md:col-span-2">
+                  <Label className="text-xs">Rate</Label>
+                  <Input className="bg-white" type="number" step="0.01" min="0" value={it.rate} onChange={(e) => updateItem(i, 'rate', parseFloat(e.target.value) || 0)} />
+                </div>
+                <div className="col-span-8 md:col-span-2">
+                  <Label className="text-xs">Amount</Label>
+                  <Input disabled className="bg-white font-semibold" value={formatCurrency((it.quantity || 0) * (it.rate || 0))} />
+                </div>
+                <div className="col-span-4 md:col-span-1 flex justify-end">
+                  <Button type="button" size="icon" variant="ghost" onClick={() => removeItem(i)}>
+                    <Trash2 className="h-4 w-4 text-red-600" />
+                  </Button>
+                </div>
               </div>
             ))}
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-base">Totals & Payment</CardTitle></CardHeader>
-          <CardContent>
+        <Card className="border-orange-100/80 shadow-sm rounded-2xl">
+          <CardHeader className="py-3"><CardTitle className="text-base">Totals & Payment</CardTitle></CardHeader>
+          <CardContent className="pt-0">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
-                  <div><Label>Tax Rate (%)</Label><Input type="number" min="0" step="0.01" value={formData.taxRate} onChange={(e) => setFormData({ ...formData, taxRate: parseFloat(e.target.value) || 0 })} /></div>
-                  <div><Label>Discount (Rs)</Label><Input type="number" min="0" step="0.01" value={formData.discount} onChange={(e) => setFormData({ ...formData, discount: parseFloat(e.target.value) || 0 })} /></div>
+                  <div>
+                    <Label className="text-xs">Tax Rate (%)</Label>
+                    <Input type="number" min="0" step="0.01" value={formData.taxRate} onChange={(e) => setFormData((f) => ({ ...f, taxRate: parseFloat(e.target.value) || 0 }))} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Discount (Rs)</Label>
+                    <Input type="number" min="0" step="0.01" value={formData.discount} onChange={(e) => setFormData((f) => ({ ...f, discount: parseFloat(e.target.value) || 0 }))} />
+                  </div>
                 </div>
-                <div><Label>Paid Amount</Label><Input type="number" min="0" step="0.01" value={formData.paidAmount} onChange={(e) => setFormData({ ...formData, paidAmount: parseFloat(e.target.value) || 0 })} data-testid="paid-input" /></div>
-                <div><Label>Notes</Label><Textarea rows={2} value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} /></div>
+                <div>
+                  <Label className="text-xs">Paid Amount</Label>
+                  <Input type="number" min="0" step="0.01" value={formData.paidAmount} onChange={(e) => setFormData((f) => ({ ...f, paidAmount: parseFloat(e.target.value) || 0 }))} data-testid="paid-input" />
+                </div>
+                <div>
+                  <Label className="text-xs">Notes</Label>
+                  <Textarea rows={2} value={formData.notes} onChange={(e) => setFormData((f) => ({ ...f, notes: e.target.value }))} />
+                </div>
               </div>
-              <div className="space-y-1.5 p-4 rounded-lg" style={{ backgroundColor: '#FFF9F5' }}>
+              <div className="space-y-1.5 p-4 rounded-xl" style={{ backgroundColor: '#FFF9F5' }}>
                 <div className="flex justify-between text-sm"><span className="text-gray-600">Subtotal</span><span className="font-semibold">{formatCurrency(subtotal)}</span></div>
                 <div className="flex justify-between text-sm"><span className="text-gray-600">Tax ({formData.taxRate}%)</span><span className="font-semibold">{formatCurrency(tax)}</span></div>
                 <div className="flex justify-between text-sm"><span className="text-gray-600">Discount</span><span className="font-semibold text-red-600">-{formatCurrency(formData.discount || 0)}</span></div>
                 {(formData.previousBalance || 0) !== 0 && (
-                  <div className="flex justify-between text-sm bg-yellow-50 px-2 rounded"><span className="text-yellow-800">Previous Balance</span><span className="font-semibold text-yellow-800">{formatCurrency(formData.previousBalance)}</span></div>
+                  <div className="flex justify-between text-sm bg-yellow-50 px-2 rounded">
+                    <span className="text-yellow-800">Previous Balance</span>
+                    <span className="font-semibold text-yellow-800">{formatCurrency(formData.previousBalance)}</span>
+                  </div>
                 )}
-                <div className="flex justify-between py-2 my-1 rounded" style={{ backgroundColor: '#F26522', paddingLeft: 8, paddingRight: 8 }}>
+                <div className="flex justify-between py-2 my-1 rounded px-2" style={{ backgroundColor: accent }}>
                   <span className="font-bold text-white uppercase text-sm">Grand Total</span>
                   <span className="font-bold text-white text-lg">{formatCurrency(grandTotal)}</span>
                 </div>
@@ -315,34 +424,12 @@ const InvoiceForm = () => {
         </Card>
 
         <div className="flex items-center gap-3">
-          <Button type="submit" style={{ backgroundColor: '#F26522' }} className="text-white" disabled={saving} data-testid="save-invoice">
-            <Save className="h-4 w-4 mr-2" />{saving ? 'Saving...' : isEdit ? 'Update Invoice' : 'Create Invoice'}
+          <Button type="submit" style={{ backgroundColor: accent }} className="text-white" disabled={saving}>
+            <Save className="h-4 w-4 mr-2" />{saving ? 'Saving…' : isEdit ? 'Update Invoice' : 'Create Invoice'}
           </Button>
           <Button type="button" variant="outline" onClick={() => navigate('/invoices')}>Cancel</Button>
         </div>
       </form>
-
-      {/* Inline new customer dialog */}
-      <Dialog open={newCustomerOpen} onOpenChange={setNewCustomerOpen}>
-        <DialogContent className="max-w-md" data-testid="new-customer-dialog">
-          <DialogHeader>
-            <DialogTitle>Add New Customer</DialogTitle>
-            <DialogDescription>Save a new customer without leaving the invoice form.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 mt-3">
-            <div><Label>Name *</Label><Input value={newCustomer.name} onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })} data-testid="new-cust-name" /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Phone</Label><Input value={newCustomer.phone} onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })} /></div>
-              <div><Label>Email</Label><Input value={newCustomer.email} onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })} /></div>
-            </div>
-            <div><Label>Address</Label><Textarea rows={2} value={newCustomer.address} onChange={(e) => setNewCustomer({ ...newCustomer, address: e.target.value })} /></div>
-          </div>
-          <DialogFooter className="gap-2 mt-3">
-            <Button variant="outline" onClick={() => setNewCustomerOpen(false)}>Cancel</Button>
-            <Button style={{ backgroundColor: '#F26522' }} className="text-white" onClick={handleAddNewCustomer} data-testid="save-new-customer">Save Customer</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

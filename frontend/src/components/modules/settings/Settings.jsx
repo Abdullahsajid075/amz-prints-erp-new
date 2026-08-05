@@ -621,12 +621,21 @@ const Settings = () => {
               <p className="text-xs text-gray-500">
                 Placeholders: {'{Customer Name}'}, {'{Order Number}'}, {'{Tracking Number}'}, {'{Status}'}, {'{Company Name}'}
               </p>
-              {['created', 'Proof Approval', 'Printing', 'Ready', 'Delivered', 'status', 'invoice'].map((key) => {
+              {['quotation', 'created', 'Order Received', 'Designing', 'Proof Approval', 'Printing', 'Finishing', 'Packing', 'Ready', 'Delivered', 'Cancelled', 'status', 'invoice_generated', 'payment_received', 'payment_sent'].map((key) => {
                 const templates = {
                   ...DEFAULT_WHATSAPP_TEMPLATES,
                   ...(settings.notifications.whatsappTemplates || {}),
                 };
-                const label = key === 'created' ? 'Order Created' : key === 'status' ? 'Generic status update' : key === 'invoice' ? 'Invoice' : key;
+                const labelMap = {
+                  quotation: 'Quotation',
+                  created: 'Order Created / Received',
+                  'Order Received': 'Order Received',
+                  status: 'Generic status update',
+                  invoice_generated: 'Invoice Generated',
+                  payment_received: 'Payment Received (Cash In)',
+                  payment_sent: 'Payment Sent (Cash Out)',
+                };
+                const label = labelMap[key] || key;
                 return (
                   <div key={key}>
                     <Label className="mb-1 block">{label}</Label>
@@ -649,7 +658,7 @@ const Settings = () => {
               <CardTitle className="flex items-center gap-2"><Mail className="h-5 w-5" />Email subjects</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {['created', 'status', 'Ready', 'Delivered', 'invoice'].map((key) => {
+              {['quotation', 'created', 'status', 'Ready', 'Delivered', 'invoice'].map((key) => {
                 const subjects = {
                   ...DEFAULT_EMAIL_SUBJECTS,
                   ...(settings.notifications.emailSubjects || {}),

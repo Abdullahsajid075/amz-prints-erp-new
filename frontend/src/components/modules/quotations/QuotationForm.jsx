@@ -6,10 +6,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { quotationsAPI, productsAPI, ordersAPI } from '@/services/api';
+import { quotationsAPI, productsAPI, ordersAPI, customersAPI } from '@/services/api';
+import { applyServerNotificationHint, notifyOrderEvent } from '@/services/notifications';
+import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import { formatCurrency } from '@/utils/helpers';
 import { useBrand } from '@/context/BrandContext';
-import { ArrowLeft, Plus, Trash2, Save, ShoppingCart, Printer } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Save, ShoppingCart, Printer, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 
 const emptyLine = () => ({
@@ -19,6 +21,7 @@ const emptyLine = () => ({
   rate: 0,
   size: '',
   material: '',
+  notes: '',
 });
 
 const QuotationForm = ({ printMode = false }) => {
@@ -26,8 +29,10 @@ const QuotationForm = ({ printMode = false }) => {
   const { quotationId } = useParams();
   const isEdit = !!quotationId;
   const { company, primary } = useBrand();
+  const accent = primary || '#F26522';
 
   const [form, setForm] = useState({
+    customerId: '',
     customerName: '',
     customerPhone: '',
     customerEmail: '',
@@ -36,14 +41,25 @@ const QuotationForm = ({ printMode = false }) => {
     status: 'Draft',
     products: [emptyLine()],
   });
+  const [customers, setCustomers] = useState([]);
   const [catalog, setCatalog] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(!isEdit);
 
   const total = useMemo(
     () => form.products.reduce((s, p) => s + (Number(p.quantity) || 0) * (Number(p.rate) || 0), 0),
     [form.products]
   );
+
+  const loadCustomers = useCallback(async () => {
+    try {
+      const res = await customersAPI.getAll();
+      setCustomers(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
 
   const loadCatalog = useCallback(async () => {
     try {
@@ -59,28 +75,33 @@ const QuotationForm = ({ printMode = false }) => {
     setLoading(true);
     try {
       const res = await quotationsAPI.getById(quotationId);
-      const q = res.data;
+      const q = res.data || {};
+      const products = Array.isArray(q.products) && q.products.length
+        ? q.products.map((p, i) => ({
+            _key: p._key || p.id || `l_${i}_${Date.now()}`,
+            name: p.name || '',
+            quantity: Number(p.quantity) || 1,
+            rate: Number(p.rate) || 0,
+            size: p.size || '',
+            material: p.material || '',
+            notes: p.notes || '',
+          }))
+        : [emptyLine()];
+
       setForm({
+        customerId: q.customerId || '',
         customerName: q.customerName || '',
         customerPhone: q.customerPhone || '',
         customerEmail: q.customerEmail || '',
         customerAddress: q.customerAddress || '',
         remarks: q.remarks || '',
         status: q.status || 'Draft',
-        products: (q.products || []).length
-          ? q.products.map((p, i) => ({
-              _key: p.id || `l_${i}`,
-              name: p.name || '',
-              quantity: p.quantity || 1,
-              rate: p.rate || 0,
-              size: p.size || '',
-              material: p.material || '',
-            }))
-          : [emptyLine()],
+        products,
         orderId: q.orderId,
         id: q.id,
         date: q.date,
       });
+      setLoaded(true);
     } catch (err) {
       console.error(err);
       toast.error('Failed to load quotation');
@@ -90,9 +111,10 @@ const QuotationForm = ({ printMode = false }) => {
   }, [quotationId]);
 
   useEffect(() => {
+    loadCustomers();
     loadCatalog();
     if (isEdit) loadQuotation();
-  }, [isEdit, loadCatalog, loadQuotation]);
+  }, [isEdit, loadCustomers, loadCatalog, loadQuotation]);
 
   useEffect(() => {
     if (printMode && !loading && form.id) {
@@ -102,38 +124,51 @@ const QuotationForm = ({ printMode = false }) => {
   }, [printMode, loading, form.id]);
 
   const setLine = (index, field, value) => {
-    const products = [...form.products];
-    products[index] = { ...products[index], [field]: value };
-    setForm({ ...form, products });
+    setForm((prev) => {
+      const products = prev.products.map((p, i) => (i === index ? { ...p, [field]: value } : p));
+      return { ...prev, products };
+    });
   };
 
   const pickProduct = (index, productId) => {
     const p = catalog.find((x) => String(x.id) === String(productId));
     if (!p) return;
-    const products = [...form.products];
-    products[index] = {
-      ...products[index],
-      name: p.name,
-      rate: p.rate || p.basePrice || 0,
-      size: p.size || products[index].size || '',
-      material: p.material || products[index].material || '',
-    };
-    setForm({ ...form, products });
+    setForm((prev) => {
+      const products = prev.products.map((line, i) => (
+        i === index
+          ? {
+              ...line,
+              name: p.name || line.name,
+              rate: Number(p.rate ?? p.basePrice ?? line.rate) || 0,
+              size: p.size || line.size || '',
+              material: p.material || line.material || '',
+            }
+          : line
+      ));
+      return { ...prev, products };
+    });
+  };
+
+  const catalogValueFor = (line) => {
+    const match = catalog.find((p) => String(p.name).toLowerCase() === String(line.name || '').toLowerCase());
+    return match ? String(match.id) : undefined;
   };
 
   const buildPayload = () => ({
+    customerId: form.customerId,
     customerName: form.customerName,
     customerPhone: form.customerPhone,
     customerEmail: form.customerEmail,
     customerAddress: form.customerAddress,
     remarks: form.remarks,
     status: form.status,
-    products: form.products.map(({ name, quantity, rate, size, material }) => ({
+    products: form.products.map(({ name, quantity, rate, size, material, notes }) => ({
       name,
       quantity: Number(quantity) || 0,
       rate: Number(rate) || 0,
-      size,
-      material,
+      size: size || '',
+      material: material || '',
+      notes: notes || '',
     })),
     totalAmount: total,
     balanceAmount: total,
@@ -141,80 +176,135 @@ const QuotationForm = ({ printMode = false }) => {
     docType: 'Quotation',
   });
 
+  const notifyQuotation = async (saved) => {
+    try {
+      const orderLike = {
+        ...buildPayload(),
+        ...saved,
+        orderId: saved?.orderId || form.orderId || '',
+        totalAmount: saved?.totalAmount ?? total,
+      };
+      if (applyServerNotificationHint(saved)) {
+        toast.message('WhatsApp opened — tap Send');
+        return;
+      }
+      await notifyOrderEvent({ event: 'quotation', order: orderLike });
+      toast.message('Quotation WhatsApp prepared');
+    } catch (err) {
+      console.warn('Quotation notify failed', err);
+    }
+  };
+
   const handleSave = async () => {
-    if (!form.customerName.trim()) {
-      toast.error('Customer name is required');
+    if (!requireCustomer(form)) return;
+    if (!form.products.some((p) => String(p.name || '').trim())) {
+      toast.error('Add at least one line item');
       return;
     }
     setSaving(true);
     try {
       const payload = buildPayload();
       if (isEdit) {
-        await quotationsAPI.update(quotationId, payload);
+        const updated = await quotationsAPI.update(quotationId, payload);
         toast.success('Quotation updated');
+        await notifyQuotation(updated.data || payload);
+        navigate('/quotations');
       } else {
         const created = await quotationsAPI.create(payload);
         toast.success('Quotation created');
+        await notifyQuotation(created.data || payload);
         navigate(`/quotations/${created.data.id}/edit`, { replace: true });
-        return;
       }
-      navigate('/quotations');
     } catch (err) {
       console.error(err);
-      toast.error('Failed to save quotation');
+      toast.error(err.response?.data?.message || 'Failed to save quotation');
     } finally {
       setSaving(false);
     }
   };
 
   const convertToOrder = async () => {
-    if (!form.customerName.trim()) {
-      toast.error('Customer name is required');
+    if (!requireCustomer(form)) return;
+    if (!form.products.some((p) => String(p.name || '').trim())) {
+      toast.error('Add at least one line item');
       return;
     }
     setSaving(true);
     try {
       let quoteId = quotationId;
       const payload = buildPayload();
+      let savedQuote;
       if (!isEdit) {
-        const created = await quotationsAPI.create(payload);
-        quoteId = created.data.id;
+        const created = await quotationsAPI.create({ ...payload, status: 'Accepted' });
+        quoteId = created.data?.id;
+        savedQuote = created.data;
       } else {
-        await quotationsAPI.update(quotationId, payload);
+        const updated = await quotationsAPI.update(quotationId, { ...payload, status: 'Accepted' });
+        savedQuote = updated.data;
       }
-      await ordersAPI.create({
-        ...payload,
-        docType: 'Order',
+
+      const orderPayload = {
+        customerId: payload.customerId,
+        customerName: payload.customerName,
+        customerPhone: payload.customerPhone,
+        customerEmail: payload.customerEmail,
+        customerAddress: payload.customerAddress,
+        products: payload.products,
+        totalAmount: payload.totalAmount,
+        balanceAmount: payload.balanceAmount,
+        advancePayment: 0,
+        remarks: payload.remarks
+          ? `${payload.remarks}\n(From quotation ${savedQuote?.orderId || quoteId || ''})`
+          : `Converted from quotation ${savedQuote?.orderId || quoteId || ''}`,
         status: 'Order Received',
+        docType: 'Order',
         quotationId: quoteId,
-        remarks: payload.remarks ? `${payload.remarks}\n(From quotation)` : 'Converted from quotation',
-      });
-      toast.success('Converted to order');
-      navigate('/orders');
+        assignedDesigner: form.assignedDesigner || '',
+        deliveryDate: form.deliveryDate || '',
+      };
+
+      const createdOrder = await ordersAPI.create(orderPayload);
+      if (isEdit && quoteId) {
+        try {
+          await quotationsAPI.update(quoteId, { ...payload, status: 'Accepted' });
+        } catch {
+          /* quote already saved */
+        }
+      }
+
+      toast.success('Converted to order — details copied');
+      const data = createdOrder.data || orderPayload;
+      if (applyServerNotificationHint(data)) {
+        toast.message('WhatsApp opened — tap Send');
+      } else {
+        await notifyOrderEvent({ event: 'created', order: { ...orderPayload, ...data } });
+      }
+
+      if (data.id) navigate(`/orders/${data.id}/edit`);
+      else navigate('/orders');
     } catch (err) {
       console.error(err);
-      toast.error('Failed to convert to order');
+      toast.error(err.response?.data?.message || 'Failed to convert to order');
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading) {
-    return <div className="py-16 text-center text-gray-500">Loading quotation...</div>;
+  if (loading || (isEdit && !loaded)) {
+    return <div className="py-16 text-center text-gray-500">Loading quotation…</div>;
   }
 
   if (printMode) {
-    const accentColor = primary || '#F26522';
     return (
       <div className="max-w-4xl mx-auto bg-white shadow-lg print:shadow-none invoice-container" data-testid="quotation-print">
-        <div className="h-2" style={{ background: `linear-gradient(90deg, ${accentColor}, #FF8A50)` }} />
+        <div className="h-2" style={{ backgroundColor: accent }} />
         <div className="p-8 print:p-6">
-          <div className="flex justify-between items-start gap-6 border-b-2 pb-5 mb-6" style={{ borderColor: accentColor }}>
+          <div className="flex justify-between items-start gap-6 border-b-2 pb-5 mb-6" style={{ borderColor: accent }}>
             <div className="flex items-start gap-4">
               {company.logo ? (
                 <img src={company.logo} alt="logo" className="h-16 object-contain" />
               ) : (
-                <div className="w-16 h-16 rounded-xl flex items-center justify-center text-white text-2xl font-bold" style={{ backgroundColor: accentColor }}>
+                <div className="w-16 h-16 rounded-xl flex items-center justify-center text-white text-2xl font-bold" style={{ backgroundColor: accent }}>
                   {(company.name || 'A').charAt(0)}
                 </div>
               )}
@@ -225,7 +315,7 @@ const QuotationForm = ({ printMode = false }) => {
               </div>
             </div>
             <div className="text-right">
-              <p className="text-4xl font-black tracking-tight" style={{ color: accentColor }}>QUOTATION</p>
+              <p className="text-4xl font-black tracking-tight" style={{ color: accent }}>QUOTATION</p>
               <p className="text-lg font-semibold mt-2">{form.orderId || 'Draft'}</p>
               <p className="text-sm text-gray-600">{form.date || new Date().toISOString().slice(0, 10)}</p>
             </div>
@@ -233,14 +323,14 @@ const QuotationForm = ({ printMode = false }) => {
 
           <div className="grid grid-cols-2 gap-6 mb-8">
             <div>
-              <p className="text-xs uppercase tracking-wider font-semibold mb-1" style={{ color: accentColor }}>Quote For</p>
+              <p className="text-xs uppercase tracking-wider font-semibold mb-1" style={{ color: accent }}>Quote For</p>
               <p className="font-semibold text-lg">{form.customerName}</p>
               <p className="text-sm text-gray-600">{form.customerPhone}</p>
               <p className="text-sm text-gray-600">{form.customerEmail}</p>
               <p className="text-sm text-gray-600">{form.customerAddress}</p>
             </div>
             <div className="text-right">
-              <p className="text-xs uppercase tracking-wider font-semibold mb-1" style={{ color: accentColor }}>Status</p>
+              <p className="text-xs uppercase tracking-wider font-semibold mb-1" style={{ color: accent }}>Status</p>
               <p className="font-semibold">{form.status || 'Draft'}</p>
             </div>
           </div>
@@ -279,7 +369,7 @@ const QuotationForm = ({ printMode = false }) => {
                 <span className="text-gray-600">Subtotal</span>
                 <span className="font-semibold">{formatCurrency(total)}</span>
               </div>
-              <div className="flex justify-between px-3 py-2 rounded text-white font-bold" style={{ backgroundColor: accentColor }}>
+              <div className="flex justify-between px-3 py-2 rounded text-white font-bold" style={{ backgroundColor: accent }}>
                 <span>TOTAL</span>
                 <span>{formatCurrency(total)}</span>
               </div>
@@ -301,7 +391,7 @@ const QuotationForm = ({ printMode = false }) => {
 
         <div className="no-print mt-6 flex gap-2 px-2 pb-4">
           <Button variant="outline" onClick={() => navigate(`/quotations/${quotationId}/edit`)}>Back</Button>
-          <Button onClick={() => window.print()} className="text-white" style={{ backgroundColor: accentColor }}>
+          <Button onClick={() => window.print()} className="text-white" style={{ backgroundColor: accent }}>
             <Printer className="h-4 w-4 mr-2" />Print
           </Button>
         </div>
@@ -310,118 +400,178 @@ const QuotationForm = ({ printMode = false }) => {
   }
 
   return (
-    <div className="space-y-4" data-testid="quotation-form">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={() => navigate('/quotations')}>
-            <ArrowLeft className="h-4 w-4 mr-2" />Back
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold" style={{ color: '#2E2E2E' }}>
-              {isEdit ? 'Edit Quotation' : 'New Quotation'}
-            </h1>
-            {form.orderId && <p className="text-sm text-gray-500">{form.orderId}</p>}
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {isEdit && (
-            <Button variant="outline" onClick={() => navigate(`/quotations/${quotationId}/print`)}>
-              <Printer className="h-4 w-4 mr-2" />Print
+    <div className="space-y-4 pb-8" data-testid="quotation-form">
+      <div className="rounded-2xl border border-orange-100 bg-white overflow-hidden shadow-sm">
+        <div className="h-1.5" style={{ backgroundColor: accent }} />
+        <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <Button variant="outline" size="sm" onClick={() => navigate('/quotations')}>
+              <ArrowLeft className="h-4 w-4 mr-1.5" />Back
             </Button>
-          )}
-          <Button variant="outline" disabled={saving} onClick={convertToOrder}>
-            <ShoppingCart className="h-4 w-4 mr-2" />Convert to Order
-          </Button>
-          <Button disabled={saving} onClick={handleSave} className="text-white" style={{ backgroundColor: primary || '#F26522' }}>
-            <Save className="h-4 w-4 mr-2" />{saving ? 'Saving…' : 'Save'}
-          </Button>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <FileText className="h-5 w-5 shrink-0" style={{ color: accent }} />
+                <h1 className="text-xl sm:text-2xl font-bold truncate" style={{ color: '#2E2E2E' }}>
+                  {isEdit ? 'Edit Quotation' : 'New Quotation'}
+                </h1>
+              </div>
+              {form.orderId && <p className="text-xs text-gray-500 mt-0.5 pl-7">{form.orderId}</p>}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {isEdit && (
+              <Button variant="outline" size="sm" onClick={() => navigate(`/quotations/${quotationId}/print`)}>
+                <Printer className="h-4 w-4 mr-1.5" />Print
+              </Button>
+            )}
+            <Button variant="outline" size="sm" disabled={saving} onClick={convertToOrder}>
+              <ShoppingCart className="h-4 w-4 mr-1.5" />Convert to Order
+            </Button>
+            <Button size="sm" disabled={saving} onClick={handleSave} className="text-white" style={{ backgroundColor: accent }}>
+              <Save className="h-4 w-4 mr-1.5" />{saving ? 'Saving…' : 'Save'}
+            </Button>
+          </div>
         </div>
       </div>
 
-      <Card>
-        <CardHeader className="py-3"><CardTitle className="text-base">Customer</CardTitle></CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-0">
-          <div>
-            <Label>Name *</Label>
-            <Input value={form.customerName} onChange={(e) => setForm({ ...form, customerName: e.target.value })} />
-          </div>
-          <div>
-            <Label>Phone</Label>
-            <Input value={form.customerPhone} onChange={(e) => setForm({ ...form, customerPhone: e.target.value })} />
-          </div>
-          <div>
-            <Label>Email</Label>
-            <Input type="email" value={form.customerEmail} onChange={(e) => setForm({ ...form, customerEmail: e.target.value })} />
-          </div>
-          <div>
-            <Label>Status</Label>
-            <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Draft">Draft</SelectItem>
-                <SelectItem value="Sent">Sent</SelectItem>
-                <SelectItem value="Accepted">Accepted</SelectItem>
-                <SelectItem value="Rejected">Rejected</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="md:col-span-2">
-            <Label>Address</Label>
-            <Textarea rows={2} value={form.customerAddress} onChange={(e) => setForm({ ...form, customerAddress: e.target.value })} />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Line Items</CardTitle>
-          <Button size="sm" variant="outline" onClick={() => setForm({ ...form, products: [...form.products, emptyLine()] })}>
-            <Plus className="h-4 w-4 mr-1" />Add
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {form.products.map((line, index) => (
-            <div key={line._key} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end border rounded-lg p-3">
-              <div className="md:col-span-4">
-                <Label>Product</Label>
-                <Select onValueChange={(v) => pickProduct(index, v)}>
-                  <SelectTrigger><SelectValue placeholder={line.name || 'Pick product'} /></SelectTrigger>
-                  <SelectContent>
-                    {catalog.map((p) => (
-                      <SelectItem key={p.id} value={String(p.id)}>{p.name} · {formatCurrency(p.rate || p.basePrice)}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input className="mt-1" placeholder="Or type name" value={line.name} onChange={(e) => setLine(index, 'name', e.target.value)} />
-              </div>
-              <div className="md:col-span-2">
-                <Label>Qty</Label>
-                <Input type="number" min={1} value={line.quantity} onChange={(e) => setLine(index, 'quantity', parseFloat(e.target.value) || 0)} />
-              </div>
-              <div className="md:col-span-2">
-                <Label>Rate</Label>
-                <Input type="number" min={0} value={line.rate} onChange={(e) => setLine(index, 'rate', parseFloat(e.target.value) || 0)} />
-              </div>
-              <div className="md:col-span-2">
-                <Label>Amount</Label>
-                <Input readOnly value={formatCurrency((line.quantity || 0) * (line.rate || 0))} />
-              </div>
-              <div className="md:col-span-2 flex justify-end">
-                <Button type="button" size="icon" variant="ghost" disabled={form.products.length === 1} onClick={() => setForm({ ...form, products: form.products.filter((_, i) => i !== index) })}>
-                  <Trash2 className="h-4 w-4 text-red-600" />
-                </Button>
-              </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <Card className="lg:col-span-1 border-orange-100/80 shadow-sm rounded-2xl">
+          <CardHeader className="py-3"><CardTitle className="text-base">Customer</CardTitle></CardHeader>
+          <CardContent className="pt-0 space-y-3">
+            <CustomerPicker
+              customers={customers}
+              customerId={form.customerId}
+              customerName={form.customerName}
+              customerPhone={form.customerPhone}
+              customerEmail={form.customerEmail}
+              customerAddress={form.customerAddress}
+              accent={accent}
+              onCustomersChange={(c) => setCustomers((prev) => [c, ...prev.filter((x) => x.id !== c.id)])}
+              onChange={(next) => setForm((prev) => ({ ...prev, ...next }))}
+            />
+            <div>
+              <Label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Status</Label>
+              <Select value={form.status || 'Draft'} onValueChange={(v) => setForm((prev) => ({ ...prev, status: v }))}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Draft">Draft</SelectItem>
+                  <SelectItem value="Sent">Sent</SelectItem>
+                  <SelectItem value="Accepted">Accepted</SelectItem>
+                  <SelectItem value="Rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          ))}
-          <div className="flex justify-end">
-            <div className="text-lg font-bold" style={{ color: primary || '#F26522' }}>Total: {formatCurrency(total)}</div>
-          </div>
-          <div>
-            <Label>Remarks</Label>
-            <Textarea rows={2} value={form.remarks} onChange={(e) => setForm({ ...form, remarks: e.target.value })} />
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-2 border-orange-100/80 shadow-sm rounded-2xl">
+          <CardHeader className="py-3 flex flex-row items-center justify-between space-y-0">
+            <CardTitle className="text-base">Line Items</CardTitle>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setForm((prev) => ({ ...prev, products: [...prev.products, emptyLine()] }))}
+            >
+              <Plus className="h-4 w-4 mr-1" />Add
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-3 pt-0">
+            {form.products.map((line, index) => (
+              <div key={line._key} className="rounded-xl border border-gray-100 bg-gray-50/50 p-3 space-y-2">
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
+                  <div className="md:col-span-5">
+                    <Label className="text-xs">Product</Label>
+                    <Select
+                      value={catalogValueFor(line)}
+                      onValueChange={(v) => pickProduct(index, v)}
+                    >
+                      <SelectTrigger className="bg-white">
+                        <SelectValue placeholder={line.name || 'Pick from catalog'} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {catalog.map((p) => (
+                          <SelectItem key={p.id} value={String(p.id)}>
+                            {p.name} · {formatCurrency(p.rate || p.basePrice)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      className="mt-1 bg-white"
+                      placeholder="Or type product name"
+                      value={line.name}
+                      onChange={(e) => setLine(index, 'name', e.target.value)}
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label className="text-xs">Qty</Label>
+                    <Input
+                      className="bg-white"
+                      type="number"
+                      min={1}
+                      value={line.quantity}
+                      onChange={(e) => setLine(index, 'quantity', parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label className="text-xs">Rate</Label>
+                    <Input
+                      className="bg-white"
+                      type="number"
+                      min={0}
+                      value={line.rate}
+                      onChange={(e) => setLine(index, 'rate', parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label className="text-xs">Amount</Label>
+                    <Input readOnly className="bg-white font-semibold" value={formatCurrency((line.quantity || 0) * (line.rate || 0))} />
+                  </div>
+                  <div className="md:col-span-1 flex justify-end">
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      disabled={form.products.length === 1}
+                      onClick={() => setForm((prev) => ({
+                        ...prev,
+                        products: prev.products.filter((_, i) => i !== index),
+                      }))}
+                    >
+                      <Trash2 className="h-4 w-4 text-red-600" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs">Size</Label>
+                    <Input className="bg-white" value={line.size} onChange={(e) => setLine(index, 'size', e.target.value)} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Material</Label>
+                    <Input className="bg-white" value={line.material} onChange={(e) => setLine(index, 'material', e.target.value)} />
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            <div className="rounded-xl p-3 flex items-center justify-between" style={{ backgroundColor: '#FFF9F5' }}>
+              <span className="text-sm font-medium text-gray-600">Quotation total</span>
+              <span className="text-xl font-bold" style={{ color: accent }}>{formatCurrency(total)}</span>
+            </div>
+
+            <div>
+              <Label className="text-xs">Remarks</Label>
+              <Textarea
+                rows={2}
+                className="bg-white"
+                value={form.remarks}
+                onChange={(e) => setForm((prev) => ({ ...prev, remarks: e.target.value }))}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };

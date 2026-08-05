@@ -44,7 +44,7 @@ var DEFAULT_HEADERS = {
   Vendors: ['Id', 'Name', 'Phone', 'Email', 'Address', 'Notes'],
   Purchases: ['Id', 'PurchaseNo', 'Date', 'VendorId', 'VendorName', 'Items', 'Total', 'Status'],
   Expenses: ['Id', 'Date', 'Category', 'Amount', 'Description', 'PaymentMethod'],
-  Payments: ['Id', 'Date', 'Type', 'RefId', 'CustomerName', 'Amount', 'Method', 'Notes'],
+  Payments: ['Id', 'Date', 'Type', 'Category', 'RefId', 'CustomerName', 'PartyPhone', 'Amount', 'Method', 'Notes', 'BalanceDue'],
   Counters: [
     'RecordType', 'CounterName', 'AccessHolder', 'Prefix', 'LastNumber', 'Status',
     'TokenNo', 'Date', 'Time', 'CustomerId', 'CustomerName', 'CustomerPhone',
@@ -362,9 +362,11 @@ function valueForHeader_(obj, rawHeader) {
   var fallbacks = {
     countername: ['counter', 'countername', 'name'],
     name: ['name', 'customername', 'fullname'],
-    phone: ['phone', 'customerphone', 'mobile'],
-    customername: ['customername', 'name'],
-    customerphone: ['customerphone', 'phone', 'mobile'],
+    phone: ['phone', 'customerphone', 'mobile', 'partyphone'],
+    customername: ['customername', 'name', 'party'],
+    customerphone: ['customerphone', 'phone', 'mobile', 'partyphone'],
+    partyphone: ['partyphone', 'phone', 'customerphone', 'mobile'],
+    refid: ['refid', 'reference'],
     tokenstatus: ['tokenstatus'],
     status: ['status'],
     service: ['service', 'product', 'products'],

@@ -26,6 +26,7 @@ export {
 };
 export { openWhatsAppChat, buildWhatsAppAppUrl, normalizeWhatsAppPhone } from './whatsappChannel';
 export { sendTestEmail } from './emailChannel';
+export { printPaymentSlip } from './paymentSlip';
 
 function truthy(v, fallback = true) {
   if (v === undefined || v === null || v === '') return fallback;
@@ -78,8 +79,10 @@ function customerAllows(customer, channel) {
 }
 
 function shouldSendEmail(notifications, event, status) {
+  if (event === 'quotation') return true;
   if (event === 'created') return notifications.emailNewOrder;
-  if (event === 'invoice') return notifications.emailInvoice;
+  if (event === 'invoice' || event === 'invoice_generated') return notifications.emailInvoice;
+  if (event === 'payment_received' || event === 'payment_sent') return false;
   if (event === 'status') {
     if (status === 'Ready') return notifications.emailReady !== false && notifications.emailOrderStatus;
     if (status === 'Delivered') return notifications.emailDelivered !== false && notifications.emailOrderStatus;
@@ -90,7 +93,7 @@ function shouldSendEmail(notifications, event, status) {
 
 /**
  * After order create/update — open WhatsApp app + request email via GAS.
- * @param {'created'|'status'|'updated'|'invoice'} event
+ * @param {'created'|'status'|'updated'|'invoice'|'invoice_generated'|'quotation'|'payment_received'|'payment_sent'} event
  */
 export async function notifyOrderEvent({
   event = 'status',
@@ -98,49 +101,66 @@ export async function notifyOrderEvent({
   previousStatus,
   customer,
   invoice,
+  payment,
   company: companyOverride,
   notifications: notifOverride,
   openWhatsApp = true,
 } = {}) {
-  if (!order && !invoice) return { ok: false, reason: 'no_payload' };
+  if (!order && !invoice && !payment) return { ok: false, reason: 'no_payload' };
 
   const loaded = (!companyOverride || !notifOverride)
     ? await loadNotificationSettings()
     : { company: companyOverride, notifications: mergeNotificationSettings(notifOverride) };
 
   const company = companyOverride || loaded.company || {};
+  if (!company.name) company.name = 'Amazon Printing Services';
+  if (!company.address) company.address = 'King Road, Mandi Bahauddin';
+  if (!company.website) company.website = 'amzprints.com';
+
   const notifications = notifOverride
     ? mergeNotificationSettings(notifOverride)
     : loaded.notifications;
 
   const status = order?.status || '';
+  const phone = order?.customerPhone
+    || customer?.phone
+    || invoice?.customerPhone
+    || payment?.partyPhone
+    || payment?.phone
+    || '';
+
   const vars = buildTemplateVars(order || {}, company, {
     status,
-    invoiceNumber: invoice?.invoiceNumber || invoice?.invoiceNo || '',
-    amount: invoice?.totalAmount ?? invoice?.total ?? order?.totalAmount,
+    customerName: order?.customerName || customer?.name || invoice?.customerName || payment?.party,
+    invoice_number: invoice?.invoiceNumber || invoice?.invoiceNo || payment?.reference || '',
+    invoice_date: invoice?.date || invoice?.invoiceDate || '',
+    amount: invoice?.totalAmount ?? invoice?.total ?? order?.totalAmount ?? payment?.amount,
+    balance_due: invoice?.balanceAmount ?? invoice?.balance ?? order?.balanceAmount ?? payment?.balanceDue ?? 0,
+    payment_amount: payment?.amount,
+    payment_method: payment?.method || '',
+    payment_type: payment?.type === 'outflow' ? 'Cash Out' : (payment?.type === 'inflow' ? 'Cash In' : (payment?.category || '')),
+    transaction_number: payment?.reference || payment?.id || '',
   });
 
   const channelIds = [];
-  const payloadBase = { event, order, invoice, company, customer, vars };
+  const payloadBase = { event, order, invoice, payment, company, customer, vars };
 
-  // WhatsApp (client opens Desktop/Mobile app)
   let whatsappResult = null;
   if (
     openWhatsApp
     && notifications.whatsappEnabled
     && notifications.autoOpenWhatsApp
     && customerAllows(customer, 'whatsapp')
-    && (order?.customerPhone || customer?.phone)
+    && phone
   ) {
     const template = resolveWhatsAppTemplate(notifications.whatsappTemplates, event, status);
     const text = fillTemplate(template, vars);
-    whatsappResult = openWhatsAppChat(order?.customerPhone || customer?.phone, text);
+    whatsappResult = openWhatsAppChat(phone, text);
     channelIds.push('whatsapp');
     payloadBase.text = text;
   }
 
-  // Email (GAS)
-  const emailTo = order?.customerEmail || customer?.email || invoice?.customerEmail;
+  const emailTo = order?.customerEmail || customer?.email || invoice?.customerEmail || payment?.partyEmail;
   if (
     emailTo
     && customerAllows(customer, 'email')
@@ -148,9 +168,11 @@ export async function notifyOrderEvent({
   ) {
     const subjectKey = event === 'created'
       ? 'created'
-      : event === 'invoice'
-        ? 'invoice'
-        : (status === 'Ready' || status === 'Delivered' ? status : 'status');
+      : (event === 'invoice' || event === 'invoice_generated')
+        ? 'invoice_generated'
+        : event === 'quotation'
+          ? 'quotation'
+          : (status === 'Ready' || status === 'Delivered' || status === 'Order Received' ? status : 'status');
     const subjectTpl = notifications.emailSubjects[subjectKey]
       || DEFAULT_EMAIL_SUBJECTS[subjectKey]
       || DEFAULT_EMAIL_SUBJECTS.status;
@@ -169,7 +191,23 @@ export async function notifyOrderEvent({
   );
   if (whatsappResult) results.whatsapp = whatsappResult;
 
-  return { ok: true, results, event, status };
+  return { ok: true, results, event, status, whatsappOpened: !!whatsappResult?.ok };
+}
+
+/** Notify + helpers for Cash In / Cash Out. */
+export async function notifyPaymentEvent(payment, options = {}) {
+  const event = String(payment?.type || '').toLowerCase() === 'outflow'
+    ? 'payment_sent'
+    : 'payment_received';
+  return notifyOrderEvent({
+    event,
+    payment,
+    order: {
+      customerName: payment?.party,
+      customerPhone: payment?.partyPhone || payment?.phone,
+    },
+    openWhatsApp: options.openWhatsApp !== false,
+  });
 }
 
 /**

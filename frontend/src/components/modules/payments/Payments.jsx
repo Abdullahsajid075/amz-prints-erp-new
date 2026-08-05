@@ -8,8 +8,10 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { paymentsAPI, settingsAPI } from '@/services/api';
+import { notifyPaymentEvent, printPaymentSlip } from '@/services/notifications';
 import { formatCurrency, formatDate } from '@/utils/helpers';
-import { Plus, Search, Edit, Trash2, CreditCard, TrendingUp, TrendingDown, Wallet, Building, Save, X, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
+import { useBrand } from '@/context/BrandContext';
+import { Plus, Search, Edit, Trash2, CreditCard, TrendingUp, TrendingDown, Wallet, Building, Save, X, ArrowDownLeft, ArrowUpRight, Printer, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 const CATEGORIES = ['Invoice Payment', 'Purchase Payment', 'Expense Payment', 'Refund', 'Other Income', 'Owner Deposit', 'Owner Withdrawal'];
@@ -24,12 +26,31 @@ const empty = {
   category: 'Invoice Payment',
   method: 'Cash',
   party: '',
+  partyPhone: '',
   reference: '',
   amount: 0,
-  notes: ''
+  notes: '',
+  balanceDue: 0,
 };
 
+function normalizePayment(p = {}) {
+  return {
+    id: p.id,
+    date: p.date || '',
+    type: p.type || 'inflow',
+    category: p.category || '',
+    party: p.party || p.customerName || p.customername || '',
+    partyPhone: p.partyPhone || p.partyphone || p.phone || '',
+    reference: p.reference || p.refId || p.refid || '',
+    amount: Number(p.amount) || 0,
+    method: p.method || 'Cash',
+    notes: p.notes || '',
+    balanceDue: Number(p.balanceDue ?? p.balancedue ?? 0) || 0,
+  };
+}
+
 const Payments = () => {
+  const { company } = useBrand();
   const [payments, setPayments] = useState([]);
   const [methods, setMethods] = useState(['Cash', 'Bank Transfer', 'UPI', 'Card', 'Cheque']);
   const [loading, setLoading] = useState(false);
@@ -48,7 +69,8 @@ const Payments = () => {
       if (filters.category) params.category = filters.category;
       if (filters.method) params.method = filters.method;
       const res = await paymentsAPI.getAll(params);
-      setPayments(res.data || []);
+      const list = Array.isArray(res.data) ? res.data : [];
+      setPayments(list.map(normalizePayment));
     } catch (err) {
       console.error('Failed to fetch payments', err);
       toast.error('Failed to load payments');
@@ -82,17 +104,92 @@ const Payments = () => {
   stats.net = stats.inflow - stats.outflow;
 
   const openCreate = () => { setEditing(null); setFormData(empty); setDialogOpen(true); };
-  const openEdit = (p) => { setEditing(p); setFormData(p); setDialogOpen(true); };
+  const openEdit = (p) => {
+    setEditing(p);
+    setFormData({
+      ...empty,
+      ...p,
+      partyPhone: p.partyPhone || p.phone || '',
+      balanceDue: Number(p.balanceDue) || 0,
+    });
+    setDialogOpen(true);
+  };
+
+  const afterSaveActions = async (payment) => {
+    const slip = printPaymentSlip(payment, company || {});
+    if (!slip.ok) toast.error('Allow popups to print pocket slip');
+    else toast.message('Pocket slip sent to printer');
+
+    if (payment.partyPhone || payment.phone) {
+      const notify = await notifyPaymentEvent(payment);
+      if (notify?.whatsappOpened) toast.message('WhatsApp opened — tap Send');
+      else if (!notify?.results?.whatsapp?.ok) toast.message('Payment saved (add phone for WhatsApp)');
+    } else {
+      toast.message('Payment saved — add party phone next time for WhatsApp');
+    }
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
+    if (!formData.party?.trim()) {
+      toast.error('Party / person is required');
+      return;
+    }
+    if (!(Number(formData.amount) > 0)) {
+      toast.error('Enter a valid amount');
+      return;
+    }
     setSaving(true);
     try {
-      if (editing) { await paymentsAPI.update(editing.id, formData); toast.success('Payment updated'); }
-      else { await paymentsAPI.create(formData); toast.success('Payment recorded'); }
-      setDialogOpen(false); loadPayments();
-    } catch (err) { console.error(err); toast.error('Failed to save payment'); }
-    finally { setSaving(false); }
+      const payload = {
+        date: formData.date,
+        type: formData.type,
+        category: formData.category,
+        method: formData.method,
+        party: formData.party,
+        customerName: formData.party,
+        partyPhone: formData.partyPhone || '',
+        phone: formData.partyPhone || '',
+        reference: formData.reference || `TXN-${Date.now().toString().slice(-8)}`,
+        refId: formData.reference || `TXN-${Date.now().toString().slice(-8)}`,
+        amount: Number(formData.amount) || 0,
+        notes: formData.notes || '',
+        balanceDue: Number(formData.balanceDue) || 0,
+      };
+      let saved;
+      if (editing) {
+        const res = await paymentsAPI.update(editing.id, payload);
+        saved = normalizePayment(res.data || { ...editing, ...payload });
+        toast.success('Payment updated');
+      } else {
+        const res = await paymentsAPI.create(payload);
+        saved = normalizePayment(res.data || payload);
+        toast.success(payload.type === 'outflow' ? 'Cash Out recorded' : 'Cash In recorded');
+      }
+      setDialogOpen(false);
+      loadPayments();
+      if (!editing) await afterSaveActions(saved);
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || 'Failed to save payment');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const reprint = (p) => {
+    const slip = printPaymentSlip(p, company || {});
+    if (!slip.ok) toast.error('Allow popups to print');
+  };
+
+  const resendWhatsApp = async (p) => {
+    if (!(p.partyPhone || p.phone)) {
+      toast.error('No phone on this payment — edit and add party phone');
+      return;
+    }
+    const notify = await notifyPaymentEvent(p);
+    if (notify?.whatsappOpened) toast.message('WhatsApp opened — tap Send');
+    else toast.error('Could not open WhatsApp');
   };
 
   const handleDelete = async (id) => {
@@ -201,6 +298,12 @@ const Payments = () => {
                           <td className={`py-3 px-3 text-right font-bold ${isIn ? 'text-emerald-700' : 'text-rose-600'}`}>{isIn ? '+' : '-'}{formatCurrency(p.amount)}</td>
                           <td className="py-3 px-3 text-right">
                             <div className="flex items-center gap-1 justify-end">
+                              <Button size="icon" variant="ghost" title="Print slip" onClick={() => reprint(p)}>
+                                <Printer className="h-4 w-4" />
+                              </Button>
+                              <Button size="icon" variant="ghost" className="text-green-600" title="WhatsApp" onClick={() => resendWhatsApp(p)}>
+                                <MessageCircle className="h-4 w-4" />
+                              </Button>
                               <Button size="icon" variant="ghost" onClick={() => openEdit(p)} data-testid={`edit-payment-${p.id}`}><Edit className="h-4 w-4" /></Button>
                               <Button size="icon" variant="ghost" onClick={() => handleDelete(p.id)} data-testid={`delete-payment-${p.id}`}><Trash2 className="h-4 w-4 text-red-600" /></Button>
                             </div>
@@ -258,9 +361,14 @@ const Payments = () => {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div><Label>Party / Person *</Label><Input value={formData.party} onChange={(e) => setFormData({ ...formData, party: e.target.value })} required placeholder="Customer or vendor name" data-testid="payment-party-input" /></div>
-              <div><Label>Reference #</Label><Input value={formData.reference} onChange={(e) => setFormData({ ...formData, reference: e.target.value })} placeholder="Invoice, PO or Expense ID" /></div>
+              <div><Label>Party Phone (WhatsApp)</Label><Input value={formData.partyPhone || ''} onChange={(e) => setFormData({ ...formData, partyPhone: e.target.value })} placeholder="03XXXXXXXXX" data-testid="payment-phone-input" /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div><Label>Reference / Txn #</Label><Input value={formData.reference} onChange={(e) => setFormData({ ...formData, reference: e.target.value })} placeholder="Invoice, PO or Txn ID" /></div>
+              <div><Label>Balance Due (optional)</Label><Input type="number" min="0" step="0.01" value={formData.balanceDue || 0} onChange={(e) => setFormData({ ...formData, balanceDue: parseFloat(e.target.value) || 0 })} /></div>
             </div>
             <div><Label>Notes</Label><Textarea rows={2} value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} /></div>
+            <p className="text-xs text-gray-500">On save: pocket slip prints automatically + WhatsApp message opens (if phone given).</p>
             <DialogFooter className="gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}><X className="h-4 w-4 mr-1" />Cancel</Button>
               <Button type="submit" style={{ backgroundColor: '#F26522' }} className="text-white" disabled={saving} data-testid="save-payment-button"><Save className="h-4 w-4 mr-1" />{saving ? 'Saving...' : editing ? 'Update' : 'Record'}</Button>
