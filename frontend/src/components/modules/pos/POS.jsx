@@ -9,7 +9,7 @@ import { applyServerNotificationHint } from '@/services/notifications';
 import { formatCurrency } from '@/utils/helpers';
 import { barcodeBlock, openPrintWindow, printOnLoadScript, POS_MAJOR_SERVICES } from '@/utils/printHelpers';
 import { useBrand } from '@/context/BrandContext';
-import { Search, Plus, Minus, Trash2, Printer, ShoppingCart, FileSpreadsheet } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, Printer, ShoppingCart, FileSpreadsheet, PackagePlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 
@@ -205,47 +205,52 @@ const POS = () => {
           <h1 className="text-3xl font-bold" style={{ color: '#2E2E2E' }}>POS</h1>
           <p className="text-gray-600 mt-1">Quick sale · cash / card · print receipt</p>
         </div>
-        {lastSale && (
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => printReceipt(lastSale)} data-testid="pos-reprint">
-              <Printer className="h-4 w-4 mr-2" />Reprint POS slip
-            </Button>
-            <Button
-              variant="outline"
-              onClick={async () => {
-                try {
-                  const inv = {
-                    invoiceNumber: `INV-POS-${Date.now().toString().slice(-6)}`,
-                    orderId: lastSale.orderId || '',
-                    customerName: lastSale.customerName || 'Walk-in',
-                    customerPhone: lastSale.customerPhone || '',
-                    items: (lastSale.products || []).map((p) => ({
-                      name: p.name,
-                      quantity: p.quantity,
-                      rate: p.rate,
-                      size: p.size || '',
-                      material: p.material || '',
-                    })),
-                    paidAmount: lastSale.totalAmount || 0,
-                    taxRate: 0,
-                    discount: 0,
-                    previousBalance: 0,
-                    notes: 'Converted from POS sale',
-                    date: new Date().toISOString().slice(0, 10),
-                  };
-                  const created = await invoicesAPI.create(inv);
-                  toast.success('POS sale converted to invoice');
-                  navigate(`/invoices/${created.data?.id || ''}`);
-                } catch (err) {
-                  console.error(err);
-                  toast.error('Failed to convert to invoice');
-                }
-              }}
-            >
-              <FileSpreadsheet className="h-4 w-4 mr-2" />Convert to Invoice
-            </Button>
-          </div>
-        )}
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => navigate('/warehouse/products?new=1')} data-testid="pos-add-product">
+            <PackagePlus className="h-4 w-4 mr-2" />Add New Product
+          </Button>
+          {lastSale && (
+            <>
+              <Button variant="outline" onClick={() => printReceipt(lastSale)} data-testid="pos-reprint">
+                <Printer className="h-4 w-4 mr-2" />Reprint POS slip
+              </Button>
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    const inv = {
+                      invoiceNumber: `INV-POS-${Date.now().toString().slice(-6)}`,
+                      orderId: lastSale.orderId || '',
+                      customerName: lastSale.customerName || 'Walk-in',
+                      customerPhone: lastSale.customerPhone || '',
+                      items: (lastSale.products || []).map((p) => ({
+                        name: p.name,
+                        quantity: p.quantity,
+                        rate: p.rate,
+                        size: p.size || '',
+                        material: p.material || '',
+                      })),
+                      paidAmount: lastSale.totalAmount || 0,
+                      taxRate: 0,
+                      discount: 0,
+                      previousBalance: 0,
+                      notes: 'Converted from POS sale',
+                      date: new Date().toISOString().slice(0, 10),
+                    };
+                    const created = await invoicesAPI.create(inv);
+                    toast.success('POS sale converted to invoice');
+                    navigate(`/invoices/${created.data?.id || ''}`);
+                  } catch (err) {
+                    console.error(err);
+                    toast.error('Failed to convert to invoice');
+                  }
+                }}
+              >
+                <FileSpreadsheet className="h-4 w-4 mr-2" />Convert to Invoice
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
@@ -284,7 +289,14 @@ const POS = () => {
                 </div>
               </button>
             ))}
-            {!filtered.length && <p className="col-span-full text-center text-gray-500 py-8">No items</p>}
+            {!filtered.length && (
+              <div className="col-span-full text-center text-gray-500 py-8 space-y-3">
+                <p>No items in catalog</p>
+                <Button size="sm" style={{ backgroundColor: primary || '#F26522' }} className="text-white" onClick={() => navigate('/warehouse/products?new=1')}>
+                  <PackagePlus className="h-4 w-4 mr-2" />Add New Product
+                </Button>
+              </div>
+            )}
           </div>
         </div>
 

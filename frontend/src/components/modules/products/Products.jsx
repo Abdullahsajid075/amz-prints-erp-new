@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -69,6 +70,7 @@ const emptyProduct = {
 };
 
 const Products = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
   const [designers, setDesigners] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -120,11 +122,20 @@ const Products = () => {
     return matchSearch && matchCategory && matchType;
   });
 
-  const openCreateDialog = () => {
+  const openCreateDialog = useCallback(() => {
     setEditingProduct(null);
     setFormData(emptyProduct);
     setDialogOpen(true);
-  };
+  }, []);
+
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      openCreateDialog();
+      const next = new URLSearchParams(searchParams);
+      next.delete('new');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams, openCreateDialog]);
 
   const openEditDialog = (product) => {
     setEditingProduct(product);

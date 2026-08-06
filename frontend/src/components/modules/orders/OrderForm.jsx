@@ -12,11 +12,12 @@ import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPic
 import { ORDER_STATUS } from '@/utils/constants';
 import { formatCurrency } from '@/utils/helpers';
 import { useBrand } from '@/context/BrandContext';
-import { Plus, Trash2, Save, ArrowLeft, ClipboardList } from 'lucide-react';
+import { Plus, Trash2, Save, ArrowLeft, ClipboardList, PackagePlus } from 'lucide-react';
 import { toast } from 'sonner';
 
 const emptyProduct = () => ({
   _key: `p_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+  productId: '',
   name: '',
   quantity: 1,
   rate: 0,
@@ -105,6 +106,7 @@ const OrderForm = () => {
         ? o.products.map((p, i) => ({
             _key: p._key || p.id || `p_${i}_${Date.now()}`,
             name: p.name || '',
+            productId: p.productId || '',
             quantity: Number(p.quantity) || 1,
             rate: Number(p.rate) || 0,
             size: p.size || '',
@@ -201,6 +203,9 @@ const OrderForm = () => {
   }, [formData.assignedDesigner, designers]);
 
   const catalogValueFor = (line) => {
+    if (line.productId && catalog.some((p) => String(p.id) === String(line.productId))) {
+      return String(line.productId);
+    }
     const match = catalog.find((p) => String(p.name).toLowerCase() === String(line.name || '').toLowerCase());
     return match ? String(match.id) : undefined;
   };
@@ -220,6 +225,7 @@ const OrderForm = () => {
         i === index
           ? {
               ...line,
+              productId: String(p.id),
               name: p.name || line.name,
               rate: Number(p.rate ?? p.basePrice ?? line.rate) || 0,
               size: p.size || line.size || '',
@@ -230,6 +236,12 @@ const OrderForm = () => {
       return { ...prev, products };
     });
   };
+
+  const goAddProduct = () => {
+    navigate('/warehouse/products?new=1');
+  };
+
+  const lineHasCatalogProduct = (line) => Boolean(catalogValueFor(line));
 
   const addProduct = () => {
     setFormData((prev) => ({ ...prev, products: [...prev.products, emptyProduct()] }));
@@ -265,8 +277,12 @@ const OrderForm = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!requireCustomer(formData)) return;
-    if (!formData.products.some((p) => String(p.name || '').trim())) {
-      toast.error('Add at least one product');
+    if (!catalog.length) {
+      toast.error('Pehle catalog me product add karein');
+      return;
+    }
+    if (!formData.products.every(lineHasCatalogProduct)) {
+      toast.error('Har item pe catalog se product select karein (optional name allowed nahi)');
       return;
     }
     if (isEdit && !orderId) {
@@ -497,10 +513,23 @@ const OrderForm = () => {
         </div>
 
         <Card className="border-orange-100/80 shadow-sm rounded-2xl">
-          <CardHeader className="py-3">
+          <CardHeader className="py-3 flex flex-row items-center justify-between gap-2 space-y-0">
             <CardTitle className="text-base">Products / Items</CardTitle>
+            <Button type="button" size="sm" variant="outline" onClick={goAddProduct} data-testid="goto-add-product">
+              <PackagePlus className="h-4 w-4 mr-1.5" />
+              Add New Product
+            </Button>
           </CardHeader>
           <CardContent className="space-y-3 pt-0">
+            {!catalog.length && (
+              <div className="rounded-xl border border-dashed border-orange-300 bg-orange-50/60 p-4 text-center space-y-2">
+                <p className="text-sm text-gray-700">Catalog khali hai — pehle product add karein, phir order book karein.</p>
+                <Button type="button" size="sm" style={{ backgroundColor: accent }} className="text-white" onClick={goAddProduct}>
+                  <PackagePlus className="h-4 w-4 mr-1.5" />
+                  Add New Product
+                </Button>
+              </div>
+            )}
             {formData.products.map((product, index) => (
               <div key={product._key} className="rounded-xl border border-gray-100 bg-white p-3 space-y-2 shadow-sm" data-testid={`product-${index}`}>
                 <div className="flex items-center justify-between">
@@ -513,29 +542,22 @@ const OrderForm = () => {
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
                   <div className="col-span-2 sm:col-span-3">
-                    <Label className="text-xs">Product *</Label>
-                    {catalog.length > 0 && (
-                      <Select value={catalogValueFor(product)} onValueChange={(v) => pickProduct(index, v)}>
-                        <SelectTrigger className="bg-white mb-1 h-9">
-                          <SelectValue placeholder="Pick from catalog" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {catalog.map((p) => (
-                            <SelectItem key={p.id} value={String(p.id)}>
-                              {p.name} · {formatCurrency(p.rate || p.basePrice)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <Label className="text-xs">Product * (catalog se select)</Label>
+                    <Select value={catalogValueFor(product)} onValueChange={(v) => pickProduct(index, v)} required>
+                      <SelectTrigger className="bg-white h-9" data-testid={`product-select-${index}`}>
+                        <SelectValue placeholder="Select product from catalog" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {catalog.map((p) => (
+                          <SelectItem key={p.id} value={String(p.id)}>
+                            {p.name} · {formatCurrency(p.rate || p.basePrice)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {!lineHasCatalogProduct(product) && (
+                      <p className="text-[11px] text-red-600 mt-1">Product select karna lazmi hai</p>
                     )}
-                    <Input
-                      className="bg-white h-9"
-                      value={product.name}
-                      onChange={(e) => handleProductChange(index, 'name', e.target.value)}
-                      required
-                      placeholder="Product name"
-                      data-testid={`product-name-${index}`}
-                    />
                   </div>
                   <div>
                     <Label className="text-xs">Qty *</Label>

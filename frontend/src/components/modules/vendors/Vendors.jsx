@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +18,7 @@ const CATEGORIES = ['Materials', 'Ink & Toner', 'Machinery', 'Outsourced Printin
 const PAYMENT_TERMS = ['Cash on Delivery', 'Net 7', 'Net 15', 'Net 30', 'Net 60', 'Net 90', 'Advance'];
 
 const Vendors = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -43,8 +45,17 @@ const Vendors = () => {
     active: vendors.filter(v => (v.totalPurchases || 0) > 0).length
   };
 
-  const openCreate = () => { setEditing(null); setFormData(emptyVendor); setDialogOpen(true); };
+  const openCreate = useCallback(() => { setEditing(null); setFormData(emptyVendor); setDialogOpen(true); }, []);
   const openEdit = (v) => { setEditing(v); setFormData(v); setDialogOpen(true); };
+
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      openCreate();
+      const next = new URLSearchParams(searchParams);
+      next.delete('new');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams, openCreate]);
 
   const handleSave = async (e) => {
     e.preventDefault();

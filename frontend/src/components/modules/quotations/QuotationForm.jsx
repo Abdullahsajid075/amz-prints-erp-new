@@ -11,11 +11,12 @@ import { applyServerNotificationHint, notifyOrderEvent } from '@/services/notifi
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import { formatCurrency } from '@/utils/helpers';
 import { useBrand } from '@/context/BrandContext';
-import { ArrowLeft, Plus, Trash2, Save, ShoppingCart, Printer, FileText } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Save, ShoppingCart, Printer, FileText, PackagePlus } from 'lucide-react';
 import { toast } from 'sonner';
 
 const emptyLine = () => ({
   _key: `l_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+  productId: '',
   name: '',
   quantity: 1,
   rate: 0,
@@ -79,6 +80,7 @@ const QuotationForm = ({ printMode = false }) => {
       const products = Array.isArray(q.products) && q.products.length
         ? q.products.map((p, i) => ({
             _key: p._key || p.id || `l_${i}_${Date.now()}`,
+            productId: p.productId || '',
             name: p.name || '',
             quantity: Number(p.quantity) || 1,
             rate: Number(p.rate) || 0,
@@ -138,6 +140,7 @@ const QuotationForm = ({ printMode = false }) => {
         i === index
           ? {
               ...line,
+              productId: String(p.id),
               name: p.name || line.name,
               rate: Number(p.rate ?? p.basePrice ?? line.rate) || 0,
               size: p.size || line.size || '',
@@ -150,9 +153,16 @@ const QuotationForm = ({ printMode = false }) => {
   };
 
   const catalogValueFor = (line) => {
+    if (line.productId && catalog.some((p) => String(p.id) === String(line.productId))) {
+      return String(line.productId);
+    }
     const match = catalog.find((p) => String(p.name).toLowerCase() === String(line.name || '').toLowerCase());
     return match ? String(match.id) : undefined;
   };
+
+  const lineHasCatalogProduct = (line) => Boolean(catalogValueFor(line));
+
+  const goAddProduct = () => navigate('/warehouse/products?new=1');
 
   const buildPayload = () => ({
     customerId: form.customerId,
@@ -162,7 +172,8 @@ const QuotationForm = ({ printMode = false }) => {
     customerAddress: form.customerAddress,
     remarks: form.remarks,
     status: form.status,
-    products: form.products.map(({ name, quantity, rate, size, material, notes }) => ({
+    products: form.products.map(({ productId, name, quantity, rate, size, material, notes }) => ({
+      productId: productId || '',
       name,
       quantity: Number(quantity) || 0,
       rate: Number(rate) || 0,
@@ -197,8 +208,12 @@ const QuotationForm = ({ printMode = false }) => {
 
   const handleSave = async () => {
     if (!requireCustomer(form)) return;
-    if (!form.products.some((p) => String(p.name || '').trim())) {
-      toast.error('Add at least one line item');
+    if (!catalog.length) {
+      toast.error('Pehle catalog me product add karein');
+      return;
+    }
+    if (!form.products.every(lineHasCatalogProduct)) {
+      toast.error('Har item pe catalog se product select karein');
       return;
     }
     if (isEdit && !quotationId) {
@@ -229,8 +244,12 @@ const QuotationForm = ({ printMode = false }) => {
 
   const convertToOrder = async () => {
     if (!requireCustomer(form)) return;
-    if (!form.products.some((p) => String(p.name || '').trim())) {
-      toast.error('Add at least one line item');
+    if (!catalog.length) {
+      toast.error('Pehle catalog me product add karein');
+      return;
+    }
+    if (!form.products.every(lineHasCatalogProduct)) {
+      toast.error('Har item pe catalog se product select karein');
       return;
     }
     setSaving(true);
@@ -469,28 +488,41 @@ const QuotationForm = ({ printMode = false }) => {
         </Card>
 
         <Card className="lg:col-span-2 border-orange-100/80 shadow-sm rounded-2xl">
-          <CardHeader className="py-3 flex flex-row items-center justify-between space-y-0">
+          <CardHeader className="py-3 flex flex-row items-center justify-between space-y-0 gap-2">
             <CardTitle className="text-base">Line Items</CardTitle>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setForm((prev) => ({ ...prev, products: [...prev.products, emptyLine()] }))}
-            >
-              <Plus className="h-4 w-4 mr-1" />Add
-            </Button>
+            <div className="flex gap-2">
+              <Button type="button" size="sm" variant="outline" onClick={goAddProduct}>
+                <PackagePlus className="h-4 w-4 mr-1" />Add New Product
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setForm((prev) => ({ ...prev, products: [...prev.products, emptyLine()] }))}
+              >
+                <Plus className="h-4 w-4 mr-1" />Add
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-3 pt-0">
+            {!catalog.length && (
+              <div className="rounded-xl border border-dashed border-orange-300 bg-orange-50/60 p-3 text-center space-y-2">
+                <p className="text-sm text-gray-700">Catalog empty — pehle product add karein.</p>
+                <Button type="button" size="sm" style={{ backgroundColor: accent }} className="text-white" onClick={goAddProduct}>
+                  <PackagePlus className="h-4 w-4 mr-1" />Add New Product
+                </Button>
+              </div>
+            )}
             {form.products.map((line, index) => (
               <div key={line._key} className="rounded-xl border border-gray-100 bg-gray-50/50 p-3 space-y-2">
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
                   <div className="md:col-span-5">
-                    <Label className="text-xs">Product</Label>
+                    <Label className="text-xs">Product * (catalog)</Label>
                     <Select
                       value={catalogValueFor(line)}
                       onValueChange={(v) => pickProduct(index, v)}
                     >
                       <SelectTrigger className="bg-white">
-                        <SelectValue placeholder={line.name || 'Pick from catalog'} />
+                        <SelectValue placeholder="Select product from catalog" />
                       </SelectTrigger>
                       <SelectContent>
                         {catalog.map((p) => (
@@ -500,12 +532,9 @@ const QuotationForm = ({ printMode = false }) => {
                         ))}
                       </SelectContent>
                     </Select>
-                    <Input
-                      className="mt-1 bg-white"
-                      placeholder="Or type product name"
-                      value={line.name}
-                      onChange={(e) => setLine(index, 'name', e.target.value)}
-                    />
+                    {!lineHasCatalogProduct(line) && (
+                      <p className="text-[11px] text-red-600 mt-1">Product select lazmi hai</p>
+                    )}
                   </div>
                   <div className="md:col-span-2">
                     <Label className="text-xs">Qty</Label>

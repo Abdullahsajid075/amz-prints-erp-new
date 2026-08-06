@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { purchasesAPI, vendorsAPI, ordersAPI, productsAPI, paymentsAPI } from '@/services/api';
 import { formatCurrency, formatDate } from '@/utils/helpers';
-import { Plus, Search, Eye, Edit, Trash2, ShoppingBag, PackageCheck, Paperclip, AlertTriangle, X, Save, FileText, Link2 } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Trash2, ShoppingBag, PackageCheck, Paperclip, AlertTriangle, X, Save, FileText, Link2, PackagePlus, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const PO_STATUS = ['Draft', 'Ordered', 'Partial Paid', 'Fully Paid', 'Received'];
@@ -25,6 +26,7 @@ const emptyPurchase = {
 };
 
 const Purchases = () => {
+  const navigate = useNavigate();
   const [purchases, setPurchases] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -163,6 +165,14 @@ const Purchases = () => {
 
   const handleSave = async (e) => {
     e.preventDefault();
+    if (!formData.vendorId) {
+      toast.error('Vendor select karein — ya pehle Add New Vendor');
+      return;
+    }
+    if (!formData.items.every((it) => it.productId)) {
+      toast.error('Har line pe product select karein — ya Add New Product');
+      return;
+    }
     setSaving(true);
     const vendor = vendors.find(v => v.id === formData.vendorId);
     const totalAmount = calcTotal();
@@ -363,11 +373,31 @@ const Purchases = () => {
           <DialogHeader><DialogTitle className="text-2xl font-bold" style={{ color: '#2E2E2E' }}>{editing ? 'Edit PO' : 'New Purchase Order'}</DialogTitle></DialogHeader>
           <form onSubmit={handleSave} className="space-y-4 mt-4">
             <div className="grid grid-cols-2 gap-4">
-              <div><Label>Vendor *</Label>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <Label>Vendor *</Label>
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="h-auto p-0 text-xs"
+                    style={{ color: '#F26522' }}
+                    onClick={() => navigate('/accounts/vendors?new=1')}
+                  >
+                    <Building2 className="h-3 w-3 mr-1" />Add New Vendor
+                  </Button>
+                </div>
                 <Select value={formData.vendorId} onValueChange={(v) => setFormData({ ...formData, vendorId: v })}>
                   <SelectTrigger data-testid="vendor-select"><SelectValue placeholder="Select vendor" /></SelectTrigger>
                   <SelectContent>{vendors.map(v => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}</SelectContent>
                 </Select>
+                {!vendors.length && (
+                  <p className="text-[11px] text-red-600 mt-1">
+                    Koi vendor nahi —{' '}
+                    <button type="button" className="underline font-medium" onClick={() => navigate('/accounts/vendors?new=1')}>
+                      Add New Vendor
+                    </button>
+                  </p>
+                )}
               </div>
               <div><Label>Vendor Invoice #</Label><Input value={formData.vendorInvoiceNumber} onChange={(e) => setFormData({ ...formData, vendorInvoiceNumber: e.target.value })} /></div>
               <div><Label>Purchase Date</Label><Input type="date" value={formData.purchaseDate} onChange={(e) => setFormData({ ...formData, purchaseDate: e.target.value })} /></div>
@@ -398,12 +428,28 @@ const Purchases = () => {
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-2"><Label>Items</Label><Button type="button" size="sm" variant="outline" onClick={addItem}><Plus className="h-3 w-3 mr-1" />Add Item</Button></div>
+              <div className="flex items-center justify-between mb-2">
+                <Label>Items</Label>
+                <div className="flex gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={() => navigate('/warehouse/products?new=1')}>
+                    <PackagePlus className="h-3 w-3 mr-1" />Add New Product
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" onClick={addItem}><Plus className="h-3 w-3 mr-1" />Add Item</Button>
+                </div>
+              </div>
+              {!products.length && (
+                <div className="mb-2 rounded-lg border border-dashed border-orange-300 bg-orange-50/60 p-3 text-center text-sm">
+                  Catalog empty —{' '}
+                  <button type="button" className="underline font-medium text-orange-700" onClick={() => navigate('/warehouse/products?new=1')}>
+                    Add New Product
+                  </button>
+                </div>
+              )}
               <div className="space-y-2">
                 {formData.items.map((item, i) => (
                   <div key={item._key || item.id || `item-${i}`} className="grid grid-cols-12 gap-2 items-end p-2 border rounded">
                     <div className="col-span-5">
-                      <Label className="text-xs">Product</Label>
+                      <Label className="text-xs">Product *</Label>
                       <Select value={item.productId || undefined} onValueChange={(v) => selectProduct(i, v)}>
                         <SelectTrigger data-testid={`product-select-${i}`}><SelectValue placeholder="Select product" /></SelectTrigger>
                         <SelectContent>
