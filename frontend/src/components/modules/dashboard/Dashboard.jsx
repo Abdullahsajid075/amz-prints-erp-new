@@ -11,7 +11,7 @@ import {
   TrendingUp, TrendingDown, ShoppingCart, CheckCircle, DollarSign,
   Receipt, Users, Calendar, Activity, FileText, FileSpreadsheet, RefreshCw,
   ArrowRight, Wallet, Plus, Ticket, Store, AlertTriangle, Search,
-  Palette, Printer, PackageCheck, Sparkles
+  Palette, Printer, PackageCheck, Sparkles, Calculator
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -32,6 +32,7 @@ const QUICK_ACTIONS = [
   { label: 'Quotation', path: '/quotations/new', icon: FileText, tint: '#8B5CF6' },
   { label: 'Invoice', path: '/invoices/new', icon: FileSpreadsheet, tint: '#F59E0B' },
   { label: 'Customer', path: '/customers', icon: Users, tint: '#64748B' },
+  { label: 'Cost Calc', path: '/calculator', icon: Calculator, tint: '#0D9488' },
 ];
 
 function greetingForHour(h) {

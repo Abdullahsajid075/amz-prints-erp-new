@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, ShoppingCart, Users, Package, Warehouse, FileText,
   CreditCard, Receipt, BarChart3, Settings, X, Ticket, ClipboardList,
-  Store, Quote
+  Store, Quote, Calculator
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -25,6 +25,7 @@ const menuItems = [
     ]
   },
   { icon: Store, label: 'POS', path: '/pos', testId: 'nav-pos' },
+  { icon: Calculator, label: 'Cost Calculator', path: '/calculator', testId: 'nav-calculator' },
   { icon: CreditCard, label: 'Accounts', path: '/accounts', testId: 'nav-accounts',
     children: [
       { label: 'Payments', path: '/accounts/payments' },

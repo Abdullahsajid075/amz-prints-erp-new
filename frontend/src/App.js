@@ -31,6 +31,7 @@ import QuotationForm from '@/components/modules/quotations/QuotationForm';
 import Warehouse from '@/components/modules/warehouse/Warehouse';
 import Accounts from '@/components/modules/accounts/Accounts';
 import POS from '@/components/modules/pos/POS';
+import PrintingCostCalculator from '@/components/modules/calculator/PrintingCostCalculator';
 
 /**
  * App shell (Brand + Auth) only mounts for protected routes.
@@ -102,6 +103,8 @@ function App() {
           <Route path="employees" element={<Navigate to="/dashboard" replace />} />
 
           <Route path="pos" element={<POS />} />
+
+          <Route path="calculator" element={<PrintingCostCalculator />} />
 
           <Route path="accounts" element={<Accounts />} />
           <Route path="accounts/payments" element={<Payments />} />
