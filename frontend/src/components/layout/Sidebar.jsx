@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, ShoppingCart, Users, Package, Warehouse, FileText,
   CreditCard, Receipt, BarChart3, Settings, X, Ticket, ClipboardList,
-  Store, Quote, Calculator
+  Store, Quote, Calculator, Kanban
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -17,6 +17,7 @@ const menuItems = [
   { icon: Ticket, label: 'Token Booking', path: '/tokens', testId: 'nav-tokens' },
   { icon: FileText, label: 'Invoices', path: '/invoices', testId: 'nav-invoices' },
   { icon: Users, label: 'Customers', path: '/customers', testId: 'nav-customers' },
+  { icon: Kanban, label: 'CRM', path: '/crm', testId: 'nav-crm' },
   { icon: Warehouse, label: 'Warehouse', path: '/warehouse', testId: 'nav-warehouse',
     children: [
       { label: 'Products', path: '/warehouse/products' },

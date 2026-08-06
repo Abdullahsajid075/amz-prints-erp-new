@@ -12,6 +12,7 @@ import OrdersList from '@/components/modules/orders/OrdersList';
 import OrderForm from '@/components/modules/orders/OrderForm';
 import DeliverySlip from '@/components/modules/orders/DeliverySlip';
 import Customers from '@/components/modules/customers/Customers';
+import CustomerCRM from '@/components/modules/crm/CustomerCRM';
 import Products from '@/components/modules/products/Products';
 import Designers from '@/components/modules/designers/Designers';
 import Inventory from '@/components/modules/inventory/Inventory';
@@ -108,6 +109,7 @@ function App() {
           <Route path="orders/:orderId/delivery-slip" element={<DeliverySlip />} />
 
           <Route path="customers" element={<Customers />} />
+          <Route path="crm" element={<CustomerCRM />} />
 
           <Route path="warehouse" element={<Warehouse />} />
           <Route path="warehouse/products" element={<Products />} />

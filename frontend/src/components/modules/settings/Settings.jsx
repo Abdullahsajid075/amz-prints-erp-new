@@ -17,8 +17,9 @@ import {
   sendTestEmail,
   openWhatsAppChat,
 } from '@/services/notifications';
-import { Save, Building2, FileText, Palette, Users, ShoppingCart, Package, UserCog, CreditCard, Bell, Shield, Database, Trash2, Plus, X, Edit, MessageCircle, Mail } from 'lucide-react';
+import { Save, Building2, FileText, Palette, Users, ShoppingCart, Package, UserCog, CreditCard, Bell, Shield, Database, Trash2, Plus, X, Edit, MessageCircle, Mail, Kanban } from 'lucide-react';
 import { toast } from 'sonner';
+import { DEFAULT_CRM_STAGES } from '@/utils/crmStages';
 
 const defaultSettings = {
   company: { name: 'AMZ Prints', tagline: 'Professional Printing & Advertising Services', address: '', phone: '', email: '', website: '', taxId: '', authorizedSignatory: 'Authorized Person', logo: '', stamp: '', signature: '' },
@@ -26,6 +27,7 @@ const defaultSettings = {
   theme: { primary: '#F26522', secondary: '#2E2E2E', accent: '#10B981' },
   orders: { autoNumber: true, orderPrefix: 'ORD-', defaultStatus: 'Order Received', requireDeliveryDate: true },
   customers: { autoCode: true, codePrefix: 'CUST-', creditLimit: 50000, requirePhone: true },
+  crm: { stages: DEFAULT_CRM_STAGES },
   products: { defaultUnit: 'per piece', trackStock: true, allowNegativeStock: false, categories: ['Business Cards', 'Flyers', 'Banners'] },
   designers: { assignAuto: false, trackHours: true, showWorkload: true },
   employees: { attendanceEnabled: true, salaryPeriod: 'monthly' },
@@ -126,6 +128,18 @@ function mergeSettingsFromApi(data) {
     theme: section('theme'),
     orders: section('orders'),
     customers: section('customers'),
+    crm: (() => {
+      const raw = parseMaybeJson(data.crm);
+      const base = { ...defaultSettings.crm };
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        return {
+          ...base,
+          ...raw,
+          stages: Array.isArray(raw.stages) && raw.stages.length ? raw.stages : base.stages,
+        };
+      }
+      return base;
+    })(),
     products: section('products'),
     designers: section('designers'),
     employees: section('employees'),
@@ -467,6 +481,84 @@ const Settings = () => {
                 <div><Label>Credit Limit</Label><Input type="number" value={settings.customers.creditLimit} onChange={(e) => update('customers', 'creditLimit', parseFloat(e.target.value) || 0)} /></div>
                 <div className="flex items-center justify-between"><Label>Auto codes</Label><Switch checked={settings.customers.autoCode} onCheckedChange={(v) => update('customers', 'autoCode', v)} /></div>
                 <div className="flex items-center justify-between"><Label>Phone required</Label><Switch checked={settings.customers.requirePhone} onCheckedChange={(v) => update('customers', 'requirePhone', v)} /></div>
+              </CardContent>
+            </Card>
+            <Card><CardHeader><CardTitle className="flex items-center gap-2"><Kanban className="h-5 w-5" />CRM Pipeline Stages</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-xs text-gray-500">These stages appear as columns on the CRM board. Use short keys (e.g. lead, won).</p>
+                {(settings.crm?.stages || []).map((stage, idx) => (
+                  <div key={`crm-stage-${idx}`} className="grid grid-cols-12 gap-2 items-end">
+                    <div className="col-span-3">
+                      <Label className="text-xs">Key</Label>
+                      <Input
+                        value={stage.key || ''}
+                        onChange={(e) => {
+                          const stages = [...(settings.crm.stages || [])];
+                          stages[idx] = { ...stages[idx], key: e.target.value };
+                          update('crm', 'stages', stages);
+                        }}
+                      />
+                    </div>
+                    <div className="col-span-4">
+                      <Label className="text-xs">Label</Label>
+                      <Input
+                        value={stage.label || ''}
+                        onChange={(e) => {
+                          const stages = [...(settings.crm.stages || [])];
+                          stages[idx] = { ...stages[idx], label: e.target.value };
+                          update('crm', 'stages', stages);
+                        }}
+                      />
+                    </div>
+                    <div className="col-span-3">
+                      <Label className="text-xs">Color</Label>
+                      <Input
+                        type="color"
+                        value={stage.color || '#6B7280'}
+                        onChange={(e) => {
+                          const stages = [...(settings.crm.stages || [])];
+                          stages[idx] = { ...stages[idx], color: e.target.value };
+                          update('crm', 'stages', stages);
+                        }}
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="w-full"
+                        onClick={() => {
+                          const stages = (settings.crm.stages || []).filter((_, i) => i !== idx);
+                          update('crm', 'stages', stages.length ? stages : DEFAULT_CRM_STAGES);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 text-rose-500" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => update('crm', 'stages', [
+                      ...(settings.crm.stages || []),
+                      { key: `stage_${(settings.crm.stages || []).length + 1}`, label: 'New stage', color: '#6B7280' },
+                    ])}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />Add stage
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => update('crm', 'stages', DEFAULT_CRM_STAGES)}
+                  >
+                    Reset defaults
+                  </Button>
+                </div>
               </CardContent>
             </Card>
             <Card><CardHeader><CardTitle className="flex items-center gap-2"><Package className="h-5 w-5" />Products</CardTitle></CardHeader>

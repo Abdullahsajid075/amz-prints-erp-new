@@ -16,6 +16,7 @@ var SHEET_NAMES = {
   USERS: 'Users',
   ORDERS: 'Orders',
   CUSTOMERS: 'Customers',
+  CRM_NOTES: 'CrmNotes',
   PRODUCTS: 'Products',
   INVOICES: 'Invoices',
   VENDORS: 'Vendors',
@@ -26,9 +27,20 @@ var SHEET_NAMES = {
   SETTINGS: 'Settings',
 };
 
+var DEFAULT_CRM_STAGES = [
+  { key: 'lead', label: 'Lead', color: '#3B82F6' },
+  { key: 'contacted', label: 'Contacted', color: '#8B5CF6' },
+  { key: 'qualified', label: 'Qualified', color: '#F59E0B' },
+  { key: 'proposal', label: 'Proposal', color: '#F26522' },
+  { key: 'negotiation', label: 'Negotiation', color: '#06B6D4' },
+  { key: 'won', label: 'Won', color: '#10B981' },
+  { key: 'lost', label: 'Lost', color: '#EF4444' },
+];
+
 var DEFAULT_HEADERS = {
   Users: ['Username', 'Password', 'Name', 'Role', 'Status', 'Permissions'],
-  Customers: ['Id', 'Name', 'Phone', 'Email', 'Address', 'City', 'Notes', 'NotifyWhatsApp', 'NotifyEmail'],
+  Customers: ['Id', 'Name', 'Phone', 'Email', 'Address', 'City', 'Notes', 'Stage', 'StageUpdatedAt', 'NotifyWhatsApp', 'NotifyEmail'],
+  CrmNotes: ['Id', 'CustomerId', 'Note', 'CreatedAt', 'CreatedBy'],
   Orders: [
     'Id', 'OrderId', 'Date', 'CustomerId', 'CustomerName', 'CustomerPhone',
     'CustomerEmail', 'CustomerAddress', 'Status', 'DeliveryDate', 'Products',
@@ -85,6 +97,23 @@ function getSpreadsheet_() {
 function getSheet_(name) {
   var sheet = getSpreadsheet_().getSheetByName(name);
   if (!sheet) throw new Error('Sheet not found: ' + name);
+  return sheet;
+}
+
+/** Create sheet + headers if missing (used for optional sheets like CrmNotes). */
+function getOrCreateSheet_(name) {
+  var ss = getSpreadsheet_();
+  var sheet = ss.getSheetByName(name);
+  if (!sheet) {
+    sheet = ss.insertSheet(name);
+    var headers = DEFAULT_HEADERS[name];
+    if (headers && headers.length) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      SpreadsheetApp.flush();
+    }
+  } else {
+    ensureHeaders_(sheet, name);
+  }
   return sheet;
 }
 
@@ -643,9 +672,16 @@ function validateToken_(token) {
   }
 }
 
-/* ===================== CUSTOMERS ===================== */
+/* ===================== CUSTOMERS + CRM ===================== */
+
+function normalizeCrmStage_(value) {
+  var s = String(value || '').trim().toLowerCase();
+  if (!s) return 'lead';
+  return s.replace(/\s+/g, '_');
+}
 
 function normalizeCustomer_(body) {
+  var stageRaw = body.stage != null ? body.stage : body.crmStage;
   return {
     id: body.id || '',
     name: body.name || body.customerName || body.customername || '',
@@ -654,6 +690,8 @@ function normalizeCustomer_(body) {
     address: body.address || body.customerAddress || body.customeraddress || '',
     city: body.city || '',
     notes: body.notes || '',
+    stage: stageRaw != null && stageRaw !== '' ? normalizeCrmStage_(stageRaw) : undefined,
+    stageupdatedat: body.stageUpdatedAt || body.stageupdatedat || '',
     notifywhatsapp: body.notifyWhatsApp != null ? body.notifyWhatsApp : (body.notifywhatsapp != null ? body.notifywhatsapp : true),
     notifyemail: body.notifyEmail != null ? body.notifyEmail : (body.notifyemail != null ? body.notifyemail : true),
   };
@@ -668,9 +706,65 @@ function toApiCustomer_(c) {
     address: c.address || '',
     city: c.city || '',
     notes: c.notes || '',
+    stage: normalizeCrmStage_(c.stage || 'lead'),
+    stageUpdatedAt: c.stageupdatedat || '',
     notifyWhatsApp: isNotifyOn_(c.notifywhatsapp),
     notifyEmail: isNotifyOn_(c.notifyemail),
   };
+}
+
+function toApiCrmNote_(n) {
+  return {
+    id: n.id || '',
+    customerId: n.customerid || '',
+    note: n.note || '',
+    createdAt: n.createdat || '',
+    createdBy: n.createdby || '',
+  };
+}
+
+function listCrmNotes_(customerId) {
+  var sheet = getOrCreateSheet_(SHEET_NAMES.CRM_NOTES);
+  ensureHeaders_(sheet, SHEET_NAMES.CRM_NOTES);
+  var rows = getSheetRows_(SHEET_NAMES.CRM_NOTES);
+  return rows
+    .filter(function (n) { return String(n.customerid) === String(customerId); })
+    .map(toApiCrmNote_)
+    .sort(function (a, b) {
+      return String(b.createdAt).localeCompare(String(a.createdAt));
+    });
+}
+
+function addCrmNote_(customerId, body) {
+  var text = String((body && (body.note || body.text || body.notes)) || '').trim();
+  if (!text) throw new Error('Note text required');
+  var sheet = getOrCreateSheet_(SHEET_NAMES.CRM_NOTES);
+  ensureHeaders_(sheet, SHEET_NAMES.CRM_NOTES);
+  var record = {
+    id: 'note_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+    customerid: String(customerId),
+    note: text,
+    createdat: new Date().toISOString(),
+    createdby: String((body && (body.createdBy || body.createdby)) || 'staff'),
+  };
+  appendObject_(sheet, SHEET_NAMES.CRM_NOTES, record);
+  invalidateSheetCache_(SHEET_NAMES.CRM_NOTES);
+  return toApiCrmNote_(record);
+}
+
+function deleteCrmNote_(customerId, noteId) {
+  var sheet = getOrCreateSheet_(SHEET_NAMES.CRM_NOTES);
+  var rows = getSheetRows_(SHEET_NAMES.CRM_NOTES);
+  var idx = -1;
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i].id) === String(noteId) && String(rows[i].customerid) === String(customerId)) {
+      idx = i;
+      break;
+    }
+  }
+  if (idx < 0) throw new Error('Note not found');
+  deleteRow_(sheet, rows[idx]._row, SHEET_NAMES.CRM_NOTES);
+  return { success: true };
 }
 
 function isNotifyOn_(value) {
@@ -707,6 +801,10 @@ function upsertCustomer_(body) {
       city: data.city || existing.city,
       notes: data.notes || existing.notes,
     };
+    if (data.stage) {
+      updates.stage = data.stage;
+      updates.stageupdatedat = new Date().toISOString();
+    }
     if (body.notifyWhatsApp != null || body.notifywhatsapp != null) {
       updates.notifywhatsapp = data.notifywhatsapp;
     }
@@ -718,14 +816,19 @@ function upsertCustomer_(body) {
   }
 
   data.id = data.id || ('cust_' + Date.now());
+  if (!data.stage) data.stage = 'lead';
+  data.stageupdatedat = data.stageupdatedat || new Date().toISOString();
   if (data.notifywhatsapp === undefined || data.notifywhatsapp === '') data.notifywhatsapp = true;
   if (data.notifyemail === undefined || data.notifyemail === '') data.notifyemail = true;
+  // ensure Stage columns exist before append
+  ensureHeaders_(sheet, SHEET_NAMES.CUSTOMERS);
   appendObject_(sheet, SHEET_NAMES.CUSTOMERS, data);
   return toApiCustomer_(data);
 }
 
 function handleCustomers_(path, method, body) {
   var sheet = getSheet_(SHEET_NAMES.CUSTOMERS);
+  ensureHeaders_(sheet, SHEET_NAMES.CUSTOMERS);
   var customers = getSheetRows_(SHEET_NAMES.CUSTOMERS);
 
   if (path.endsWith('/ledger')) {
@@ -736,7 +839,7 @@ function handleCustomers_(path, method, body) {
       return String(o.customerid) === String(customer.id) || String(o.customerphone) === String(customer.phone);
     });
     return {
-      customer: customer,
+      customer: toApiCustomer_(customer),
       invoices: [],
       orders: orders,
       payments: [],
@@ -744,6 +847,34 @@ function handleCustomers_(path, method, body) {
       totalPaid: orders.reduce(function (s, o) { return s + Number(o.advancepayment || 0); }, 0),
       outstanding: orders.reduce(function (s, o) { return s + Number(o.balanceamount || 0); }, 0),
     };
+  }
+
+  // /customers/:id/notes  or  /customers/:id/notes/:noteId
+  var notesMatch = path.match(/^\/customers\/([^/]+)\/notes(?:\/([^/]+))?$/);
+  if (notesMatch) {
+    var noteCustomerId = decodeURIComponent(notesMatch[1]);
+    var noteId = notesMatch[2] ? decodeURIComponent(notesMatch[2]) : '';
+    var noteCustIdx = findById_(customers, noteCustomerId);
+    if (noteCustIdx < 0) throw new Error('Customer not found');
+    if (!noteId && method === 'GET') return listCrmNotes_(noteCustomerId);
+    if (!noteId && method === 'POST') return addCrmNote_(noteCustomerId, body || {});
+    if (noteId && method === 'DELETE') return deleteCrmNote_(noteCustomerId, noteId);
+    throw new Error('Method not allowed');
+  }
+
+  // /customers/:id/stage — quick CRM stage move
+  var stageMatch = path.match(/^\/customers\/([^/]+)\/stage$/);
+  if (stageMatch && (method === 'PUT' || method === 'POST')) {
+    var stageCustId = decodeURIComponent(stageMatch[1]);
+    var stageIdx = findById_(customers, stageCustId);
+    if (stageIdx < 0) throw new Error('Customer not found');
+    var nextStage = normalizeCrmStage_((body && (body.stage || body.crmStage)) || 'lead');
+    var stageUpdates = {
+      stage: nextStage,
+      stageupdatedat: new Date().toISOString(),
+    };
+    updateObjectProps_(sheet, SHEET_NAMES.CUSTOMERS, customers[stageIdx]._row, stageUpdates);
+    return toApiCustomer_(Object.assign({}, customers[stageIdx], stageUpdates));
   }
 
   if (path === '/customers') {
@@ -759,9 +890,16 @@ function handleCustomers_(path, method, body) {
 
   if (method === 'GET') return toApiCustomer_(customers[index]);
   if (method === 'PUT') {
-    var updates = normalizeCustomer_(Object.assign({}, customers[index], body));
-    updates.id = customers[index].id;
-    updateObjectProps_(sheet, SHEET_NAMES.CUSTOMERS, customers[index]._row, updates);
+    var prev = customers[index];
+    var updates = normalizeCustomer_(Object.assign({}, prev, body));
+    updates.id = prev.id;
+    if (updates.stage === undefined) updates.stage = normalizeCrmStage_(prev.stage || 'lead');
+    if (body.stage != null || body.crmStage != null) {
+      updates.stageupdatedat = new Date().toISOString();
+    } else {
+      updates.stageupdatedat = prev.stageupdatedat || '';
+    }
+    updateObjectProps_(sheet, SHEET_NAMES.CUSTOMERS, prev._row, updates);
     return toApiCustomer_(updates);
   }
   if (method === 'DELETE') {
@@ -2086,7 +2224,7 @@ function getSettings_() {
   if (Object.prototype.hasOwnProperty.call(obj, 'companyStamp')) obj.company.stamp = obj.companyStamp || '';
   if (Object.prototype.hasOwnProperty.call(obj, 'companySignature')) obj.company.signature = obj.companySignature || '';
 
-  ['invoice', 'theme', 'orders', 'customers', 'products', 'payments', 'users', 'notifications', 'system', 'designers', 'employees'].forEach(function (sec) {
+  ['invoice', 'theme', 'orders', 'customers', 'crm', 'products', 'payments', 'users', 'notifications', 'system', 'designers', 'employees'].forEach(function (sec) {
     if (typeof obj[sec] === 'string') obj[sec] = parseSettingsValue_(obj[sec]);
   });
 
@@ -2117,7 +2255,7 @@ function updateSettings_(body) {
   var incoming = body && typeof body === 'object' ? body : {};
   var payload = Object.assign({}, existing, incoming);
 
-  ['company', 'invoice', 'theme', 'orders', 'customers', 'products', 'payments', 'users', 'notifications', 'system', 'designers', 'employees'].forEach(function (sec) {
+  ['company', 'invoice', 'theme', 'orders', 'customers', 'crm', 'products', 'payments', 'users', 'notifications', 'system', 'designers', 'employees'].forEach(function (sec) {
     var base = (existing[sec] && typeof existing[sec] === 'object') ? existing[sec] : {};
     var next = (incoming[sec] && typeof incoming[sec] === 'object') ? incoming[sec] : null;
     if (next) payload[sec] = Object.assign({}, base, next);
@@ -2520,6 +2658,7 @@ function prepareDatabase() {
   var names = [
     SHEET_NAMES.USERS,
     SHEET_NAMES.CUSTOMERS,
+    SHEET_NAMES.CRM_NOTES,
     SHEET_NAMES.ORDERS,
     SHEET_NAMES.PRODUCTS,
     SHEET_NAMES.INVOICES,
@@ -2533,7 +2672,7 @@ function prepareDatabase() {
   var report = [];
   names.forEach(function (name) {
     try {
-      var sheet = getSheet_(name);
+      var sheet = (name === SHEET_NAMES.CRM_NOTES) ? getOrCreateSheet_(name) : getSheet_(name);
       var headers = ensureHeaders_(sheet, name);
       report.push({ sheet: name, ok: true, columns: headers.length, headers: headers });
     } catch (err) {

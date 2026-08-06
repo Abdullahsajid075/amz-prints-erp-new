@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Switch } from '@/components/ui/switch';
 import { customersAPI } from '@/services/api';
 import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
-import { Plus, Search, Edit, Trash2, User, Phone, Mail, MapPin, FileText, Receipt, CreditCard, TrendingUp, X, Save, BookOpen, Bell } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, User, Phone, Mail, MapPin, FileText, Receipt, CreditCard, TrendingUp, X, Save, BookOpen, Bell, Kanban } from 'lucide-react';
 import { toast } from 'sonner';
 
 const empty = {
@@ -19,6 +20,7 @@ const empty = {
 };
 
 const Customers = () => {
+  const navigate = useNavigate();
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -93,9 +95,14 @@ const Customers = () => {
           <h1 className="text-3xl font-bold" style={{ color: '#1F2937' }}>Customer Portal</h1>
           <p className="text-gray-600 mt-1">Complete customer directory with order history, ledger & running balance</p>
         </div>
-        <Button onClick={openCreate} style={{ backgroundColor: '#F26522' }} className="text-white" data-testid="add-customer-button">
-          <Plus className="h-4 w-4 mr-2" />Add Customer
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => navigate('/crm')} data-testid="open-crm-button">
+            <Kanban className="h-4 w-4 mr-2" />Open CRM
+          </Button>
+          <Button onClick={openCreate} style={{ backgroundColor: '#F26522' }} className="text-white" data-testid="add-customer-button">
+            <Plus className="h-4 w-4 mr-2" />Add Customer
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

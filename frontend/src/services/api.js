@@ -31,6 +31,10 @@ export const customersAPI = {
   update: (id, data) => gasRequest('PUT', `/customers/${id}`, withToken({ data })),
   delete: (id) => gasRequest('DELETE', `/customers/${id}`, withToken()),
   getLedger: (id) => gasRequest('GET', `/customers/${id}/ledger`, withToken()),
+  updateStage: (id, stage) => gasRequest('PUT', `/customers/${id}/stage`, withToken({ data: { stage } })),
+  getNotes: (id) => gasRequest('GET', `/customers/${id}/notes`, withToken()),
+  addNote: (id, data) => gasRequest('POST', `/customers/${id}/notes`, withToken({ data })),
+  deleteNote: (id, noteId) => gasRequest('DELETE', `/customers/${id}/notes/${noteId}`, withToken()),
 };
 
 export const productsAPI = {
