@@ -4,9 +4,10 @@ import { QRCodeSVG } from 'qrcode.react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { invoicesAPI } from '@/services/api';
+import { notifyOrderEvent } from '@/services/notifications';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 import { useBrand } from '@/context/BrandContext';
-import { ArrowLeft, Printer, MessageCircle, Copy, Download, CheckCircle2, Edit } from 'lucide-react';
+import { ArrowLeft, Printer, MessageCircle, Copy, Download, CheckCircle2, Edit, Bell } from 'lucide-react';
 import { toast } from 'sonner';
 
 const InvoiceView = ({ isPublic = false }) => {
@@ -49,11 +50,49 @@ const InvoiceView = ({ isPublic = false }) => {
     toast.success('Shareable link copied!');
   };
 
-  const shareOnWhatsApp = () => {
-    const link = `${window.location.origin}/invoice/${invoice.shareToken}`;
-    const msg = `Hi ${invoice.customerName}, here is your invoice ${invoice.invoiceNumber}. Total: ${formatCurrency(invoice.totalAmount)}. View: ${link}`;
-    const phone = (invoice.customerPhone || '').replace(/\D/g, '');
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+  const pendingBalance = () =>
+    Math.max(0, Number(invoice?.totalAmount || 0) + Number(invoice?.previousBalance || 0) - Number(invoice?.paidAmount || 0));
+
+  const shareOnWhatsApp = async () => {
+    const bal = pendingBalance();
+    await notifyOrderEvent({
+      event: 'invoice_generated',
+      order: {
+        customerName: invoice.customerName,
+        customerPhone: invoice.customerPhone,
+        orderId: invoice.orderId,
+        totalAmount: invoice.totalAmount,
+        balanceAmount: bal,
+      },
+      invoice: { ...invoice, balanceAmount: bal, paidAmount: invoice.paidAmount || 0 },
+      openWhatsApp: true,
+    });
+    toast.message('WhatsApp opened — invoice + pending payment');
+  };
+
+  const sendReminder = async () => {
+    const bal = pendingBalance();
+    if (!(bal > 0)) {
+      toast.error('No pending balance');
+      return;
+    }
+    if (!invoice.customerPhone) {
+      toast.error('Customer phone missing');
+      return;
+    }
+    await notifyOrderEvent({
+      event: 'payment_reminder',
+      order: {
+        customerName: invoice.customerName,
+        customerPhone: invoice.customerPhone,
+        orderId: invoice.orderId,
+        totalAmount: invoice.totalAmount,
+        balanceAmount: bal,
+      },
+      invoice: { ...invoice, balanceAmount: bal, paidAmount: invoice.paidAmount || 0 },
+      openWhatsApp: true,
+    });
+    toast.success('Payment reminder opened on WhatsApp');
   };
 
   if (loading) {
@@ -65,7 +104,7 @@ const InvoiceView = ({ isPublic = false }) => {
   }
 
   const verifyUrl = `${window.location.origin}/invoice/${invoice.shareToken}`;
-  const balance = (invoice.totalAmount || 0) - (invoice.paidAmount || 0);
+  const balance = pendingBalance();
 
   const shellClass = {
     classic: 'invoice-container max-w-4xl mx-auto bg-white shadow-xl border border-gray-200',
@@ -113,6 +152,12 @@ const InvoiceView = ({ isPublic = false }) => {
               <MessageCircle className="h-4 w-4 mr-2" />
               WhatsApp
             </Button>
+            {balance > 0 && (
+              <Button variant="outline" onClick={sendReminder} className="text-amber-700 border-amber-300" data-testid="remind-invoice-button">
+                <Bell className="h-4 w-4 mr-2" />
+                Reminder
+              </Button>
+            )}
             <Button onClick={handlePrint} style={{ backgroundColor: accent }} className="text-white" data-testid="print-invoice-button">
               <Printer className="h-4 w-4 mr-2" />
               Print / PDF

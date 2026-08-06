@@ -134,13 +134,30 @@ export async function notifyOrderEvent({
     customerName: order?.customerName || customer?.name || invoice?.customerName || payment?.party,
     invoice_number: invoice?.invoiceNumber || invoice?.invoiceNo || payment?.reference || '',
     invoice_date: invoice?.date || invoice?.invoiceDate || '',
+    invoice_url: invoice?.shareToken
+      ? `${typeof window !== 'undefined' ? window.location.origin : ''}/invoice/${invoice.shareToken}`
+      : (invoice?.invoiceUrl || ''),
     amount: invoice?.totalAmount ?? invoice?.total ?? order?.totalAmount ?? payment?.amount,
-    balance_due: invoice?.balanceAmount ?? invoice?.balance ?? order?.balanceAmount ?? payment?.balanceDue ?? 0,
-    payment_amount: payment?.amount,
+    paidAmount: invoice?.paidAmount ?? payment?.amount ?? 0,
+    payment_amount: payment?.amount != null ? payment.amount : (invoice?.paidAmount ?? 0),
+    balance_due: invoice?.balanceAmount ?? invoice?.balance
+      ?? (invoice?.totalAmount != null
+        ? Math.max(0, Number(invoice.totalAmount || 0) + Number(invoice.previousBalance || 0) - Number(invoice.paidAmount || 0))
+        : null)
+      ?? order?.balanceAmount ?? payment?.balanceDue ?? 0,
     payment_method: payment?.method || '',
     payment_type: payment?.type === 'outflow' ? 'Cash Out' : (payment?.type === 'inflow' ? 'Cash In' : (payment?.category || '')),
     transaction_number: payment?.reference || payment?.id || '',
   });
+
+  // Ensure invoice link appears for invoice / reminder messages
+  if (
+    (event === 'invoice' || event === 'invoice_generated' || event === 'payment_reminder' || event === 'reminder')
+    && vars.invoice_url
+    && !String(vars.invoice_url).includes('undefined')
+  ) {
+    /* vars already set */
+  }
 
   const channelIds = [];
   const payloadBase = { event, order, invoice, payment, company, customer, vars };

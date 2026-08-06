@@ -6,16 +6,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { invoicesAPI, customersAPI } from '@/services/api';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { invoicesAPI, customersAPI, productsAPI } from '@/services/api';
 import { applyServerNotificationHint, notifyOrderEvent, printPaymentSlip } from '@/services/notifications';
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import { formatCurrency } from '@/utils/helpers';
 import { useBrand } from '@/context/BrandContext';
-import { ArrowLeft, Save, Plus, Trash2, User, Receipt } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Trash2, User, Receipt, PackagePlus } from 'lucide-react';
 import { toast } from 'sonner';
 
 const emptyItem = () => ({
   _key: `i_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+  productId: '',
   name: '',
   quantity: 1,
   rate: 0,
@@ -51,6 +53,7 @@ const InvoiceForm = () => {
 
   const [formData, setFormData] = useState(emptyInvoice);
   const [customers, setCustomers] = useState([]);
+  const [catalog, setCatalog] = useState([]);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(!isEdit);
   const [pageLoading, setPageLoading] = useState(isEdit);
@@ -62,6 +65,16 @@ const InvoiceForm = () => {
       setCustomers(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error(err);
+    }
+  }, []);
+
+  const loadCatalog = useCallback(async () => {
+    try {
+      const res = await productsAPI.getAll();
+      setCatalog(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error(err);
+      setCatalog([]);
     }
   }, []);
 
@@ -88,6 +101,7 @@ const InvoiceForm = () => {
         ...emptyItem(),
         ...i,
         _key: i._key || `k_${Math.random().toString(36).slice(2, 8)}`,
+        productId: i.productId || '',
         name: i.name || '',
         quantity: Number(i.quantity) || 1,
         rate: Number(i.rate) || 0,
@@ -126,8 +140,9 @@ const InvoiceForm = () => {
 
   useEffect(() => {
     loadCustomers();
+    loadCatalog();
     loadInvoice();
-  }, [loadCustomers, loadInvoice]);
+  }, [loadCustomers, loadCatalog, loadInvoice]);
 
   const selectCustomer = async (next) => {
     let prev = formData.previousBalance || 0;
@@ -142,6 +157,36 @@ const InvoiceForm = () => {
     setFormData((f) => ({ ...f, ...next, previousBalance: prev }));
   };
 
+  const catalogValueFor = (line) => {
+    if (line.productId && catalog.some((p) => String(p.id) === String(line.productId))) {
+      return String(line.productId);
+    }
+    const match = catalog.find((p) => String(p.name).toLowerCase() === String(line.name || '').toLowerCase());
+    return match ? String(match.id) : undefined;
+  };
+
+  const lineHasCatalogProduct = (line) => Boolean(catalogValueFor(line));
+
+  const pickProduct = (index, productId) => {
+    const p = catalog.find((x) => String(x.id) === String(productId));
+    if (!p) return;
+    setFormData((prev) => {
+      const items = prev.items.map((line, i) => (
+        i === index
+          ? {
+              ...line,
+              productId: String(p.id),
+              name: p.name || line.name,
+              rate: Number(p.rate ?? p.basePrice ?? line.rate) || 0,
+              size: p.size || line.size || '',
+              material: p.material || line.material || '',
+            }
+          : line
+      ));
+      return { ...prev, items };
+    });
+  };
+
   const updateItem = (i, field, val) => {
     setFormData((prev) => {
       const items = prev.items.map((it, idx) => (idx === i ? { ...it, [field]: val } : it));
@@ -153,6 +198,40 @@ const InvoiceForm = () => {
     ...prev,
     items: prev.items.filter((_, x) => x !== i),
   }));
+
+  const goAddProduct = () => navigate('/warehouse/products?new=1');
+
+  const sendInvoiceWhatsApp = async (data, grand, bal, paid) => {
+    if (!data.customerPhone) {
+      toast.error('Customer phone missing — WhatsApp not sent');
+      return;
+    }
+    const shareToken = data.shareToken || '';
+    await notifyOrderEvent({
+      event: 'invoice_generated',
+      order: {
+        customerName: data.customerName,
+        customerPhone: data.customerPhone,
+        customerEmail: data.customerEmail,
+        orderId: data.orderId,
+        status: 'Invoice',
+        totalAmount: grand,
+        balanceAmount: bal,
+      },
+      invoice: {
+        ...data,
+        invoiceNumber: data.invoiceNumber,
+        date: data.date,
+        totalAmount: grand,
+        paidAmount: paid,
+        balanceAmount: bal,
+        shareToken,
+        invoiceUrl: shareToken ? `${window.location.origin}/invoice/${shareToken}` : '',
+      },
+      openWhatsApp: true,
+    });
+    toast.message('Invoice WhatsApp opened — link + pending payment');
+  };
 
   const subtotal = formData.items.reduce((s, it) => s + (it.quantity || 0) * (it.rate || 0), 0);
   const tax = (subtotal * (formData.taxRate || 0)) / 100;
@@ -169,8 +248,12 @@ const InvoiceForm = () => {
   const handleSave = async (e) => {
     e.preventDefault();
     if (!requireCustomer(formData)) return;
-    if (formData.items.length === 0 || !formData.items[0].name) {
-      toast.error('Please add at least one item');
+    if (!catalog.length) {
+      toast.error('Pehle catalog me product add karein');
+      return;
+    }
+    if (!formData.items.every(lineHasCatalogProduct)) {
+      toast.error('Har line pe catalog se product select karein');
       return;
     }
     if (isEdit && !invoiceId) {
@@ -186,6 +269,14 @@ const InvoiceForm = () => {
         tax,
         totalAmount: total,
         status: derivedStatus(),
+        items: formData.items.map(({ productId, name, quantity, rate, size, material }) => ({
+          productId: productId || '',
+          name,
+          quantity: Number(quantity) || 0,
+          rate: Number(rate) || 0,
+          size: size || '',
+          material: material || '',
+        })),
       };
       let res;
       if (isEdit) {
@@ -224,6 +315,7 @@ const InvoiceForm = () => {
               invoiceNumber: payload.invoiceNumber,
               date: payload.date,
               totalAmount: grandTotal,
+              paidAmount: nextPaid,
               balanceAmount: balance,
             },
             payment: {
@@ -241,30 +333,11 @@ const InvoiceForm = () => {
       } else {
         res = await invoicesAPI.create(payload);
         toast.success(`Invoice ${payload.invoiceNumber} created`);
-        const data = res.data || payload;
+        const data = { ...payload, ...(res.data || {}) };
         if (applyServerNotificationHint(data)) {
-          toast.message('WhatsApp opened — tap Send to notify customer');
-        } else if (payload.customerPhone || payload.customerEmail) {
-          await notifyOrderEvent({
-            event: 'invoice_generated',
-            order: {
-              customerName: payload.customerName,
-              customerPhone: payload.customerPhone,
-              customerEmail: payload.customerEmail,
-              orderId: payload.orderId,
-              status: 'Invoice',
-              totalAmount: grandTotal,
-              balanceAmount: balance,
-            },
-            invoice: {
-              ...data,
-              invoiceNumber: payload.invoiceNumber,
-              date: payload.date,
-              totalAmount: grandTotal,
-              balanceAmount: balance,
-            },
-          });
-          toast.message('Invoice WhatsApp prepared');
+          toast.message('WhatsApp opened — tap Send');
+        } else {
+          await sendInvoiceWhatsApp(data, grandTotal, balance, Number(payload.paidAmount) || 0);
         }
         const paidNow = Number(payload.paidAmount) || 0;
         if (paidNow > 0) {
@@ -291,7 +364,14 @@ const InvoiceForm = () => {
                 totalAmount: grandTotal,
                 balanceAmount: balance,
               },
-              invoice: { invoiceNumber: payload.invoiceNumber, date: payload.date, totalAmount: grandTotal, balanceAmount: balance },
+              invoice: {
+                invoiceNumber: payload.invoiceNumber,
+                date: payload.date,
+                totalAmount: grandTotal,
+                paidAmount: paidNow,
+                balanceAmount: balance,
+                shareToken: data.shareToken,
+              },
               payment: {
                 party: payload.customerName,
                 partyPhone: payload.customerPhone,
@@ -424,18 +504,45 @@ const InvoiceForm = () => {
         </div>
 
         <Card className="border-orange-100/80 shadow-sm rounded-2xl">
-          <CardHeader className="py-3 flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base">Line Items</CardTitle>
-            <Button type="button" size="sm" variant="outline" onClick={addItem} data-testid="add-item">
-              <Plus className="h-3 w-3 mr-1" />Add Item
-            </Button>
+          <CardHeader className="py-3 flex flex-row items-center justify-between space-y-0 gap-2">
+            <CardTitle className="text-base">Products *</CardTitle>
+            <div className="flex gap-2">
+              <Button type="button" size="sm" variant="outline" onClick={goAddProduct}>
+                <PackagePlus className="h-3 w-3 mr-1" />Add New Product
+              </Button>
+              <Button type="button" size="sm" variant="outline" onClick={addItem} data-testid="add-item">
+                <Plus className="h-3 w-3 mr-1" />Add Item
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-2 pt-0">
+            {!catalog.length && (
+              <div className="rounded-xl border border-dashed border-orange-300 bg-orange-50/60 p-3 text-center text-sm mb-2">
+                Catalog empty —{' '}
+                <button type="button" className="underline font-medium text-orange-700" onClick={goAddProduct}>
+                  Add New Product
+                </button>
+              </div>
+            )}
             {formData.items.map((it, i) => (
               <div key={it._key} className="grid grid-cols-12 gap-2 items-end p-2 border rounded-xl bg-gray-50/50" data-testid={`item-${i}`}>
                 <div className="col-span-12 md:col-span-4">
-                  <Label className="text-xs">Item</Label>
-                  <Input className="bg-white" value={it.name} onChange={(e) => updateItem(i, 'name', e.target.value)} required />
+                  <Label className="text-xs">Product * (catalog)</Label>
+                  <Select value={catalogValueFor(it)} onValueChange={(v) => pickProduct(i, v)}>
+                    <SelectTrigger className="bg-white" data-testid={`invoice-product-${i}`}>
+                      <SelectValue placeholder="Select product from catalog" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {catalog.map((p) => (
+                        <SelectItem key={p.id} value={String(p.id)}>
+                          {p.name} · {formatCurrency(p.rate || p.basePrice)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!lineHasCatalogProduct(it) && (
+                    <p className="text-[11px] text-red-600 mt-1">Product select lazmi hai</p>
+                  )}
                 </div>
                 <div className="col-span-4 md:col-span-2">
                   <Label className="text-xs">Size</Label>
@@ -454,7 +561,7 @@ const InvoiceForm = () => {
                   <Input disabled className="bg-white font-semibold" value={formatCurrency((it.quantity || 0) * (it.rate || 0))} />
                 </div>
                 <div className="col-span-4 md:col-span-1 flex justify-end">
-                  <Button type="button" size="icon" variant="ghost" onClick={() => removeItem(i)}>
+                  <Button type="button" size="icon" variant="ghost" onClick={() => removeItem(i)} disabled={formData.items.length === 1}>
                     <Trash2 className="h-4 w-4 text-red-600" />
                   </Button>
                 </div>

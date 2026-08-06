@@ -5,9 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { invoicesAPI } from '@/services/api';
+import { notifyOrderEvent } from '@/services/notifications';
 import { formatCurrency, formatDate } from '@/utils/helpers';
-import { Plus, Search, Eye, Edit, Share2, FileText, Download, MessageCircle, Copy as CopyIcon } from 'lucide-react';
+import { Plus, Search, Eye, Edit, FileText, MessageCircle, Copy as CopyIcon, Bell } from 'lucide-react';
 import { toast } from 'sonner';
+
+const invoiceBalance = (invoice) =>
+  Math.max(0, Number(invoice.totalAmount || 0) + Number(invoice.previousBalance || 0) - Number(invoice.paidAmount || 0));
 
 const Invoices = () => {
   const navigate = useNavigate();
@@ -40,17 +44,73 @@ const Invoices = () => {
   );
 
   const copyShareLink = (invoice) => {
+    if (!invoice.shareToken) {
+      toast.error('Share link not ready yet');
+      return;
+    }
     const link = `${window.location.origin}/invoice/${invoice.shareToken}`;
     navigator.clipboard.writeText(link);
     toast.success('Shareable link copied to clipboard!');
   };
 
-  const shareOnWhatsApp = (invoice) => {
-    const link = `${window.location.origin}/invoice/${invoice.shareToken}`;
-    const msg = `Hi ${invoice.customerName}, here is your invoice ${invoice.invoiceNumber} for Rs ${invoice.totalAmount}. View & pay online: ${link}`;
-    const phone = (invoice.customerPhone || '').replace(/\D/g, '');
-    const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
-    window.open(url, '_blank');
+  const shareOnWhatsApp = async (invoice) => {
+    const bal = invoiceBalance(invoice);
+    try {
+      await notifyOrderEvent({
+        event: 'invoice_generated',
+        order: {
+          customerName: invoice.customerName,
+          customerPhone: invoice.customerPhone,
+          orderId: invoice.orderId,
+          totalAmount: invoice.totalAmount,
+          balanceAmount: bal,
+        },
+        invoice: {
+          ...invoice,
+          balanceAmount: bal,
+          paidAmount: invoice.paidAmount || 0,
+        },
+        openWhatsApp: true,
+      });
+      toast.message('WhatsApp opened — invoice link + pending payment');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to open WhatsApp');
+    }
+  };
+
+  const sendPaymentReminder = async (invoice) => {
+    const bal = invoiceBalance(invoice);
+    if (!(bal > 0)) {
+      toast.error('No pending balance on this invoice');
+      return;
+    }
+    if (!invoice.customerPhone) {
+      toast.error('Customer phone missing');
+      return;
+    }
+    try {
+      await notifyOrderEvent({
+        event: 'payment_reminder',
+        order: {
+          customerName: invoice.customerName,
+          customerPhone: invoice.customerPhone,
+          orderId: invoice.orderId,
+          totalAmount: invoice.totalAmount,
+          balanceAmount: bal,
+        },
+        invoice: {
+          ...invoice,
+          balanceAmount: bal,
+          paidAmount: invoice.paidAmount || 0,
+        },
+        openWhatsApp: true,
+      });
+      toast.success('Payment reminder WhatsApp opened');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to send reminder');
+    }
   };
 
   const getStatusBadge = (status) => {
@@ -68,7 +128,7 @@ const Invoices = () => {
     paid: invoices.filter(i => i.status === 'Paid').length,
     unpaid: invoices.filter(i => i.status === 'Unpaid' || i.status === 'Partial').length,
     totalAmount: invoices.reduce((s, i) => s + (i.totalAmount || 0), 0),
-    receivable: invoices.reduce((s, i) => s + ((i.totalAmount || 0) - (i.paidAmount || 0)), 0)
+    receivable: invoices.reduce((s, i) => s + invoiceBalance(i), 0)
   };
 
   return (
@@ -177,10 +237,10 @@ const Invoices = () => {
 
                   <div className="grid grid-cols-2 gap-2 mb-2">
                     <div><p className="text-[9px] text-gray-500 uppercase">Total</p><p className="text-sm font-bold" style={{ color: '#F26522' }}>{formatCurrency(invoice.totalAmount)}</p></div>
-                    <div><p className="text-[9px] text-gray-500 uppercase">Balance</p><p className="text-sm font-bold text-gray-700">{formatCurrency((invoice.totalAmount || 0) - (invoice.paidAmount || 0))}</p></div>
+                    <div><p className="text-[9px] text-gray-500 uppercase">Balance</p><p className="text-sm font-bold text-gray-700">{formatCurrency(invoiceBalance(invoice))}</p></div>
                   </div>
 
-                  <div className="flex gap-1">
+                  <div className="flex gap-1 flex-wrap">
                     <Button size="sm" className="flex-1 text-white h-7 text-[11px] px-2" style={{ backgroundColor: '#F26522' }} onClick={() => navigate(`/invoices/${invoice.id}`)} data-testid={`view-invoice-${invoice.id}`}>
                       <Eye className="h-3 w-3 mr-1" />View
                     </Button>
@@ -193,6 +253,18 @@ const Invoices = () => {
                     <Button size="icon" variant="outline" className="h-7 w-7 text-green-600 hover:bg-green-50" onClick={() => shareOnWhatsApp(invoice)} title="WhatsApp" data-testid={`whatsapp-invoice-${invoice.id}`}>
                       <MessageCircle className="h-3 w-3" />
                     </Button>
+                    {invoiceBalance(invoice) > 0 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[11px] px-2 text-amber-700 border-amber-300 hover:bg-amber-50"
+                        onClick={() => sendPaymentReminder(invoice)}
+                        title="Payment reminder"
+                        data-testid={`remind-invoice-${invoice.id}`}
+                      >
+                        <Bell className="h-3 w-3 mr-1" />Remind
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}

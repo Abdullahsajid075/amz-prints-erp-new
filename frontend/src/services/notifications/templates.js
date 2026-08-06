@@ -135,24 +135,49 @@ ${FOOTER}`,
 
   invoice: `Dear *{CustomerName}*,
 
-Your invoice *{invoice_number}* dated {invoice_date} has been generated.
+Your invoice *{invoice_number}* dated {invoice_date} is ready.
 
+📄 *Invoice link (open / save PDF):*
+{invoice_url}
+
+*Payment summary*
 Total: *{Amount}*
-Balance due: *{balance_due}*
+Paid: *{payment_amount}*
+*Pending / Balance due: {balance_due}*
 
-Kindly arrange payment at your earliest convenience. Thank you for choosing *Amazon Printing Services*.
+Please clear the pending amount at your earliest. Thank you for choosing *Amazon Printing Services*.
 
 📍 King Road, Mandi Bahauddin
 🌐 amzprints.com`,
 
   invoice_generated: `Dear *{CustomerName}*,
 
-Your invoice *{invoice_number}* dated {invoice_date} has been generated.
+Your invoice *{invoice_number}* dated {invoice_date} is ready.
+
+📄 *Invoice link (open / save PDF):*
+{invoice_url}
+
+*Payment summary*
+Total: *{Amount}*
+Paid: *{payment_amount}*
+*Pending / Balance due: {balance_due}*
+
+Please clear the pending amount at your earliest. Thank you for choosing *Amazon Printing Services*.
+
+📍 King Road, Mandi Bahauddin
+🌐 amzprints.com`,
+
+  payment_reminder: `Dear *{CustomerName}*,
+
+*Payment reminder* for invoice *{invoice_number}*.
+
+📄 Invoice: {invoice_url}
 
 Total: *{Amount}*
-Balance due: *{balance_due}*
+Paid: *{payment_amount}*
+*Pending balance: {balance_due}*
 
-Kindly arrange payment at your earliest convenience. Thank you for choosing *Amazon Printing Services*.
+Kindly arrange payment soon. Thank you — *Amazon Printing Services*.
 
 📍 King Road, Mandi Bahauddin
 🌐 amzprints.com`,
@@ -195,6 +220,7 @@ export const DEFAULT_EMAIL_SUBJECTS = {
   Delivered: 'Delivered — {OrderNo} | Amazon Printing Services',
   invoice: 'Invoice {invoice_number} | Amazon Printing Services',
   invoice_generated: 'Invoice {invoice_number} | Amazon Printing Services',
+  payment_reminder: 'Payment Reminder — {invoice_number}',
   payment_received: 'Payment Received — {payment_amount}',
   payment_sent: 'Payment Sent — {payment_amount}',
 };
@@ -223,9 +249,11 @@ export function buildTemplateVars(order = {}, company = {}, extras = {}) {
   const companyWebsite = company.website || 'amzprints.com';
   const invoiceNumber = extras.invoice_number || extras.invoiceNumber || extras['Invoice Number'] || '';
   const invoiceDate = extras.invoice_date || extras.invoiceDate || '';
+  const invoiceUrl = extras.invoice_url || extras.invoiceUrl || extras['Invoice Link'] || '';
   const paymentAmount = extras.payment_amount != null
     ? extras.payment_amount
-    : (extras.amount != null ? extras.amount : order.totalAmount);
+    : (extras.paidAmount != null ? extras.paidAmount
+      : (extras.amount != null ? extras.amount : order.totalAmount));
   const balanceDue = extras.balance_due != null
     ? extras.balance_due
     : (extras.balanceDue != null ? extras.balanceDue : order.balanceAmount);
@@ -247,6 +275,8 @@ export function buildTemplateVars(order = {}, company = {}, extras = {}) {
     'Invoice Number': invoiceNumber,
     invoice_number: invoiceNumber,
     invoice_date: invoiceDate,
+    invoice_url: invoiceUrl,
+    'Invoice Link': invoiceUrl,
     Amount: amountStr,
     payment_amount: paymentAmountStr,
     payment_method: extras.payment_method || extras.paymentMethod || '',
@@ -258,6 +288,8 @@ export function buildTemplateVars(order = {}, company = {}, extras = {}) {
     Amount: amountStr,
     payment_amount: paymentAmountStr,
     balance_due: balanceDueStr,
+    invoice_url: invoiceUrl || extras.invoice_url || '',
+    'Invoice Link': invoiceUrl || extras.invoice_url || '',
     'Customer Name': customerName,
     CustomerName: customerName,
     'Order Number': orderNo,
@@ -274,6 +306,9 @@ export function resolveWhatsAppTemplate(templates, event, status) {
   }
   if (event === 'invoice' || event === 'invoice_generated') {
     return t.invoice_generated || t.invoice || DEFAULT_WHATSAPP_TEMPLATES.invoice_generated;
+  }
+  if (event === 'payment_reminder' || event === 'reminder') {
+    return t.payment_reminder || DEFAULT_WHATSAPP_TEMPLATES.payment_reminder;
   }
   if (event === 'payment_received') {
     return t.payment_received || DEFAULT_WHATSAPP_TEMPLATES.payment_received;
