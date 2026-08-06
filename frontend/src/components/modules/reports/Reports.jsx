@@ -17,6 +17,7 @@ const COLORS = ['#F26522', '#2E2E2E', '#10B981', '#F59E0B', '#3B82F6', '#8B5CF6'
 const REPORT_TYPES = [
   { value: 'pl', label: 'Profit & Loss' },
   { value: 'sales', label: 'Sales Report' },
+  { value: 'pos', label: 'POS Statement' },
   { value: 'purchases', label: 'Purchase Report' },
   { value: 'expenses', label: 'Expense Report' },
   { value: 'payments', label: 'Payments Report' },
@@ -24,6 +25,12 @@ const REPORT_TYPES = [
   { value: 'customers', label: 'Top Customers / Products' },
   { value: 'assets', label: 'Assets' },
 ];
+
+function isPosOrder(o) {
+  const dt = String(o.docType || o.doctype || '').toLowerCase();
+  if (dt === 'pos') return true;
+  return /pos\s*sale/i.test(String(o.remarks || o.notes || ''));
+}
 
 function inRange(dateStr, from, to) {
   if (!dateStr) return true;
@@ -172,6 +179,14 @@ const Reports = () => {
     () => orders.filter((o) => inRange(o.date, dateRange.from, dateRange.to) && String(o.docType || 'Order').toLowerCase() !== 'quotation'),
     [orders, dateRange.from, dateRange.to]
   );
+  const filteredPosOrders = useMemo(
+    () => filteredOrders.filter(isPosOrder),
+    [filteredOrders]
+  );
+  const filteredBookingOrders = useMemo(
+    () => filteredOrders.filter((o) => !isPosOrder(o)),
+    [filteredOrders]
+  );
   const filteredPayments = useMemo(
     () => payments.filter((p) => inRange(p.date, dateRange.from, dateRange.to)),
     [payments, dateRange.from, dateRange.to]
@@ -181,13 +196,23 @@ const Reports = () => {
     let csv = '';
     let name = `report-${reportType}`;
     if (reportType === 'orders') {
-      csv = toCsv(filteredOrders, [
+      csv = toCsv(filteredBookingOrders, [
         { label: 'Order', key: 'orderId' },
         { label: 'Date', key: 'date' },
         { label: 'Customer', key: 'customerName' },
         { label: 'Status', key: 'status' },
         { label: 'Total', key: 'totalAmount' },
         { label: 'Advance', key: 'advancePayment' },
+      ]);
+    } else if (reportType === 'pos') {
+      csv = toCsv(filteredPosOrders, [
+        { label: 'POS #', key: 'orderId' },
+        { label: 'Date', key: 'date' },
+        { label: 'Customer', key: 'customerName' },
+        { label: 'Phone', key: 'customerPhone' },
+        { label: 'Total', key: 'totalAmount' },
+        { label: 'Paid', key: 'advancePayment' },
+        { label: 'Status', key: 'status' },
       ]);
     } else if (reportType === 'payments') {
       csv = toCsv(filteredPayments, [
@@ -411,14 +436,14 @@ const Reports = () => {
         </TabsContent>
 
         <TabsContent value="orders">
-          <Card><CardHeader><CardTitle>Orders Detail ({filteredOrders.length})</CardTitle></CardHeader><CardContent>
+          <Card><CardHeader><CardTitle>Orders Detail ({filteredBookingOrders.length})</CardTitle></CardHeader><CardContent>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead><tr className="border-b bg-gray-50">
                   <th className="text-left p-2">Order</th><th className="text-left p-2">Date</th><th className="text-left p-2">Customer</th><th className="text-left p-2">Status</th><th className="text-right p-2">Total</th>
                 </tr></thead>
                 <tbody>
-                  {filteredOrders.map((o) => (
+                  {filteredBookingOrders.map((o) => (
                     <tr key={o.id} className="border-b">
                       <td className="p-2 font-medium">{o.orderId}</td>
                       <td className="p-2">{formatDate(o.date)}</td>
@@ -427,11 +452,41 @@ const Reports = () => {
                       <td className="p-2 text-right font-semibold" style={{ color: primary || '#F26522' }}>{formatCurrency(o.totalAmount)}</td>
                     </tr>
                   ))}
-                  {!filteredOrders.length && <tr><td colSpan={5} className="p-6 text-center text-gray-500">No orders in range</td></tr>}
+                  {!filteredBookingOrders.length && <tr><td colSpan={5} className="p-6 text-center text-gray-500">No orders in range</td></tr>}
                 </tbody>
               </table>
             </div>
           </CardContent></Card>
+        </TabsContent>
+
+        <TabsContent value="pos">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>POS Statement ({filteredPosOrders.length})</CardTitle>
+              <Button variant="outline" size="sm" onClick={() => window.location.assign('/pos/statement')}>Open full statement</Button>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead><tr className="border-b bg-gray-50">
+                    <th className="text-left p-2">POS #</th><th className="text-left p-2">Date</th><th className="text-left p-2">Customer</th><th className="text-left p-2">Status</th><th className="text-right p-2">Total</th>
+                  </tr></thead>
+                  <tbody>
+                    {filteredPosOrders.map((o) => (
+                      <tr key={o.id} className="border-b">
+                        <td className="p-2 font-medium">{o.orderId}</td>
+                        <td className="p-2">{formatDate(o.date)}</td>
+                        <td className="p-2">{o.customerName || 'Walk-in'}</td>
+                        <td className="p-2"><Badge variant="outline">{o.status}</Badge></td>
+                        <td className="p-2 text-right font-semibold" style={{ color: primary || '#F26522' }}>{formatCurrency(o.totalAmount)}</td>
+                      </tr>
+                    ))}
+                    {!filteredPosOrders.length && <tr><td colSpan={5} className="p-6 text-center text-gray-500">No POS sales in range</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="assets"><Card><CardHeader><CardTitle>Assets Management</CardTitle></CardHeader><CardContent>

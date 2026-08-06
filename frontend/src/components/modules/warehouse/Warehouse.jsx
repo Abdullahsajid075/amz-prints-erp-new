@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { useBrand } from '@/context/BrandContext';
-import { Package, ShoppingBag, Boxes } from 'lucide-react';
+import { Package, Boxes } from 'lucide-react';
 
 const links = [
   {
@@ -11,13 +11,6 @@ const links = [
     path: '/warehouse/products',
     icon: Package,
     testId: 'warehouse-products',
-  },
-  {
-    title: 'Purchase Orders',
-    description: 'Vendor purchases and receiving',
-    path: '/warehouse/purchases',
-    icon: ShoppingBag,
-    testId: 'warehouse-purchases',
   },
   {
     title: 'Inventory',
@@ -35,9 +28,9 @@ const Warehouse = () => {
     <div className="space-y-6" data-testid="warehouse-hub">
       <div>
         <h1 className="text-3xl font-bold" style={{ color: '#2E2E2E' }}>Warehouse</h1>
-        <p className="text-gray-600 mt-1">Products, purchases and inventory</p>
+        <p className="text-gray-600 mt-1">Products and inventory (Purchases is on the main menu)</p>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {links.map((item) => (
           <Link key={item.path} to={item.path} data-testid={item.testId} className="block group">
             <Card className="h-full transition-all hover:shadow-md hover:-translate-y-0.5 border-gray-100">

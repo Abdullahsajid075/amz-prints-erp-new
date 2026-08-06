@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, ShoppingCart, Users, Package, Warehouse, FileText,
   CreditCard, Receipt, BarChart3, Settings, X, Ticket, ClipboardList,
-  Store, Quote, Calculator, Kanban
+  Store, Quote, Calculator, Kanban, ShoppingBag, UsersRound
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -18,14 +18,25 @@ const menuItems = [
   { icon: FileText, label: 'Invoices', path: '/invoices', testId: 'nav-invoices' },
   { icon: Users, label: 'Customers', path: '/customers', testId: 'nav-customers' },
   { icon: Kanban, label: 'CRM', path: '/crm', testId: 'nav-crm' },
+  { icon: ShoppingBag, label: 'Purchases', path: '/purchases', testId: 'nav-purchases' },
   { icon: Warehouse, label: 'Warehouse', path: '/warehouse', testId: 'nav-warehouse',
     children: [
       { label: 'Products', path: '/warehouse/products' },
-      { label: 'Purchase Orders', path: '/warehouse/purchases' },
       { label: 'Inventory', path: '/warehouse/inventory' },
     ]
   },
-  { icon: Store, label: 'POS', path: '/pos', testId: 'nav-pos' },
+  { icon: Store, label: 'POS', path: '/pos', testId: 'nav-pos',
+    children: [
+      { label: 'Counter', path: '/pos' },
+      { label: 'POS Statement', path: '/pos/statement' },
+    ]
+  },
+  { icon: UsersRound, label: 'HR', path: '/hr', testId: 'nav-hr',
+    children: [
+      { label: 'Employees', path: '/hr/employees' },
+      { label: 'Designers', path: '/designers' },
+    ]
+  },
   { icon: Calculator, label: 'Cost Calculator', path: '/calculator', testId: 'nav-calculator' },
   { icon: CreditCard, label: 'Accounts', path: '/accounts', testId: 'nav-accounts',
     children: [

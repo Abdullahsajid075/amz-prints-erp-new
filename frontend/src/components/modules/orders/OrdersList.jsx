@@ -45,7 +45,13 @@ const OrdersList = () => {
       if (filters.search) params.search = filters.search;
       if (filters.status) params.status = filters.status;
       const response = await ordersAPI.getAll(params);
-      setOrders(response.data || []);
+      // POS sales have a separate statement — keep Orders list for booking jobs only
+      const list = (response.data || []).filter((o) => {
+        const dt = String(o.docType || o.doctype || 'Order').toLowerCase();
+        if (dt === 'pos') return false;
+        return !/pos\s*sale/i.test(String(o.remarks || ''));
+      });
+      setOrders(list);
     } catch (error) {
       console.error('Error fetching orders:', error);
       toast.error('Failed to fetch orders');

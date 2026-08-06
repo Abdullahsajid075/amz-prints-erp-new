@@ -32,9 +32,18 @@ export const customersAPI = {
   delete: (id) => gasRequest('DELETE', `/customers/${id}`, withToken()),
   getLedger: (id) => gasRequest('GET', `/customers/${id}/ledger`, withToken()),
   updateStage: (id, stage) => gasRequest('PUT', `/customers/${id}/stage`, withToken({ data: { stage } })),
+  setCrm: (id, data) => gasRequest('PUT', `/customers/${id}/crm`, withToken({ data })),
   getNotes: (id) => gasRequest('GET', `/customers/${id}/notes`, withToken()),
   addNote: (id, data) => gasRequest('POST', `/customers/${id}/notes`, withToken({ data })),
   deleteNote: (id, noteId) => gasRequest('DELETE', `/customers/${id}/notes/${noteId}`, withToken()),
+};
+
+export const employeesAPI = {
+  getAll: (params) => gasRequest('GET', '/employees', withToken({ params })),
+  getById: (id) => gasRequest('GET', `/employees/${id}`, withToken()),
+  create: (data) => gasRequest('POST', '/employees', withToken({ data })),
+  update: (id, data) => gasRequest('PUT', `/employees/${id}`, withToken({ data })),
+  delete: (id) => gasRequest('DELETE', `/employees/${id}`, withToken()),
 };
 
 export const productsAPI = {
@@ -161,6 +170,7 @@ export default {
   dashboardAPI,
   ordersAPI,
   customersAPI,
+  employeesAPI,
   productsAPI,
   designersAPI,
   filesAPI,

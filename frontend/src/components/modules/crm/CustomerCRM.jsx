@@ -129,6 +129,7 @@ const CustomerCRM = () => {
   const { user } = useAuth();
   const accent = primary || '#F26522';
 
+  const [allCustomers, setAllCustomers] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [stages, setStages] = useState(DEFAULT_CRM_STAGES);
   const [loading, setLoading] = useState(true);
@@ -143,6 +144,8 @@ const CustomerCRM = () => {
   const [savingNote, setSavingNote] = useState(false);
 
   const [quickOpen, setQuickOpen] = useState(false);
+  const [addMode, setAddMode] = useState('new'); // new | existing
+  const [existingId, setExistingId] = useState('');
   const [quickForm, setQuickForm] = useState({ name: '', phone: '', email: '', city: '', stage: 'lead', notes: '' });
   const [savingQuick, setSavingQuick] = useState(false);
 
@@ -157,7 +160,10 @@ const CustomerCRM = () => {
         customersAPI.getAll(),
         settingsAPI.get().catch(() => ({ data: {} })),
       ]);
-      setCustomers(Array.isArray(custRes.data) ? custRes.data : []);
+      const list = Array.isArray(custRes.data) ? custRes.data : [];
+      setAllCustomers(list);
+      // Only manually added CRM members — never auto-import directory
+      setCustomers(list.filter((c) => c.inCrm === true));
       setStages(resolveCrmStages(setRes.data?.crm));
     } catch (err) {
       console.error(err);
@@ -293,41 +299,75 @@ const CustomerCRM = () => {
     }
   };
 
+  const notInCrm = useMemo(
+    () => allCustomers.filter((c) => !c.inCrm),
+    [allCustomers]
+  );
+
   const saveQuick = async (e) => {
     e.preventDefault();
-    if (!quickForm.name.trim() || !quickForm.phone.trim()) {
-      toast.error('Name and phone required');
-      return;
-    }
     setSavingQuick(true);
     try {
-      const initialNote = quickForm.notes.trim();
-      const res = await customersAPI.create({
-        name: quickForm.name.trim(),
-        phone: quickForm.phone.trim(),
-        email: quickForm.email.trim(),
-        city: quickForm.city.trim(),
-        stage: normalizeStageKey(quickForm.stage || 'lead'),
-        notes: initialNote,
-      });
-      const newId = res.data?.id;
-      if (newId && initialNote) {
-        try {
-          await customersAPI.addNote(newId, {
-            note: initialNote,
-            createdBy: user?.name || user?.username || 'staff',
-          });
-        } catch { /* profile note already saved */ }
+      const stage = normalizeStageKey(quickForm.stage || 'lead');
+      if (addMode === 'existing') {
+        if (!existingId) {
+          toast.error('Select a customer');
+          setSavingQuick(false);
+          return;
+        }
+        await customersAPI.setCrm(existingId, { inCrm: true, stage });
+        toast.success('Customer added to CRM');
+      } else {
+        if (!quickForm.name.trim() || !quickForm.phone.trim()) {
+          toast.error('Name and phone required');
+          setSavingQuick(false);
+          return;
+        }
+        const initialNote = quickForm.notes.trim();
+        const res = await customersAPI.create({
+          name: quickForm.name.trim(),
+          phone: quickForm.phone.trim(),
+          email: quickForm.email.trim(),
+          city: quickForm.city.trim(),
+          stage,
+          inCrm: true,
+          notes: initialNote,
+        });
+        const newId = res.data?.id;
+        if (newId && initialNote) {
+          try {
+            await customersAPI.addNote(newId, {
+              note: initialNote,
+              createdBy: user?.name || user?.username || 'staff',
+            });
+          } catch { /* ignore */ }
+        }
+        toast.success('Customer added to CRM');
       }
-      toast.success('Customer added to CRM');
       setQuickOpen(false);
+      setAddMode('new');
+      setExistingId('');
       setQuickForm({ name: '', phone: '', email: '', city: '', stage: 'lead', notes: '' });
       load();
     } catch (err) {
       console.error(err);
-      toast.error(err.response?.data?.message || 'Failed to add customer');
+      toast.error(err.response?.data?.message || 'Failed to add to CRM');
     } finally {
       setSavingQuick(false);
+    }
+  };
+
+  const removeFromCrm = async () => {
+    if (!selected || !window.confirm('Remove this customer from CRM board? (Customer directory stays intact)')) return;
+    try {
+      await customersAPI.setCrm(selected.id, { inCrm: false });
+      toast.success('Removed from CRM');
+      setDetailOpen(false);
+      setSelected(null);
+      load();
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || 'Failed to remove from CRM');
     }
   };
 
@@ -336,7 +376,7 @@ const CustomerCRM = () => {
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold" style={{ color: '#1F2937' }}>Customer CRM</h1>
-          <p className="text-gray-600 mt-1">Pipeline board — drag customers between stages and keep notes</p>
+          <p className="text-gray-600 mt-1">Only customers you add here — drag stages and keep notes</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <div className="relative min-w-[220px] flex-1 sm:flex-none">
@@ -497,6 +537,10 @@ const CustomerCRM = () => {
                   ))
                 )}
               </div>
+
+              <Button type="button" variant="outline" className="w-full text-rose-600 border-rose-200" onClick={removeFromCrm}>
+                Remove from CRM
+              </Button>
             </div>
           )}
         </DialogContent>
@@ -508,22 +552,72 @@ const CustomerCRM = () => {
             <DialogTitle>Add customer to CRM</DialogTitle>
           </DialogHeader>
           <form onSubmit={saveQuick} className="space-y-3">
-            <div>
-              <Label>Name *</Label>
-              <Input value={quickForm.name} onChange={(e) => setQuickForm({ ...quickForm, name: e.target.value })} required />
+            <div className="grid grid-cols-2 gap-1 p-1 rounded-lg bg-muted">
+              <button
+                type="button"
+                className={`h-9 rounded-md text-sm font-medium ${addMode === 'new' ? 'bg-white shadow-sm' : 'text-gray-600'}`}
+                onClick={() => setAddMode('new')}
+              >
+                New customer
+              </button>
+              <button
+                type="button"
+                className={`h-9 rounded-md text-sm font-medium ${addMode === 'existing' ? 'bg-white shadow-sm' : 'text-gray-600'}`}
+                onClick={() => setAddMode('existing')}
+              >
+                From directory
+              </button>
             </div>
-            <div>
-              <Label>Phone *</Label>
-              <Input value={quickForm.phone} onChange={(e) => setQuickForm({ ...quickForm, phone: e.target.value })} required />
-            </div>
-            <div>
-              <Label>Email</Label>
-              <Input value={quickForm.email} onChange={(e) => setQuickForm({ ...quickForm, email: e.target.value })} />
-            </div>
-            <div>
-              <Label>City</Label>
-              <Input value={quickForm.city} onChange={(e) => setQuickForm({ ...quickForm, city: e.target.value })} />
-            </div>
+
+            {addMode === 'existing' ? (
+              <div>
+                <Label>Select customer *</Label>
+                <select
+                  className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm mt-1"
+                  value={existingId}
+                  onChange={(e) => setExistingId(e.target.value)}
+                  required
+                >
+                  <option value="">Choose…</option>
+                  {notInCrm.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}{c.phone ? ` · ${c.phone}` : ''}
+                    </option>
+                  ))}
+                </select>
+                {!notInCrm.length && (
+                  <p className="text-xs text-gray-500 mt-1">All directory customers are already in CRM, or directory is empty.</p>
+                )}
+              </div>
+            ) : (
+              <>
+                <div>
+                  <Label>Name *</Label>
+                  <Input value={quickForm.name} onChange={(e) => setQuickForm({ ...quickForm, name: e.target.value })} required={addMode === 'new'} />
+                </div>
+                <div>
+                  <Label>Phone *</Label>
+                  <Input value={quickForm.phone} onChange={(e) => setQuickForm({ ...quickForm, phone: e.target.value })} required={addMode === 'new'} />
+                </div>
+                <div>
+                  <Label>Email</Label>
+                  <Input value={quickForm.email} onChange={(e) => setQuickForm({ ...quickForm, email: e.target.value })} />
+                </div>
+                <div>
+                  <Label>City</Label>
+                  <Input value={quickForm.city} onChange={(e) => setQuickForm({ ...quickForm, city: e.target.value })} />
+                </div>
+                <div>
+                  <Label>Initial note (optional)</Label>
+                  <Textarea
+                    rows={2}
+                    value={quickForm.notes}
+                    onChange={(e) => setQuickForm({ ...quickForm, notes: e.target.value })}
+                  />
+                </div>
+              </>
+            )}
+
             <div>
               <Label>Stage</Label>
               <select
@@ -536,18 +630,10 @@ const CustomerCRM = () => {
                 ))}
               </select>
             </div>
-            <div>
-              <Label>Initial note (optional)</Label>
-              <Textarea
-                rows={2}
-                value={quickForm.notes}
-                onChange={(e) => setQuickForm({ ...quickForm, notes: e.target.value })}
-              />
-            </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setQuickOpen(false)}>Cancel</Button>
               <Button type="submit" className="text-white" style={{ backgroundColor: accent }} disabled={savingQuick}>
-                {savingQuick ? 'Saving…' : 'Add'}
+                {savingQuick ? 'Saving…' : 'Add to CRM'}
               </Button>
             </DialogFooter>
           </form>

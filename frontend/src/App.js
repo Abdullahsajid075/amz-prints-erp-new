@@ -15,7 +15,9 @@ import Customers from '@/components/modules/customers/Customers';
 import CustomerCRM from '@/components/modules/crm/CustomerCRM';
 import Products from '@/components/modules/products/Products';
 import Designers from '@/components/modules/designers/Designers';
+import Employees from '@/components/modules/employees/Employees';
 import Inventory from '@/components/modules/inventory/Inventory';
+import POSStatement from '@/components/modules/pos/POSStatement';
 import Invoices from '@/components/modules/invoices/Invoices';
 import InvoiceView from '@/components/modules/invoices/InvoiceView';
 import InvoiceForm from '@/components/modules/invoices/InvoiceForm';
@@ -113,17 +115,20 @@ function App() {
 
           <Route path="warehouse" element={<Warehouse />} />
           <Route path="warehouse/products" element={<Products />} />
-          <Route path="warehouse/purchases" element={<Purchases />} />
+          <Route path="warehouse/purchases" element={<Navigate to="/purchases" replace />} />
           <Route path="warehouse/inventory" element={<Inventory />} />
 
           <Route path="products" element={<Navigate to="/warehouse/products" replace />} />
-          <Route path="purchases" element={<Navigate to="/warehouse/purchases" replace />} />
+          <Route path="purchases" element={<Purchases />} />
           <Route path="inventory" element={<Navigate to="/warehouse/inventory" replace />} />
           <Route path="production" element={<Navigate to="/warehouse" replace />} />
           <Route path="designers" element={<Designers />} />
-          <Route path="employees" element={<Navigate to="/dashboard" replace />} />
+          <Route path="hr" element={<Navigate to="/hr/employees" replace />} />
+          <Route path="hr/employees" element={<Employees />} />
+          <Route path="employees" element={<Navigate to="/hr/employees" replace />} />
 
           <Route path="pos" element={<POS />} />
+          <Route path="pos/statement" element={<POSStatement />} />
 
           <Route path="calculator" element={<PrintingCostCalculator />} />
 

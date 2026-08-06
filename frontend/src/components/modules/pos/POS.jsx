@@ -170,7 +170,7 @@ const POS = () => {
         balanceAmount: 0,
         status: 'Delivered',
         remarks: `POS Sale · ${paymentMethod}`,
-        docType: 'Order',
+        docType: 'POS',
         paymentMethod,
       };
       const created = await ordersAPI.create(payload);
@@ -206,6 +206,9 @@ const POS = () => {
           <p className="text-gray-600 mt-1">Quick sale · cash / card · print receipt</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => navigate('/pos/statement')} data-testid="pos-statement-link">
+            <FileSpreadsheet className="h-4 w-4 mr-2" />POS Statement
+          </Button>
           <Button variant="outline" onClick={() => navigate('/warehouse/products?new=1')} data-testid="pos-add-product">
             <PackagePlus className="h-4 w-4 mr-2" />Add New Product
           </Button>

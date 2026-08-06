@@ -17,6 +17,7 @@ var SHEET_NAMES = {
   ORDERS: 'Orders',
   CUSTOMERS: 'Customers',
   CRM_NOTES: 'CrmNotes',
+  EMPLOYEES: 'Employees',
   PRODUCTS: 'Products',
   INVOICES: 'Invoices',
   VENDORS: 'Vendors',
@@ -39,8 +40,9 @@ var DEFAULT_CRM_STAGES = [
 
 var DEFAULT_HEADERS = {
   Users: ['Username', 'Password', 'Name', 'Role', 'Status', 'Permissions'],
-  Customers: ['Id', 'Name', 'Phone', 'Email', 'Address', 'City', 'Notes', 'Stage', 'StageUpdatedAt', 'NotifyWhatsApp', 'NotifyEmail'],
+  Customers: ['Id', 'Name', 'Phone', 'Email', 'Address', 'City', 'Notes', 'InCrm', 'Stage', 'StageUpdatedAt', 'NotifyWhatsApp', 'NotifyEmail'],
   CrmNotes: ['Id', 'CustomerId', 'Note', 'CreatedAt', 'CreatedBy'],
+  Employees: ['Id', 'Name', 'Phone', 'Email', 'Role', 'Department', 'JoinDate', 'Salary', 'Status', 'Address', 'Notes'],
   Orders: [
     'Id', 'OrderId', 'Date', 'CustomerId', 'CustomerName', 'CustomerPhone',
     'CustomerEmail', 'CustomerAddress', 'Status', 'DeliveryDate', 'Products',
@@ -676,12 +678,20 @@ function validateToken_(token) {
 
 function normalizeCrmStage_(value) {
   var s = String(value || '').trim().toLowerCase();
-  if (!s) return 'lead';
+  if (!s) return '';
   return s.replace(/\s+/g, '_');
+}
+
+function isInCrm_(value) {
+  if (value === true || value === 1) return true;
+  if (value === false || value === 0 || value === undefined || value === null || value === '') return false;
+  var s = String(value).trim().toLowerCase();
+  return s === '1' || s === 'true' || s === 'yes' || s === 'y' || s === 'on';
 }
 
 function normalizeCustomer_(body) {
   var stageRaw = body.stage != null ? body.stage : body.crmStage;
+  var hasInCrm = body.inCrm != null || body.incrm != null;
   return {
     id: body.id || '',
     name: body.name || body.customerName || body.customername || '',
@@ -690,6 +700,7 @@ function normalizeCustomer_(body) {
     address: body.address || body.customerAddress || body.customeraddress || '',
     city: body.city || '',
     notes: body.notes || '',
+    incrm: hasInCrm ? isInCrm_(body.inCrm != null ? body.inCrm : body.incrm) : undefined,
     stage: stageRaw != null && stageRaw !== '' ? normalizeCrmStage_(stageRaw) : undefined,
     stageupdatedat: body.stageUpdatedAt || body.stageupdatedat || '',
     notifywhatsapp: body.notifyWhatsApp != null ? body.notifyWhatsApp : (body.notifywhatsapp != null ? body.notifywhatsapp : true),
@@ -698,6 +709,7 @@ function normalizeCustomer_(body) {
 }
 
 function toApiCustomer_(c) {
+  var inCrm = isInCrm_(c.incrm);
   return {
     id: c.id,
     name: c.name || '',
@@ -706,7 +718,8 @@ function toApiCustomer_(c) {
     address: c.address || '',
     city: c.city || '',
     notes: c.notes || '',
-    stage: normalizeCrmStage_(c.stage || 'lead'),
+    inCrm: inCrm,
+    stage: inCrm ? (normalizeCrmStage_(c.stage) || 'lead') : (normalizeCrmStage_(c.stage) || ''),
     stageUpdatedAt: c.stageupdatedat || '',
     notifyWhatsApp: isNotifyOn_(c.notifywhatsapp),
     notifyEmail: isNotifyOn_(c.notifyemail),
@@ -801,7 +814,14 @@ function upsertCustomer_(body) {
       city: data.city || existing.city,
       notes: data.notes || existing.notes,
     };
-    if (data.stage) {
+    // Only touch CRM fields when explicitly requested (never auto-add to CRM)
+    if (data.incrm !== undefined) {
+      updates.incrm = data.incrm;
+      if (data.incrm) {
+        updates.stage = data.stage || existing.stage || 'lead';
+        updates.stageupdatedat = new Date().toISOString();
+      }
+    } else if (data.stage && isInCrm_(existing.incrm)) {
       updates.stage = data.stage;
       updates.stageupdatedat = new Date().toISOString();
     }
@@ -816,11 +836,17 @@ function upsertCustomer_(body) {
   }
 
   data.id = data.id || ('cust_' + Date.now());
-  if (!data.stage) data.stage = 'lead';
-  data.stageupdatedat = data.stageupdatedat || new Date().toISOString();
+  // Regular customers stay out of CRM unless inCrm is explicitly true
+  data.incrm = data.incrm === true;
+  if (data.incrm) {
+    data.stage = data.stage || 'lead';
+    data.stageupdatedat = data.stageupdatedat || new Date().toISOString();
+  } else {
+    data.stage = data.stage || '';
+    data.stageupdatedat = '';
+  }
   if (data.notifywhatsapp === undefined || data.notifywhatsapp === '') data.notifywhatsapp = true;
   if (data.notifyemail === undefined || data.notifyemail === '') data.notifyemail = true;
-  // ensure Stage columns exist before append
   ensureHeaders_(sheet, SHEET_NAMES.CUSTOMERS);
   appendObject_(sheet, SHEET_NAMES.CUSTOMERS, data);
   return toApiCustomer_(data);
@@ -862,16 +888,35 @@ function handleCustomers_(path, method, body) {
     throw new Error('Method not allowed');
   }
 
-  // /customers/:id/stage — quick CRM stage move
+  // /customers/:id/crm — add/remove from CRM pipeline (manual only)
+  var crmMatch = path.match(/^\/customers\/([^/]+)\/crm$/);
+  if (crmMatch && (method === 'PUT' || method === 'POST')) {
+    var crmCustId = decodeURIComponent(crmMatch[1]);
+    var crmIdx = findById_(customers, crmCustId);
+    if (crmIdx < 0) throw new Error('Customer not found');
+    var enableCrm = body && body.inCrm === false ? false : true;
+    if (body && (body.inCrm === false || body.incrm === false)) enableCrm = false;
+    var crmUpdates = {
+      incrm: enableCrm,
+      stage: enableCrm ? (normalizeCrmStage_((body && (body.stage || body.crmStage)) || customers[crmIdx].stage || 'lead') || 'lead') : '',
+      stageupdatedat: enableCrm ? new Date().toISOString() : '',
+    };
+    updateObjectProps_(sheet, SHEET_NAMES.CUSTOMERS, customers[crmIdx]._row, crmUpdates);
+    return toApiCustomer_(Object.assign({}, customers[crmIdx], crmUpdates));
+  }
+
+  // /customers/:id/stage — quick CRM stage move (only for CRM members)
   var stageMatch = path.match(/^\/customers\/([^/]+)\/stage$/);
   if (stageMatch && (method === 'PUT' || method === 'POST')) {
     var stageCustId = decodeURIComponent(stageMatch[1]);
     var stageIdx = findById_(customers, stageCustId);
     if (stageIdx < 0) throw new Error('Customer not found');
-    var nextStage = normalizeCrmStage_((body && (body.stage || body.crmStage)) || 'lead');
+    if (!isInCrm_(customers[stageIdx].incrm)) throw new Error('Customer is not in CRM — add them first');
+    var nextStage = normalizeCrmStage_((body && (body.stage || body.crmStage)) || 'lead') || 'lead';
     var stageUpdates = {
       stage: nextStage,
       stageupdatedat: new Date().toISOString(),
+      incrm: true,
     };
     updateObjectProps_(sheet, SHEET_NAMES.CUSTOMERS, customers[stageIdx]._row, stageUpdates);
     return toApiCustomer_(Object.assign({}, customers[stageIdx], stageUpdates));
@@ -893,8 +938,11 @@ function handleCustomers_(path, method, body) {
     var prev = customers[index];
     var updates = normalizeCustomer_(Object.assign({}, prev, body));
     updates.id = prev.id;
-    if (updates.stage === undefined) updates.stage = normalizeCrmStage_(prev.stage || 'lead');
-    if (body.stage != null || body.crmStage != null) {
+    if (updates.incrm === undefined) updates.incrm = isInCrm_(prev.incrm);
+    if (updates.stage === undefined) {
+      updates.stage = updates.incrm ? (normalizeCrmStage_(prev.stage) || 'lead') : (normalizeCrmStage_(prev.stage) || '');
+    }
+    if (body.stage != null || body.crmStage != null || body.inCrm != null || body.incrm != null) {
       updates.stageupdatedat = new Date().toISOString();
     } else {
       updates.stageupdatedat = prev.stageupdatedat || '';
@@ -1507,7 +1555,10 @@ function handleOrderById_(path, method, body) {
 /* ===================== GENERIC COLLECTION ===================== */
 
 function handleCollection_(sheetName, path, method, body, basePath) {
-  var sheet = getSheet_(sheetName);
+  var sheet = (sheetName === SHEET_NAMES.EMPLOYEES || sheetName === SHEET_NAMES.CRM_NOTES)
+    ? getOrCreateSheet_(sheetName)
+    : getSheet_(sheetName);
+  ensureHeaders_(sheet, sheetName);
   var rows = getSheetRows_(sheetName);
 
   if (path === basePath) {
@@ -2562,6 +2613,11 @@ function handleRequest_(e) {
       return jsonResponse_(handleCustomers_(path, method, body));
     }
 
+    if (path === '/employees' || path.indexOf('/employees/') === 0) {
+      getOrCreateSheet_(SHEET_NAMES.EMPLOYEES);
+      return jsonResponse_(handleCollection_(SHEET_NAMES.EMPLOYEES, path, method, body, '/employees'));
+    }
+
     if (path === '/products' || path.indexOf('/products/') === 0) {
       return jsonResponse_(handleProducts_(path, method, body));
     }
@@ -2659,6 +2715,7 @@ function prepareDatabase() {
     SHEET_NAMES.USERS,
     SHEET_NAMES.CUSTOMERS,
     SHEET_NAMES.CRM_NOTES,
+    SHEET_NAMES.EMPLOYEES,
     SHEET_NAMES.ORDERS,
     SHEET_NAMES.PRODUCTS,
     SHEET_NAMES.INVOICES,
@@ -2672,7 +2729,8 @@ function prepareDatabase() {
   var report = [];
   names.forEach(function (name) {
     try {
-      var sheet = (name === SHEET_NAMES.CRM_NOTES) ? getOrCreateSheet_(name) : getSheet_(name);
+      var needsCreate = name === SHEET_NAMES.CRM_NOTES || name === SHEET_NAMES.EMPLOYEES;
+      var sheet = needsCreate ? getOrCreateSheet_(name) : getSheet_(name);
       var headers = ensureHeaders_(sheet, name);
       report.push({ sheet: name, ok: true, columns: headers.length, headers: headers });
     } catch (err) {
