@@ -4,24 +4,26 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { productsAPI, ordersAPI, invoicesAPI } from '@/services/api';
+import { productsAPI, ordersAPI, invoicesAPI, customersAPI } from '@/services/api';
 import { applyServerNotificationHint } from '@/services/notifications';
 import { formatCurrency } from '@/utils/helpers';
 import { barcodeBlock, openPrintWindow, printOnLoadScript, POS_MAJOR_SERVICES } from '@/utils/printHelpers';
 import { useBrand } from '@/context/BrandContext';
-import { Search, Plus, Minus, Trash2, Printer, ShoppingCart, FileSpreadsheet, PackagePlus } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, Printer, ShoppingCart, FileSpreadsheet, PackagePlus, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+
+const WALK_IN = { id: 'cust_walkin', name: 'Walk-in', phone: '' };
 
 const POS = () => {
   const navigate = useNavigate();
   const { company, primary } = useBrand();
   const [products, setProducts] = useState([]);
+  const [customers, setCustomers] = useState([]);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [cart, setCart] = useState([]);
-  const [customerName, setCustomerName] = useState('Walk-in');
-  const [customerPhone, setCustomerPhone] = useState('');
+  const [customerId, setCustomerId] = useState(WALK_IN.id);
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [checkingOut, setCheckingOut] = useState(false);
   const [lastSale, setLastSale] = useState(null);
@@ -36,9 +38,42 @@ const POS = () => {
     }
   }, []);
 
+  const loadCustomers = useCallback(async () => {
+    try {
+      const res = await customersAPI.getAll();
+      const list = Array.isArray(res.data) ? res.data : [];
+      setCustomers(list);
+    } catch (err) {
+      console.error(err);
+      setCustomers([]);
+    }
+  }, []);
+
   useEffect(() => {
     loadProducts();
-  }, [loadProducts]);
+    loadCustomers();
+  }, [loadProducts, loadCustomers]);
+
+  const selectedCustomer = useMemo(() => {
+    if (!customerId || customerId === WALK_IN.id) {
+      const existingWalk = customers.find((c) => {
+        const n = String(c.name || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
+        return c.id === WALK_IN.id || n === 'walkin' || n === 'walking';
+      });
+      return existingWalk || WALK_IN;
+    }
+    return customers.find((c) => c.id === customerId) || WALK_IN;
+  }, [customerId, customers]);
+
+  const customerOptions = useMemo(() => {
+    const walk = customers.find((c) => {
+      const n = String(c.name || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
+      return c.id === WALK_IN.id || n === 'walkin' || n === 'walking';
+    });
+    const rest = customers.filter((c) => c !== walk && c.id !== WALK_IN.id);
+    const walkOpt = walk || WALK_IN;
+    return [walkOpt, ...rest.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))];
+  }, [customers]);
 
   const filtered = useMemo(() => {
     return products.filter((p) => {
@@ -161,9 +196,11 @@ const POS = () => {
         size,
         material,
       }));
+      const cust = selectedCustomer || WALK_IN;
       const payload = {
-        customerName: customerName || 'Walk-in',
-        customerPhone,
+        customerId: cust.id || WALK_IN.id,
+        customerName: cust.name || 'Walk-in',
+        customerPhone: cust.phone || '',
         products: productsPayload,
         totalAmount: total,
         advancePayment: total,
@@ -176,6 +213,8 @@ const POS = () => {
       const created = await ordersAPI.create(payload);
       const sale = {
         ...payload,
+        customerName: created.data?.customerName || payload.customerName,
+        customerPhone: created.data?.customerPhone || payload.customerPhone,
         orderId: created.data?.orderId || created.data?.id,
         id: created.data?.id,
         date: new Date().toLocaleString(),
@@ -183,12 +222,11 @@ const POS = () => {
       };
       setLastSale(sale);
       toast.success(`Sale ${sale.orderId} completed`);
-      if (customerPhone && applyServerNotificationHint(created.data)) {
+      if (sale.customerPhone && applyServerNotificationHint(created.data)) {
         toast.message('WhatsApp opened — tap Send');
       }
       setCart([]);
-      setCustomerName('Walk-in');
-      setCustomerPhone('');
+      setCustomerId(WALK_IN.id);
       printReceipt(sale);
     } catch (err) {
       console.error(err);
@@ -311,15 +349,34 @@ const POS = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
                 <Label>Customer</Label>
-                <Input value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => navigate('/customers?new=1')}
+                >
+                  <UserPlus className="h-3.5 w-3.5 mr-1" />Add in Customers
+                </Button>
               </div>
-              <div>
-                <Label>Phone</Label>
-                <Input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="Optional" />
-              </div>
+              <select
+                className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                value={customerId}
+                onChange={(e) => setCustomerId(e.target.value)}
+                data-testid="pos-customer-select"
+              >
+                {customerOptions.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name || 'Customer'}{c.phone ? ` · ${c.phone}` : ''}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-gray-500">
+                Default is Walk-in (one shared customer). Pick another only from saved customers — POS will not create new ones.
+              </p>
             </div>
             <div>
               <Label>Payment</Label>

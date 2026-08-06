@@ -798,11 +798,47 @@ function findCustomerByPhone_(phone) {
   }) || null;
 }
 
+/** One shared Walk-in customer for POS — created once, never duplicated. */
+function ensureWalkInCustomer_() {
+  var sheet = getSheet_(SHEET_NAMES.CUSTOMERS);
+  ensureHeaders_(sheet, SHEET_NAMES.CUSTOMERS);
+  var customers = getSheetRows_(SHEET_NAMES.CUSTOMERS);
+  var walk = customers.find(function (c) {
+    if (String(c.id) === 'cust_walkin') return true;
+    var n = String(c.name || '').trim().toLowerCase().replace(/[\s_\-]+/g, '');
+    return n === 'walkin' || n === 'walking';
+  });
+  if (walk) return toApiCustomer_(walk);
+
+  var data = {
+    id: 'cust_walkin',
+    name: 'Walk-in',
+    phone: '',
+    email: '',
+    address: '',
+    city: '',
+    notes: 'Default POS walk-in customer (do not duplicate)',
+    incrm: false,
+    stage: '',
+    stageupdatedat: '',
+    notifywhatsapp: false,
+    notifyemail: false,
+  };
+  appendObject_(sheet, SHEET_NAMES.CUSTOMERS, data);
+  invalidateSheetCache_(SHEET_NAMES.CUSTOMERS);
+  return toApiCustomer_(data);
+}
+
 function upsertCustomer_(body) {
   var data = normalizeCustomer_(body);
   if (!data.name && !data.phone) throw new Error('Customer name or phone required');
 
   var sheet = getSheet_(SHEET_NAMES.CUSTOMERS);
+  // Never spawn another Walk-in — always reuse the single shared record
+  var nameNorm = String(data.name || '').trim().toLowerCase().replace(/[\s_\-]+/g, '');
+  if (nameNorm === 'walkin' || nameNorm === 'walking' || String(data.id) === 'cust_walkin') {
+    return ensureWalkInCustomer_();
+  }
   var existing = data.phone ? findCustomerByPhone_(data.phone) : null;
 
   if (existing) {
@@ -1473,8 +1509,22 @@ function handleOrders_(method, body) {
         return apiDup;
       }
     }
-    // Auto upsert customer from order fields
-    if (body.customerPhone || body.customerName) {
+    // POS: never create new customers — reuse single Walk-in, or an existing customerId
+    var docTypeIn = String(body.docType || body.doctype || 'Order').toLowerCase();
+    if (docTypeIn === 'pos') {
+      var posCust = null;
+      if (body.customerId) {
+        var allCust = getSheetRows_(SHEET_NAMES.CUSTOMERS);
+        var posIdx = findById_(allCust, body.customerId);
+        if (posIdx >= 0) posCust = toApiCustomer_(allCust[posIdx]);
+      }
+      if (!posCust) posCust = ensureWalkInCustomer_();
+      body.customerId = posCust.id;
+      body.customerName = posCust.name || 'Walk-in';
+      // Keep optional phone on the order/receipt only — do not create a customer from it
+      if (!body.customerPhone) body.customerPhone = posCust.phone || '';
+    } else if (body.customerPhone || body.customerName) {
+      // Regular orders: upsert customer from order fields
       var cust = upsertCustomer_({
         name: body.customerName,
         phone: body.customerPhone,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +21,7 @@ const empty = {
 
 const Customers = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -50,7 +51,16 @@ const Customers = () => {
     c.email?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const openCreate = () => { setEditing(null); setFormData(empty); setDialogOpen(true); };
+  const openCreate = useCallback(() => { setEditing(null); setFormData(empty); setDialogOpen(true); }, []);
+
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      openCreate();
+      const next = new URLSearchParams(searchParams);
+      next.delete('new');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams, openCreate]);
   const openEdit = (c) => {
     setEditing(c);
     setFormData({
