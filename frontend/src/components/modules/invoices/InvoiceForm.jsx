@@ -8,11 +8,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { invoicesAPI, customersAPI, productsAPI } from '@/services/api';
-import { applyServerNotificationHint, notifyOrderEvent, printPaymentSlip } from '@/services/notifications';
+import { applyServerNotificationHint, notifyOrderEvent, printPaymentSlip, openWhatsAppChat, fillTemplate, resolveWhatsAppTemplate, buildTemplateVars, buildWhatsAppAppUrl } from '@/services/notifications';
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import { formatCurrency } from '@/utils/helpers';
 import { useBrand } from '@/context/BrandContext';
-import { ArrowLeft, Save, Plus, Trash2, User, Receipt, PackagePlus } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Trash2, PackagePlus } from 'lucide-react';
 import { toast } from 'sonner';
 
 const emptyItem = () => ({
@@ -201,36 +201,51 @@ const InvoiceForm = () => {
 
   const goAddProduct = () => navigate('/warehouse/products?new=1');
 
-  const sendInvoiceWhatsApp = async (data, grand, bal, paid) => {
-    if (!data.customerPhone) {
+  const sendInvoiceWhatsApp = async (data, grand, bal, paid, pendingWindow = null) => {
+    const phone = data.customerPhone || '';
+    if (!phone) {
+      if (pendingWindow && !pendingWindow.closed) {
+        try { pendingWindow.close(); } catch { /* ignore */ }
+      }
       toast.error('Customer phone missing — WhatsApp not sent');
-      return;
+      return { ok: false };
     }
     const shareToken = data.shareToken || '';
-    await notifyOrderEvent({
-      event: 'invoice_generated',
-      order: {
+    const invoiceUrl = shareToken
+      ? `${window.location.origin}/invoice/${shareToken}`
+      : '';
+    const companyInfo = company || {};
+    const vars = buildTemplateVars(
+      {
         customerName: data.customerName,
-        customerPhone: data.customerPhone,
-        customerEmail: data.customerEmail,
+        customerPhone: phone,
         orderId: data.orderId,
-        status: 'Invoice',
         totalAmount: grand,
         balanceAmount: bal,
       },
-      invoice: {
-        ...data,
-        invoiceNumber: data.invoiceNumber,
-        date: data.date,
-        totalAmount: grand,
+      companyInfo,
+      {
+        invoice_number: data.invoiceNumber,
+        invoice_date: data.date,
+        invoice_url: invoiceUrl,
+        amount: grand,
         paidAmount: paid,
-        balanceAmount: bal,
-        shareToken,
-        invoiceUrl: shareToken ? `${window.location.origin}/invoice/${shareToken}` : '',
-      },
-      openWhatsApp: true,
-    });
-    toast.message('Invoice WhatsApp opened — link + pending payment');
+        payment_amount: paid,
+        balance_due: bal,
+      }
+    );
+    const template = resolveWhatsAppTemplate(null, 'invoice_generated');
+    let text = fillTemplate(template, vars);
+    if (invoiceUrl && !text.includes(invoiceUrl)) {
+      text = `${text}\n\nInvoice link: ${invoiceUrl}`;
+    }
+    const result = openWhatsAppChat(phone, text, { pendingWindow });
+    if (!result?.ok) {
+      toast.error('Allow popups / WhatsApp app to send invoice message');
+      return result;
+    }
+    toast.message('WhatsApp opened — send invoice link + pending payment');
+    return result;
   };
 
   const subtotal = formData.items.reduce((s, it) => s + (it.quantity || 0) * (it.rate || 0), 0);
@@ -261,7 +276,12 @@ const InvoiceForm = () => {
       return;
     }
     setSaving(true);
+    let waWindow = null;
     try {
+      // Open blank tab during click gesture so WhatsApp isn't blocked after API await
+      if (!isEdit && formData.customerPhone && buildWhatsAppAppUrl(formData.customerPhone, ' ')) {
+        waWindow = window.open('about:blank', '_blank');
+      }
       const payload = {
         ...formData,
         id: isEdit ? invoiceId : formData.id,
@@ -334,11 +354,10 @@ const InvoiceForm = () => {
         res = await invoicesAPI.create(payload);
         toast.success(`Invoice ${payload.invoiceNumber} created`);
         const data = { ...payload, ...(res.data || {}) };
-        if (applyServerNotificationHint(data)) {
-          toast.message('WhatsApp opened — tap Send');
-        } else {
-          await sendInvoiceWhatsApp(data, grandTotal, balance, Number(payload.paidAmount) || 0);
-        }
+        // Always open invoice WhatsApp (link + pending). Do not open a second payment chat.
+        applyServerNotificationHint(data);
+        await sendInvoiceWhatsApp(data, grandTotal, balance, Number(payload.paidAmount) || 0, waWindow);
+        waWindow = null;
         const paidNow = Number(payload.paidAmount) || 0;
         if (paidNow > 0) {
           printPaymentSlip({
@@ -354,40 +373,15 @@ const InvoiceForm = () => {
             date: payload.date,
             notes: `Invoice ${payload.invoiceNumber}`,
           }, company || {});
-          if (payload.customerPhone) {
-            await notifyOrderEvent({
-              event: 'payment_received',
-              order: {
-                customerName: payload.customerName,
-                customerPhone: payload.customerPhone,
-                orderId: payload.orderId,
-                totalAmount: grandTotal,
-                balanceAmount: balance,
-              },
-              invoice: {
-                invoiceNumber: payload.invoiceNumber,
-                date: payload.date,
-                totalAmount: grandTotal,
-                paidAmount: paidNow,
-                balanceAmount: balance,
-                shareToken: data.shareToken,
-              },
-              payment: {
-                party: payload.customerName,
-                partyPhone: payload.customerPhone,
-                amount: paidNow,
-                method: 'Invoice payment',
-                reference: payload.invoiceNumber,
-                type: 'inflow',
-                balanceDue: balance,
-              },
-            });
-          }
         }
       }
       const id = res.data?.id || invoiceId;
-      navigate(`/invoices/${id}`);
+      // Short delay so WhatsApp tab keeps focus before navigate
+      setTimeout(() => navigate(`/invoices/${id}`), 600);
     } catch (err) {
+      if (waWindow && !waWindow.closed) {
+        try { waWindow.close(); } catch { /* ignore */ }
+      }
       console.error(err);
       toast.error(err.response?.data?.message || 'Failed to save invoice');
     } finally {

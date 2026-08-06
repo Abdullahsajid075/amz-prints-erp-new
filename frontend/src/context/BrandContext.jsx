@@ -15,6 +15,7 @@ const defaultBrand = {
     authorizedSignatory: 'Authorized Person',
     logo: '',
     stamp: '',
+    signature: '',
   },
   theme: {
     primary: '#F26522',
@@ -60,12 +61,19 @@ function writeCachedBrand(brand) {
   }
 }
 
+function pickImageField(data, topKey, nestedVal) {
+  // Top-level keys win even when empty (clear stamp/signature must stick)
+  if (Object.prototype.hasOwnProperty.call(data, topKey)) return data[topKey] || '';
+  return nestedVal || '';
+}
+
 function normalizeBrandPayload(data) {
   if (!data || typeof data !== 'object') return null;
   const companyRaw = typeof data.company === 'object' ? data.company : {};
   const company = { ...defaultBrand.company, ...companyRaw };
-  if (data.companyLogo && !company.logo) company.logo = data.companyLogo;
-  if (data.companyStamp && !company.stamp) company.stamp = data.companyStamp;
+  company.logo = pickImageField(data, 'companyLogo', company.logo);
+  company.stamp = pickImageField(data, 'companyStamp', company.stamp);
+  company.signature = pickImageField(data, 'companySignature', company.signature);
   return {
     company,
     theme: { ...defaultBrand.theme, ...(typeof data.theme === 'object' ? data.theme : {}) },
@@ -73,14 +81,26 @@ function normalizeBrandPayload(data) {
   };
 }
 
+function imgSig(v) {
+  if (!v) return '0';
+  const s = String(v);
+  // Prefix of data-URLs is identical — use length + tail so stamp/signature changes detect
+  return `${s.length}:${s.slice(-80)}`;
+}
+
 function brandSignature(b) {
   if (!b) return '';
   return [
     b.company?.name,
     b.company?.tagline,
-    b.company?.logo ? String(b.company.logo).slice(0, 80) : '',
-    b.company?.logo ? String(b.company.logo).length : 0,
+    b.company?.authorizedSignatory,
+    imgSig(b.company?.logo),
+    imgSig(b.company?.stamp),
+    imgSig(b.company?.signature),
     b.theme?.primary,
+    b.invoice?.showStamp,
+    b.invoice?.showSignature,
+    b.invoice?.template,
   ].join('|');
 }
 

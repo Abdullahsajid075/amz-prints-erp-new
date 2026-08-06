@@ -2081,8 +2081,10 @@ function getSettings_() {
     obj.company = parseSettingsValue_(obj.company) || {};
   }
   if (!obj.company || typeof obj.company !== 'object') obj.company = {};
-  if (obj.companyLogo && !obj.company.logo) obj.company.logo = obj.companyLogo;
-  if (obj.companyStamp && !obj.company.stamp) obj.company.stamp = obj.companyStamp;
+  // Prefer dedicated image keys — even empty string clears nested stale stamp/signature
+  if (Object.prototype.hasOwnProperty.call(obj, 'companyLogo')) obj.company.logo = obj.companyLogo || '';
+  if (Object.prototype.hasOwnProperty.call(obj, 'companyStamp')) obj.company.stamp = obj.companyStamp || '';
+  if (Object.prototype.hasOwnProperty.call(obj, 'companySignature')) obj.company.signature = obj.companySignature || '';
 
   ['invoice', 'theme', 'orders', 'customers', 'products', 'payments', 'users', 'notifications', 'system', 'designers', 'employees'].forEach(function (sec) {
     if (typeof obj[sec] === 'string') obj[sec] = parseSettingsValue_(obj[sec]);
@@ -2131,8 +2133,20 @@ function updateSettings_(body) {
       payload.companyStamp = company.stamp;
       company.stamp = '';
     }
-    if (incoming.companyLogo) payload.companyLogo = incoming.companyLogo;
-    if (incoming.companyStamp) payload.companyStamp = incoming.companyStamp;
+    if (company.signature) {
+      payload.companySignature = company.signature;
+      company.signature = '';
+    }
+    // Allow explicit clear / replace from top-level keys
+    if (Object.prototype.hasOwnProperty.call(incoming, 'companyLogo')) {
+      payload.companyLogo = incoming.companyLogo || '';
+    }
+    if (Object.prototype.hasOwnProperty.call(incoming, 'companyStamp')) {
+      payload.companyStamp = incoming.companyStamp || '';
+    }
+    if (Object.prototype.hasOwnProperty.call(incoming, 'companySignature')) {
+      payload.companySignature = incoming.companySignature || '';
+    }
     payload.company = company;
   }
 
@@ -2152,7 +2166,7 @@ function updateSettings_(body) {
     if (k === '_row' || k === '_status' || k === '_warnings') return;
     var cell = serializeCell_(payload[k]);
     if (typeof cell === 'string' && cell.length > 49000) {
-      if (k === 'companyLogo' || k === 'companyStamp') {
+      if (k === 'companyLogo' || k === 'companyStamp' || k === 'companySignature') {
         skipped.push(k + ' (too large for Sheets cell)');
         return;
       }
@@ -2187,12 +2201,19 @@ function handlePublic_(path, method) {
     var settings = getSettings_();
     var company = settings.company || {};
     if (typeof company !== 'object') company = {};
-    if (settings.companyLogo && !company.logo) company.logo = settings.companyLogo;
-    if (settings.companyStamp && !company.stamp) company.stamp = settings.companyStamp;
+    if (Object.prototype.hasOwnProperty.call(settings, 'companyLogo')) company.logo = settings.companyLogo || '';
+    else company.logo = company.logo || '';
+    if (Object.prototype.hasOwnProperty.call(settings, 'companyStamp')) company.stamp = settings.companyStamp || '';
+    else company.stamp = company.stamp || '';
+    if (Object.prototype.hasOwnProperty.call(settings, 'companySignature')) company.signature = settings.companySignature || '';
+    else company.signature = company.signature || '';
     return {
       company: company,
       theme: settings.theme || {},
       invoice: settings.invoice || {},
+      companyLogo: company.logo || '',
+      companyStamp: company.stamp || '',
+      companySignature: company.signature || '',
     };
   }
   if (method === 'GET' && path.indexOf('/public/invoice/') === 0) {

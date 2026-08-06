@@ -21,7 +21,7 @@ import { Save, Building2, FileText, Palette, Users, ShoppingCart, Package, UserC
 import { toast } from 'sonner';
 
 const defaultSettings = {
-  company: { name: 'AMZ Prints', tagline: 'Professional Printing & Advertising Services', address: '', phone: '', email: '', website: '', taxId: '', authorizedSignatory: 'Authorized Person', logo: '', stamp: '' },
+  company: { name: 'AMZ Prints', tagline: 'Professional Printing & Advertising Services', address: '', phone: '', email: '', website: '', taxId: '', authorizedSignatory: 'Authorized Person', logo: '', stamp: '', signature: '' },
   invoice: { prefix: 'INV-', taxRate: 0, terms: 'Payment due within 30 days.', showQR: true, showStamp: true, showSignature: true, template: 'classic' },
   theme: { primary: '#F26522', secondary: '#2E2E2E', accent: '#10B981' },
   orders: { autoNumber: true, orderPrefix: 'ORD-', defaultStatus: 'Order Received', requireDeliveryDate: true },
@@ -114,11 +114,14 @@ function mergeSettingsFromApi(data) {
     };
   };
   const company = section('company');
-  const logo = data.companyLogo || company.logo || '';
-  const stamp = data.companyStamp || company.stamp || '';
+  const pickImg = (topKey, nested) =>
+    (Object.prototype.hasOwnProperty.call(data, topKey) ? (data[topKey] || '') : (nested || ''));
+  const logo = pickImg('companyLogo', company.logo);
+  const stamp = pickImg('companyStamp', company.stamp);
+  const signature = pickImg('companySignature', company.signature);
   return {
     ...defaultSettings,
-    company: { ...company, logo, stamp },
+    company: { ...company, logo, stamp, signature },
     invoice: section('invoice'),
     theme: section('theme'),
     orders: section('orders'),
@@ -188,12 +191,14 @@ const Settings = () => {
       const company = { ...(settings.company || {}) };
       const companyLogo = company.logo || '';
       const companyStamp = company.stamp || '';
-      // Keep company JSON small — logo/stamp as separate keys
+      const companySignature = company.signature || '';
+      // Keep company JSON small — logo/stamp/signature as separate keys
       const payload = {
         ...settings,
-        company: { ...company, logo: '', stamp: '' },
+        company: { ...company, logo: '', stamp: '', signature: '' },
         companyLogo,
         companyStamp,
+        companySignature,
       };
       const res = await settingsAPI.update(payload);
       clearGasCache();
@@ -228,7 +233,8 @@ const Settings = () => {
     try {
       const dataUrl = await compressImageFile(file, { forcePng: true, maxEdge: 360 });
       update('company', field, dataUrl);
-      toast.success(`${field === 'logo' ? 'Logo' : 'Stamp'} ready (PNG, transparent background)`);
+      const labels = { logo: 'Logo', stamp: 'Stamp', signature: 'Signature' };
+      toast.success(`${labels[field] || field} ready — click Save Settings`);
     } catch {
       toast.error('Failed to read file');
     }
@@ -373,6 +379,47 @@ const Settings = () => {
                 </Select>
               </div>
               <div><Label>Terms & Conditions</Label><Textarea rows={5} value={settings.invoice.terms} onChange={(e) => update('invoice', 'terms', e.target.value)} /></div>
+
+              <div className="rounded-xl border border-orange-100 p-4 space-y-4" style={{ backgroundColor: '#FFF9F5' }}>
+                <p className="text-sm font-semibold" style={{ color: '#2E2E2E' }}>Authorized Signature & Stamp (shown on invoices)</p>
+                <div>
+                  <Label>Authorized Person Name *</Label>
+                  <Input
+                    value={settings.company.authorizedSignatory || ''}
+                    onChange={(e) => update('company', 'authorizedSignatory', e.target.value)}
+                    placeholder="e.g. Muhammad Ali / Director"
+                    data-testid="invoice-signatory-input"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">This name appears under the signature on every invoice.</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label>Signature Image (optional)</Label>
+                    <Input type="file" accept="image/*" onChange={(e) => onImagePick('signature', e.target.files?.[0])} data-testid="signature-file-input" />
+                    {settings.company.signature ? (
+                      <div className="mt-2 flex items-center gap-3">
+                        <img src={settings.company.signature} alt="Signature" className="h-14 object-contain border rounded p-1 bg-white" />
+                        <Button type="button" size="sm" variant="ghost" onClick={() => update('company', 'signature', '')}>Clear</Button>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-500 mt-1">Upload handwritten signature PNG. If empty, name text is used.</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label>Company Stamp Image *</Label>
+                    <Input type="file" accept="image/*" onChange={(e) => onImagePick('stamp', e.target.files?.[0])} data-testid="invoice-stamp-file-input" />
+                    {settings.company.stamp ? (
+                      <div className="mt-2 flex items-center gap-3">
+                        <img src={settings.company.stamp} alt="Stamp" className="h-14 object-contain border rounded p-1 bg-white" />
+                        <Button type="button" size="sm" variant="ghost" onClick={() => update('company', 'stamp', '')}>Clear</Button>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-500 mt-1">Upload stamp — save settings, then open any invoice to verify.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-3 p-4 border rounded-lg">
                 <p className="text-sm font-semibold">Invoice Elements</p>
                 {[{ k: 'showQR', l: 'Show QR Code' }, { k: 'showStamp', l: 'Show Company Stamp' }, { k: 'showSignature', l: 'Show Signature' }].map(o => (

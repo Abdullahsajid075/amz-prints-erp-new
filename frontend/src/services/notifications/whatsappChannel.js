@@ -29,10 +29,28 @@ export function buildWhatsAppAppUrl(phone, text) {
  * Open customer chat in WhatsApp Desktop (if installed) or Mobile app.
  * User only needs to tap Send.
  */
-export function openWhatsAppChat(phone, text) {
+/**
+ * @param {string} phone
+ * @param {string} text
+ * @param {{ pendingWindow?: Window|null }} [opts] — window opened during user click (survives async)
+ */
+export function openWhatsAppChat(phone, text, opts = {}) {
   const urls = buildWhatsAppAppUrl(phone, text);
   if (!urls) {
+    if (opts.pendingWindow && !opts.pendingWindow.closed) {
+      try { opts.pendingWindow.close(); } catch { /* ignore */ }
+    }
     return { ok: false, reason: 'missing_phone' };
+  }
+
+  // Prefer pre-opened window (avoids popup blocker after await)
+  if (opts.pendingWindow && !opts.pendingWindow.closed) {
+    try {
+      opts.pendingWindow.location.href = urls.deepLink;
+      return { ok: true, phone: urls.phone, channel: 'whatsapp' };
+    } catch {
+      /* fall through */
+    }
   }
 
   // Native protocol — WhatsApp Desktop / Mobile
@@ -48,7 +66,12 @@ export function openWhatsAppChat(phone, text) {
     /* ignore */
   }
 
-  // Deep-link fallback (opens app when installed; not web.whatsapp.com)
+  // Immediate deep-link (best chance after async) + delayed anchor click
+  try {
+    window.open(urls.deepLink, '_blank', 'noopener,noreferrer');
+  } catch {
+    /* ignore */
+  }
   setTimeout(() => {
     const a = document.createElement('a');
     a.href = urls.deepLink;

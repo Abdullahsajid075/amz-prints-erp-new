@@ -373,9 +373,13 @@ const InvoiceView = ({ isPublic = false }) => {
           {showSignature && (
             <div className={`text-center pt-8 border-t border-gray-200 ${!showStamp ? 'col-span-2' : ''}`}>
               <div className="h-24 flex items-end justify-center">
-                <div className="italic text-xl font-serif text-gray-700 pb-1 opacity-70" style={{ fontFamily: '"Brush Script MT", cursive' }}>
-                  {company.authorizedSignatory || 'AMZ Prints'}
-                </div>
+                {company.signature ? (
+                  <img src={company.signature} alt="Authorized signature" className="max-h-20 object-contain" />
+                ) : (
+                  <div className="italic text-xl font-serif text-gray-700 pb-1 opacity-70" style={{ fontFamily: '"Brush Script MT", cursive' }}>
+                    {company.authorizedSignatory || 'Authorized Person'}
+                  </div>
+                )}
               </div>
               <div className="border-t border-gray-400 pt-2 mt-2">
                 <p className="text-xs uppercase tracking-wider text-gray-500 font-semibold">Authorized Signature</p>
