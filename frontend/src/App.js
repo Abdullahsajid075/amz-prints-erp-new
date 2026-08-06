@@ -32,6 +32,7 @@ import Warehouse from '@/components/modules/warehouse/Warehouse';
 import Accounts from '@/components/modules/accounts/Accounts';
 import POS from '@/components/modules/pos/POS';
 import PrintingCostCalculator from '@/components/modules/calculator/PrintingCostCalculator';
+import PublicOrderTracking from '@/components/modules/tracking/PublicOrderTracking';
 
 /**
  * App shell (Brand + Auth) only mounts for protected routes.
@@ -58,13 +59,31 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public — no BrandProvider / AuthProvider */}
+        {/* Public — no Auth / no Vercel login */}
         <Route path="/login" element={<Login />} />
         <Route
           path="/invoice/:shareToken"
           element={(
             <BrandProvider>
               <InvoiceView isPublic={true} />
+            </BrandProvider>
+          )}
+        />
+        <Route
+          path="/track"
+          element={(
+            <BrandProvider>
+              <PublicOrderTracking />
+              <Toaster position="top-right" richColors closeButton />
+            </BrandProvider>
+          )}
+        />
+        <Route
+          path="/track/:code"
+          element={(
+            <BrandProvider>
+              <PublicOrderTracking />
+              <Toaster position="top-right" richColors closeButton />
             </BrandProvider>
           )}
         />

@@ -2207,15 +2207,65 @@ function handlePublic_(path, method) {
     var needle = tracking.toLowerCase();
     var orders = getSheetRows_(SHEET_NAMES.ORDERS);
     var order = orders.find(function (o) {
+      if (String(o.doctype || 'Order').toLowerCase() === 'quotation') return false;
       var keys = [o.trackingnumber, o.orderid, o.id, o.tokenno]
         .map(function (v) { return String(v || '').trim().toLowerCase(); })
         .filter(Boolean);
       return keys.indexOf(needle) !== -1;
     });
     if (!order) throw new Error('Order not found for: ' + tracking);
-    return toApiOrder_(order);
+    return toPublicTrackOrder_(order);
   }
   throw new Error('Not found');
+}
+
+/** Customer-safe tracking payload (no login). */
+function toPublicTrackOrder_(o) {
+  var api = toApiOrder_(o);
+  var pipeline = [
+    'Order Received', 'Designing', 'Proof Approval', 'Printing',
+    'Finishing', 'Packing', 'Ready', 'Delivered'
+  ];
+  var status = String(api.status || '');
+  var cancelled = status.toLowerCase() === 'cancelled';
+  var idx = cancelled ? -1 : pipeline.indexOf(status);
+  if (idx < 0 && !cancelled) {
+    for (var i = 0; i < pipeline.length; i++) {
+      if (pipeline[i].toLowerCase() === status.toLowerCase()) { idx = i; break; }
+    }
+  }
+  var timeline = pipeline.map(function (s, i) {
+    return {
+      status: s,
+      done: !cancelled && idx >= 0 && i <= idx,
+      current: !cancelled && s === status,
+    };
+  });
+  var products = (api.products || []).map(function (p) {
+    return {
+      name: p.name || '',
+      quantity: Number(p.quantity) || 0,
+      size: p.size || '',
+      material: p.material || '',
+    };
+  });
+  return {
+    orderId: api.orderId || '',
+    trackingNumber: api.trackingNumber || api.orderId || '',
+    tokenNo: api.tokenNo || '',
+    status: api.status || '',
+    cancelled: cancelled,
+    date: api.date || '',
+    deliveryDate: api.deliveryDate || '',
+    customerName: api.customerName || '',
+    products: products,
+    totalAmount: Number(api.totalAmount) || 0,
+    advancePayment: Number(api.advancePayment) || 0,
+    balanceAmount: Number(api.balanceAmount) || 0,
+    timeline: timeline,
+    trackCode: api.trackingNumber || api.orderId || api.id || '',
+    companyNote: 'For questions, contact Amazon Printing Services with your Order ID.',
+  };
 }
 
 function toApiProduct_(p) {

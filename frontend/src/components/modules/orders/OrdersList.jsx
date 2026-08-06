@@ -10,7 +10,7 @@ import { ordersAPI, invoicesAPI, settingsAPI } from '@/services/api';
 import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
 import { ORDER_STATUS } from '@/utils/constants';
 import { openWhatsAppChat, fillTemplate, buildTemplateVars, resolveWhatsAppTemplate } from '@/services/notifications';
-import { Plus, Search, Eye, Edit, Copy, Trash2, User, Phone, Mail, MapPin, Calendar, Package, FileText, X, Printer, MessageCircle, Receipt, Truck } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Copy, Trash2, User, Phone, Mail, MapPin, Calendar, Package, FileText, X, Printer, MessageCircle, Receipt, Truck, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const IN_PROGRESS_STATUSES = ['Order Received', 'Designing', 'Proof Approval', 'Printing', 'Finishing', 'Packing', 'Ready'];
@@ -22,6 +22,11 @@ function orderDisplayTotal(order) {
   const fromProducts = (Array.isArray(order?.products) ? order.products : [])
     .reduce((s, p) => s + (Number(p.quantity) || 0) * (Number(p.rate) || 0), 0);
   return fromProducts || 0;
+}
+
+function trackingLinkFor(order) {
+  const code = order?.trackingNumber || order?.orderId || order?.id || '';
+  return `${window.location.origin}/track/${encodeURIComponent(String(code).trim())}`;
 }
 
 const OrdersList = () => {
@@ -94,13 +99,28 @@ const OrdersList = () => {
     try {
       const full = order.customerPhone ? order : (await ordersAPI.getById(order.id)).data;
       if (!full.customerPhone) { toast.error('Customer phone not available'); return; }
-      const vars = buildTemplateVars(full, company);
+      const trackUrl = trackingLinkFor(full);
+      const vars = buildTemplateVars({ ...full, trackUrl, trackingNumber: full.trackingNumber || full.orderId }, company);
       const template = resolveWhatsAppTemplate(null, 'status', full.status);
       const msg = fillTemplate(template, vars);
-      const result = openWhatsAppChat(full.customerPhone, msg);
+      const withLink = String(msg || '').includes(trackUrl)
+        ? msg
+        : `${msg}\n\nTrack your order (no login): ${trackUrl}`;
+      const result = openWhatsAppChat(full.customerPhone, withLink);
       if (!result.ok) toast.error('Could not open WhatsApp');
       else toast.message('WhatsApp opened — tap Send');
     } catch (err) { console.error(err); toast.error('Failed to open WhatsApp'); }
+  };
+
+  const copyTrackingLink = (order) => {
+    const link = trackingLinkFor(order);
+    if (!order?.trackingNumber && !order?.orderId && !order?.id) {
+      toast.error('No tracking / order id');
+      return;
+    }
+    navigator.clipboard.writeText(link).then(() => {
+      toast.success('Customer tracking link copied (no login)');
+    }).catch(() => toast.message(link));
   };
 
   const handlePrint = async (order) => {
@@ -259,6 +279,9 @@ const OrdersList = () => {
         <Button size="icon" variant="outline" className="h-8 w-8 text-green-600 hover:bg-green-50" title="WhatsApp" onClick={() => handleWhatsApp(order)} data-testid={`whatsapp-order-${order.id}`}>
           <MessageCircle className="h-3.5 w-3.5" />
         </Button>
+        <Button size="icon" variant="outline" className="h-8 w-8" title="Copy tracking link" onClick={() => copyTrackingLink(order)} data-testid={`track-link-${order.id}`}>
+          <Link2 className="h-3.5 w-3.5" style={{ color: '#F26522' }} />
+        </Button>
         <Button size="icon" variant="outline" className="h-8 w-8" title="Print" onClick={() => handlePrint(order)} data-testid={`print-order-${order.id}`}>
           <Printer className="h-3.5 w-3.5" />
         </Button>
@@ -354,6 +377,7 @@ const OrdersList = () => {
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleView(order.id)} title="View"><Eye className="h-4 w-4" /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleGenerateInvoice(order)} title="Invoice"><Receipt className="h-4 w-4" style={{ color: '#F26522' }} /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600" onClick={() => handleWhatsApp(order)} title="WhatsApp"><MessageCircle className="h-4 w-4" /></Button>
+                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => copyTrackingLink(order)} title="Copy tracking link"><Link2 className="h-4 w-4" style={{ color: '#F26522' }} /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handlePrint(order)} title="Print"><Printer className="h-4 w-4" /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleDuplicate(order.id)} title="Duplicate"><Copy className="h-4 w-4" /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleDelete(order.id)} title="Delete"><Trash2 className="h-4 w-4 text-red-600" /></Button>
@@ -453,6 +477,9 @@ const OrdersList = () => {
             </Button>
             {viewOrder && (
               <>
+                <Button variant="outline" onClick={() => copyTrackingLink(viewOrder)}>
+                  <Link2 className="h-4 w-4 mr-1" />Copy Track Link
+                </Button>
                 <Button variant="outline" onClick={() => handlePrint(viewOrder)}><Printer className="h-4 w-4 mr-1" />Print</Button>
                 {viewOrder.status === 'Ready' && (
                   <Button variant="outline" onClick={() => { setViewOpen(false); navigate(`/orders/${viewOrder.id}/delivery-slip`); }}>
