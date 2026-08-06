@@ -4,17 +4,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { trackPublic } from '@/services/api';
-import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
+import { getStatusColor } from '@/utils/helpers';
 import { useBrand } from '@/context/BrandContext';
 import {
-  Search, Package, Calendar, CheckCircle2, Circle, Truck,
-  RefreshCw, MapPin, Hash,
+  Search, Package, CheckCircle2, Circle, RefreshCw, Hash, User,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 /**
  * Public order tracking — no ERP login.
- * Links: /track  or  /track/ORD-123  or  /track/TRK-1234
+ * Shows only: customer name, order status, item names (no prices / balance).
  */
 const PublicOrderTracking = () => {
   const { code: routeCode } = useParams();
@@ -29,8 +28,6 @@ const PublicOrderTracking = () => {
   const [searched, setSearched] = useState(false);
 
   const companyName = company?.name || 'Amazon Printing Services';
-  const companyPhone = company?.phone || '';
-  const companyAddress = company?.address || '';
 
   const lookup = useCallback(async (raw) => {
     const code = String(raw || '').trim();
@@ -84,6 +81,13 @@ const PublicOrderTracking = () => {
     return [];
   }, [order]);
 
+  const itemNames = useMemo(() => {
+    if (!Array.isArray(order?.products)) return [];
+    return order.products
+      .map((p) => String(p?.name || '').trim())
+      .filter(Boolean);
+  }, [order]);
+
   return (
     <div className="min-h-screen" style={{ background: 'linear-gradient(180deg, #FFF7F2 0%, #F5F7FB 38%, #F5F7FB 100%)' }} data-testid="public-order-tracking">
       <header className="border-b border-orange-100/80 bg-white/90 backdrop-blur sticky top-0 z-10">
@@ -109,7 +113,7 @@ const PublicOrderTracking = () => {
             <div>
               <h2 className="text-2xl font-bold" style={{ color: '#2E2E2E' }}>Track your order</h2>
               <p className="text-sm text-gray-600 mt-1">
-                Enter Order ID, Tracking Number, or Token No.
+                Enter Order ID or Tracking Number.
               </p>
             </div>
             <form onSubmit={onSubmit} className="flex flex-col sm:flex-row gap-2">
@@ -147,52 +151,50 @@ const PublicOrderTracking = () => {
 
         {!loading && order && (
           <div className="space-y-4">
-            <div className="rounded-2xl border border-orange-100 bg-white shadow-sm p-5 sm:p-6 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                <div>
-                  <p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Order</p>
-                  <h3 className="text-2xl font-bold" style={{ color: '#2E2E2E' }}>{order.orderId || '—'}</h3>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Tracking: <span className="font-semibold">{order.trackingNumber || order.trackCode || '—'}</span>
-                    {order.tokenNo ? <> · Token {order.tokenNo}</> : null}
-                  </p>
-                  {order.customerName ? (
-                    <p className="text-sm text-gray-600">Customer: {order.customerName}</p>
-                  ) : null}
+            <div className="rounded-2xl border border-orange-100 bg-white shadow-sm p-5 sm:p-6 space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <User className="h-5 w-5 shrink-0" style={{ color: accent }} />
+                  <div className="min-w-0">
+                    <p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Customer</p>
+                    <p className="text-xl font-bold truncate" style={{ color: '#2E2E2E' }}>
+                      {order.customerName || '—'}
+                    </p>
+                  </div>
                 </div>
-                <Badge className={`${getStatusColor(order.status)} text-sm px-3 py-1`}>
-                  {order.status || 'Unknown'}
-                </Badge>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="rounded-xl bg-gray-50 border border-gray-100 p-3">
-                  <p className="text-[10px] uppercase text-gray-500 flex items-center gap-1"><Calendar className="h-3 w-3" /> Order date</p>
-                  <p className="font-semibold mt-1">{formatDate(order.date) || '—'}</p>
-                </div>
-                <div className="rounded-xl bg-gray-50 border border-gray-100 p-3">
-                  <p className="text-[10px] uppercase text-gray-500 flex items-center gap-1"><Truck className="h-3 w-3" /> Delivery</p>
-                  <p className="font-semibold mt-1">{formatDate(order.deliveryDate) || '—'}</p>
-                </div>
-                <div className="rounded-xl bg-[#FFF9F5] border border-orange-100 p-3">
-                  <p className="text-[10px] uppercase text-gray-500">Balance</p>
-                  <p className="font-bold mt-1" style={{ color: accent }}>{formatCurrency(order.balanceAmount)}</p>
+                <div className="text-left sm:text-right">
+                  <p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold mb-1">Order status</p>
+                  <Badge className={`${getStatusColor(order.status)} text-sm px-3 py-1`}>
+                    {order.status || 'Unknown'}
+                  </Badge>
                 </div>
               </div>
 
-              <div className="rounded-xl border border-gray-100 p-4 space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-gray-600">Total</span><strong>{formatCurrency(order.totalAmount)}</strong></div>
-                <div className="flex justify-between"><span className="text-gray-600">Paid / Advance</span><strong className="text-emerald-700">{formatCurrency(order.advancePayment)}</strong></div>
-                <div className="flex justify-between border-t pt-2"><span className="text-gray-600">Balance due</span><strong style={{ color: accent }}>{formatCurrency(order.balanceAmount)}</strong></div>
+              <div>
+                <p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold mb-2 flex items-center gap-1">
+                  <Package className="h-3.5 w-3.5" style={{ color: accent }} /> Items
+                </p>
+                {itemNames.length === 0 ? (
+                  <p className="text-sm text-gray-400">No items listed</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {itemNames.map((name, i) => (
+                      <li
+                        key={`${name}-${i}`}
+                        className="rounded-xl bg-gray-50 border border-gray-100 px-4 py-3 text-sm font-semibold"
+                        style={{ color: '#2E2E2E' }}
+                      >
+                        {name}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             </div>
 
-            {/* Timeline */}
-            <div className="rounded-2xl border border-orange-100 bg-white shadow-sm p-5 sm:p-6">
-              <h4 className="text-sm font-semibold uppercase tracking-wider text-gray-700 mb-4">Production progress</h4>
-              {order.cancelled ? (
-                <p className="text-rose-600 font-semibold">This order was cancelled.</p>
-              ) : (
+            {!order.cancelled && timeline.length > 0 && (
+              <div className="rounded-2xl border border-orange-100 bg-white shadow-sm p-5 sm:p-6">
+                <h4 className="text-sm font-semibold uppercase tracking-wider text-gray-700 mb-4">Progress</h4>
                 <ol className="space-y-0">
                   {timeline.map((step, i) => {
                     const done = step.done;
@@ -220,38 +222,18 @@ const PublicOrderTracking = () => {
                     );
                   })}
                 </ol>
-              )}
-            </div>
-
-            {/* Items */}
-            {Array.isArray(order.products) && order.products.length > 0 && (
-              <div className="rounded-2xl border border-orange-100 bg-white shadow-sm p-5 sm:p-6">
-                <h4 className="text-sm font-semibold uppercase tracking-wider text-gray-700 mb-3 flex items-center gap-2">
-                  <Package className="h-4 w-4" style={{ color: accent }} /> Items
-                </h4>
-                <div className="space-y-2">
-                  {order.products.map((p, i) => (
-                    <div key={`${p.name}-${i}`} className="flex justify-between gap-3 rounded-xl bg-gray-50 border border-gray-100 p-3 text-sm">
-                      <div className="min-w-0">
-                        <p className="font-semibold truncate">{p.name}</p>
-                        <p className="text-xs text-gray-500">
-                          {[p.size && `Size ${p.size}`, p.material].filter(Boolean).join(' · ') || '—'}
-                        </p>
-                      </div>
-                      <p className="font-semibold shrink-0">× {p.quantity}</p>
-                    </div>
-                  ))}
-                </div>
               </div>
             )}
 
-            <div className="text-center text-xs text-gray-500 pb-8 space-y-1">
-              {companyAddress && (
-                <p className="flex items-center justify-center gap-1"><MapPin className="h-3 w-3" />{companyAddress}</p>
-              )}
-              {companyPhone && <p>Contact: {companyPhone}</p>}
-              <p>{order.companyNote || 'Keep this link to check status anytime.'}</p>
-            </div>
+            {order.cancelled && (
+              <div className="rounded-2xl border border-rose-100 bg-white p-5 text-rose-600 font-semibold">
+                This order was cancelled.
+              </div>
+            )}
+
+            <p className="text-center text-xs text-gray-500 pb-8">
+              {order.companyNote || 'Keep this link to check status anytime.'}
+            </p>
           </div>
         )}
       </main>

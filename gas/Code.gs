@@ -2501,27 +2501,17 @@ function toPublicTrackOrder_(o) {
       current: !cancelled && s === status,
     };
   });
+  // Public view: customer name + status + item names only (no prices / balance / specs)
   var products = (api.products || []).map(function (p) {
-    return {
-      name: p.name || '',
-      quantity: Number(p.quantity) || 0,
-      size: p.size || '',
-      material: p.material || '',
-    };
-  });
+    return { name: p.name || '' };
+  }).filter(function (p) { return p.name; });
   return {
     orderId: api.orderId || '',
     trackingNumber: api.trackingNumber || api.orderId || '',
-    tokenNo: api.tokenNo || '',
     status: api.status || '',
     cancelled: cancelled,
-    date: api.date || '',
-    deliveryDate: api.deliveryDate || '',
     customerName: api.customerName || '',
     products: products,
-    totalAmount: Number(api.totalAmount) || 0,
-    advancePayment: Number(api.advancePayment) || 0,
-    balanceAmount: Number(api.balanceAmount) || 0,
     timeline: timeline,
     trackCode: api.trackingNumber || api.orderId || api.id || '',
     companyNote: 'For questions, contact Amazon Printing Services with your Order ID.',
