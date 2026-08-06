@@ -4,7 +4,11 @@
  */
 
 export const PAPER_SHEET_PRESETS = [
+  { id: '17x27', label: '17 × 27 in', w: 17, h: 27, unit: 'inch' },
   { id: '20x30', label: '20 × 30 in', w: 20, h: 30, unit: 'inch' },
+  { id: '22x28', label: 'Ivory 22 × 28 in', w: 22, h: 28, unit: 'inch' },
+  { id: '17x24', label: 'Carbonless 17 × 24 in', w: 17, h: 24, unit: 'inch' },
+  { id: '25x30', label: 'Boxboard 25 × 30 in', w: 25, h: 30, unit: 'inch' },
   { id: '23x36', label: '23 × 36 in', w: 23, h: 36, unit: 'inch' },
   { id: '25x36', label: '25 × 36 in', w: 25, h: 36, unit: 'inch' },
   { id: 'A1', label: 'A1 (594 × 841 mm)', w: 594, h: 841, unit: 'mm' },
@@ -13,6 +17,119 @@ export const PAPER_SHEET_PRESETS = [
   { id: 'A4', label: 'A4 (210 × 297 mm)', w: 210, h: 297, unit: 'mm' },
   { id: 'custom', label: 'Custom', w: 0, h: 0, unit: 'inch' },
 ];
+
+/** Press composing charts (inches): Original cut size vs Composing (print) size. */
+export const COMPOSING_SIZE_CHARTS = [
+  {
+    id: '17x27',
+    title: 'Paper Size (17 × 27)',
+    sheetW: 17,
+    sheetH: 27,
+    unit: 'inch',
+    paperTypeHint: 'Paper',
+    rows: [
+      { sn: 1, size: '17×27/2', originalW: 13.5, originalH: 17, composingW: 12.5, composingH: 16 },
+      { sn: 2, size: '17×27/4', originalW: 8.5, originalH: 13.5, composingW: 7.5, composingH: 12.5 },
+      { sn: 3, size: '17×27/8', originalW: 8.5, originalH: 6.75, composingW: 7.5, composingH: 5.75 },
+      { sn: 4, size: '17×27/16', originalW: 6.75, originalH: 4.25, composingW: 5.75, composingH: 3.25 },
+      { sn: 5, size: '17×27/32', originalW: 4.25, originalH: 3.375, composingW: 3.75, composingH: 2.8 },
+    ],
+  },
+  {
+    id: '20x30',
+    title: 'Paper Size (20 × 30)',
+    sheetW: 20,
+    sheetH: 30,
+    unit: 'inch',
+    paperTypeHint: 'Paper',
+    rows: [
+      { sn: 1, size: '20×30/2', originalW: 15, originalH: 20, composingW: 14, composingH: 19 },
+      { sn: 2, size: '20×30/4', originalW: 10, originalH: 15, composingW: 9, composingH: 14 },
+      { sn: 3, size: '20×30/8', originalW: 7.5, originalH: 10, composingW: 6.5, composingH: 9 },
+      { sn: 4, size: '20×30/16', originalW: 5, originalH: 7.5, composingW: 4, composingH: 6.5 },
+      { sn: 5, size: '20×30/32', originalW: 3.75, originalH: 5, composingW: 3, composingH: 4 },
+    ],
+  },
+  {
+    id: '22x28',
+    title: 'Ivory Card (22 × 28)',
+    sheetW: 22,
+    sheetH: 28,
+    unit: 'inch',
+    paperTypeHint: 'Ivory Card',
+    rows: [
+      { sn: 1, size: '22×28/2', originalW: 14, originalH: 22, composingW: 13, composingH: 21 },
+      { sn: 2, size: '22×28/4', originalW: 11, originalH: 14, composingW: 10, composingH: 13 },
+      { sn: 3, size: '22×28/8', originalW: 7, originalH: 11, composingW: 6, composingH: 10 },
+      { sn: 4, size: '22×28/16', originalW: 7, originalH: 5.5, composingW: 6, composingH: 4.5 },
+      { sn: 5, size: '22×28/32', originalW: 5.5, originalH: 3.5, composingW: 4.5, composingH: 2.5 },
+    ],
+  },
+  {
+    id: '17x24',
+    title: 'Carbonless (17 × 24)',
+    sheetW: 17,
+    sheetH: 24,
+    unit: 'inch',
+    paperTypeHint: 'NCR',
+    rows: [
+      { sn: 1, size: '17×24/2', originalW: 12, originalH: 17, composingW: 11, composingH: 16 },
+      { sn: 2, size: '17×24/4', originalW: 8.5, originalH: 12, composingW: 7.5, composingH: 11 },
+      { sn: 3, size: '17×24/8', originalW: 6, originalH: 8.5, composingW: 5, composingH: 7.5 },
+      { sn: 4, size: '17×24/16', originalW: 4.25, originalH: 6, composingW: 3.25, composingH: 5 },
+      { sn: 5, size: '17×24/32', originalW: 3, originalH: 4.25, composingW: 2.25, composingH: 3.25 },
+    ],
+  },
+  {
+    id: '25x30',
+    title: 'Boxboard (25 × 30)',
+    sheetW: 25,
+    sheetH: 30,
+    unit: 'inch',
+    paperTypeHint: 'Other',
+    rows: [
+      { sn: 1, size: '25×30/2', originalW: 15, originalH: 25, composingW: 14, composingH: 24 },
+      { sn: 2, size: '25×30/4', originalW: 12.5, originalH: 15, composingW: 11.5, composingH: 14 },
+      { sn: 3, size: '25×30/8', originalW: 12.5, originalH: 7.5, composingW: 11.5, composingH: 6.5 },
+      { sn: 4, size: '25×30/16', originalW: 12.5, originalH: 3.75, composingW: 11.5, composingH: 2.75 },
+      { sn: 5, size: '25×30/32', originalW: 12.5, originalH: 1.75, composingW: 11.5, composingH: 1.25 },
+    ],
+  },
+  {
+    id: '23x36',
+    title: 'Paper Size (23 × 36)',
+    sheetW: 23,
+    sheetH: 36,
+    unit: 'inch',
+    paperTypeHint: 'Paper',
+    rows: [
+      { sn: 1, size: '23×36/2', originalW: 18, originalH: 23, composingW: 17, composingH: 22 },
+      { sn: 2, size: '23×36/4', originalW: 11.5, originalH: 18, composingW: 10.5, composingH: 17 },
+      { sn: 3, size: '23×36/8', originalW: 9, originalH: 11.5, composingW: 8, composingH: 10.5 },
+      { sn: 4, size: '23×36/16', originalW: 5.75, originalH: 9, composingW: 4.75, composingH: 8 },
+      { sn: 5, size: '23×36/32', originalW: 4.5, originalH: 5.75, composingW: 3.5, composingH: 4.75 },
+    ],
+  },
+];
+
+export function applyComposingSize(form, chart, row, useComposing = true) {
+  const w = useComposing ? row.composingW : row.originalW;
+  const h = useComposing ? row.composingH : row.originalH;
+  return {
+    ...form,
+    unit: chart.unit || 'inch',
+    sheetPreset: chart.id,
+    sheetWidth: chart.sheetW,
+    sheetHeight: chart.sheetH,
+    sheetUnit: chart.unit || 'inch',
+    paperType: chart.paperTypeHint === 'Paper' ? form.paperType || 'Art Paper' : (chart.paperTypeHint || form.paperType),
+    finishedWidth: w,
+    finishedHeight: h,
+    printWidth: w,
+    printHeight: h,
+    composingSizeLabel: row.size,
+  };
+}
 
 export const PAPER_TYPES = [
   'Art Card', 'Art Paper', 'Offset Paper', 'Bond Paper', 'Maplitho',
@@ -135,17 +252,17 @@ export function defaultFullForm() {
     productName: '',
     jobName: '',
     quantity: 1000,
-    finishedWidth: 210,
-    finishedHeight: 297,
-    unit: 'mm',
+    finishedWidth: 4,
+    finishedHeight: 6.5,
+    unit: 'inch',
     paperType: 'Art Card',
-    sheetPreset: '23x36',
-    sheetWidth: 23,
-    sheetHeight: 36,
+    sheetPreset: '20x30',
+    sheetWidth: 20,
+    sheetHeight: 30,
     sheetUnit: 'inch',
     paperCostPerSheet: 50,
-    printWidth: 210,
-    printHeight: 297,
+    printWidth: 4,
+    printHeight: 6.5,
     margin: 0,
     wastagePct: 5,
     printMethod: 'Offset',
@@ -158,28 +275,7 @@ export function defaultFullForm() {
     packingCost: 0,
     deliveryCost: 0,
     miscCost: 0,
-  };
-}
-
-export function defaultSimpleForm() {
-  return {
-    jobName: '',
-    quantity: 1000,
-    sheetPreset: '23x36',
-    sheetWidth: 23,
-    sheetHeight: 36,
-    sheetUnit: 'inch',
-    pieceWidth: 4,
-    pieceHeight: 6,
-    unit: 'inch',
-    paperCostPerSheet: 50,
-    wastagePct: 5,
-    printCostPerSheet: 2,
-    sides: '1',
-    colour: '4',
-    platePrice: 800,
-    finishingPerPiece: 0,
-    labourPackMisc: 0,
+    composingSizeLabel: '',
   };
 }
 
@@ -283,43 +379,6 @@ export function calculateFullCost(form) {
     cols: layout.cols,
     rows: layout.rows,
   };
-}
-
-export function calculateSimpleCost(form) {
-  const mapped = {
-    ...defaultFullForm(),
-    productName: 'Quick job',
-    jobName: form.jobName || 'Simple calc',
-    quantity: form.quantity,
-    unit: form.unit,
-    finishedWidth: form.pieceWidth,
-    finishedHeight: form.pieceHeight,
-    printWidth: form.pieceWidth,
-    printHeight: form.pieceHeight,
-    sheetPreset: form.sheetPreset,
-    sheetWidth: form.sheetWidth,
-    sheetHeight: form.sheetHeight,
-    sheetUnit: form.sheetUnit,
-    paperCostPerSheet: form.paperCostPerSheet,
-    wastagePct: form.wastagePct,
-    machineCostPerSheet: form.printCostPerSheet,
-    sides: form.sides,
-    colour: form.colour,
-    platePrice: form.platePrice,
-    labourCost: Number(form.labourPackMisc) || 0,
-    packingCost: 0,
-    deliveryCost: 0,
-    miscCost: 0,
-    finishing: {
-      ...emptyFinishingState(),
-      lamination: {
-        enabled: Number(form.finishingPerPiece) > 0,
-        mode: 'perPiece',
-        amount: Number(form.finishingPerPiece) || 0,
-      },
-    },
-  };
-  return calculateFullCost(mapped);
 }
 
 export function loadSavedCostings() {

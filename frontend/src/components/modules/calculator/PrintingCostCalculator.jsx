@@ -17,19 +17,19 @@ import {
   COLOUR_OPTIONS,
   SIDE_OPTIONS,
   FINISHING_PROCESSES,
+  COMPOSING_SIZE_CHARTS,
   defaultFullForm,
-  defaultSimpleForm,
   applySheetPreset,
+  applyComposingSize,
   calculateFullCost,
-  calculateSimpleCost,
   loadSavedCostings,
   saveCosting,
   deleteCosting,
   formatArea,
 } from '@/utils/printingCostEngine';
 import {
-  Calculator, Printer, Save, Trash2, FileDown, RotateCcw,
-  LayoutGrid, Layers, Scissors, Wallet, Gauge,
+  Calculator, Printer, Save, Trash2, RotateCcw,
+  LayoutGrid, Layers, Scissors, Wallet, Gauge, Ruler,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -128,7 +128,6 @@ const PrintingCostCalculator = () => {
   const accent = primary || '#F26522';
   const [tab, setTab] = useState('full');
   const [full, setFull] = useState(defaultFullForm);
-  const [simple, setSimple] = useState(defaultSimpleForm);
   const [saved, setSaved] = useState([]);
 
   useEffect(() => {
@@ -136,22 +135,19 @@ const PrintingCostCalculator = () => {
   }, []);
 
   const fullResult = useMemo(() => calculateFullCost(full), [full]);
-  const simpleResult = useMemo(() => calculateSimpleCost(simple), [simple]);
 
   const setFullField = useCallback((key, value) => {
     setFull((prev) => ({ ...prev, [key]: value }));
-  }, []);
-
-  const setSimpleField = useCallback((key, value) => {
-    setSimple((prev) => ({ ...prev, [key]: value }));
   }, []);
 
   const onFullSheetPreset = (id) => {
     setFull((prev) => applySheetPreset(prev, id));
   };
 
-  const onSimpleSheetPreset = (id) => {
-    setSimple((prev) => applySheetPreset(prev, id));
+  const applyComposingRow = (chart, row, useComposing) => {
+    setFull((prev) => applyComposingSize(prev, chart, row, useComposing));
+    setTab('full');
+    toast.success(`${row.size} applied (${useComposing ? 'Composing' : 'Original'})`);
   };
 
   const toggleFinishing = (id, enabled) => {
@@ -174,45 +170,32 @@ const PrintingCostCalculator = () => {
     }));
   };
 
-  const handleSave = (mode) => {
-    const form = mode === 'simple' ? simple : full;
-    const result = mode === 'simple' ? simpleResult : fullResult;
-    if (!(Number(form.quantity) > 0)) {
+  const handleSave = () => {
+    if (!(Number(full.quantity) > 0)) {
       toast.error('Quantity required');
       return;
     }
-    if (!(result.piecesPerSheet > 0)) {
+    if (!(fullResult.piecesPerSheet > 0)) {
       toast.error('Invalid sheet / piece sizes — pieces per sheet is 0');
       return;
     }
     const entry = {
-      mode,
-      title: form.jobName || form.productName || 'Untitled job',
-      form,
-      result,
+      mode: 'full',
+      title: full.jobName || full.productName || full.composingSizeLabel || 'Untitled job',
+      form: full,
+      result: fullResult,
     };
     setSaved(saveCosting(entry));
     toast.success('Costing saved');
   };
 
-  const handlePrint = (mode) => {
-    const form = mode === 'simple'
-      ? {
-          ...simple,
-          productName: '',
-          finishedWidth: simple.pieceWidth,
-          finishedHeight: simple.pieceHeight,
-          printWidth: simple.pieceWidth,
-          printHeight: simple.pieceHeight,
-        }
-      : full;
-    const result = mode === 'simple' ? simpleResult : fullResult;
+  const handlePrint = () => {
     const html = buildCostingPrintHtml({
       title: 'Printing Cost Sheet',
       company,
-      form,
-      result,
-      mode: mode === 'simple' ? 'Simple Calculator' : 'Full Cost Calculator',
+      form: full,
+      result: fullResult,
+      mode: 'Full Cost Calculator',
     });
     const out = openPrintWindow(html, { width: 820, height: 900 });
     if (!out.ok) toast.error('Allow popups to print / export PDF');
@@ -220,13 +203,34 @@ const PrintingCostCalculator = () => {
   };
 
   const loadEntry = (entry) => {
-    if (entry.mode === 'simple') {
-      setSimple({ ...defaultSimpleForm(), ...entry.form });
-      setTab('simple');
+    if (entry.mode === 'simple' && entry.form) {
+      // migrate old simple saves into full form fields
+      const f = entry.form;
+      setFull({
+        ...defaultFullForm(),
+        jobName: f.jobName || '',
+        quantity: f.quantity,
+        unit: f.unit || 'inch',
+        finishedWidth: f.pieceWidth || f.finishedWidth,
+        finishedHeight: f.pieceHeight || f.finishedHeight,
+        printWidth: f.pieceWidth || f.printWidth,
+        printHeight: f.pieceHeight || f.printHeight,
+        sheetPreset: f.sheetPreset,
+        sheetWidth: f.sheetWidth,
+        sheetHeight: f.sheetHeight,
+        sheetUnit: f.sheetUnit || 'inch',
+        paperCostPerSheet: f.paperCostPerSheet,
+        wastagePct: f.wastagePct,
+        machineCostPerSheet: f.printCostPerSheet ?? f.machineCostPerSheet,
+        sides: f.sides,
+        colour: f.colour,
+        platePrice: f.platePrice,
+        labourCost: f.labourPackMisc ?? f.labourCost ?? 0,
+      });
     } else {
       setFull({ ...defaultFullForm(), ...entry.form, finishing: { ...defaultFullForm().finishing, ...(entry.form?.finishing || {}) } });
-      setTab('full');
     }
+    setTab('full');
     toast.message('Loaded into calculator');
   };
 
@@ -249,9 +253,9 @@ const PrintingCostCalculator = () => {
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="grid w-full grid-cols-3 max-w-lg">
-          <TabsTrigger value="full">Full Costing</TabsTrigger>
-          <TabsTrigger value="simple">Simple</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-3 max-w-xl">
+          <TabsTrigger value="full">Costing</TabsTrigger>
+          <TabsTrigger value="composing">Composing Sizes</TabsTrigger>
           <TabsTrigger value="saved">Saved ({saved.length})</TabsTrigger>
         </TabsList>
 
@@ -285,6 +289,11 @@ const PrintingCostCalculator = () => {
                   </div>
                   <NumField label={`Finished Width (${full.unit})`} value={full.finishedWidth} onChange={(v) => setFullField('finishedWidth', v)} step={0.01} />
                   <NumField label={`Finished Height (${full.unit})`} value={full.finishedHeight} onChange={(v) => setFullField('finishedHeight', v)} step={0.01} />
+                  {full.composingSizeLabel ? (
+                    <div className="sm:col-span-2 lg:col-span-3">
+                      <Badge variant="outline" className="text-xs">Composing chart: {full.composingSizeLabel}</Badge>
+                    </div>
+                  ) : null}
                 </CardContent>
               </Card>
 
@@ -452,10 +461,10 @@ const PrintingCostCalculator = () => {
                     </p>
                   </div>
                   <div className="flex flex-col gap-2 pt-2">
-                    <Button style={{ backgroundColor: accent }} className="text-white" onClick={() => handleSave('full')}>
+                    <Button style={{ backgroundColor: accent }} className="text-white" onClick={handleSave}>
                       <Save className="h-4 w-4 mr-2" />Save calculation
                     </Button>
-                    <Button variant="outline" onClick={() => handlePrint('full')}>
+                    <Button variant="outline" onClick={handlePrint}>
                       <Printer className="h-4 w-4 mr-2" />Print / Export PDF
                     </Button>
                     <Button variant="ghost" onClick={() => setFull(defaultFullForm())}>
@@ -468,94 +477,81 @@ const PrintingCostCalculator = () => {
           </div>
         </TabsContent>
 
-        {/* ================= SIMPLE ================= */}
-        <TabsContent value="simple" className="space-y-4 mt-4">
-          <ResultStrip result={simpleResult} accent={accent} />
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <Card className="lg:col-span-2 border-orange-100/80 shadow-sm rounded-2xl">
-              <CardHeader className="py-3"><CardTitle className="text-base">Simple Cost Calculator</CardTitle></CardHeader>
-              <CardContent className="pt-0 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                <div className="sm:col-span-2 md:col-span-3">
-                  <Label className="text-xs">Job Name</Label>
-                  <Input className="h-9" value={simple.jobName} onChange={(e) => setSimpleField('jobName', e.target.value)} placeholder="Quick job" />
-                </div>
-                <NumField label="Quantity" value={simple.quantity} onChange={(v) => setSimpleField('quantity', v)} min={1} />
-                <div>
-                  <Label className="text-xs">Unit</Label>
-                  <Select value={simple.unit} onValueChange={(v) => setSimpleField('unit', v)}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="mm">mm</SelectItem>
-                      <SelectItem value="inch">inch</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-xs">Sheet Size</Label>
-                  <Select value={simple.sheetPreset} onValueChange={onSimpleSheetPreset}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {PAPER_SHEET_PRESETS.map((p) => <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <NumField label={`Piece W (${simple.unit})`} value={simple.pieceWidth} onChange={(v) => setSimpleField('pieceWidth', v)} step={0.01} />
-                <NumField label={`Piece H (${simple.unit})`} value={simple.pieceHeight} onChange={(v) => setSimpleField('pieceHeight', v)} step={0.01} />
-                <NumField label="Paper Cost / Sheet" value={simple.paperCostPerSheet} onChange={(v) => setSimpleField('paperCostPerSheet', v)} step={0.01} />
-                <NumField label="Print Cost / Sheet" value={simple.printCostPerSheet} onChange={(v) => setSimpleField('printCostPerSheet', v)} step={0.01} />
-                <NumField label="Wastage %" value={simple.wastagePct} onChange={(v) => setSimpleField('wastagePct', v)} step={0.5} />
-                <div>
-                  <Label className="text-xs">Sides</Label>
-                  <Select value={simple.sides} onValueChange={(v) => setSimpleField('sides', v)}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {SIDE_OPTIONS.map((s) => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-xs">Colour</Label>
-                  <Select value={simple.colour} onValueChange={(v) => setSimpleField('colour', v)}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {COLOUR_OPTIONS.map((c) => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <NumField label="Plate Price" value={simple.platePrice} onChange={(v) => setSimpleField('platePrice', v)} />
-                <NumField label="Finishing / Piece" value={simple.finishingPerPiece} onChange={(v) => setSimpleField('finishingPerPiece', v)} step={0.01} />
-                <NumField label="Labour / Pack / Misc" value={simple.labourPackMisc} onChange={(v) => setSimpleField('labourPackMisc', v)} step={0.01} />
-              </CardContent>
-            </Card>
+        {/* ================= COMPOSING SIZES ================= */}
+        <TabsContent value="composing" className="space-y-4 mt-4">
+          <Card className="border-orange-100/80 shadow-sm rounded-2xl">
+            <CardHeader className="py-3 flex flex-row items-center gap-2 space-y-0">
+              <Ruler className="h-4 w-4" style={{ color: accent }} />
+              <div>
+                <CardTitle className="text-base">Composing Size Charts</CardTitle>
+                <p className="text-xs text-gray-500 font-normal mt-0.5">
+                  All sizes in inches. Click a row to apply Original or Composing size into the Costing form.
+                </p>
+              </div>
+            </CardHeader>
+          </Card>
 
-            <Card className="border-orange-200 shadow-sm rounded-2xl overflow-hidden">
-              <div className="h-1" style={{ backgroundColor: accent }} />
-              <CardHeader className="py-3"><CardTitle className="text-base">Result</CardTitle></CardHeader>
-              <CardContent className="pt-0 space-y-2 text-sm">
-                <div className="flex justify-between"><span>Pieces / Sheet</span><strong>{simpleResult.piecesPerSheet}</strong></div>
-                <div className="flex justify-between"><span>Final Sheets</span><strong>{simpleResult.finalSheets}</strong></div>
-                <div className="flex justify-between"><span>Paper</span><strong>{formatCurrency(simpleResult.paperCost)}</strong></div>
-                <div className="flex justify-between"><span>Plates</span><strong>{formatCurrency(simpleResult.plateCost)}</strong></div>
-                <div className="flex justify-between"><span>Printing</span><strong>{formatCurrency(simpleResult.printingCost)}</strong></div>
-                <div className="flex justify-between"><span>Finishing</span><strong>{formatCurrency(simpleResult.finishingCost)}</strong></div>
-                <div className="rounded-xl p-3 mt-2" style={{ backgroundColor: '#FFF3ED' }}>
-                  <p className="text-[10px] uppercase text-gray-500">Total</p>
-                  <p className="text-2xl font-bold" style={{ color: accent }}>{formatCurrency(simpleResult.totalProductionCost)}</p>
-                  <p className="text-sm mt-1">Per piece: <strong>{formatCurrency(simpleResult.costPerPiece)}</strong></p>
-                </div>
-                <div className="flex flex-col gap-2 pt-2">
-                  <Button style={{ backgroundColor: accent }} className="text-white" onClick={() => handleSave('simple')}>
-                    <Save className="h-4 w-4 mr-2" />Save
-                  </Button>
-                  <Button variant="outline" onClick={() => handlePrint('simple')}>
-                    <FileDown className="h-4 w-4 mr-2" />Print / PDF
-                  </Button>
-                  <Button variant="ghost" onClick={() => setSimple(defaultSimpleForm())}>
-                    <RotateCcw className="h-4 w-4 mr-2" />Reset
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            {COMPOSING_SIZE_CHARTS.map((chart) => (
+              <Card key={chart.id} className="border-orange-100/80 shadow-sm rounded-2xl overflow-hidden">
+                <div className="h-1" style={{ backgroundColor: accent }} />
+                <CardHeader className="py-3 pb-2">
+                  <CardTitle className="text-base flex items-center justify-between gap-2">
+                    <span>{chart.title}</span>
+                    <Badge variant="outline" className="text-[10px] font-normal">
+                      Sheet {chart.sheetW}×{chart.sheetH} in
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0 overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-gray-50 text-[11px] uppercase tracking-wide text-gray-500">
+                        <th className="text-left py-2 px-2 font-semibold">S#</th>
+                        <th className="text-left py-2 px-2 font-semibold">Size</th>
+                        <th className="text-left py-2 px-2 font-semibold">Original</th>
+                        <th className="text-left py-2 px-2 font-semibold">Composing</th>
+                        <th className="text-right py-2 px-2 font-semibold">Apply</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {chart.rows.map((row) => (
+                        <tr key={row.size} className="border-b border-gray-100 hover:bg-orange-50/40">
+                          <td className="py-2.5 px-2 text-gray-500">{row.sn}</td>
+                          <td className="py-2.5 px-2 font-semibold">{row.size}</td>
+                          <td className="py-2.5 px-2">{row.originalW} × {row.originalH}</td>
+                          <td className="py-2.5 px-2 font-medium" style={{ color: accent }}>
+                            {row.composingW} × {row.composingH}
+                          </td>
+                          <td className="py-2.5 px-2">
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-[11px] px-2"
+                                onClick={() => applyComposingRow(chart, row, false)}
+                              >
+                                Original
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="h-7 text-[11px] px-2 text-white"
+                                style={{ backgroundColor: accent }}
+                                onClick={() => applyComposingRow(chart, row, true)}
+                              >
+                                Composing
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         </TabsContent>
 
@@ -573,7 +569,7 @@ const PrintingCostCalculator = () => {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="font-semibold truncate">{entry.title}</p>
-                        <Badge variant="outline" className="text-[10px]">{entry.mode}</Badge>
+                        <Badge variant="outline" className="text-[10px]">{entry.mode === 'simple' ? 'legacy' : 'full'}</Badge>
                       </div>
                       <p className="text-xs text-gray-500">
                         {entry.savedAt ? new Date(entry.savedAt).toLocaleString('en-PK') : ''} · Qty {entry.form?.quantity} · Total {formatCurrency(entry.result?.totalProductionCost)} · /pc {formatCurrency(entry.result?.costPerPiece)}
