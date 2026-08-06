@@ -4,14 +4,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { productsAPI, ordersAPI } from '@/services/api';
+import { productsAPI, ordersAPI, invoicesAPI } from '@/services/api';
 import { applyServerNotificationHint } from '@/services/notifications';
 import { formatCurrency } from '@/utils/helpers';
+import { barcodeBlock, openPrintWindow, printOnLoadScript, POS_MAJOR_SERVICES } from '@/utils/printHelpers';
 import { useBrand } from '@/context/BrandContext';
-import { Search, Plus, Minus, Trash2, Printer, ShoppingCart } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, Printer, ShoppingCart, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 const POS = () => {
+  const navigate = useNavigate();
   const { company, primary } = useBrand();
   const [products, setProducts] = useState([]);
   const [filter, setFilter] = useState('all');
@@ -86,63 +89,62 @@ const POS = () => {
   const printReceipt = (sale) => {
     const website = company.website || 'https://amzprints.com';
     const logoHtml = company.logo
-      ? `<img src="${company.logo}" alt="logo" style="max-height:48px;max-width:160px;display:block;margin:0 auto 6px;" />`
+      ? `<img src="${company.logo}" alt="logo" style="max-height:42px;max-width:140px;display:block;margin:0 auto 4px;filter:grayscale(1);" />`
       : '';
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(website)}`;
+    const code = sale.orderId || sale.id || `POS-${Date.now().toString().slice(-6)}`;
     const rows = (sale.products || [])
       .map(
         (p) =>
-          `<tr><td>${p.name}</td><td style="text-align:right">${p.quantity}</td><td style="text-align:right">${formatCurrency(p.rate)}</td><td style="text-align:right">${formatCurrency(p.quantity * p.rate)}</td></tr>`
+          `<tr><td>${p.name}</td><td class="r">${p.quantity}</td><td class="r">${formatCurrency(p.rate)}</td><td class="r">${formatCurrency(p.quantity * p.rate)}</td></tr>`
       )
       .join('');
-    const html = `<!DOCTYPE html><html><head><title>Receipt ${sale.orderId || ''}</title>
+    const services = POS_MAJOR_SERVICES.map((s) => `<li>${s}</li>`).join('');
+    const html = `<!DOCTYPE html><html><head><title>POS ${code}</title>
       <style>
-        @page { size: 80mm auto; margin: 4mm; }
-        body { font-family: Arial, Helvetica, sans-serif; width: 72mm; margin: 0; color: #111; font-size: 12px; }
-        h1 { font-size: 15px; margin: 0; text-align: center; color: #F26522; letter-spacing: 0.02em; }
-        .tag { text-align: center; font-size: 10px; color: #555; margin-top: 2px; }
+        @page { size: 80mm auto; margin: 3mm; }
+        body { font-family: Arial, Helvetica, sans-serif; width: 72mm; margin: 0; color: #000; font-size: 11px; }
+        h1 { font-size: 14px; margin: 0; text-align: center; font-weight: 800; }
+        .tag { text-align: center; font-size: 9px; margin-top: 2px; }
         .center { text-align: center; }
-        table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-        td, th { padding: 3px 0; font-size: 11px; }
-        th { border-bottom: 1px solid #333; }
-        hr { border: none; border-top: 1px dashed #333; margin: 8px 0; }
-        .total { font-size: 14px; font-weight: bold; display:flex; justify-content:space-between; }
-        .brand-bar { height: 3px; background: linear-gradient(90deg,#F26522,#FF8A50); margin-bottom: 8px; }
+        .title { text-align:center; font-weight:800; letter-spacing:0.12em; font-size:11px;
+          border-top:2px solid #000; border-bottom:2px solid #000; padding:4px 0; margin:6px 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+        td, th { padding: 2px 0; font-size: 10px; }
+        th { border-bottom: 1px solid #000; text-align:left; }
+        .r { text-align: right; }
+        hr { border: none; border-top: 1px dashed #000; margin: 6px 0; }
+        .total { font-size: 13px; font-weight: 800; display:flex; justify-content:space-between; }
+        .services { font-size: 9px; margin: 6px 0 0; padding-left: 14px; }
+        .services li { margin: 1px 0; }
+        .barcode-wrap { text-align:center; margin-top:6px; }
       </style></head><body>
-      <div class="brand-bar"></div>
       ${logoHtml}
-      <h1>${company.name || 'AMZ Prints'}</h1>
-      <div class="tag">${company.tagline || 'Professional Printing & Advertising'}</div>
-      <div class="center" style="font-size:10px;margin-top:4px">${company.phone || ''}${company.address ? `<br/>${company.address}` : ''}</div>
-      <hr />
-      <div class="center" style="font-weight:bold;letter-spacing:0.12em;font-size:11px">POS RECEIPT</div>
-      <hr />
-      <div>Order: <strong>${sale.orderId || ''}</strong></div>
+      <h1>${company.name || 'Amazon Printing Services'}</h1>
+      <div class="tag">${company.address || 'King Road, Mandi Bahauddin'}</div>
+      <div class="center" style="font-size:9px;margin-top:2px">${company.phone || ''} · ${website.replace(/^https?:\/\//, '')}</div>
+      <div class="title">POS RECEIPT</div>
+      <div>Sale: <strong>${code}</strong></div>
       <div>Customer: ${sale.customerName || 'Walk-in'}</div>
       <div>Phone: ${sale.customerPhone || '—'}</div>
       <div>Pay: ${sale.paymentMethod || paymentMethod}</div>
       <div>Date: ${sale.date || new Date().toLocaleString()}</div>
       <hr />
       <table>
-        <thead><tr><th align="left">Item</th><th align="right">Qty</th><th align="right">Rate</th><th align="right">Amt</th></tr></thead>
+        <thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Amt</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
       <hr />
       <div class="total"><span>TOTAL</span><span>${formatCurrency(sale.totalAmount)}</span></div>
-      <div class="center" style="margin-top:14px">
-        <img src="${qrUrl}" width="88" height="88" alt="Website QR" />
-        <div style="font-size:10px;margin-top:4px">${website.replace(/^https?:\/\//, '')}</div>
-      </div>
-      <div class="center" style="margin-top:10px;font-size:11px">Thank you for your business!</div>
-      <script>window.onload=function(){window.print();setTimeout(function(){window.close()},400);};</script>
+      <div class="total" style="font-size:11px;margin-top:2px"><span>PAID</span><span>${formatCurrency(sale.totalAmount)}</span></div>
+      <hr />
+      <div style="font-size:9px;font-weight:800;letter-spacing:0.06em">OUR MAJOR SERVICES</div>
+      <ol class="services">${services}</ol>
+      ${barcodeBlock(code, { height: 30 })}
+      <div class="center" style="margin-top:6px;font-size:10px">Thank you for your business!</div>
+      ${printOnLoadScript(500)}
       </body></html>`;
-    const win = window.open('', '_blank', 'width=360,height=720');
-    if (!win) {
-      toast.error('Allow popups to print receipt');
-      return;
-    }
-    win.document.write(html);
-    win.document.close();
+    const res = openPrintWindow(html, { width: 360, height: 740 });
+    if (!res.ok) toast.error('Allow popups to print receipt');
   };
 
   const checkout = async () => {
@@ -204,9 +206,45 @@ const POS = () => {
           <p className="text-gray-600 mt-1">Quick sale · cash / card · print receipt</p>
         </div>
         {lastSale && (
-          <Button variant="outline" onClick={() => printReceipt(lastSale)}>
-            <Printer className="h-4 w-4 mr-2" />Reprint last
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => printReceipt(lastSale)} data-testid="pos-reprint">
+              <Printer className="h-4 w-4 mr-2" />Reprint POS slip
+            </Button>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                try {
+                  const inv = {
+                    invoiceNumber: `INV-POS-${Date.now().toString().slice(-6)}`,
+                    orderId: lastSale.orderId || '',
+                    customerName: lastSale.customerName || 'Walk-in',
+                    customerPhone: lastSale.customerPhone || '',
+                    items: (lastSale.products || []).map((p) => ({
+                      name: p.name,
+                      quantity: p.quantity,
+                      rate: p.rate,
+                      size: p.size || '',
+                      material: p.material || '',
+                    })),
+                    paidAmount: lastSale.totalAmount || 0,
+                    taxRate: 0,
+                    discount: 0,
+                    previousBalance: 0,
+                    notes: 'Converted from POS sale',
+                    date: new Date().toISOString().slice(0, 10),
+                  };
+                  const created = await invoicesAPI.create(inv);
+                  toast.success('POS sale converted to invoice');
+                  navigate(`/invoices/${created.data?.id || ''}`);
+                } catch (err) {
+                  console.error(err);
+                  toast.error('Failed to convert to invoice');
+                }
+              }}
+            >
+              <FileSpreadsheet className="h-4 w-4 mr-2" />Convert to Invoice
+            </Button>
+          </div>
         )}
       </div>
 

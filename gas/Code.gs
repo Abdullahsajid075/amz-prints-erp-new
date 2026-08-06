@@ -179,17 +179,19 @@ function normalizeHeader_(header) {
     products: 'products', items: 'items', totalamount: 'totalamount', total: 'total',
     advancepayment: 'advancepayment', balanceamount: 'balanceamount', assigneddesigner: 'assigneddesigner',
     customerid: 'customerid', customeremail: 'customeremail', tokenno: 'tokenno',
-    recordtype: 'recordtype', type: 'recordtype', countername: 'countername', counter: 'countername',
+    recordtype: 'recordtype', countername: 'countername', counter: 'countername',
     accessholder: 'accessholder', holder: 'accessholder', prefix: 'prefix', lastnumber: 'lastnumber',
     lasttoken: 'lastnumber', service: 'service', tokenstatus: 'tokenstatus', calledat: 'calledat',
     invoiceno: 'invoiceno', invoicenumber: 'invoiceno', sharetoken: 'sharetoken',
     key: 'key', value: 'value',
     amount: 'amount', method: 'method', paymentmethod: 'paymentmethod', vendorname: 'vendorname',
     vendorid: 'vendorid', purchaseno: 'purchaseno', refid: 'refid',
-    paidamount: 'paid', paid: 'paid', totalamount: 'total', taxrate: 'taxrate',
+    type: 'type',
+    paidamount: 'paid', paid: 'paid', taxrate: 'taxrate',
     duedate: 'duedate', previousbalance: 'previousbalance', servicenote: 'servicenote',
     notifywhatsapp: 'notifywhatsapp', whatsappnotify: 'notifywhatsapp',
     notifyemail: 'notifyemail', emailnotify: 'notifyemail',
+    balancedue: 'balancedue', totalamountfield: 'totalamount',
   };
   return aliases[key] || key;
 }
@@ -738,7 +740,7 @@ function handleCustomers_(path, method, body) {
       invoices: [],
       orders: orders,
       payments: [],
-      totalBilled: orders.reduce(function (s, o) { return s + Number(o.totalamount || 0); }, 0),
+      totalBilled: orders.reduce(function (s, o) { return s + Number(o.totalamount || o.total || 0); }, 0),
       totalPaid: orders.reduce(function (s, o) { return s + Number(o.advancepayment || 0); }, 0),
       outstanding: orders.reduce(function (s, o) { return s + Number(o.balanceamount || 0); }, 0),
     };
@@ -1070,9 +1072,13 @@ function toApiOrder_(o) {
     status: o.status,
     deliveryDate: o.deliverydate,
     products: Array.isArray(o.products) ? o.products : [],
-    totalAmount: Number(o.totalamount || 0),
+    totalAmount: Number(o.totalamount != null && o.totalamount !== '' ? o.totalamount : (o.total != null ? o.total : 0)),
     advancePayment: Number(o.advancepayment || 0),
-    balanceAmount: Number(o.balanceamount || 0),
+    balanceAmount: Number(
+      o.balanceamount != null && o.balanceamount !== ''
+        ? o.balanceamount
+        : Math.max(0, Number(o.totalamount || o.total || 0) - Number(o.advancepayment || 0))
+    ),
     remarks: o.remarks || '',
     assignedDesigner: o.assigneddesigner || '',
     tokenNo: o.tokenno || '',
@@ -1941,7 +1947,7 @@ function getDashboardBootstrap_() {
     return s + Number(inv.total || inv.totalamount || 0);
   }, 0);
   var orderRevenue = orders.reduce(function (s, o) {
-    return s + Number(o.totalamount || 0);
+    return s + Number(o.totalamount || o.total || 0);
   }, 0);
   var revenue = invoiceRevenue || orderRevenue;
   var receivables = orders.reduce(function (s, o) { return s + Number(o.balanceamount || 0); }, 0);
@@ -1961,7 +1967,7 @@ function getDashboardBootstrap_() {
     if (!dk || dk.length < 7) return;
     var mk = dk.slice(0, 7);
     if (monthMap[mk]) {
-      monthMap[mk].sales += Number(o.totalamount || 0);
+      monthMap[mk].sales += Number(o.totalamount || o.total || 0);
       monthMap[mk].orders += 1;
     }
   });

@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { invoicesAPI, customersAPI } from '@/services/api';
-import { applyServerNotificationHint, notifyOrderEvent } from '@/services/notifications';
+import { applyServerNotificationHint, notifyOrderEvent, printPaymentSlip } from '@/services/notifications';
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import { formatCurrency } from '@/utils/helpers';
 import { useBrand } from '@/context/BrandContext';
@@ -46,7 +46,7 @@ const InvoiceForm = () => {
   const navigate = useNavigate();
   const { invoiceId } = useParams();
   const isEdit = !!invoiceId;
-  const { primary } = useBrand();
+  const { primary, company } = useBrand();
   const accent = primary || '#F26522';
 
   const [formData, setFormData] = useState(emptyInvoice);
@@ -196,6 +196,19 @@ const InvoiceForm = () => {
         const nextPaid = Number(payload.paidAmount) || 0;
         const receivedDelta = Math.max(0, nextPaid - prevPaid);
         if (receivedDelta > 0) {
+          printPaymentSlip({
+            type: 'inflow',
+            party: payload.customerName,
+            partyPhone: payload.customerPhone,
+            amount: receivedDelta,
+            totalAmount: grandTotal,
+            balanceDue: balance,
+            method: 'Invoice payment',
+            category: 'Invoice Payment',
+            reference: payload.invoiceNumber,
+            date: payload.date,
+            notes: `Invoice ${payload.invoiceNumber}`,
+          }, company || {});
           await notifyOrderEvent({
             event: 'payment_received',
             order: {
@@ -223,7 +236,7 @@ const InvoiceForm = () => {
               balanceDue: balance,
             },
           });
-          toast.message('Payment WhatsApp opened — Total / Received / Balance');
+          toast.message('Payment receipt printed + WhatsApp');
         }
       } else {
         res = await invoicesAPI.create(payload);
@@ -254,27 +267,42 @@ const InvoiceForm = () => {
           toast.message('Invoice WhatsApp prepared');
         }
         const paidNow = Number(payload.paidAmount) || 0;
-        if (paidNow > 0 && payload.customerPhone) {
-          await notifyOrderEvent({
-            event: 'payment_received',
-            order: {
-              customerName: payload.customerName,
-              customerPhone: payload.customerPhone,
-              orderId: payload.orderId,
-              totalAmount: grandTotal,
-              balanceAmount: balance,
-            },
-            invoice: { invoiceNumber: payload.invoiceNumber, date: payload.date, totalAmount: grandTotal, balanceAmount: balance },
-            payment: {
-              party: payload.customerName,
-              partyPhone: payload.customerPhone,
-              amount: paidNow,
-              method: 'Invoice payment',
-              reference: payload.invoiceNumber,
-              type: 'inflow',
-              balanceDue: balance,
-            },
-          });
+        if (paidNow > 0) {
+          printPaymentSlip({
+            type: 'inflow',
+            party: payload.customerName,
+            partyPhone: payload.customerPhone,
+            amount: paidNow,
+            totalAmount: grandTotal,
+            balanceDue: balance,
+            method: 'Invoice payment',
+            category: 'Invoice Payment',
+            reference: payload.invoiceNumber,
+            date: payload.date,
+            notes: `Invoice ${payload.invoiceNumber}`,
+          }, company || {});
+          if (payload.customerPhone) {
+            await notifyOrderEvent({
+              event: 'payment_received',
+              order: {
+                customerName: payload.customerName,
+                customerPhone: payload.customerPhone,
+                orderId: payload.orderId,
+                totalAmount: grandTotal,
+                balanceAmount: balance,
+              },
+              invoice: { invoiceNumber: payload.invoiceNumber, date: payload.date, totalAmount: grandTotal, balanceAmount: balance },
+              payment: {
+                party: payload.customerName,
+                partyPhone: payload.customerPhone,
+                amount: paidNow,
+                method: 'Invoice payment',
+                reference: payload.invoiceNumber,
+                type: 'inflow',
+                balanceDue: balance,
+              },
+            });
+          }
         }
       }
       const id = res.data?.id || invoiceId;

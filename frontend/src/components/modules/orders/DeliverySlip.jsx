@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ordersAPI } from '@/services/api';
 import { formatCurrency, formatDate } from '@/utils/helpers';
+import { barcodeBlock, openPrintWindow, printOnLoadScript, moneyPKR } from '@/utils/printHelpers';
 import { useBrand } from '@/context/BrandContext';
 import { ArrowLeft, Printer, Save } from 'lucide-react';
 import { toast } from 'sonner';
@@ -12,7 +13,7 @@ import { toast } from 'sonner';
 const DeliverySlip = () => {
   const { orderId } = useParams();
   const navigate = useNavigate();
-  const { company, primary } = useBrand();
+  const { company } = useBrand();
   const [order, setOrder] = useState(null);
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [loading, setLoading] = useState(true);
@@ -52,11 +53,105 @@ const DeliverySlip = () => {
     }
   };
 
+  const printBlackSlip = () => {
+    if (!order) return;
+    const companyName = company.name || 'Amazon Printing Services';
+    const code = order.trackingNumber || order.orderId || order.id || 'AMZ';
+    const items = (order.products || [])
+      .map(
+        (p, i) =>
+          `<tr>
+            <td>${i + 1}</td>
+            <td>${p.name || ''}${p.size || p.material ? `<div class="muted">${[p.size, p.material].filter(Boolean).join(' · ')}</div>` : ''}</td>
+            <td class="r">${p.quantity || 0}</td>
+          </tr>`
+      )
+      .join('');
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>Delivery ${order.orderId || ''}</title>
+  <style>
+    @page { size: A5; margin: 10mm; }
+    * { box-sizing: border-box; }
+    body { font-family: Arial, Helvetica, sans-serif; color: #000; margin: 0; }
+    .sheet { border: 2px solid #000; padding: 14px; }
+    .top { display: flex; justify-content: space-between; gap: 12px; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 12px; }
+    .brand h1 { margin: 0; font-size: 20px; letter-spacing: 0.02em; }
+    .brand p { margin: 2px 0; font-size: 11px; }
+    .meta { text-align: right; }
+    .meta .label { font-size: 11px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+    .meta .oid { font-size: 18px; font-weight: 800; margin-top: 2px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 12px; }
+    .box h3 { margin: 0 0 4px; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; border-bottom: 1px solid #000; padding-bottom: 2px; }
+    .box p { margin: 2px 0; font-size: 12px; }
+    table { width: 100%; border-collapse: collapse; margin: 8px 0 14px; }
+    th, td { border: 1px solid #000; padding: 6px; font-size: 12px; }
+    th { background: #000; color: #fff; text-align: left; }
+    .r { text-align: right; }
+    .muted { font-size: 10px; }
+    .signs { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 28px; }
+    .sign { text-align: center; border-top: 1px solid #000; padding-top: 6px; font-size: 11px; text-transform: uppercase; }
+    .barcode-wrap { text-align: center; margin-top: 10px; }
+    .foot { text-align: center; font-size: 10px; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="top">
+      <div class="brand">
+        <h1>${companyName}</h1>
+        <p>${company.address || 'King Road, Mandi Bahauddin'}</p>
+        <p>${[company.phone, company.website || 'amzprints.com'].filter(Boolean).join(' · ')}</p>
+      </div>
+      <div class="meta">
+        <div class="label">Delivery Slip</div>
+        <div class="oid">${order.orderId || ''}</div>
+        <div style="font-size:11px;margin-top:4px">Date: ${formatDate(order.date)}</div>
+        <div style="font-size:11px">Delivery: ${formatDate(order.deliveryDate) || '—'}</div>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="box">
+        <h3>Deliver To</h3>
+        <p><strong>${order.customerName || ''}</strong></p>
+        <p>${(deliveryAddress || order.customerAddress || '—').replace(/\n/g, '<br/>')}</p>
+        <p>${order.customerPhone || ''}</p>
+      </div>
+      <div class="box">
+        <h3>Order Info</h3>
+        <p>Status: <strong>${order.status || ''}</strong></p>
+        <p>Tracking: <strong>${order.trackingNumber || '—'}</strong></p>
+        <p>Total: <strong>Rs ${moneyPKR(order.totalAmount)}</strong></p>
+        <p>Paid: <strong>Rs ${moneyPKR(order.advancePayment)}</strong></p>
+        <p>Balance: <strong>Rs ${moneyPKR(order.balanceAmount)}</strong></p>
+      </div>
+    </div>
+    <table>
+      <thead><tr><th>#</th><th>Item</th><th class="r">Qty</th></tr></thead>
+      <tbody>${items || '<tr><td colspan="3">No items</td></tr>'}</tbody>
+    </table>
+    ${barcodeBlock(code, { height: 42 })}
+    <div class="signs">
+      <div class="sign">Received By</div>
+      <div class="sign">Authorized</div>
+    </div>
+    <div class="foot">Amazon Printing Services · Professional Delivery Document</div>
+  </div>
+  ${printOnLoadScript(400)}
+</body>
+</html>`;
+
+    const res = openPrintWindow(html, { width: 520, height: 720 });
+    if (!res.ok) toast.error('Allow popups to print delivery slip');
+  };
+
   if (loading) return <div className="py-16 text-center text-gray-500">Loading delivery slip...</div>;
   if (!order) return <div className="py-16 text-center text-gray-500">Order not found</div>;
 
   return (
-    <div className="space-y-4" data-testid="delivery-slip">
+    <div className="space-y-4 max-w-3xl mx-auto" data-testid="delivery-slip">
       <div className="flex flex-wrap items-center justify-between gap-3 no-print">
         <Button variant="outline" onClick={() => navigate('/orders')}>
           <ArrowLeft className="h-4 w-4 mr-2" />Back to Orders
@@ -65,99 +160,33 @@ const DeliverySlip = () => {
           <Button variant="outline" disabled={saving} onClick={saveAddress}>
             <Save className="h-4 w-4 mr-2" />{saving ? 'Saving…' : 'Save Address'}
           </Button>
-          <Button className="text-white" style={{ backgroundColor: primary || '#F26522' }} onClick={() => window.print()}>
-            <Printer className="h-4 w-4 mr-2" />Print Slip
+          <Button className="bg-black text-white hover:bg-black/90" onClick={printBlackSlip}>
+            <Printer className="h-4 w-4 mr-2" />Print Delivery Slip
           </Button>
         </div>
       </div>
 
-      <div className="no-print max-w-3xl mx-auto mb-4">
+      <div className="no-print mb-2">
         <Label>Delivery Address</Label>
         <Textarea rows={3} value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} />
+        <p className="text-xs text-gray-500 mt-1">Print opens a professional black delivery slip with barcode.</p>
       </div>
 
-      <div className="max-w-3xl mx-auto bg-white border shadow-sm print:shadow-none print:border-0" id="printable-delivery-slip">
-        <div className="h-2" style={{ backgroundColor: primary || '#F26522' }} />
-        <div className="p-8">
-          <div className="flex justify-between items-start border-b pb-4 mb-6">
-            <div className="flex items-start gap-3">
-              {company.logo ? (
-                <img src={company.logo} alt="logo" className="h-14 w-14 object-contain" />
-              ) : (
-                <div className="w-14 h-14 rounded-xl flex items-center justify-center text-white text-2xl font-bold" style={{ backgroundColor: primary || '#F26522' }}>
-                  {(company.name || 'A').charAt(0)}
-                </div>
-              )}
-              <div>
-                <h1 className="text-2xl font-bold" style={{ color: '#2E2E2E' }}>{company.name || 'AMZ Prints'}</h1>
-                <p className="text-sm text-gray-600">{company.tagline}</p>
-                <p className="text-xs text-gray-500 mt-1">{[company.address, company.phone, company.email].filter(Boolean).join(' · ')}</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-xs uppercase tracking-wider font-semibold" style={{ color: primary || '#F26522' }}>Delivery Slip</p>
-              <p className="text-xl font-bold">{order.orderId}</p>
-              <p className="text-sm text-gray-600">Date: {formatDate(order.date)}</p>
-              <p className="text-sm text-gray-600">Delivery: {formatDate(order.deliveryDate)}</p>
-            </div>
+      <div className="bg-white border-2 border-black p-6">
+        <div className="flex justify-between border-b-2 border-black pb-3 mb-4">
+          <div>
+            <h1 className="text-xl font-black">{company.name || 'Amazon Printing Services'}</h1>
+            <p className="text-xs">{company.address || 'King Road, Mandi Bahauddin'}</p>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div>
-              <p className="text-xs uppercase font-semibold mb-1" style={{ color: primary || '#F26522' }}>Deliver To</p>
-              <p className="font-bold text-lg">{order.customerName}</p>
-              <p className="text-sm text-gray-700 whitespace-pre-line mt-1">{deliveryAddress || order.customerAddress || '—'}</p>
-              {order.customerPhone && <p className="text-sm text-gray-600 mt-1">📞 {order.customerPhone}</p>}
-            </div>
-            <div>
-              <p className="text-xs uppercase font-semibold mb-1" style={{ color: primary || '#F26522' }}>Order Info</p>
-              <p className="text-sm">Status: <strong>{order.status}</strong></p>
-              <p className="text-sm">Tracking: {order.trackingNumber || '—'}</p>
-              <p className="text-sm">Total: <strong style={{ color: primary || '#F26522' }}>{formatCurrency(order.totalAmount)}</strong></p>
-            </div>
-          </div>
-
-          <table className="w-full text-sm mb-8">
-            <thead>
-              <tr style={{ backgroundColor: '#2E2E2E', color: '#fff' }}>
-                <th className="text-left p-2">#</th>
-                <th className="text-left p-2">Item</th>
-                <th className="text-right p-2">Qty</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(order.products || []).map((p, i) => (
-                <tr key={p.id || `${p.name}-${i}`} className="border-b">
-                  <td className="p-2">{i + 1}</td>
-                  <td className="p-2">
-                    {p.name}
-                    {(p.size || p.material) && (
-                      <span className="text-xs text-gray-500 block">{[p.size, p.material].filter(Boolean).join(' · ')}</span>
-                    )}
-                  </td>
-                  <td className="p-2 text-right font-semibold">{p.quantity}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <div className="grid grid-cols-2 gap-8 pt-8 border-t">
-            <div className="text-center">
-              <div className="h-16" />
-              <div className="border-t border-gray-400 pt-2 text-xs uppercase text-gray-500">Received By</div>
-            </div>
-            <div className="text-center">
-              <div className="h-16 flex items-end justify-center opacity-70">
-                {company.stamp ? (
-                  <img src={company.stamp} alt="stamp" className="h-16 object-contain" />
-                ) : (
-                  <span className="text-sm italic">{company.authorizedSignatory || company.name}</span>
-                )}
-              </div>
-              <div className="border-t border-gray-400 pt-2 text-xs uppercase text-gray-500">Authorized</div>
-            </div>
+          <div className="text-right">
+            <p className="text-[10px] font-black tracking-[0.15em] uppercase">Delivery Slip</p>
+            <p className="text-lg font-black">{order.orderId}</p>
+            <p className="text-xs">Total {formatCurrency(order.totalAmount)} · Paid {formatCurrency(order.advancePayment)}</p>
           </div>
         </div>
+        <p className="text-sm"><strong>{order.customerName}</strong> · {order.customerPhone}</p>
+        <p className="text-sm whitespace-pre-line mt-1">{deliveryAddress || order.customerAddress || '—'}</p>
+        <p className="text-xs mt-3 text-gray-600">Preview — print for final black barcode slip.</p>
       </div>
     </div>
   );

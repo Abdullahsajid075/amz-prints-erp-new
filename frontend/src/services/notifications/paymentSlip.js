@@ -1,62 +1,60 @@
 /**
- * Pocket-size (80mm) payment slip printer for Cash In / Cash Out.
+ * Pocket-size payment receipt (Cash In / Cash Out) — black, short, with barcode.
  */
+import { barcodeBlock, moneyPKR, openPrintWindow, printOnLoadScript } from '@/utils/printHelpers';
+
 export function printPaymentSlip(payment = {}, company = {}) {
-  const isIn = String(payment.type || '').toLowerCase() === 'inflow';
-  const title = isIn ? 'PAYMENT RECEIVED' : 'PAYMENT SENT';
-  const accent = isIn ? '#10B981' : '#EF4444';
+  const rawType = String(payment.type || payment.recordtype || '').toLowerCase();
+  const isIn = rawType !== 'outflow' && rawType !== 'out';
+  const title = isIn ? 'PAYMENT RECEIPT' : 'PAYMENT VOUCHER';
   const companyName = company.name || 'Amazon Printing Services';
   const companyAddress = company.address || 'King Road, Mandi Bahauddin';
   const companyPhone = company.phone || '';
   const companyWeb = company.website || 'amzprints.com';
-  const amount = Number(payment.amount || 0).toLocaleString('en-PK', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  const amount = moneyPKR(payment.amount);
+  const total = moneyPKR(payment.totalAmount || payment.total || 0);
+  const balance = moneyPKR(payment.balanceDue || 0);
   const date = payment.date || new Date().toISOString().slice(0, 10);
   const time = payment.time || new Date().toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' });
+  const txn = String(payment.reference || payment.refId || payment.id || `TXN-${Date.now().toString().slice(-8)}`);
 
   const html = `<!DOCTYPE html>
 <html>
 <head>
-  <title>${title} — ${payment.reference || payment.id || ''}</title>
+  <title>${title} — ${txn}</title>
   <style>
-    @page { size: 80mm auto; margin: 3mm; }
+    @page { size: 80mm auto; margin: 2.5mm; }
     * { box-sizing: border-box; }
     body {
       font-family: Arial, Helvetica, sans-serif;
-      width: 74mm;
+      width: 72mm;
       margin: 0 auto;
-      color: #111;
-      padding: 2mm;
+      color: #000;
+      padding: 1mm;
+      font-size: 11px;
     }
     .brand { text-align: center; }
-    .brand h1 { font-size: 15px; margin: 0 0 2px; letter-spacing: 0.02em; }
-    .brand p { font-size: 9px; color: #555; margin: 0; line-height: 1.35; }
-    .badge {
-      margin: 8px auto 6px;
-      display: inline-block;
-      padding: 4px 10px;
-      border-radius: 999px;
-      font-size: 11px;
-      font-weight: 700;
-      color: #fff;
-      background: ${accent};
-      letter-spacing: 0.06em;
-    }
-    .amount {
+    .brand h1 { font-size: 14px; margin: 0; font-weight: 800; letter-spacing: 0.02em; }
+    .brand p { font-size: 9px; margin: 1px 0; }
+    .title {
       text-align: center;
-      font-size: 22px;
+      font-size: 12px;
       font-weight: 800;
-      margin: 8px 0 4px;
-      color: ${accent};
+      letter-spacing: 0.08em;
+      margin: 6px 0 2px;
+      border-top: 2px solid #000;
+      border-bottom: 2px solid #000;
+      padding: 4px 0;
     }
-    .sign { text-align: center; font-size: 12px; font-weight: 700; color: ${accent}; }
-    hr { border: none; border-top: 1px dashed #333; margin: 8px 0; }
-    .row { display: flex; justify-content: space-between; gap: 6px; font-size: 11px; margin: 3px 0; }
-    .label { color: #666; }
-    .val { font-weight: 600; text-align: right; word-break: break-word; }
-    .footer { text-align: center; font-size: 9px; color: #666; margin-top: 8px; }
+    .kind { text-align: center; font-size: 10px; font-weight: 700; margin: 4px 0; }
+    .amount { text-align: center; font-size: 20px; font-weight: 800; margin: 4px 0 2px; }
+    hr { border: none; border-top: 1px dashed #000; margin: 5px 0; }
+    .row { display: flex; justify-content: space-between; gap: 4px; margin: 2px 0; }
+    .label { color: #000; }
+    .val { font-weight: 700; text-align: right; word-break: break-word; }
+    .barcode-wrap { text-align: center; margin: 6px 0 2px; }
+    .barcode-wrap svg { max-width: 100%; }
+    .footer { text-align: center; font-size: 9px; margin-top: 6px; }
   </style>
 </head>
 <body>
@@ -66,33 +64,26 @@ export function printPaymentSlip(payment = {}, company = {}) {
     ${companyPhone ? `<p>${companyPhone}</p>` : ''}
     <p>${companyWeb}</p>
   </div>
-  <div style="text-align:center"><span class="badge">${title}</span></div>
-  <div class="sign">${isIn ? 'CASH IN' : 'CASH OUT'}</div>
+  <div class="title">${title}</div>
+  <div class="kind">${isIn ? 'CASH IN · RECEIVED' : 'CASH OUT · PAID'}</div>
   <div class="amount">Rs ${amount}</div>
   <hr />
   <div class="row"><span class="label">Date</span><span class="val">${date} ${time}</span></div>
-  <div class="row"><span class="label">Party</span><span class="val">${payment.party || '—'}</span></div>
+  <div class="row"><span class="label">Party</span><span class="val">${payment.party || payment.customerName || '—'}</span></div>
   ${payment.partyPhone ? `<div class="row"><span class="label">Phone</span><span class="val">${payment.partyPhone}</span></div>` : ''}
+  <div class="row"><span class="label">Method</span><span class="val">${payment.method || 'Cash'}</span></div>
   <div class="row"><span class="label">Category</span><span class="val">${payment.category || '—'}</span></div>
-  <div class="row"><span class="label">Method</span><span class="val">${payment.method || '—'}</span></div>
-  <div class="row"><span class="label">Txn / Ref</span><span class="val">${payment.reference || payment.id || '—'}</span></div>
+  ${(Number(payment.totalAmount) > 0) ? `<div class="row"><span class="label">Bill Total</span><span class="val">Rs ${total}</span></div>` : ''}
+  <div class="row"><span class="label">Received/Paid</span><span class="val">Rs ${amount}</span></div>
+  ${(payment.balanceDue != null && payment.balanceDue !== '') ? `<div class="row"><span class="label">Balance</span><span class="val">Rs ${balance}</span></div>` : ''}
+  <div class="row"><span class="label">Txn</span><span class="val">${txn}</span></div>
   ${payment.notes ? `<div class="row"><span class="label">Notes</span><span class="val">${payment.notes}</span></div>` : ''}
   <hr />
-  <div class="footer">Thank you · Pocket receipt · Keep for records</div>
-  <script>
-    window.onload = function () {
-      window.print();
-      setTimeout(function () { window.close(); }, 350);
-    };
-  </script>
+  ${barcodeBlock(txn, { height: 32 })}
+  <div class="footer">Keep this slip · ${isIn ? 'Payment Received' : 'Payment Issued'}</div>
+  ${printOnLoadScript(500)}
 </body>
 </html>`;
 
-  const win = window.open('', '_blank', 'width=340,height=520');
-  if (!win) {
-    return { ok: false, reason: 'popup_blocked' };
-  }
-  win.document.write(html);
-  win.document.close();
-  return { ok: true };
+  return openPrintWindow(html, { width: 340, height: 560 });
 }

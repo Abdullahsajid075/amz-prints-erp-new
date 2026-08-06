@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ordersAPI, customersAPI, designersAPI, tokensAPI, productsAPI } from '@/services/api';
-import { applyServerNotificationHint, notifyOrderEvent } from '@/services/notifications';
+import { applyServerNotificationHint, notifyOrderEvent, printPaymentSlip } from '@/services/notifications';
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import { ORDER_STATUS } from '@/utils/constants';
 import { formatCurrency } from '@/utils/helpers';
@@ -31,7 +31,7 @@ const OrderForm = () => {
   const [searchParams] = useSearchParams();
   const isEdit = !!orderId;
   const prefillTokenNo = searchParams.get('tokenNo') || '';
-  const { primary } = useBrand();
+  const { primary, company } = useBrand();
   const accent = primary || '#F26522';
 
   const [formData, setFormData] = useState({
@@ -245,6 +245,23 @@ const OrderForm = () => {
   const calculateTotal = () => formData.products.reduce((t, p) => t + (Number(p.quantity) || 0) * (Number(p.rate) || 0), 0);
   const calculateBalance = () => calculateTotal() - (Number(formData.advancePayment) || 0);
 
+  const printOrderPaymentReceipt = (data, receivedAmount) => {
+    if (!(Number(receivedAmount) > 0)) return;
+    printPaymentSlip({
+      type: 'inflow',
+      party: data.customerName,
+      partyPhone: data.customerPhone,
+      amount: receivedAmount,
+      totalAmount: data.totalAmount,
+      balanceDue: data.balanceAmount,
+      method: 'Cash / Advance',
+      category: 'Order Payment',
+      reference: data.orderId || data.id,
+      date: new Date().toISOString().slice(0, 10),
+      notes: `Order ${data.orderId || ''} payment`,
+    }, company || {});
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!requireCustomer(formData)) return;
@@ -278,6 +295,7 @@ const OrderForm = () => {
         const data = { ...orderData, ...(updated.data || {}) };
 
         if (receivedDelta > 0) {
+          printOrderPaymentReceipt(data, receivedDelta);
           await notifyOrderEvent({
             event: 'payment_received',
             order: data,
@@ -289,9 +307,10 @@ const OrderForm = () => {
               reference: data.orderId || orderId,
               type: 'inflow',
               balanceDue: data.balanceAmount,
+              totalAmount: data.totalAmount,
             },
           });
-          toast.message('Payment WhatsApp opened — Total / Received / Balance');
+          toast.message('Payment receipt printed + WhatsApp');
         }
 
         if (String(prevStatus) !== String(data.status || orderData.status)) {
@@ -324,6 +343,7 @@ const OrderForm = () => {
           toast.message('Customer notification prepared');
         }
         if (nextAdvance > 0) {
+          printOrderPaymentReceipt(data, nextAdvance);
           await notifyOrderEvent({
             event: 'payment_received',
             order: data,
@@ -335,6 +355,7 @@ const OrderForm = () => {
               reference: data.orderId || data.id,
               type: 'inflow',
               balanceDue: data.balanceAmount,
+              totalAmount: data.totalAmount,
             },
           });
         }
@@ -353,10 +374,10 @@ const OrderForm = () => {
   }
 
   return (
-    <div className="space-y-4 pb-8" data-testid="order-form">
+    <div className="max-w-4xl mx-auto space-y-4 pb-8" data-testid="order-form">
       <div className="rounded-2xl border border-orange-100 bg-white overflow-hidden shadow-sm">
         <div className="h-1.5" style={{ backgroundColor: accent }} />
-        <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <Button variant="outline" size="sm" onClick={() => navigate('/orders')} data-testid="back-button">
               <ArrowLeft className="h-4 w-4 mr-1.5" />Back
@@ -364,7 +385,7 @@ const OrderForm = () => {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <ClipboardList className="h-5 w-5 shrink-0" style={{ color: accent }} />
-                <h1 className="text-xl sm:text-2xl font-bold truncate" style={{ color: '#2E2E2E' }}>
+                <h1 className="text-xl font-bold truncate" style={{ color: '#2E2E2E' }}>
                   {isEdit ? 'Edit Order' : 'New Order'}
                 </h1>
               </div>
@@ -393,7 +414,7 @@ const OrderForm = () => {
       </div>
 
       <form id="order-form-el" onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card className="border-orange-100/80 shadow-sm rounded-2xl">
             <CardHeader className="py-3"><CardTitle className="text-base">Customer</CardTitle></CardHeader>
             <CardContent className="pt-0">
@@ -411,10 +432,10 @@ const OrderForm = () => {
             </CardContent>
           </Card>
 
-          <Card className="lg:col-span-2 border-orange-100/80 shadow-sm rounded-2xl">
+          <Card className="border-orange-100/80 shadow-sm rounded-2xl">
             <CardHeader className="py-3"><CardTitle className="text-base">Order Details</CardTitle></CardHeader>
             <CardContent className="pt-0 space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <Label className="text-xs">Assigned Designer</Label>
                   <Select
@@ -447,7 +468,7 @@ const OrderForm = () => {
                     data-testid="delivery-date-input"
                   />
                 </div>
-                <div>
+                <div className="sm:col-span-2">
                   <Label className="text-xs">Status</Label>
                   <Select
                     value={formData.status || ORDER_STATUS.RECEIVED}
@@ -476,15 +497,12 @@ const OrderForm = () => {
         </div>
 
         <Card className="border-orange-100/80 shadow-sm rounded-2xl">
-          <CardHeader className="py-3 flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base">Products</CardTitle>
-            <Button type="button" size="sm" variant="outline" onClick={addProduct} data-testid="add-product-button">
-              <Plus className="h-4 w-4 mr-1" />Add
-            </Button>
+          <CardHeader className="py-3">
+            <CardTitle className="text-base">Products / Items</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 pt-0">
             {formData.products.map((product, index) => (
-              <div key={product._key} className="rounded-xl border border-gray-100 bg-gray-50/50 p-3 space-y-2" data-testid={`product-${index}`}>
+              <div key={product._key} className="rounded-xl border border-gray-100 bg-white p-3 space-y-2 shadow-sm" data-testid={`product-${index}`}>
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Item {index + 1}</p>
                   {formData.products.length > 1 && (
@@ -493,12 +511,12 @@ const OrderForm = () => {
                     </Button>
                   )}
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-2">
-                  <div className="md:col-span-4">
+                <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
+                  <div className="col-span-2 sm:col-span-3">
                     <Label className="text-xs">Product *</Label>
                     {catalog.length > 0 && (
                       <Select value={catalogValueFor(product)} onValueChange={(v) => pickProduct(index, v)}>
-                        <SelectTrigger className="bg-white mb-1">
+                        <SelectTrigger className="bg-white mb-1 h-9">
                           <SelectValue placeholder="Pick from catalog" />
                         </SelectTrigger>
                         <SelectContent>
@@ -511,7 +529,7 @@ const OrderForm = () => {
                       </Select>
                     )}
                     <Input
-                      className="bg-white"
+                      className="bg-white h-9"
                       value={product.name}
                       onChange={(e) => handleProductChange(index, 'name', e.target.value)}
                       required
@@ -519,10 +537,10 @@ const OrderForm = () => {
                       data-testid={`product-name-${index}`}
                     />
                   </div>
-                  <div className="md:col-span-2">
+                  <div>
                     <Label className="text-xs">Qty *</Label>
                     <Input
-                      className="bg-white"
+                      className="bg-white h-9"
                       type="number"
                       min="1"
                       value={product.quantity}
@@ -530,10 +548,10 @@ const OrderForm = () => {
                       required
                     />
                   </div>
-                  <div className="md:col-span-2">
+                  <div>
                     <Label className="text-xs">Rate *</Label>
                     <Input
-                      className="bg-white"
+                      className="bg-white h-9"
                       type="number"
                       min="0"
                       step="0.01"
@@ -542,36 +560,46 @@ const OrderForm = () => {
                       required
                     />
                   </div>
-                  <div className="md:col-span-2">
+                  <div>
+                    <Label className="text-xs">Amount</Label>
+                    <Input className="bg-orange-50 h-9 font-semibold" value={formatCurrency((product.quantity || 0) * (product.rate || 0))} disabled />
+                  </div>
+                  <div>
                     <Label className="text-xs">Size</Label>
-                    <Input className="bg-white" value={product.size} onChange={(e) => handleProductChange(index, 'size', e.target.value)} />
+                    <Input className="bg-white h-9" value={product.size} onChange={(e) => handleProductChange(index, 'size', e.target.value)} />
                   </div>
-                  <div className="md:col-span-2">
+                  <div>
                     <Label className="text-xs">Material</Label>
-                    <Input className="bg-white" value={product.material} onChange={(e) => handleProductChange(index, 'material', e.target.value)} />
+                    <Input className="bg-white h-9" value={product.material} onChange={(e) => handleProductChange(index, 'material', e.target.value)} />
                   </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  <div>
+                  <div className="col-span-2 sm:col-span-4">
                     <Label className="text-xs">Notes</Label>
-                    <Input className="bg-white" value={product.notes} onChange={(e) => handleProductChange(index, 'notes', e.target.value)} />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Subtotal</Label>
-                    <Input className="bg-white font-semibold" value={formatCurrency((product.quantity || 0) * (product.rate || 0))} disabled />
+                    <Input className="bg-white h-9" value={product.notes} onChange={(e) => handleProductChange(index, 'notes', e.target.value)} />
                   </div>
                 </div>
               </div>
             ))}
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full border-dashed border-orange-300 text-orange-700 hover:bg-orange-50"
+              onClick={addProduct}
+              data-testid="add-product-button"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add more items
+            </Button>
           </CardContent>
         </Card>
 
-        <Card className="border-orange-100/80 shadow-sm rounded-2xl">
-          <CardHeader className="py-3"><CardTitle className="text-base">Payment</CardTitle></CardHeader>
-          <CardContent className="pt-0">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <Card className="border-orange-200 shadow-sm rounded-2xl overflow-hidden">
+          <div className="h-1" style={{ backgroundColor: accent }} />
+          <CardHeader className="py-3"><CardTitle className="text-base">Payment (required on booking)</CardTitle></CardHeader>
+          <CardContent className="pt-0 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <Label className="text-xs">Advance</Label>
+                <Label className="text-xs">Advance / Received *</Label>
                 <Input
                   type="number"
                   min="0"
@@ -581,17 +609,18 @@ const OrderForm = () => {
                   data-testid="advance-payment-input"
                 />
               </div>
-              <div className="md:col-span-3 rounded-xl p-3 flex flex-wrap gap-6 items-center justify-end" style={{ backgroundColor: '#FFF9F5' }}>
-                <div className="text-right">
-                  <p className="text-[10px] uppercase tracking-wide text-gray-500">Total</p>
-                  <p className="font-bold text-lg" style={{ color: accent }}>{formatCurrency(calculateTotal())}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[10px] uppercase tracking-wide text-gray-500">Balance</p>
-                  <p className="font-bold text-lg text-gray-900">{formatCurrency(calculateBalance())}</p>
-                </div>
+              <div className="rounded-xl p-3 bg-[#FFF9F5] border border-orange-100">
+                <p className="text-[10px] uppercase tracking-wide text-gray-500">Order Total</p>
+                <p className="font-bold text-xl" style={{ color: accent }}>{formatCurrency(calculateTotal())}</p>
+              </div>
+              <div className="rounded-xl p-3 bg-gray-50 border border-gray-100">
+                <p className="text-[10px] uppercase tracking-wide text-gray-500">Balance Due</p>
+                <p className="font-bold text-xl text-gray-900">{formatCurrency(calculateBalance())}</p>
               </div>
             </div>
+            <p className="text-xs text-gray-500">
+              Total · Advance · Balance customer ko booking pe clear dikhengi. Payment receive hone pe receipt print hogi.
+            </p>
           </CardContent>
         </Card>
 

@@ -16,6 +16,14 @@ import { toast } from 'sonner';
 const IN_PROGRESS_STATUSES = ['Order Received', 'Designing', 'Proof Approval', 'Printing', 'Finishing', 'Packing', 'Ready'];
 const COMPLETED_STATUSES = ['Delivered', 'Cancelled'];
 
+function orderDisplayTotal(order) {
+  const direct = Number(order?.totalAmount);
+  if (direct > 0) return direct;
+  const fromProducts = (Array.isArray(order?.products) ? order.products : [])
+    .reduce((s, p) => s + (Number(p.quantity) || 0) * (Number(p.rate) || 0), 0);
+  return fromProducts || 0;
+}
+
 const OrdersList = () => {
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
@@ -227,7 +235,7 @@ const OrdersList = () => {
       </div>
       <div className="flex items-end justify-between pt-2 border-t border-gray-100 mb-2">
         <span className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Total</span>
-        <span className="text-lg font-bold" style={{ color: '#F26522' }}>{formatCurrency(order.totalAmount)}</span>
+        <span className="text-lg font-bold" style={{ color: '#F26522' }}>{formatCurrency(orderDisplayTotal(order))}</span>
       </div>
       <div className="flex items-center gap-1">
         <Button size="sm" className="flex-1 text-white text-xs h-8" style={{ backgroundColor: '#F26522' }} onClick={() => handleView(order.id)} data-testid={`view-order-${order.id}`}>
@@ -339,7 +347,7 @@ const OrdersList = () => {
                       <td className="py-2.5 px-3 truncate max-w-[180px]">{order.customerName}</td>
                       <td className="py-2.5 px-3 text-gray-600 hidden md:table-cell">{formatDate(order.date)}</td>
                       <td className="py-2.5 px-3 text-gray-600 hidden md:table-cell">{formatDate(order.deliveryDate)}</td>
-                      <td className="py-2.5 px-3 text-right font-bold" style={{ color: '#F26522' }}>{formatCurrency(order.totalAmount)}</td>
+                      <td className="py-2.5 px-3 text-right font-bold" style={{ color: '#F26522' }}>{formatCurrency(orderDisplayTotal(order))}</td>
                       <td className="py-2.5 px-3"><Badge className={`${getStatusColor(order.status)} text-[10px]`}>{order.status}</Badge></td>
                       <td className="py-2.5 px-3 text-right">
                         <div className="flex items-center gap-1 justify-end">

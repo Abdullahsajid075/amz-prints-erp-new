@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { paymentsAPI, settingsAPI, customersAPI } from '@/services/api';
+import { paymentsAPI, settingsAPI, customersAPI, expensesAPI } from '@/services/api';
 import { notifyPaymentEvent, printPaymentSlip } from '@/services/notifications';
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import { formatCurrency, formatDate } from '@/utils/helpers';
@@ -140,21 +140,37 @@ const Payments = () => {
   const afterSaveActions = async (payment) => {
     const slip = printPaymentSlip(payment, company || {});
     if (!slip.ok) toast.error('Allow popups to print pocket slip');
-    else toast.message('Pocket slip sent to printer');
+    else toast.message('Payment receipt printed (with barcode)');
+
+    // Cash Out must also land in Expenses for daily audit / reports
+    const isOut = String(payment.type || '').toLowerCase() === 'outflow';
+    if (isOut) {
+      try {
+        await expensesAPI.create({
+          date: payment.date || new Date().toISOString().slice(0, 10),
+          category: payment.category || 'Payment Out',
+          amount: Number(payment.amount) || 0,
+          description: `Payment Out · ${payment.party || ''} · Ref ${payment.reference || ''}`.trim(),
+          paymentMethod: payment.method || 'Cash',
+        });
+        toast.message('Payment Out also recorded in Expenses (reports/audit)');
+      } catch (err) {
+        console.warn('Expense mirror failed', err);
+        toast.error('Payment saved, but expense audit record failed');
+      }
+    }
 
     if (payment.partyPhone || payment.phone) {
       const notify = await notifyPaymentEvent({
         ...payment,
-        // Ensure template gets Total / Received / Balance
         amount: payment.amount,
         balanceDue: payment.balanceDue,
       }, {
         openWhatsApp: true,
       });
-      // Pass total via notifyOrderEvent extras — notifyPaymentEvent uses order.totalAmount
       if (notify?.whatsappOpened) toast.message('WhatsApp opened — Total / Received / Balance');
       else toast.message('Payment saved (check phone / WhatsApp settings)');
-    } else {
+    } else if (!isOut) {
       toast.error('Customer phone missing — WhatsApp not sent');
     }
   };

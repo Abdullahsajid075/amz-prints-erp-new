@@ -91,8 +91,18 @@ const Reports = () => {
       const filteredOrders = orderList.filter((o) => inRange(o.date, dateRange.from, dateRange.to) && String(o.docType || 'Order').toLowerCase() !== 'quotation');
       const filteredExpenses = expenseList.filter((e) => inRange(e.date, dateRange.from, dateRange.to));
       const filteredPurchases = purchaseList.filter((p) => inRange(p.date, dateRange.from, dateRange.to));
-      const income = filteredOrders.reduce((s, o) => s + Number(o.totalAmount || 0), 0);
+      const orderAmt = (o) => {
+        const direct = Number(o.totalAmount || 0);
+        if (direct > 0) return direct;
+        return (o.products || []).reduce((s, p) => s + (Number(p.quantity) || 0) * (Number(p.rate) || 0), 0);
+      };
+      const income = filteredOrders.reduce((s, o) => s + orderAmt(o), 0);
       const expenseSum = filteredExpenses.reduce((s, e) => s + Number(e.amount || 0), 0);
+      const paymentOutSum = paymentList
+        .filter((p) => String(p.type || '').toLowerCase() === 'outflow' && inRange(p.date, dateRange.from, dateRange.to))
+        .reduce((s, p) => s + Number(p.amount || 0), 0);
+      // Prefer expenses sheet; if empty, fall back to payment outflows for daily audit
+      const auditExpenses = expenseSum > 0 ? expenseSum : paymentOutSum;
       const purchaseSum = filteredPurchases.reduce((s, p) => s + Number(p.total || p.totalAmount || 0), 0);
 
       const expenseByCat = {};
@@ -100,12 +110,20 @@ const Reports = () => {
         const cat = e.category || 'Other';
         expenseByCat[cat] = (expenseByCat[cat] || 0) + Number(e.amount || 0);
       });
+      if (!Object.keys(expenseByCat).length) {
+        paymentList
+          .filter((p) => String(p.type || '').toLowerCase() === 'outflow' && inRange(p.date, dateRange.from, dateRange.to))
+          .forEach((p) => {
+            const cat = p.category || p.party || 'Payment Out';
+            expenseByCat[cat] = (expenseByCat[cat] || 0) + Number(p.amount || 0);
+          });
+      }
 
       const customerMap = {};
       const productMap = {};
       filteredOrders.forEach((o) => {
         const name = o.customerName || 'Unknown';
-        customerMap[name] = (customerMap[name] || 0) + Number(o.totalAmount || 0);
+        customerMap[name] = (customerMap[name] || 0) + orderAmt(o);
         (o.products || []).forEach((p) => {
           const pn = p.name || 'Item';
           if (!productMap[pn]) productMap[pn] = { name: pn, quantity: 0, revenue: 0 };
@@ -118,7 +136,7 @@ const Reports = () => {
         ...prev,
         profitLoss: prev.profitLoss?.income != null
           ? prev.profitLoss
-          : { income, expenses: expenseSum, purchases: purchaseSum, profit: income - expenseSum - purchaseSum },
+          : { income, expenses: auditExpenses, purchases: purchaseSum, profit: income - auditExpenses - purchaseSum },
         expenses: (prev.expenses || []).length ? prev.expenses : Object.entries(expenseByCat).map(([category, amount]) => ({ category, amount })),
         topCustomers: (prev.topCustomers || []).length
           ? prev.topCustomers
@@ -130,7 +148,7 @@ const Reports = () => {
         purchases: (prev.purchases || []).length ? prev.purchases : [{ period: 'Selected', amount: purchaseSum }],
         comparison: (prev.comparison || []).length
           ? prev.comparison
-          : [{ period: 'Selected', income, expenses: expenseSum, purchases: purchaseSum, profit: income - expenseSum - purchaseSum }],
+          : [{ period: 'Selected', income, expenses: auditExpenses, purchases: purchaseSum, profit: income - auditExpenses - purchaseSum }],
       }));
     } catch (err) {
       console.error('Failed to fetch reports', err);
