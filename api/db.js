@@ -1,12 +1,16 @@
 /**
- * Supabase client — Hostinger "Connect from your Web App" pattern.
- * Set SUPABASE_URL + SUPABASE_API_KEY (service role preferred for server API).
+ * Supabase client — Hostinger / Supabase project.
+ * Prefers service-role key so ERP server can read/write all tables.
  */
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 
 const url = process.env.SUPABASE_URL;
-const key = process.env.SUPABASE_API_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+const key =
+  process.env.SUPABASE_API_KEY
+  || process.env.SUPABASE_SERVICE_ROLE_KEY
+  || process.env.SUPABASE_SECRET_KEY
+  || process.env.sb_secret;
 
 if (!url || !key) {
   console.warn('[db] Missing SUPABASE_URL or SUPABASE_API_KEY — set them in api/.env');
