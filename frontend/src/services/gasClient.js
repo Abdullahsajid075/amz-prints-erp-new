@@ -85,7 +85,7 @@ async function fetchOnce(url, init) {
     throw {
       code: 'ERR_NETWORK',
       message: error.message || 'Network Error',
-      response: { data: { message: 'Unable to reach Google Apps Script backend.' } },
+      response: { data: { message: 'Unable to reach ERP API backend (Hostinger / Supabase).' } },
     };
   }
 
@@ -101,10 +101,10 @@ async function fetchOnce(url, init) {
         status: 502,
         data: {
           message: isGoogleHtml
-            ? 'Google Apps Script temporarily returned an error page. Wait a few seconds and try again. If it keeps failing, open the Web App URL in a browser and check Deploy → Manage deployments (Execute as: Me, Who has access: Anyone).'
+            ? 'Backend returned an HTML error page. Check Hostinger API / Supabase is running, or your old GAS Web App deployment.'
             : (preview
               ? `Unexpected backend response: ${preview}`
-              : 'Empty response from Google Apps Script. Check Web App deployment.'),
+              : 'Empty response from ERP API. Check Hostinger Node app and SUPABASE_URL / SUPABASE_API_KEY.'),
         },
       },
     };
