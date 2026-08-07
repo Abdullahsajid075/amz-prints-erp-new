@@ -1,25 +1,59 @@
-# AMZ Prints ERP — Deployment Guide (Vercel)
+# AMZ Prints ERP — Frontend Deploy (Vercel)
 
-The frontend is a Vite + React app that talks directly to a Google Apps Script (GAS) Web App backed by Google Sheets and Google Drive. The backend is **not** hosted on Vercel.
+Frontend = Vite + React. Backend = Google Apps Script (for now). Hostinger API later.
 
-## Deploy to Vercel
+## Vercel project settings
 
-1. Push this repo to GitHub / GitLab / Bitbucket.
-2. In Vercel → **Add New Project** → import the repo.
-3. Set **Root Directory** to `frontend`.
-4. Vercel settings (also in `frontend/vercel.json`):
-   - Framework: Vite
-   - Build: `npm run build`
-   - Output: `dist`
-5. Environment variable (optional if using `vercel.json` build env):
+| Setting | Value |
+|--------|--------|
+| Repository | `Abdullahsajid075/amz-prints-erp-new` |
+| Branch | `main` (or `cursor/gas-api-integration` until merged) |
+| **Root Directory** | `frontend` |
+| Framework | Vite |
+| Build Command | `npm run build` |
+| Output Directory | `dist` |
+| Install Command | `npm install` |
+| Node.js | 18.x or 20.x |
 
-   | Key | Value |
-   | --- | --- |
-   | `REACT_APP_GAS_API_URL` | `https://script.google.com/macros/s/…/exec` |
+### Environment variable (Production + Preview)
 
-6. Click **Deploy**.
+| Key | Value |
+| --- | --- |
+| `REACT_APP_GAS_API_URL` | `https://script.google.com/macros/s/AKfycbxEvWjbbh0-VJ1JxKR-qFZ9TbllIyh9rAJRg1ythfihJP61o6sxvcYhHehXafZEYummLw/exec` |
 
-## Local Development
+Set in: Vercel → Project → Settings → Environment Variables → Redeploy after saving.
+
+## Domain: erp.amzprints.com
+
+1. Vercel → Project → **Settings → Domains** → Add `erp.amzprints.com`
+2. **Hostinger DNS pe pehle Hostinger A/AAAA records hatao** jo `erp` ko Hostinger Node IPs pe bhej rahe hain (warna timeout aayega).
+3. DNS provider (jahan `amzprints.com` manage hota hai) pe ye add karo:
+
+### Recommended (CNAME)
+
+| Type | Name / Host | Value | TTL |
+|------|-------------|-------|-----|
+| **CNAME** | `erp` | `cname.vercel-dns.com` | Auto / 3600 |
+
+### Alternate (A record) — if CNAME not allowed
+
+| Type | Name / Host | Value | TTL |
+|------|-------------|-------|-----|
+| **A** | `erp` | `76.76.21.21` | Auto / 3600 |
+
+4. Vercel Domains page pe **Valid** / SSL green hone ka wait (5–60 min).
+5. Open: https://erp.amzprints.com
+
+## Quick checklist
+
+- [ ] Root Directory = `frontend`
+- [ ] Env `REACT_APP_GAS_API_URL` set
+- [ ] Deploy succeeded on Vercel
+- [ ] Hostinger `erp` DNS removed
+- [ ] Vercel CNAME/A for `erp` added
+- [ ] Login works via GAS backend
+
+## Local
 
 ```bash
 cd frontend
@@ -28,25 +62,8 @@ npm install
 npm run dev
 ```
 
-Login uses credentials from the **Users** sheet in your Google Spreadsheet (connected via GAS `SPREADSHEET_ID`).
+## Files
 
-## Google Apps Script API Contract
-
-The GAS Web App must expose these JSON endpoints via `?path=` query routing:
-
-- `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`
-- `GET /dashboard/stats`, `GET /dashboard/charts`, `GET /dashboard/recent-orders`
-- CRUD for `/orders`, `/customers`, `/products`, `/designers`, `/vendors`, `/purchases`, `/invoices`, `/expenses`
-- `GET /public/invoice/:token` (public share)
-- `GET /settings`, `PUT /settings`
-- `GET /reports?period=…`
-
-Auth token is passed as `?token=` (GAS web apps do not receive `Authorization` headers reliably).
-
-## Files of Interest
-
-- `frontend/vercel.json` — build env + SPA rewrites
-- `frontend/.env.example` — env template
-- `frontend/src/services/gasClient.js` — GAS fetch client
-- `frontend/src/services/api.js` — API modules
-- `gas/Code.gs` — Apps Script backend source
+- `frontend/vercel.json` — SPA rewrites + Vite build
+- `frontend/vite.config.js` — env bake-in + React
+- `frontend/src/services/gasClient.js` — API client

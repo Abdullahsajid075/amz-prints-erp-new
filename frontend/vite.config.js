@@ -1,14 +1,11 @@
 const { defineConfig, loadEnv } = require('vite');
 const react = require('@vitejs/plugin-react');
-const esbuild = require('esbuild');
 const path = require('path');
-
-const appJsPath = path.resolve(__dirname, 'src/App.js');
 
 module.exports = defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), ['VITE_', 'REACT_APP_']);
 
-  // Vercel injects env on process.env — ensure Vite define sees them
+  // Vercel / Hostinger inject env on process.env — ensure Vite define sees them
   ['REACT_APP_GAS_API_URL'].forEach((key) => {
     if (process.env[key] && !env[key]) {
       env[key] = process.env[key];
@@ -27,23 +24,7 @@ module.exports = defineConfig(({ mode }) => {
   }
 
   return {
-    plugins: [
-      {
-        name: 'jsx-in-app-js',
-        enforce: 'pre',
-        async transform(code, id) {
-          if (path.normalize(id) !== appJsPath) {
-            return null;
-          }
-
-          return esbuild.transformSync(code, {
-            loader: 'jsx',
-            jsx: 'automatic',
-          }).code;
-        },
-      },
-      react(),
-    ],
+    plugins: [react()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, 'src'),
@@ -52,6 +33,17 @@ module.exports = defineConfig(({ mode }) => {
     define: {
       ...envDefine,
       'process.env.NODE_ENV': JSON.stringify(mode === 'production' ? 'production' : 'development'),
+    },
+    // Allow JSX inside any remaining .js under src (Hostinger/Linux safe)
+    esbuild: {
+      loader: 'jsx',
+      include: /src\/.*\.jsx?$/,
+      jsx: 'automatic',
+    },
+    optimizeDeps: {
+      esbuildOptions: {
+        loader: { '.js': 'jsx' },
+      },
     },
     server: {
       port: 3000,

@@ -64,12 +64,10 @@
   },
   "scripts": {
     "dev": "vite",
-    "start": "node server.js",
+    "start": "vite",
     "build": "vite build",
-    "preview": "vite preview",
-    "hostinger": "npm run build && node server.js"
+    "preview": "vite preview"
   },
-  "main": "server.js",
   "devDependencies": {
     "@eslint/js": "9.39.5",
     "@types/lodash": "4.17.24",
