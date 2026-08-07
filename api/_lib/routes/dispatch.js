@@ -387,18 +387,30 @@ async function dispatch(req, res) {
       if (parts[2] === 'ledger' && method === 'GET') {
         const { data: customer } = await supabase.from('customers').select('*').eq('id', cid).maybeSingle();
         if (!customer) return sendError(res, 'Customer not found', 404);
-        const { data: orders } = await supabase.from('orders').select('*');
-        const related = (orders || []).filter((o) =>
-          String(o.customer_id) === String(cid) || String(o.customer_phone) === String(customer.phone)
+        const phone = String(customer.phone || '');
+        const [{ data: orders }, { data: invoices }, { data: payments }] = await Promise.all([
+          supabase.from('orders').select('*'),
+          supabase.from('invoices').select('*'),
+          supabase.from('payments').select('*'),
+        ]);
+        const relatedOrders = (orders || []).filter((o) =>
+          String(o.customer_id) === String(cid) || (phone && String(o.customer_phone) === phone)
+        );
+        const relatedInvoices = (invoices || []).filter((inv) =>
+          String(inv.customer_id) === String(cid) || (phone && String(inv.customer_phone) === phone)
+        );
+        const relatedPayments = (payments || []).filter((p) =>
+          String(p.customer_id) === String(cid) || (phone && String(p.customer_phone) === phone)
         );
         return send(res, {
           customer: mapCustomer(customer),
-          invoices: [],
-          orders: related.map(mapOrder),
-          payments: [],
-          totalBilled: related.reduce((s, o) => s + num(o.total_amount), 0),
-          totalPaid: related.reduce((s, o) => s + num(o.advance_payment), 0),
-          outstanding: related.reduce((s, o) => s + num(o.balance_amount), 0),
+          invoices: relatedInvoices.map(mapInvoice),
+          orders: relatedOrders.map(mapOrder),
+          payments: relatedPayments.map(mapPayment),
+          totalBilled: relatedOrders.reduce((s, o) => s + num(o.total_amount), 0),
+          totalPaid: relatedOrders.reduce((s, o) => s + num(o.advance_payment), 0)
+            + relatedPayments.reduce((s, p) => s + num(p.amount), 0),
+          outstanding: relatedOrders.reduce((s, o) => s + num(o.balance_amount), 0),
         });
       }
       if (method === 'GET') {
@@ -878,10 +890,14 @@ async function dispatch(req, res) {
       const { data: tok } = await supabase.from('tokens').select('*').eq('id', tid).maybeSingle();
       if (!tok) return sendError(res, 'Token not found', 404);
       const statusMap = { call: 'Called', complete: 'Completed', skip: 'Skipped', progress: 'In Progress', cancel: 'Cancelled' };
+      if (action === 'link-order' && method === 'POST') {
+        await supabase.from('tokens').update({ order_id: body.orderId || '' }).eq('id', tid);
+        const { data } = await supabase.from('tokens').select('*').eq('id', tid).maybeSingle();
+        return send(res, { id: data.id, tokenNo: data.token_no, tokenStatus: data.token_status, orderId: data.order_id });
+      }
       if (action && statusMap[action] && method === 'POST') {
         const updates = { token_status: statusMap[action] };
         if (action === 'call') updates.called_at = `${today()} ${nowTime()}`;
-        if (action === 'link-order') updates.order_id = body.orderId || '';
         await supabase.from('tokens').update(updates).eq('id', tid);
         const { data } = await supabase.from('tokens').select('*').eq('id', tid).maybeSingle();
         return send(res, { id: data.id, tokenNo: data.token_no, tokenStatus: data.token_status, orderId: data.order_id });
@@ -895,7 +911,25 @@ async function dispatch(req, res) {
     }
 
     if (path === '/reports' && method === 'GET') {
-      return send(res, { period: req.query.period || 'month', summary: {} });
+      const [{ data: orders }, { data: expenses }, { data: payments }] = await Promise.all([
+        supabase.from('orders').select('*'),
+        supabase.from('expenses').select('*'),
+        supabase.from('payments').select('*'),
+      ]);
+      const realOrders = (orders || []).filter((o) => String(o.doc_type || 'Order').toLowerCase() !== 'quotation');
+      const revenue = realOrders.reduce((s, o) => s + num(o.total_amount), 0);
+      const expenseSum = (expenses || []).reduce((s, e) => s + num(e.amount), 0);
+      return send(res, {
+        period: req.query.period || 'month',
+        summary: {
+          totalOrders: realOrders.length,
+          revenue,
+          expenses: expenseSum,
+          payments: (payments || []).reduce((s, p) => s + num(p.amount), 0),
+          receivables: realOrders.reduce((s, o) => s + num(o.balance_amount), 0),
+          profit: revenue - expenseSum,
+        },
+      });
     }
 
     if (path.startsWith('/notifications/')) {

@@ -1,102 +1,72 @@
-# AMZ ERP API — Hostinger + Supabase
+# AMZ ERP API — Hostinger + Supabase (easy path)
 
-Replaces Google Apps Script + Google Sheets. The frontend keeps the same `gasClient` / `REACT_APP_GAS_API_URL` contract — only the URL changes.
+```
+Vercel frontend (erp.amzprints.com)
+    → Hostinger Node API (this folder)
+        → Supabase database
+```
 
-## 1. Create tables in Supabase (Hostinger)
+## 3 steps only
 
-1. Open **Hostinger → Supabase** (or your Supabase project SQL editor).
-2. Paste and run [`schema.sql`](./schema.sql).
-3. This creates all ERP tables + default **admin / admin123** and **Walk-in** customer.
+### 1) Supabase (once)
+Supabase → SQL Editor → run [`schema.sql`](./schema.sql)  
+Login seed: **admin** / **admin123**
 
-## 2. Connect API (as in Hostinger “Connect from your Web App”)
+### 2) Hostinger Node app
+New website / Node app (not on `erp.amzprints.com`):
+
+| Setting | Value |
+|--------|--------|
+| Root directory | `api` |
+| Branch | `main` |
+| Node | `18.x` |
+| Install | `npm install` |
+| Start / file | `npm start` or `server.js` |
+
+**Env vars (copy-paste):**
+
+```env
+SUPABASE_URL=https://ovwayrwhcdmcdofavitm.supabase.co
+SUPABASE_API_KEY=PASTE_SERVICE_ROLE_KEY
+CORS_ORIGINS=https://erp.amzprints.com,http://localhost:5173
+PORT=3000
+NODE_ENV=production
+```
+
+Deploy → copy public URL (e.g. `https://xxxx.hostingersite.com`).
+
+**Test in browser:**
+`https://YOUR-HOSTINGER-URL/health`  
+Should show: `{"ok":true,"backend":"supabase",...}`
+
+### 3) Vercel frontend
+Project → Settings → Environment Variables:
+
+```env
+REACT_APP_GAS_API_URL=https://YOUR-HOSTINGER-URL
+```
+
+Root Directory = `frontend` → Redeploy.
+
+Done. Open https://erp.amzprints.com and login.
+
+---
+
+## Local (optional)
 
 ```bash
 cd api
-npm install
 cp .env.example .env
-```
-
-Set in `.env`:
-
-```env
-SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-SUPABASE_API_KEY=your_service_role_key
-PORT=3000
-CORS_ORIGINS=https://erp.amzprints.com,http://localhost:5173
-```
-
-Use the **service role** key on the server (not the anon key) so RLS does not block ERP writes.
-
-```bash
+npm install
 npm start
 ```
 
-## 3. Deploy on Hostinger Node.js
+Frontend `.env`: `REACT_APP_GAS_API_URL=http://localhost:3000`
 
-1. Upload the `api/` folder (or connect this Git repo).
-2. Set startup file: `server.js`
-3. Set env vars: `SUPABASE_URL`, `SUPABASE_API_KEY`, `CORS_ORIGINS`, `PORT`
-4. Note your public URL, e.g. `https://api.amzprints.com` or `https://your-vps.hostingersite.com`
-
-## 4. Point the ERP frontend
-
-In Vercel / `frontend/.env`:
-
-```env
-REACT_APP_GAS_API_URL=https://YOUR-HOSTINGER-API-URL
-```
-
-Redeploy the frontend. No module UI changes required.
-
-## 5. Move existing Google Sheets data
-
-1. Open each sheet in Google Sheets → **File → Download → CSV**.
-2. Put files in `api/scripts/csv/` (e.g. `Customers.csv`, `Orders.csv`).
-3. Import:
+## CSV import (later)
 
 ```bash
-node scripts/import-csv.js Customers.csv customers
-node scripts/import-csv.js Users.csv users
-node scripts/import-csv.js Products.csv products
-node scripts/import-csv.js Orders.csv orders
-node scripts/import-csv.js Invoices.csv invoices
-node scripts/import-csv.js Employees.csv employees
-node scripts/import-csv.js Vendors.csv vendors
-node scripts/import-csv.js Expenses.csv expenses
-node scripts/import-csv.js Payments.csv payments
+cd api
+node _lib/scripts/import-csv.js Customers.csv customers
+npm run migrate:seed
 ```
-
-4. Seed admin if needed: `npm run migrate:seed`
-
-## Sheet → table map
-
-| Google Sheet | Supabase table |
-|--------------|----------------|
-| Users        | users          |
-| Customers    | customers      |
-| CrmNotes     | crm_notes     |
-| Employees    | employees      |
-| Products     | products       |
-| Orders (+ quotations/POS) | orders |
-| Invoices     | invoices       |
-| Vendors      | vendors        |
-| Purchases    | purchases      |
-| Expenses     | expenses       |
-| Payments     | payments       |
-| Counters     | counters + tokens |
-| Settings     | settings       |
-
-## Verify
-
-```bash
-curl "https://YOUR-API-URL/?path=/health"
-curl -X POST "https://YOUR-API-URL/?path=/auth/login" -H "Content-Type: text/plain" -d "{\"email\":\"admin\",\"password\":\"admin123\"}"
-```
-
-Then log into the ERP with the same credentials.
-
-## Notes
-
-- Google Apps Script can stay deployed as backup until you confirm Supabase.
-- Change the default admin password after go-live.
-- Token queue / notifications are supported in simplified form; email SMTP can be added later on Hostinger.

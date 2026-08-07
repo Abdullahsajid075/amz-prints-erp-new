@@ -85,7 +85,7 @@ async function fetchOnce(url, init) {
     throw {
       code: 'ERR_NETWORK',
       message: error.message || 'Network Error',
-      response: { data: { message: 'Unable to reach ERP API backend (Hostinger / Supabase).' } },
+      response: { data: { message: 'Unable to reach Hostinger API / Supabase. Check REACT_APP_GAS_API_URL.' } },
     };
   }
 
@@ -116,7 +116,10 @@ export async function gasRequest(method, path, options = {}) {
   const { data, params = {}, token } = options;
   const apiPath = path.startsWith('/') ? path : `/${path}`;
 
-  const url = new URL(GAS_API_BASE_URL);
+  // Absolute (https://...) or same-origin relative (/api) for Vercel serverless
+  const url = GAS_API_BASE_URL.startsWith('http')
+    ? new URL(GAS_API_BASE_URL)
+    : new URL(GAS_API_BASE_URL, typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
   url.searchParams.set('path', apiPath);
 
   Object.entries(params).forEach(([key, value]) => {

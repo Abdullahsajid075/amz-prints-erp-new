@@ -16,7 +16,7 @@ module.exports = defineConfig(({ mode }) => {
     Object.entries(env).map(([key, val]) => [`process.env.${key}`, JSON.stringify(val)])
   );
 
-  // Hard fallback so production never boots without a GAS URL baked in
+  // Fallback until Vercel env is set (prefer Hostinger API URL in production)
   if (!envDefine['process.env.REACT_APP_GAS_API_URL']) {
     envDefine['process.env.REACT_APP_GAS_API_URL'] = JSON.stringify(
       'https://script.google.com/macros/s/AKfycbxEvWjbbh0-VJ1JxKR-qFZ9TbllIyh9rAJRg1ythfihJP61o6sxvcYhHehXafZEYummLw/exec'
@@ -46,7 +46,14 @@ module.exports = defineConfig(({ mode }) => {
       },
     },
     server: {
-      port: 3000,
+      port: 5173,
+      proxy: {
+        // Local: frontend /api → api/_lib local server on :3000
+        '/api': {
+          target: 'http://localhost:3000',
+          changeOrigin: true,
+        },
+      },
     },
     build: {
       outDir: 'dist',

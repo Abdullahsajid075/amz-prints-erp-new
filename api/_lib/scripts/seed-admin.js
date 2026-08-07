@@ -2,7 +2,7 @@
  * Seed / repair default admin user in Supabase.
  * Usage: node scripts/seed-admin.js
  */
-require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+require('dotenv').config({ path: require('path').join(__dirname, '..', '..', '.env') });
 const { supabase } = require('../db');
 
 async function main() {

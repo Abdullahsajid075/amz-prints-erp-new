@@ -2,12 +2,12 @@
   "name": "amz-erp-api",
   "version": "1.0.0",
   "private": true,
-  "description": "AMZ Prints ERP API — Hostinger + Supabase (Google Sheets replacement)",
+  "description": "AMZ ERP API — Hostinger Node + Supabase",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "migrate:seed": "node scripts/seed-admin.js"
+    "migrate:seed": "node _lib/scripts/seed-admin.js"
   },
   "engines": {
     "node": ">=18"
