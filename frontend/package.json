@@ -66,7 +66,8 @@
     "dev": "vite",
     "start": "node server.js",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "hostinger": "npm run build && node server.js"
   },
   "main": "server.js",
   "devDependencies": {
