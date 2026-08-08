@@ -105,6 +105,7 @@ export async function notifyOrderEvent({
   company: companyOverride,
   notifications: notifOverride,
   openWhatsApp = true,
+  pendingWindow = null,
 } = {}) {
   if (!order && !invoice && !payment) return { ok: false, reason: 'no_payload' };
 
@@ -178,9 +179,11 @@ export async function notifyOrderEvent({
   ) {
     const template = resolveWhatsAppTemplate(notifications.whatsappTemplates, event, status);
     const text = fillTemplate(template, vars);
-    whatsappResult = openWhatsAppChat(phone, text);
+    whatsappResult = openWhatsAppChat(phone, text, { pendingWindow });
     channelIds.push('whatsapp');
     payloadBase.text = text;
+  } else if (pendingWindow && !pendingWindow.closed) {
+    try { pendingWindow.close(); } catch { /* ignore */ }
   }
 
   const emailTo = order?.customerEmail || customer?.email || invoice?.customerEmail || payment?.partyEmail;
@@ -242,6 +245,7 @@ export async function notifyPaymentEvent(payment, options = {}) {
       balanceAmount: balance,
     },
     openWhatsApp: options.openWhatsApp !== false,
+    pendingWindow: options.pendingWindow || null,
   });
 }
 

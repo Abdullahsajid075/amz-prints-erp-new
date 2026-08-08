@@ -61,7 +61,7 @@ export function openWhatsAppChat(phone, text, opts = {}) {
     /* ignore */
   }
 
-  // Fallback: one anchor click (same tab gesture path)
+  // Fallback: same-tab navigation (last resort when popups blocked and no pendingWindow)
   try {
     const a = document.createElement('a');
     a.href = urls.deepLink;
@@ -70,11 +70,13 @@ export function openWhatsAppChat(phone, text, opts = {}) {
     document.body.appendChild(a);
     a.click();
     a.remove();
+    // Cannot reliably detect blocker after async — caller should pre-open pendingWindow
+    return { ok: true, phone: urls.phone, channel: 'whatsapp', weak: true };
   } catch {
     /* ignore */
   }
 
-  return { ok: true, phone: urls.phone, channel: 'whatsapp' };
+  return { ok: false, reason: 'popup_blocked', phone: urls.phone };
 }
 
 const whatsappChannel = {

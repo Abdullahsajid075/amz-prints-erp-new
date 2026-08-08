@@ -1,7 +1,7 @@
 /**
  * Pocket-size payment receipt (Cash In / Cash Out) — black, short, with barcode.
  */
-import { barcodeBlock, moneyPKR, openPrintWindow, printOnLoadScript } from '@/utils/printHelpers';
+import { barcodeBlock, moneyPKR, printHtml, printOnLoadScript } from '@/utils/printHelpers';
 
 export function printPaymentSlip(payment = {}, company = {}) {
   const rawType = String(payment.type || payment.recordtype || '').toLowerCase();
@@ -85,5 +85,6 @@ export function printPaymentSlip(payment = {}, company = {}) {
 </body>
 </html>`;
 
-  return openPrintWindow(html, { width: 340, height: 560 });
+  // Iframe print — no popup permission needed after async save
+  return printHtml(html, { width: 340, height: 560, fallbackPopup: true });
 }

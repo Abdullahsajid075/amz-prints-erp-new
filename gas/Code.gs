@@ -2045,6 +2045,18 @@ function dateKey_(value) {
   return s;
 }
 
+/** Inclusive yyyy-MM-dd range. Empty from/to = no bound. Missing row date excluded when any bound set. */
+function inDateRange_(rowDate, from, to) {
+  var f = from ? String(from).slice(0, 10) : '';
+  var t = to ? String(to).slice(0, 10) : '';
+  if (!f && !t) return true;
+  var dk = dateKey_(rowDate);
+  if (!dk) return false;
+  if (f && dk < f) return false;
+  if (t && dk > t) return false;
+  return true;
+}
+
 function getCounterMasters_() {
   var rows = getSheetRows_(SHEET_NAMES.COUNTERS);
   return rows.filter(isCounterRow_).map(function (c) {
@@ -2347,17 +2359,36 @@ function handleCounters_(path, method, body) {
 
 /* ===================== DASHBOARD / SETTINGS ===================== */
 
-function getDashboardBootstrap_() {
+function getDashboardBootstrap_(params) {
+  params = params || {};
+  var from = params.from ? String(params.from).slice(0, 10) : '';
+  var to = params.to ? String(params.to).slice(0, 10) : '';
+
   // One Orders + Customers + Invoices read for the whole dashboard
   var ordersAll = getSheetRows_(SHEET_NAMES.ORDERS);
-  var invoices = getSheetRows_(SHEET_NAMES.INVOICES);
+  var invoicesAll = getSheetRows_(SHEET_NAMES.INVOICES);
   var customers = getSheetRows_(SHEET_NAMES.CUSTOMERS);
+  var expensesAll = [];
+  try { expensesAll = getSheetRows_(SHEET_NAMES.EXPENSES); } catch (e1) { expensesAll = []; }
+  var purchasesAll = [];
+  try { purchasesAll = getSheetRows_(SHEET_NAMES.PURCHASES); } catch (e2) { purchasesAll = []; }
 
   var quotations = ordersAll.filter(function (o) {
-    return String(o.doctype || '').toLowerCase() === 'quotation';
+    return String(o.doctype || '').toLowerCase() === 'quotation'
+      && inDateRange_(o.date, from, to);
   });
   var orders = ordersAll.filter(function (o) {
-    return String(o.doctype || 'Order').toLowerCase() !== 'quotation';
+    return String(o.doctype || 'Order').toLowerCase() !== 'quotation'
+      && inDateRange_(o.date, from, to);
+  });
+  var invoices = invoicesAll.filter(function (inv) {
+    return inDateRange_(inv.date, from, to);
+  });
+  var expenses = expensesAll.filter(function (ex) {
+    return inDateRange_(ex.date, from, to);
+  });
+  var purchases = purchasesAll.filter(function (p) {
+    return inDateRange_(p.date || p.purchasedate, from, to);
   });
 
   var completed = orders.filter(function (o) {
@@ -2390,9 +2421,11 @@ function getDashboardBootstrap_() {
   var revenue = invoiceRevenue || orderRevenue;
   var receivables = orders.reduce(function (s, o) { return s + Number(o.balanceamount || 0); }, 0);
   var collected = orders.reduce(function (s, o) { return s + Number(o.advancepayment || 0); }, 0);
+  var expenseTotal = expenses.reduce(function (s, ex) {
+    return s + Number(ex.amount || 0);
+  }, 0);
 
-  // Vendor payables from Purchases (Total − PaidAmount)
-  var purchases = getSheetRows_(SHEET_NAMES.PURCHASES);
+  // Vendor payables from Purchases (Total − PaidAmount) in range
   var payables = purchases.reduce(function (s, p) {
     var status = String(p.status || '').toLowerCase();
     if (status.indexOf('cancel') !== -1) return s;
@@ -2402,14 +2435,29 @@ function getDashboardBootstrap_() {
     return s + Math.max(0, total - paid);
   }, 0);
 
-  // Last 6 months sales from orders
+  // Chart months: last 6 months, or months covering the selected range
   var monthMap = {};
+  var tz = Session.getScriptTimeZone() || 'Asia/Karachi';
   var now = new Date();
-  for (var m = 5; m >= 0; m--) {
-    var d = new Date(now.getFullYear(), now.getMonth() - m, 1);
-    var key = Utilities.formatDate(d, Session.getScriptTimeZone() || 'Asia/Karachi', 'yyyy-MM');
-    var label = Utilities.formatDate(d, Session.getScriptTimeZone() || 'Asia/Karachi', 'MMM');
+  var startM;
+  var endM;
+  if (from || to) {
+    var fDate = from ? new Date(from + 'T12:00:00') : now;
+    var tDate = to ? new Date(to + 'T12:00:00') : now;
+    startM = new Date(fDate.getFullYear(), fDate.getMonth(), 1);
+    endM = new Date(tDate.getFullYear(), tDate.getMonth(), 1);
+  } else {
+    startM = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    endM = new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+  var cursor = new Date(startM.getFullYear(), startM.getMonth(), 1);
+  var guard = 0;
+  while (cursor.getTime() <= endM.getTime() && guard < 36) {
+    var key = Utilities.formatDate(cursor, tz, 'yyyy-MM');
+    var label = Utilities.formatDate(cursor, tz, 'MMM');
     monthMap[key] = { month: label, sales: 0, orders: 0, key: key };
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+    guard++;
   }
   orders.forEach(function (o) {
     var dk = dateKey_(o.date);
@@ -2424,7 +2472,7 @@ function getDashboardBootstrap_() {
     return { month: monthMap[k].month, sales: monthMap[k].sales, orders: monthMap[k].orders };
   });
 
-  // Needs attention: Ready + high balance
+  // Needs attention: Ready + high balance (within filtered orders)
   var attention = orders
     .filter(function (o) {
       var s = String(o.status || '').toLowerCase();
@@ -2448,7 +2496,7 @@ function getDashboardBootstrap_() {
       designingOrders: designingCount,
       printingOrders: printingCount,
       revenue: revenue,
-      expenses: 0,
+      expenses: expenseTotal,
       receivables: receivables,
       collected: collected,
       payables: payables,
@@ -2456,6 +2504,8 @@ function getDashboardBootstrap_() {
       activeCustomers: customers.length,
       fulfillmentRate: orders.length ? Math.round((completed / orders.length) * 100) : 0,
       collectionRate: revenue > 0 ? Math.round((collected / revenue) * 100) : 0,
+      from: from || '',
+      to: to || '',
     },
     charts: {
       monthlySales: monthlySales,
@@ -2468,13 +2518,13 @@ function getDashboardBootstrap_() {
   };
 }
 
-function getDashboardStats_() {
-  var boot = getDashboardBootstrap_();
+function getDashboardStats_(params) {
+  var boot = getDashboardBootstrap_(params);
   return boot.stats;
 }
 
-function getDashboardCharts_() {
-  var boot = getDashboardBootstrap_();
+function getDashboardCharts_(params) {
+  var boot = getDashboardBootstrap_(params);
   return boot.charts;
 }
 
@@ -3043,9 +3093,15 @@ function handleRequest_(e) {
     if (method === 'GET' && path === '/auth/me') return jsonResponse_(sanitizeUser_(user));
     if (method === 'POST' && path === '/auth/logout') return jsonResponse_({ success: true });
 
-    if (method === 'GET' && path === '/dashboard/bootstrap') return jsonResponse_(getDashboardBootstrap_());
-    if (method === 'GET' && path === '/dashboard/stats') return jsonResponse_(getDashboardStats_());
-    if (method === 'GET' && path === '/dashboard/charts') return jsonResponse_(getDashboardCharts_());
+    if (method === 'GET' && path === '/dashboard/bootstrap') {
+      return jsonResponse_(getDashboardBootstrap_(e.parameter || {}));
+    }
+    if (method === 'GET' && path === '/dashboard/stats') {
+      return jsonResponse_(getDashboardStats_(e.parameter || {}));
+    }
+    if (method === 'GET' && path === '/dashboard/charts') {
+      return jsonResponse_(getDashboardCharts_(e.parameter || {}));
+    }
     if (method === 'GET' && path === '/dashboard/recent-orders') return jsonResponse_(getRecentOrders_());
 
     // Token booking page: one round-trip instead of counters + products

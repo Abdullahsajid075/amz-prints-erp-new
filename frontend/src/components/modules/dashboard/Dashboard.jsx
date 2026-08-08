@@ -42,6 +42,39 @@ function greetingForHour(h) {
   return 'Good evening';
 }
 
+function ymd(d) {
+  const x = d instanceof Date ? d : new Date(d);
+  if (Number.isNaN(x.getTime())) return '';
+  const y = x.getFullYear();
+  const m = String(x.getMonth() + 1).padStart(2, '0');
+  const day = String(x.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** Inclusive yyyy-MM-dd filter (same semantics as GAS). */
+function inDateRange(rowDate, from, to) {
+  if (!from && !to) return true;
+  const dk = String(rowDate || '').trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dk)) return false;
+  if (from && dk < from) return false;
+  if (to && dk > to) return false;
+  return true;
+}
+
+function datePresets() {
+  const today = new Date();
+  const to = ymd(today);
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - 6);
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  return {
+    today: { from: to, to },
+    week: { from: ymd(weekStart), to },
+    month: { from: ymd(monthStart), to },
+    all: { from: '', to: '' },
+  };
+}
+
 const MetricTile = ({ label, value, sub, icon: Icon, tint, onClick, testId }) => (
   <button
     type="button"
@@ -103,15 +136,17 @@ const Dashboard = () => {
   const [recentExpenses, setRecentExpenses] = useState([]);
   const [chartData, setChartData] = useState({ monthlySales: [], orderStatus: [] });
 
-  const fetchDashboardData = useCallback(async () => {
+  const fetchDashboardDataWith = useCallback(async (range) => {
+    const from = range?.from || '';
+    const to = range?.to || '';
     setLoading(true);
     try {
       const params = {};
-      if (dateRange.from) params.from = dateRange.from;
-      if (dateRange.to) params.to = dateRange.to;
+      if (from) params.from = from;
+      if (to) params.to = to;
 
       const bootPromise = dashboardAPI.bootstrap(params);
-      const expensesPromise = expensesAPI.getAll(params).catch(() => ({ data: [] }));
+      const expensesPromise = expensesAPI.getAll().catch(() => ({ data: [] }));
       const purchasesPromise = purchasesAPI.getAll().catch(() => ({ data: [] }));
 
       const boot = await bootPromise;
@@ -123,24 +158,30 @@ const Dashboard = () => {
       setLoading(false);
 
       const [expensesRes, purchasesRes] = await Promise.all([expensesPromise, purchasesPromise]);
-      const list = Array.isArray(expensesRes.data) ? expensesRes.data : [];
+      const allExpenses = Array.isArray(expensesRes.data) ? expensesRes.data : [];
+      const list = allExpenses.filter((e) => inDateRange(e.date, from, to));
       setRecentExpenses(list.slice(0, 6));
       const expenseTotal = list.reduce((s, e) => s + Number(e.amount || 0), 0);
-      const purchaseList = Array.isArray(purchasesRes.data) ? purchasesRes.data : [];
+      const purchaseList = (Array.isArray(purchasesRes.data) ? purchasesRes.data : [])
+        .filter((p) => inDateRange(p.purchaseDate || p.date, from, to));
       const payablesFromPurchases = totalVendorPayables(purchaseList);
+      const serverExpenses = Number(data.stats?.expenses);
+      const serverPayables = Number(data.stats?.payables || data.stats?.vendorPayables);
       setStats((prev) => ({
         ...prev,
-        expenses: Number(prev.expenses) > 0 ? prev.expenses : expenseTotal,
-        // Prefer server payables; fall back to live purchase balances
-        payables: Number(prev.payables || prev.vendorPayables) > 0
-          ? Number(prev.payables || prev.vendorPayables)
-          : payablesFromPurchases,
+        // Prefer filtered server total when present (incl. 0); else client sum
+        expenses: Number.isFinite(serverExpenses) ? serverExpenses : expenseTotal,
+        payables: Number.isFinite(serverPayables) ? serverPayables : payablesFromPurchases,
       }));
     } catch (error) {
       console.error('Dashboard load failed', error);
       setLoading(false);
     }
-  }, [dateRange]);
+  }, []);
+
+  const fetchDashboardData = useCallback(() => {
+    return fetchDashboardDataWith(dateRange);
+  }, [dateRange, fetchDashboardDataWith]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchDashboardData(); }, []);
@@ -242,7 +283,31 @@ const Dashboard = () => {
               </form>
 
               <div className="flex flex-wrap items-end gap-2">
-                <div className="flex items-end gap-2 rounded-xl bg-white p-1.5 shadow-sm">
+                <div className="flex flex-wrap items-end gap-2 rounded-xl bg-white p-1.5 shadow-sm">
+                  <div className="flex flex-wrap gap-1 px-1 pb-0.5">
+                    {[
+                      { key: 'today', label: 'Today' },
+                      { key: 'week', label: '7 days' },
+                      { key: 'month', label: 'Month' },
+                      { key: 'all', label: 'All' },
+                    ].map((p) => (
+                      <Button
+                        key={p.key}
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[11px] px-2"
+                        disabled={loading}
+                        onClick={() => {
+                          const next = datePresets()[p.key];
+                          setDateRange(next);
+                          fetchDashboardDataWith(next);
+                        }}
+                      >
+                        {p.label}
+                      </Button>
+                    ))}
+                  </div>
                   <label className="flex flex-col gap-0.5 px-1">
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 px-1">From</span>
                     <Input

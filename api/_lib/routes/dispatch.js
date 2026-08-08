@@ -241,21 +241,40 @@ async function dispatch(req, res) {
 
     // Dashboard
     if (method === 'GET' && (path === '/dashboard/stats' || path === '/dashboard/bootstrap')) {
+      const from = String(req.query?.from || '').slice(0, 10);
+      const to = String(req.query?.to || '').slice(0, 10);
+      const inRange = (raw) => {
+        if (!from && !to) return true;
+        const dk = String(raw || '').trim().slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dk)) return false;
+        if (from && dk < from) return false;
+        if (to && dk > to) return false;
+        return true;
+      };
       const [{ data: orders }, { data: customers }, { data: expenses }, { data: purchases }] = await Promise.all([
         supabase.from('orders').select('*'),
         supabase.from('customers').select('id'),
-        supabase.from('expenses').select('amount'),
-        supabase.from('purchases').select('total,paid_amount,status'),
+        supabase.from('expenses').select('*'),
+        supabase.from('purchases').select('*'),
       ]);
-      const realOrders = (orders || []).filter((o) => String(o.doc_type || 'Order').toLowerCase() !== 'quotation');
+      const realOrders = (orders || []).filter((o) => (
+        String(o.doc_type || 'Order').toLowerCase() !== 'quotation' && inRange(o.date)
+      ));
+      const expenseRows = (expenses || []).filter((e) => inRange(e.date));
+      const purchaseRows = (purchases || []).filter((p) => inRange(p.date));
       const revenue = realOrders.reduce((s, o) => s + num(o.total_amount), 0);
-      const expenseSum = (expenses || []).reduce((s, e) => s + num(e.amount), 0);
-      const payables = (purchases || []).reduce((s, p) => {
+      const expenseSum = expenseRows.reduce((s, e) => s + num(e.amount), 0);
+      const payables = purchaseRows.reduce((s, p) => {
         const status = String(p.status || '').toLowerCase();
         if (status.includes('cancel')) return s;
         if (status.includes('fully paid') || status === 'paid') return s;
         return s + Math.max(0, num(p.total) - num(p.paid_amount));
       }, 0);
+      const statusMap = {};
+      realOrders.forEach((o) => {
+        const key = o.status || 'Unknown';
+        statusMap[key] = (statusMap[key] || 0) + 1;
+      });
       const stats = {
         totalOrders: realOrders.length,
         pendingOrders: realOrders.filter((o) => !['Delivered', 'Cancelled'].includes(o.status)).length,
@@ -266,12 +285,18 @@ async function dispatch(req, res) {
         payables,
         vendorPayables: payables,
         activeCustomers: (customers || []).length,
+        from: from || '',
+        to: to || '',
       };
       if (path === '/dashboard/bootstrap') {
         return send(res, {
           stats,
           recentOrders: realOrders.slice(-8).reverse().map(mapOrder),
-          charts: { sales: [], expenses: [] },
+          charts: {
+            monthlySales: [],
+            orderStatus: Object.keys(statusMap).map((name) => ({ name, value: statusMap[name] })),
+          },
+          attention: [],
         });
       }
       return send(res, stats);

@@ -137,10 +137,11 @@ const Payments = () => {
     setDialogOpen(true);
   };
 
-  const afterSaveActions = async (payment) => {
+  const afterSaveActions = async (payment, { pendingWindow = null } = {}) => {
+    // Slip via hidden iframe (no popup permission)
     const slip = printPaymentSlip(payment, company || {});
-    if (!slip.ok) toast.error('Allow popups to print pocket slip');
-    else toast.message('Payment receipt printed (with barcode)');
+    if (!slip.ok) toast.error('Could not open print dialog for payment slip');
+    else toast.message('Payment slip ready — use Print / Save as PDF');
 
     // Cash Out must also land in Expenses for daily audit / reports
     const isOut = String(payment.type || '').toLowerCase() === 'outflow';
@@ -160,18 +161,23 @@ const Payments = () => {
       }
     }
 
-    if (payment.partyPhone || payment.phone) {
+    const phone = payment.partyPhone || payment.phone;
+    if (phone) {
       const notify = await notifyPaymentEvent({
         ...payment,
         amount: payment.amount,
         balanceDue: payment.balanceDue,
       }, {
         openWhatsApp: true,
+        pendingWindow,
       });
-      if (notify?.whatsappOpened) toast.message('WhatsApp opened — Total / Received / Balance');
-      else toast.message('Payment saved (check phone / WhatsApp settings)');
-    } else if (!isOut) {
-      toast.error('Customer phone missing — WhatsApp not sent');
+      if (notify?.whatsappOpened) toast.message('WhatsApp opened — tap Send');
+      else toast.error('WhatsApp did not open — check phone / Settings → Notifications');
+    } else {
+      if (pendingWindow && !pendingWindow.closed) {
+        try { pendingWindow.close(); } catch { /* ignore */ }
+      }
+      toast.error('Party phone missing — WhatsApp not sent');
     }
   };
 
@@ -186,6 +192,9 @@ const Payments = () => {
     } else if (!formData.party?.trim()) {
       toast.error('Party / person is required');
       return;
+    } else if (!String(formData.partyPhone || '').trim()) {
+      toast.error('Party phone required for WhatsApp receipt');
+      return;
     }
     if (!(Number(formData.amount) > 0)) {
       toast.error('Enter a valid amount');
@@ -195,6 +204,17 @@ const Payments = () => {
       toast.error('Missing payment id — will not create duplicate');
       return;
     }
+
+    // Pre-open WhatsApp tab during click (survives popup blocker after await)
+    let waWindow = null;
+    if (!editing && String(formData.partyPhone || '').trim()) {
+      try {
+        waWindow = window.open('about:blank', '_blank');
+      } catch {
+        waWindow = null;
+      }
+    }
+
     setSaving(true);
     try {
       const ref = formData.reference || `TXN-${Date.now().toString().slice(-8)}`;
@@ -231,12 +251,16 @@ const Payments = () => {
       if (!editing) {
         await afterSaveActions({
           ...saved,
-          // For WhatsApp Amount placeholder = bill total when provided
           totalAmount: saved.totalAmount || payload.totalAmount,
-        });
+        }, { pendingWindow: waWindow });
+      } else if (waWindow && !waWindow.closed) {
+        try { waWindow.close(); } catch { /* ignore */ }
       }
     } catch (err) {
       console.error(err);
+      if (waWindow && !waWindow.closed) {
+        try { waWindow.close(); } catch { /* ignore */ }
+      }
       toast.error(err.response?.data?.message || 'Failed to save payment');
     } finally {
       setSaving(false);
@@ -245,7 +269,7 @@ const Payments = () => {
 
   const reprint = (p) => {
     const slip = printPaymentSlip(p, company || {});
-    if (!slip.ok) toast.error('Allow popups to print');
+    if (!slip.ok) toast.error('Could not print slip');
   };
 
   const resendWhatsApp = async (p) => {
@@ -253,7 +277,9 @@ const Payments = () => {
       toast.error('No phone on this payment — edit and add party phone');
       return;
     }
-    const notify = await notifyPaymentEvent(p);
+    let waWindow = null;
+    try { waWindow = window.open('about:blank', '_blank'); } catch { waWindow = null; }
+    const notify = await notifyPaymentEvent(p, { pendingWindow: waWindow });
     if (notify?.whatsappOpened) toast.message('WhatsApp opened — tap Send');
     else toast.error('Could not open WhatsApp');
   };
