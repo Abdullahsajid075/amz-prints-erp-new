@@ -1,10 +1,18 @@
 /** Compress image for catalog only — never attach to order/invoice lines. */
 
-const MAX_EDGE = 280;
-const JPEG_QUALITY = 0.62;
-const MAX_DATA_URL_CHARS = 42000;
+const DEFAULT_MAX_EDGE = 280;
+const DEFAULT_JPEG_QUALITY = 0.62;
+const DEFAULT_MAX_CHARS = 42000;
 
-export function compressImageFile(file) {
+/**
+ * @param {File} file
+ * @param {{ maxEdge?: number, maxChars?: number, quality?: number }} [opts]
+ */
+export function compressImageFile(file, opts = {}) {
+  const MAX_EDGE = opts.maxEdge || DEFAULT_MAX_EDGE;
+  const JPEG_QUALITY = opts.quality || DEFAULT_JPEG_QUALITY;
+  const MAX_DATA_URL_CHARS = opts.maxChars || DEFAULT_MAX_CHARS;
+
   return new Promise((resolve, reject) => {
     if (!file || !file.type?.startsWith('image/')) {
       reject(new Error('Please choose an image file'));
@@ -37,12 +45,11 @@ export function compressImageFile(file) {
           let q = JPEG_QUALITY;
           let w = width;
           let h = height;
-          // Keep under Sheets cell limit if Drive upload fails
-          while (dataUrl.length > MAX_DATA_URL_CHARS && (q > 0.4 || w > 120)) {
-            if (q > 0.4) q = Math.max(0.4, q - 0.08);
+          while (dataUrl.length > MAX_DATA_URL_CHARS && (q > 0.35 || w > 100)) {
+            if (q > 0.35) q = Math.max(0.35, q - 0.08);
             else {
-              w = Math.max(120, Math.round(w * 0.75));
-              h = Math.max(120, Math.round(h * 0.75));
+              w = Math.max(100, Math.round(w * 0.75));
+              h = Math.max(100, Math.round(h * 0.75));
             }
             dataUrl = tryEncode(w, h, q);
           }

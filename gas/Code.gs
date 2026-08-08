@@ -2967,10 +2967,10 @@ function handleEmployees_(path, method, body) {
 function sanitizeCatalogImage_(img) {
   var s = String(img || '').trim();
   if (!s) return '';
-  // Prefer Drive / http URLs. Drop broken oversized data URLs (Sheets truncate / GAS 50KB limit).
+  // Sheets cell ~50k; photos stored as compressed data-URLs (no Drive)
   if (/^https?:\/\//i.test(s)) return s;
   if (s.indexOf('data:image') === 0) {
-    return s.length <= 8000 ? s : '';
+    return s.length <= MAX_SHEET_IMAGE_CHARS_ ? s : '';
   }
   return s.length <= 2000 ? s : '';
 }
@@ -3038,9 +3038,8 @@ function handleProducts_(path, method, body) {
       var created = normalizeProduct_(body || {});
       appendObject_(sheet, SHEET_NAMES.PRODUCTS, created);
       var apiCreated = toApiProduct_(created);
-      // Guaranteed short URL when photo was sent
       if ((body && (body.image || body.photo)) && !apiCreated.image) {
-        throw new Error('Photo was not stored. Redeploy GAS and approve Drive access.');
+        throw new Error('Photo was not stored. Use a smaller image (compressed under ~45KB).');
       }
       return apiCreated;
     }
@@ -3057,7 +3056,7 @@ function handleProducts_(path, method, body) {
     updateObjectProps_(sheet, SHEET_NAMES.PRODUCTS, rows[index]._row, updated);
     var apiUpdated = toApiProduct_(updated);
     if ((body && (body.image || body.photo)) && !apiUpdated.image) {
-      throw new Error('Photo was not stored. Redeploy GAS and approve Drive access.');
+      throw new Error('Photo was not stored. Use a smaller image (compressed under ~45KB).');
     }
     return apiUpdated;
   }

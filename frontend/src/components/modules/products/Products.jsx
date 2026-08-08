@@ -11,7 +11,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { productsAPI, designersAPI } from '@/services/api';
 import { formatCurrency } from '@/utils/helpers';
 import { clearGasCache } from '@/services/gasClient';
-import { Plus, Search, Edit, Trash2, Package, X, Save, Wrench } from 'lucide-react';
+import { compressImageFile, productImageSrc } from '@/utils/productImage';
+import {
+  Plus, Search, Edit, Trash2, Package, X, Save, Wrench, ImagePlus, Boxes,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 const PRODUCT_CATEGORIES = [
@@ -36,6 +39,7 @@ const emptyProduct = {
   minQuantity: 1,
   stock: 0,
   designer: '',
+  image: '',
   active: true,
 };
 
@@ -51,6 +55,9 @@ const Products = () => {
   const [editingProduct, setEditingProduct] = useState(null);
   const [formData, setFormData] = useState(emptyProduct);
   const [saving, setSaving] = useState(false);
+  const [imageBusy, setImageBusy] = useState(false);
+  const [stockDialog, setStockDialog] = useState({ open: false, product: null, value: '' });
+  const [stockSaving, setStockSaving] = useState(false);
 
   const isService = String(formData.productType || '').toLowerCase() === 'service';
 
@@ -62,6 +69,8 @@ const Products = () => {
       const list = (response.data || []).map((p) => ({
         ...p,
         basePrice: p.basePrice ?? p.rate ?? 0,
+        image: productImageSrc(p),
+        stock: Number(p.stock ?? 0) || 0,
       }));
       setProducts(list);
     } catch (error) {
@@ -117,8 +126,66 @@ const Products = () => {
       basePrice: product.basePrice ?? product.rate ?? 0,
       productType: product.productType || 'Product',
       designer: product.designer || '',
+      stock: Number(product.stock ?? 0) || 0,
+      image: productImageSrc(product),
     });
     setDialogOpen(true);
+  };
+
+  const onPickImage = async (ev) => {
+    const file = ev.target.files?.[0];
+    ev.target.value = '';
+    if (!file) return;
+    setImageBusy(true);
+    try {
+      const dataUrl = await compressImageFile(file, { maxEdge: 240, maxChars: 40000, quality: 0.58 });
+      setFormData((prev) => ({ ...prev, image: dataUrl }));
+      toast.success('Photo ready');
+    } catch (err) {
+      toast.error(err.message || 'Photo failed');
+    } finally {
+      setImageBusy(false);
+    }
+  };
+
+  const openStockEdit = (product) => {
+    setStockDialog({
+      open: true,
+      product,
+      value: String(Number(product.stock ?? 0) || 0),
+    });
+  };
+
+  const saveStock = async () => {
+    const product = stockDialog.product;
+    if (!product?.id) return;
+    const next = Math.max(0, Math.floor(Number(stockDialog.value)));
+    if (Number.isNaN(next)) {
+      toast.error('Enter a valid stock number');
+      return;
+    }
+    setStockSaving(true);
+    try {
+      await productsAPI.update(product.id, {
+        ...product,
+        name: product.name,
+        stock: next,
+        basePrice: product.basePrice ?? product.rate ?? 0,
+        rate: product.basePrice ?? product.rate ?? 0,
+        productType: product.productType || 'Product',
+        image: productImageSrc(product) || '',
+        status: product.active === false ? 'Inactive' : (product.status || 'Active'),
+        active: product.active !== false,
+      });
+      clearGasCache();
+      toast.success(`Stock updated to ${next}`);
+      setStockDialog({ open: false, product: null, value: '' });
+      fetchProducts();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err?.message || 'Stock update failed');
+    } finally {
+      setStockSaving(false);
+    }
   };
 
   const handleSave = async (e) => {
@@ -139,6 +206,8 @@ const Products = () => {
             size: '',
             designer: '',
             minQuantity: 1,
+            stock: 0,
+            image: formData.image || '',
             active: formData.active !== false,
             status: formData.active === false ? 'Inactive' : 'Active',
           }
@@ -153,8 +222,9 @@ const Products = () => {
             material: formData.material || '',
             size: formData.size || '',
             minQuantity: formData.minQuantity || 1,
-            stock: formData.stock || 0,
+            stock: Math.max(0, Math.floor(Number(formData.stock) || 0)),
             designer: formData.designer || '',
+            image: formData.image || '',
             active: formData.active !== false,
             status: formData.active === false ? 'Inactive' : 'Active',
           };
@@ -192,7 +262,7 @@ const Products = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: '#2E2E2E' }}>Products</h1>
-          <p className="text-sm text-gray-600">Products & services catalog</p>
+          <p className="text-sm text-gray-600">Catalog with photos · manual stock edit</p>
         </div>
         <Button onClick={openCreateDialog} style={{ backgroundColor: '#F26522' }} className="text-white h-9" data-testid="add-product-button">
           <Plus className="h-4 w-4 mr-1.5" />
@@ -266,35 +336,55 @@ const Products = () => {
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {filteredProducts.map((product) => {
                 const service = String(product.productType || '').toLowerCase() === 'service';
+                const img = productImageSrc(product);
                 return (
                   <div
                     key={product.id}
-                    className="rounded-xl border-2 border-gray-700 bg-white p-4 hover:border-orange-500 hover:shadow-md transition-all"
+                    className="rounded-xl border-2 border-gray-700 bg-white overflow-hidden hover:border-orange-500 hover:shadow-md transition-all"
                     data-testid={`product-card-${product.id}`}
                   >
-                    <div className="flex items-center gap-2 mb-2">
-                      {service ? (
-                        <Wrench className="h-4 w-4 text-gray-600 shrink-0" />
+                    <div className="aspect-[4/3] bg-gray-50 flex items-center justify-center overflow-hidden relative">
+                      {img ? (
+                        <img src={img} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : service ? (
+                        <Wrench className="h-8 w-8 text-gray-300" />
                       ) : (
-                        <Package className="h-4 w-4 text-gray-600 shrink-0" />
+                        <Package className="h-8 w-8 text-gray-300" />
                       )}
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 border-gray-600 text-gray-700">
+                      <Badge
+                        variant="outline"
+                        className="absolute top-1.5 left-1.5 text-[10px] px-1.5 py-0 h-5 bg-white/90 border-gray-600 text-gray-700"
+                      >
                         {service ? 'Service' : 'Product'}
                       </Badge>
                     </div>
-                    <p className="text-sm font-semibold leading-snug line-clamp-2 min-h-[2.5rem]" style={{ color: '#2E2E2E' }}>
-                      {product.name}
-                    </p>
-                    <p className="text-base font-bold mt-2" style={{ color: '#F26522' }}>
-                      {formatCurrency(product.basePrice ?? product.rate ?? 0)}
-                    </p>
-                    <div className="flex gap-1.5 pt-3">
-                      <Button size="sm" variant="outline" className="h-8 flex-1 text-xs border-gray-600" onClick={() => openEditDialog(product)}>
-                        <Edit className="h-3.5 w-3.5 mr-1" />Edit
-                      </Button>
-                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => handleDelete(product)}>
-                        <Trash2 className="h-3.5 w-3.5 text-red-600" />
-                      </Button>
+                    <div className="p-3 space-y-1.5">
+                      <p className="text-sm font-semibold leading-snug line-clamp-2 min-h-[2.5rem]" style={{ color: '#2E2E2E' }}>
+                        {product.name}
+                      </p>
+                      <p className="text-base font-bold" style={{ color: '#F26522' }}>
+                        {formatCurrency(product.basePrice ?? product.rate ?? 0)}
+                      </p>
+                      {!service && (
+                        <button
+                          type="button"
+                          onClick={() => openStockEdit(product)}
+                          className="flex items-center gap-1 text-[11px] font-medium text-gray-700 hover:text-orange-600"
+                          title="Edit stock"
+                        >
+                          <Boxes className="h-3.5 w-3.5" />
+                          Stock: <span className="font-bold">{Number(product.stock ?? 0) || 0}</span>
+                          <span className="text-orange-600 underline ml-0.5">Edit</span>
+                        </button>
+                      )}
+                      <div className="flex gap-1.5 pt-1">
+                        <Button size="sm" variant="outline" className="h-8 flex-1 text-xs border-gray-600" onClick={() => openEditDialog(product)}>
+                          <Edit className="h-3.5 w-3.5 mr-1" />Edit
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => handleDelete(product)}>
+                          <Trash2 className="h-3.5 w-3.5 text-red-600" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -304,6 +394,61 @@ const Products = () => {
         </CardContent>
       </Card>
 
+      <Dialog open={stockDialog.open} onOpenChange={(open) => setStockDialog((s) => ({ ...s, open }))}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Edit stock</DialogTitle>
+            <DialogDescription>
+              {stockDialog.product?.name || 'Product'} — set quantity manually.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Stock quantity</Label>
+              <Input
+                type="number"
+                min="0"
+                step="1"
+                value={stockDialog.value}
+                onChange={(e) => setStockDialog((s) => ({ ...s, value: e.target.value }))}
+                autoFocus
+              />
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {[-10, -1, +1, +10, +50].map((n) => (
+                <Button
+                  key={n}
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs"
+                  onClick={() => {
+                    const cur = Math.max(0, Math.floor(Number(stockDialog.value) || 0));
+                    setStockDialog((s) => ({ ...s, value: String(Math.max(0, cur + n)) }));
+                  }}
+                >
+                  {n > 0 ? `+${n}` : n}
+                </Button>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setStockDialog({ open: false, product: null, value: '' })}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="text-white"
+              style={{ backgroundColor: '#F26522' }}
+              disabled={stockSaving}
+              onClick={saveStock}
+            >
+              {stockSaving ? 'Saving…' : 'Save stock'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" data-testid="product-dialog">
           <DialogHeader>
@@ -312,12 +457,37 @@ const Products = () => {
             </DialogTitle>
             <DialogDescription>
               {isService
-                ? 'Service: only description + service charges.'
-                : 'Product catalog details for orders and invoices.'}
+                ? 'Service: description + charges. Optional photo for catalog.'
+                : 'Product photo + stock for warehouse catalog (orders/invoices keep no photo).'}
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleSave} className="space-y-3 mt-2">
+            <div className="flex items-center gap-3">
+              <div className="w-20 h-20 rounded-lg border bg-gray-50 overflow-hidden flex items-center justify-center shrink-0">
+                {formData.image ? (
+                  <img src={formData.image} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  <ImagePlus className="h-6 w-6 text-gray-300" />
+                )}
+              </div>
+              <div className="space-y-1 flex-1 min-w-0">
+                <Label>Catalog photo</Label>
+                <Input type="file" accept="image/*" onChange={onPickImage} disabled={imageBusy} className="text-xs" />
+                {formData.image && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-red-600 px-0"
+                    onClick={() => setFormData({ ...formData, image: '' })}
+                  >
+                    Remove photo
+                  </Button>
+                )}
+              </div>
+            </div>
+
             <div>
               <Label>Type</Label>
               <Select
@@ -437,6 +607,27 @@ const Products = () => {
                   <Label>Size</Label>
                   <Input value={formData.size} onChange={(e) => setFormData({ ...formData, size: e.target.value })} placeholder="e.g. A4" />
                 </div>
+                <div>
+                  <Label>Stock (manual)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={formData.stock}
+                    onChange={(e) => setFormData({ ...formData, stock: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                    data-testid="product-stock-input"
+                  />
+                </div>
+                <div>
+                  <Label>Min quantity</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={formData.minQuantity}
+                    onChange={(e) => setFormData({ ...formData, minQuantity: Math.max(1, parseInt(e.target.value, 10) || 1) })}
+                  />
+                </div>
                 <div className="sm:col-span-2">
                   <Label>Description</Label>
                   <Textarea
@@ -453,7 +644,7 @@ const Products = () => {
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                 <X className="h-4 w-4 mr-1" />Cancel
               </Button>
-              <Button type="submit" style={{ backgroundColor: '#F26522' }} className="text-white" disabled={saving}>
+              <Button type="submit" style={{ backgroundColor: '#F26522' }} className="text-white" disabled={saving || imageBusy}>
                 <Save className="h-4 w-4 mr-1" />
                 {saving ? 'Saving…' : 'Save'}
               </Button>
