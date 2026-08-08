@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { productsAPI, designersAPI } from '@/services/api';
 import { formatCurrency } from '@/utils/helpers';
-import { compressImageFile } from '@/utils/productImage';
+import { compressImageFile, productImageSrc } from '@/utils/productImage';
+import { clearGasCache } from '@/services/gasClient';
 import { Plus, Search, Edit, Trash2, Package, X, Save, ImagePlus, Wrench } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -59,11 +60,12 @@ const Products = () => {
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
+      clearGasCache();
       const response = await productsAPI.getAll();
       const list = (response.data || []).map((p) => ({
         ...p,
         basePrice: p.basePrice ?? p.rate ?? 0,
-        image: p.image || p.photo || '',
+        image: productImageSrc(p),
       }));
       setProducts(list);
     } catch (error) {
@@ -169,17 +171,24 @@ const Products = () => {
             productType: formData.productType || 'Product',
             image: formData.image || '',
           };
+      let saved;
       if (editingProduct) {
-        await productsAPI.update(editingProduct.id, payload);
+        saved = await productsAPI.update(editingProduct.id, payload);
         toast.success(service ? 'Service updated' : 'Product updated');
       } else {
-        await productsAPI.create(payload);
+        saved = await productsAPI.create(payload);
         toast.success(service ? 'Service created' : 'Product created');
       }
+      const savedImg = productImageSrc(saved?.data || {});
+      if (formData.image && !savedImg) {
+        toast.warning('Saved, but photo did not return — redeploy GAS if using Sheets');
+      }
+      clearGasCache();
       setDialogOpen(false);
       fetchProducts();
-    } catch {
-      toast.error('Save failed');
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || 'Save failed';
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -275,7 +284,7 @@ const Products = () => {
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2">
               {filteredProducts.map((product) => {
                 const service = String(product.productType || '').toLowerCase() === 'service';
-                const img = product.image || product.photo || '';
+                const img = productImageSrc(product);
                 return (
                   <div
                     key={product.id}
@@ -284,7 +293,7 @@ const Products = () => {
                   >
                     <div className="aspect-square bg-gray-50 relative flex items-center justify-center overflow-hidden">
                       {img ? (
-                        <img src={img} alt="" className="w-full h-full object-cover" />
+                        <img src={img} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                       ) : service ? (
                         <Wrench className="h-6 w-6 text-gray-300" />
                       ) : (
@@ -367,7 +376,7 @@ const Products = () => {
               <div className="flex items-center gap-3 mt-1">
                 <div className="w-16 h-16 rounded-md border bg-gray-50 overflow-hidden flex items-center justify-center shrink-0">
                   {formData.image ? (
-                    <img src={formData.image} alt="" className="w-full h-full object-cover" />
+                    <img src={formData.image} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                   ) : (
                     <ImagePlus className="h-5 w-5 text-gray-300" />
                   )}

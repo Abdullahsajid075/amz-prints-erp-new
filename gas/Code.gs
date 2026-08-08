@@ -206,6 +206,7 @@ function normalizeHeader_(header) {
     doctype: 'doctype', trackingnumber: 'trackingnumber', statushistory: 'statushistory',
     deliveryaddress: 'deliveryaddress', quotationid: 'quotationid',
     unit: 'unit', description: 'description',
+    image: 'image', photo: 'image', productimage: 'image', img: 'image', picture: 'image',
     orderid: 'orderid', date: 'date', time: 'time', deliverydate: 'deliverydate',
     products: 'products', items: 'items', totalamount: 'totalamount', total: 'total',
     advancepayment: 'advancepayment', balanceamount: 'balanceamount', assigneddesigner: 'assigneddesigner',
@@ -2569,8 +2570,48 @@ function toPublicTrackOrder_(o) {
   };
 }
 
+/** Sheets cells cap ~50k chars — store catalog photos in Drive, keep URL in Image column. */
+function getOrCreateFolder_(name) {
+  var it = DriveApp.getFoldersByName(name);
+  if (it.hasNext()) return it.next();
+  return DriveApp.createFolder(name);
+}
+
+function saveProductImageToDrive_(dataUrl, productId) {
+  var raw = String(dataUrl || '').trim();
+  if (!raw) return '';
+  // Already a hosted URL (Drive / http) — keep as-is
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (raw.indexOf('data:image') !== 0) return raw;
+
+  var comma = raw.indexOf(',');
+  if (comma < 0) return '';
+  var meta = raw.substring(0, comma);
+  var b64 = raw.substring(comma + 1);
+  if (!b64) return '';
+
+  // Sheets cannot hold large data URLs; always prefer Drive for data: images
+  try {
+    var contentType = 'image/jpeg';
+    var m = meta.match(/data:([^;]+)/i);
+    if (m && m[1]) contentType = m[1];
+    var bytes = Utilities.base64Decode(b64);
+    var ext = contentType.indexOf('png') >= 0 ? '.png' : '.jpg';
+    var blob = Utilities.newBlob(bytes, contentType, String(productId || 'product') + ext);
+    var folder = getOrCreateFolder_('AMZ-ERP-Product-Images');
+    var file = folder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    return 'https://drive.google.com/uc?export=view&id=' + file.getId();
+  } catch (err) {
+    // Last resort: only keep if under Sheets cell limit
+    if (raw.length <= 45000) return raw;
+    throw new Error('Product image too large to save. Try a smaller photo. (' + (err.message || err) + ')');
+  }
+}
+
 function toApiProduct_(p) {
   var rate = Number(p.rate || p.baseprice || 0);
+  var img = p.image || p.photo || '';
   return {
     id: p.id,
     name: p.name,
@@ -2585,8 +2626,8 @@ function toApiProduct_(p) {
     minQuantity: Number(p.minquantity || 1),
     stock: Number(p.stock || 0),
     designer: p.designer || '',
-    image: p.image || p.photo || '',
-    photo: p.image || p.photo || '',
+    image: img,
+    photo: img,
     active: String(p.status || 'Active').toLowerCase() !== 'inactive',
     status: p.status || 'Active',
   };
@@ -2597,8 +2638,13 @@ function normalizeProduct_(body, existing) {
   var rate = body.basePrice != null ? body.basePrice : (body.rate != null ? body.rate : (existing.rate || 0));
   var ptype = body.productType || body.producttype || existing.producttype || 'Product';
   var isService = String(ptype).toLowerCase() === 'service';
+  var id = body.id || existing.id || ('product_' + Date.now());
+  var incomingImage = body.image != null ? body.image : (body.photo != null ? body.photo : null);
+  var imageVal = incomingImage != null
+    ? saveProductImageToDrive_(incomingImage, id)
+    : (existing.image || existing.photo || '');
   return {
-    id: body.id || existing.id || ('product_' + Date.now()),
+    id: id,
     name: body.name || existing.name || '',
     category: isService ? (body.category || existing.category || 'Services') : (body.category || existing.category || ''),
     producttype: ptype,
@@ -2610,7 +2656,7 @@ function normalizeProduct_(body, existing) {
     minquantity: isService ? 1 : Number(body.minQuantity != null ? body.minQuantity : (existing.minquantity || 1)),
     stock: Number(body.stock != null ? body.stock : (existing.stock || 0)),
     designer: isService ? '' : (body.designer || existing.designer || ''),
-    image: body.image != null ? body.image : (body.photo != null ? body.photo : (existing.image || '')),
+    image: imageVal,
     status: body.active === false ? 'Inactive' : (body.status || existing.status || 'Active'),
   };
 }

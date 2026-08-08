@@ -1,7 +1,8 @@
 /** Compress image for catalog only — never attach to order/invoice lines. */
 
-const MAX_EDGE = 420;
-const JPEG_QUALITY = 0.72;
+const MAX_EDGE = 280;
+const JPEG_QUALITY = 0.62;
+const MAX_DATA_URL_CHARS = 42000;
 
 export function compressImageFile(file) {
   return new Promise((resolve, reject) => {
@@ -16,16 +17,40 @@ export function compressImageFile(file) {
       img.onerror = () => reject(new Error('Invalid image'));
       img.onload = () => {
         let { width, height } = img;
-        const scale = Math.min(1, MAX_EDGE / Math.max(width, height));
+        const scale = Math.min(1, MAX_EDGE / Math.max(width, height || 1));
         width = Math.max(1, Math.round(width * scale));
         height = Math.max(1, Math.round(height * scale));
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
+
+        const tryEncode = (w, h, quality) => {
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+          return canvas.toDataURL('image/jpeg', quality);
+        };
+
         try {
-          resolve(canvas.toDataURL('image/jpeg', JPEG_QUALITY));
+          let dataUrl = tryEncode(width, height, JPEG_QUALITY);
+          let q = JPEG_QUALITY;
+          let w = width;
+          let h = height;
+          // Keep under Sheets cell limit if Drive upload fails
+          while (dataUrl.length > MAX_DATA_URL_CHARS && (q > 0.4 || w > 120)) {
+            if (q > 0.4) q = Math.max(0.4, q - 0.08);
+            else {
+              w = Math.max(120, Math.round(w * 0.75));
+              h = Math.max(120, Math.round(h * 0.75));
+            }
+            dataUrl = tryEncode(w, h, q);
+          }
+          if (dataUrl.length > MAX_DATA_URL_CHARS) {
+            reject(new Error('Image still too large — pick a smaller photo'));
+            return;
+          }
+          resolve(dataUrl);
         } catch (err) {
           reject(err);
         }
@@ -34,6 +59,11 @@ export function compressImageFile(file) {
     };
     reader.readAsDataURL(file);
   });
+}
+
+/** Safe src for catalog thumbnails (Drive + data URLs). */
+export function productImageSrc(product) {
+  return String(product?.image || product?.photo || '').trim();
 }
 
 /** Strip catalog-only fields before saving onto order/invoice line items */

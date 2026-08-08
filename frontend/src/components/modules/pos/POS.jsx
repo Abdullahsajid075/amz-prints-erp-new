@@ -3,15 +3,22 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { productsAPI, ordersAPI, invoicesAPI, customersAPI } from '@/services/api';
 import { applyServerNotificationHint } from '@/services/notifications';
 import { formatCurrency } from '@/utils/helpers';
+import { productImageSrc } from '@/utils/productImage';
 import { barcodeBlock, openPrintWindow, printOnLoadScript, POS_MAJOR_SERVICES } from '@/utils/printHelpers';
 import { useBrand } from '@/context/BrandContext';
-import { Search, Plus, Minus, Trash2, Printer, ShoppingCart, FileSpreadsheet, PackagePlus, UserPlus } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, Printer, ShoppingCart, FileSpreadsheet, PackagePlus, UserPlus, Package, Wrench } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+
+const isServiceItem = (p) => {
+  const type = String(p?.productType || '').toLowerCase();
+  if (type === 'service') return true;
+  if (type === 'product') return false;
+  return /service/i.test(String(p?.category || ''));
+};
 
 const WALK_IN = { id: 'cust_walkin', name: 'Walk-in', phone: '' };
 
@@ -76,14 +83,53 @@ const POS = () => {
   }, [customers]);
 
   const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
     return products.filter((p) => {
-      const type = String(p.productType || p.category || 'Product');
-      if (filter === 'product' && !/product/i.test(type)) return false;
-      if (filter === 'service' && !/service/i.test(type)) return false;
-      if (!search) return true;
-      return String(p.name || '').toLowerCase().includes(search.toLowerCase());
+      const service = isServiceItem(p);
+      if (filter === 'product' && service) return false;
+      if (filter === 'service' && !service) return false;
+      if (!q) return true;
+      return String(p.name || '').toLowerCase().includes(q);
     });
   }, [products, filter, search]);
+
+  const productItems = useMemo(() => filtered.filter((p) => !isServiceItem(p)), [filtered]);
+  const serviceItems = useMemo(() => filtered.filter((p) => isServiceItem(p)), [filtered]);
+
+  const renderPosCard = (p) => {
+    const img = productImageSrc(p);
+    const service = isServiceItem(p);
+    return (
+      <button
+        key={p.id}
+        type="button"
+        onClick={() => addToCart(p)}
+        className="text-left rounded-lg border border-gray-200 bg-white overflow-hidden hover:border-orange-300 hover:shadow-sm transition-all"
+        data-testid={`pos-product-${p.id}`}
+      >
+        <div className="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden relative">
+          {img ? (
+            <img src={img} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+          ) : service ? (
+            <Wrench className="h-5 w-5 text-gray-300" />
+          ) : (
+            <Package className="h-5 w-5 text-gray-300" />
+          )}
+          <span className="absolute top-0.5 left-0.5 text-[9px] px-1 rounded bg-white/90 border text-gray-600">
+            {service ? 'Svc' : 'Prod'}
+          </span>
+        </div>
+        <div className="p-1.5 space-y-0.5">
+          <div className="text-[11px] font-semibold leading-tight line-clamp-2 min-h-[2rem]" style={{ color: '#2E2E2E' }}>
+            {p.name}
+          </div>
+          <div className="text-xs font-bold" style={{ color: primary || '#F26522' }}>
+            {formatCurrency(p.rate || p.basePrice)}
+          </div>
+        </div>
+      </button>
+    );
+  };
 
   const total = useMemo(
     () => cart.reduce((s, i) => s + i.quantity * i.rate, 0),
@@ -314,28 +360,35 @@ const POS = () => {
               </Button>
             ))}
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[70vh] overflow-y-auto pr-1">
-            {filtered.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => addToCart(p)}
-                className="text-left rounded-xl border border-gray-100 bg-white p-3 hover:shadow-md transition-all"
-                data-testid={`pos-product-${p.id}`}
-              >
-                <div className="font-semibold text-sm truncate" style={{ color: '#2E2E2E' }}>{p.name}</div>
-                <Badge variant="outline" className="mt-1 text-[10px]">{p.productType || 'Product'}</Badge>
-                <div className="mt-2 font-bold" style={{ color: primary || '#F26522' }}>
-                  {formatCurrency(p.rate || p.basePrice)}
-                </div>
-              </button>
-            ))}
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
             {!filtered.length && (
-              <div className="col-span-full text-center text-gray-500 py-8 space-y-3">
+              <div className="text-center text-gray-500 py-8 space-y-3 border border-dashed rounded-xl">
                 <p>No items in catalog</p>
                 <Button size="sm" style={{ backgroundColor: primary || '#F26522' }} className="text-white" onClick={() => navigate('/warehouse/products?new=1')}>
                   <PackagePlus className="h-4 w-4 mr-2" />Add New Product
                 </Button>
+              </div>
+            )}
+
+            {(filter === 'all' || filter === 'product') && productItems.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between sticky top-0 bg-[#fafafa]/z-10 py-1">
+                  <h3 className="text-xs font-bold uppercase tracking-wide text-gray-600">Products ({productItems.length})</h3>
+                </div>
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                  {productItems.map(renderPosCard)}
+                </div>
+              </div>
+            )}
+
+            {(filter === 'all' || filter === 'service') && serviceItems.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between sticky top-0 bg-[#fafafa] z-10 py-1 border-t border-gray-100 pt-3">
+                  <h3 className="text-xs font-bold uppercase tracking-wide text-gray-600">Services ({serviceItems.length})</h3>
+                </div>
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                  {serviceItems.map(renderPosCard)}
+                </div>
               </div>
             )}
           </div>
