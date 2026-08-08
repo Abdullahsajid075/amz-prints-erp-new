@@ -2727,20 +2727,60 @@ function toPublicTrackOrder_(o) {
   };
 }
 
-/** Sheets cells cap ~50k chars — store photos in Drive, keep URL in sheet. */
+/**
+ * Sheets cells / GAS responses cannot hold large photos.
+ * Store images in Drive; keep only a short URL in the sheet.
+ *
+ * First-time setup (required once per Apps Script project):
+ *   1. Project Settings → check "Show appsscript.json"
+ *   2. Ensure oauthScopes includes https://www.googleapis.com/auth/drive
+ *   3. Run function authorizeDriveAccess → Allow Drive
+ *   4. Deploy → Manage deployments → New version → Deploy
+ */
 function getOrCreateFolder_(name) {
-  var it = DriveApp.getFoldersByName(name);
-  if (it.hasNext()) return it.next();
-  return DriveApp.createFolder(name);
+  var props = PropertiesService.getScriptProperties();
+  var key = 'drive_folder_id_' + String(name || 'AMZ-ERP-Images').replace(/\s+/g, '_');
+  var folderId = props.getProperty(key);
+  if (folderId) {
+    try {
+      return DriveApp.getFolderById(folderId);
+    } catch (e) {
+      props.deleteProperty(key);
+    }
+  }
+  try {
+    var it = DriveApp.getFoldersByName(name);
+    var folder = it.hasNext() ? it.next() : DriveApp.createFolder(name);
+    props.setProperty(key, folder.getId());
+    return folder;
+  } catch (err) {
+    throw new Error(
+      'Google Drive permission missing for photos. ' +
+      'Apps Script editor me function "authorizeDriveAccess" select karke Run karein → Allow / Drive approve karein. ' +
+      'Phir Deploy → New version. (' + (err.message || err) + ')'
+    );
+  }
+}
+
+/** Run once from Apps Script editor to trigger Drive OAuth consent. */
+function authorizeDriveAccess() {
+  var folder = getOrCreateFolder_('AMZ-ERP-Images');
+  getOrCreateFolder_('AMZ-ERP-Employee-Photos');
+  getOrCreateFolder_('AMZ-ERP-Product-Images');
+  Logger.log('Drive authorized. Folder: ' + folder.getName() + ' (' + folder.getId() + ')');
+  return {
+    ok: true,
+    message: 'Drive access OK — now Deploy a new web-app version, then save employee photos again.',
+    folderId: folder.getId(),
+  };
 }
 
 function saveDataUrlImageToDrive_(dataUrl, fileId, folderName) {
   var raw = String(dataUrl || '').trim();
   if (!raw) return '';
-  // Already a hosted URL — keep as-is (never echo huge data: URLs back; Apps Script responses max ~50KB)
+  // Already a hosted URL — keep as-is
   if (/^https?:\/\//i.test(raw)) return raw;
   if (raw.indexOf('data:image') !== 0) {
-    // Unknown short token — keep; reject huge blobs that would break Sheets / response
     if (raw.length > 2000) {
       throw new Error('Invalid image data. Choose a photo again.');
     }
@@ -2766,10 +2806,13 @@ function saveDataUrlImageToDrive_(dataUrl, fileId, folderName) {
     return 'https://drive.google.com/uc?export=view&id=' + file.getId();
   } catch (err) {
     var msg = String(err && err.message ? err.message : err);
-    // Do NOT fall back to data URLs — Sheets cells + GAS JSON responses both break above ~45–50KB
-    throw new Error(
-      'Photo upload failed. Redeploy GAS as a new version and approve Google Drive permission, then try again. (' + msg + ')'
-    );
+    if (/permission|authorization|auth\/drive|DriveApp/i.test(msg)) {
+      throw new Error(
+        'Employee photo needs Google Drive access. ' +
+        'Apps Script → Run "authorizeDriveAccess" → Allow Drive → Deploy New version. (' + msg + ')'
+      );
+    }
+    throw new Error('Photo upload failed: ' + msg);
   }
 }
 

@@ -13,7 +13,14 @@ Usually one of these:
 ### 1. Redeploy Code.gs
 1. Open Apps Script project  
 2. Replace ALL code with repo file `gas/Code.gs`  
-3. **Deploy → Manage deployments → Edit → New version → Deploy**
+3. Project Settings → enable **Show "appsscript.json" manifesto file**  
+4. Paste repo `gas/appsscript.json` (includes Drive scope for employee/product photos)  
+5. Select function **`authorizeDriveAccess`** → **Run** → click **Allow** (Drive permission)  
+6. **Deploy → Manage deployments → Edit → New version → Deploy**
+
+### Employee / product photos
+Photos are stored in Google Drive folders (`AMZ-ERP-Employee-Photos`, `AMZ-ERP-Product-Images`).  
+If ERP shows *You do not have permission to call DriveApp…*, repeat step 5–6 above.
 
 ### 2. Prepare database (pick one)
 

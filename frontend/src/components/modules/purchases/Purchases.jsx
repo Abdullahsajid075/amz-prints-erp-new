@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,20 @@ import { Plus, Search, Eye, Edit, Trash2, ShoppingBag, PackageCheck, Paperclip, 
 import { toast } from 'sonner';
 
 const PO_STATUS = ['Draft', 'Ordered', 'Partial Paid', 'Fully Paid', 'Received'];
+
+/** Closed / finished — never offered when linking a customer order on a PO */
+const isOpenOrder = (order) => {
+  const status = String(order?.status || '').trim().toLowerCase();
+  if (!status) return true;
+  if (['delivered', 'completed', 'complete', 'closed', 'cancelled', 'canceled'].includes(status)) {
+    return false;
+  }
+  // Variants: "Order Completed", "Delivery Completed", etc. (keep "Ready")
+  if (/(deliver|complet|closed|cancel)/i.test(status) && !/ready/i.test(status)) {
+    return false;
+  }
+  return true;
+};
 
 const emptyPurchase = {
   vendorId: '', vendorInvoiceNumber: '',
@@ -102,6 +116,16 @@ const Purchases = () => {
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  /** Only open orders for linking — keep current link visible when editing a closed one */
+  const linkableOrders = useMemo(() => {
+    const current = String(formData.linkedOrderId || '');
+    return (orders || []).filter((o) => {
+      const oid = String(o.orderId || o.id || '');
+      if (current && (oid === current || String(o.id) === current)) return true;
+      return isOpenOrder(o);
+    });
+  }, [orders, formData.linkedOrderId]);
 
   const filtered = purchases.filter((p) => {
     const q = search.trim().toLowerCase();
@@ -537,10 +561,22 @@ const Purchases = () => {
               </div>
               <div className="col-span-2"><Label>Linked Customer Order</Label>
                 <Select value={formData.linkedOrderId || undefined} onValueChange={(v) => setFormData({ ...formData, linkedOrderId: v === 'none' ? '' : v })}>
-                  <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
-                  <SelectContent><SelectItem value="none">None</SelectItem>{orders.map(o => <SelectItem key={o.id} value={o.orderId}>{o.orderId} - {o.customerName}</SelectItem>)}</SelectContent>
+                  <SelectTrigger><SelectValue placeholder="Open orders only" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {linkableOrders.map((o) => (
+                      <SelectItem key={o.id || o.orderId} value={o.orderId || o.id}>
+                        {o.orderId || o.id} — {o.customerName || 'Customer'} ({o.status || 'Open'})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
-                <p className="text-xs text-gray-500 mt-1">Linked order auto-updates to &quot;Ready for Delivery&quot; when received.</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Only open orders (not Delivered / Completed / Closed / Cancelled). Auto-updates to &quot;Ready for Delivery&quot; when PO is received.
+                </p>
+                {!linkableOrders.length && (
+                  <p className="text-[11px] text-amber-700 mt-1">No open customer orders available to link.</p>
+                )}
               </div>
             </div>
 
