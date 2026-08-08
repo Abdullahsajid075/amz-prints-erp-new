@@ -14,14 +14,13 @@ Usually one of these:
 1. Open Apps Script project  
 2. Replace ALL code with repo file `gas/Code.gs`  
 3. Project Settings → enable **Show "appsscript.json" manifesto file**  
-4. Paste repo `gas/appsscript.json` (includes Drive scope for employee/product photos)  
-5. Select function **`authorizeDriveAccess`** → **Run** → click **Allow** (Drive permission)  
-6. **Deploy → Manage deployments → Edit → New version → Deploy**
+4. Paste repo `gas/appsscript.json` (**no Drive scope** — photos go into Sheets)  
+5. **Deploy → Manage deployments → Edit → New version → Deploy**  
+6. If an old auth popup asks for Drive, click through Sheets-only scopes (Drive not required)
 
 ### Employee / product photos
-- **Employee photos** try Drive first; if Drive is not authorized they save as a compressed image in the Employees sheet (no Drive needed).
-- **Product photos** still prefer Drive folders (`AMZ-ERP-Product-Images`).
-- Optional: run **`authorizeDriveAccess`** → Allow → Deploy New version for Drive URLs.
+Photos save **directly in Google Sheets** (compressed). **Google Drive permission is not required.**  
+Do **not** run `authorizeDriveAccess` for Drive — that function is a no-op now.
 
 ### 2. Prepare database (pick one)
 

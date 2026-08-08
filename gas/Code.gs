@@ -2774,125 +2774,52 @@ function toPublicTrackOrder_(o) {
 }
 
 /**
- * Sheets cells / GAS responses cannot hold large photos.
- * Store images in Drive; keep only a short URL in the sheet.
- *
- * First-time setup (required once per Apps Script project):
- *   1. Project Settings → check "Show appsscript.json"
- *   2. Ensure oauthScopes includes https://www.googleapis.com/auth/drive
- *   3. Run function authorizeDriveAccess → Allow Drive
- *   4. Deploy → Manage deployments → New version → Deploy
+ * Photos are stored IN Google Sheets (compressed data-URL).
+ * No Google Drive / DriveApp — works when Workspace blocks Drive OAuth.
+ * Sheets cell limit ~50k chars; frontend compresses before upload.
  */
-function getOrCreateFolder_(name) {
-  var props = PropertiesService.getScriptProperties();
-  var key = 'drive_folder_id_' + String(name || 'AMZ-ERP-Images').replace(/\s+/g, '_');
-  var folderId = props.getProperty(key);
-  if (folderId) {
-    try {
-      return DriveApp.getFolderById(folderId);
-    } catch (e) {
-      props.deleteProperty(key);
-    }
-  }
-  try {
-    var it = DriveApp.getFoldersByName(name);
-    var folder = it.hasNext() ? it.next() : DriveApp.createFolder(name);
-    props.setProperty(key, folder.getId());
-    return folder;
-  } catch (err) {
-    throw new Error(
-      'Google Drive permission missing for photos. ' +
-      'Apps Script editor me function "authorizeDriveAccess" select karke Run karein → Allow / Drive approve karein. ' +
-      'Phir Deploy → New version. (' + (err.message || err) + ')'
-    );
-  }
-}
+var MAX_SHEET_IMAGE_CHARS_ = 45000;
 
-/** Run once from Apps Script editor to trigger Drive OAuth consent. */
+/** Optional helper — Drive is NOT required. Safe to ignore. */
 function authorizeDriveAccess() {
-  var folder = getOrCreateFolder_('AMZ-ERP-Images');
-  getOrCreateFolder_('AMZ-ERP-Employee-Photos');
-  getOrCreateFolder_('AMZ-ERP-Product-Images');
-  Logger.log('Drive authorized. Folder: ' + folder.getName() + ' (' + folder.getId() + ')');
+  Logger.log('Drive is optional. Employee/product photos save directly into Sheets.');
   return {
     ok: true,
-    message: 'Drive access OK — now Deploy a new web-app version, then save employee photos again.',
-    folderId: folder.getId(),
+    message: 'No Drive permission needed. Deploy a New version of the web app, then save photos from ERP.',
+    driveRequired: false,
   };
 }
 
-function saveDataUrlImageToDrive_(dataUrl, fileId, folderName) {
+/** Normalize image for Sheets cell — never calls DriveApp. */
+function saveImageToSheetCell_(dataUrl, fileId) {
   var raw = String(dataUrl || '').trim();
   if (!raw) return '';
-  // Already a hosted URL — keep as-is
   if (/^https?:\/\//i.test(raw)) return raw;
-  if (raw.indexOf('data:image') !== 0) {
-    if (raw.length > 2000) {
-      throw new Error('Invalid image data. Choose a photo again.');
+  if (raw.indexOf('data:image') === 0) {
+    if (raw.length > MAX_SHEET_IMAGE_CHARS_) {
+      throw new Error(
+        'Photo too large for Sheets (' + raw.length + ' chars). Pick a smaller / clearer photo — max ~' + MAX_SHEET_IMAGE_CHARS_ + ' after compress.'
+      );
     }
     return raw;
   }
-
-  var comma = raw.indexOf(',');
-  if (comma < 0) return '';
-  var meta = raw.substring(0, comma);
-  var b64 = raw.substring(comma + 1);
-  if (!b64) return '';
-
-  try {
-    var contentType = 'image/jpeg';
-    var m = meta.match(/data:([^;]+)/i);
-    if (m && m[1]) contentType = m[1];
-    var bytes = Utilities.base64Decode(b64);
-    var ext = contentType.indexOf('png') >= 0 ? '.png' : '.jpg';
-    var blob = Utilities.newBlob(bytes, contentType, String(fileId || 'file') + ext);
-    var folder = getOrCreateFolder_(folderName || 'AMZ-ERP-Images');
-    var file = folder.createFile(blob);
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    return 'https://drive.google.com/uc?export=view&id=' + file.getId();
-  } catch (err) {
-    var msg = String(err && err.message ? err.message : err);
-    if (/permission|authorization|auth\/drive|DriveApp/i.test(msg)) {
-      throw new Error(
-        'Employee photo needs Google Drive access. ' +
-        'Apps Script → Run "authorizeDriveAccess" → Allow Drive → Deploy New version. (' + msg + ')'
-      );
-    }
-    throw new Error('Photo upload failed: ' + msg);
+  if (raw.length > 2000) {
+    throw new Error('Invalid image data. Choose a photo again.');
   }
+  return raw;
+}
+
+/** @deprecated name kept for callers — does not use Drive */
+function saveDataUrlImageToDrive_(dataUrl, fileId, folderName) {
+  return saveImageToSheetCell_(dataUrl, fileId);
 }
 
 function saveProductImageToDrive_(dataUrl, productId) {
-  return saveDataUrlImageToDrive_(dataUrl, productId, 'AMZ-ERP-Product-Images');
+  return saveImageToSheetCell_(dataUrl, productId);
 }
 
-/**
- * Employee photos: try Drive first; if Drive OAuth is missing, store a compact
- * data-URL in the Employees sheet (Sheets cell limit ~50k — frontend compresses).
- * This unblocks HR photo save without requiring Drive permission.
- */
 function saveEmployeePhotoToDrive_(dataUrl, employeeId) {
-  var raw = String(dataUrl || '').trim();
-  if (!raw) return '';
-  if (/^https?:\/\//i.test(raw)) return raw;
-
-  try {
-    return saveDataUrlImageToDrive_(raw, employeeId, 'AMZ-ERP-Employee-Photos');
-  } catch (err) {
-    var msg = String(err && err.message ? err.message : err);
-    var isDriveAuth = /permission|authorization|auth\/drive|DriveApp|Drive permission/i.test(msg);
-    if (raw.indexOf('data:image') === 0 && raw.length <= 45000) {
-      // Fallback — no Drive needed
-      return raw;
-    }
-    if (isDriveAuth) {
-      throw new Error(
-        'Photo too large for Sheets fallback and Drive is not authorized. ' +
-        'Use a smaller photo, or run authorizeDriveAccess then Deploy New version. (' + msg + ')'
-      );
-    }
-    throw err;
-  }
+  return saveImageToSheetCell_(dataUrl, employeeId);
 }
 
 function toApiEmployee_(e) {
