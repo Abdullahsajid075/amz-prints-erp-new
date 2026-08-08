@@ -75,8 +75,11 @@ create table if not exists products (
   material text default '',
   size text default '',
   min_quantity numeric default 0,
+  image text default '',
   created_at timestamptz default now()
 );
+
+-- alter table products add column if not exists image text default '';
 
 -- ========== ORDERS (+ quotations / POS via doc_type) ==========
 create table if not exists orders (

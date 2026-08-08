@@ -500,21 +500,26 @@ async function dispatch(req, res) {
     }
 
     if (path === '/products' || path.startsWith('/products/')) {
-      const done = await handleCollection('products', '/products', mapProduct, (b, rid) => ({
-        id: rid || b.id || id('prod'),
-        name: b.name || '',
-        category: b.category || '',
-        rate: num(b.rate != null ? b.rate : b.basePrice),
-        unit: b.unit || '',
-        description: b.description || '',
-        status: b.status || 'Active',
-        product_type: b.productType || b.product_type || 'Product',
-        designer: b.designer || '',
-        stock: num(b.stock),
-        material: b.material || '',
-        size: b.size || '',
-        min_quantity: num(b.minQuantity),
-      }));
+      const done = await handleCollection('products', '/products', mapProduct, (b, rid) => {
+        const productType = b.productType || b.product_type || 'Product';
+        const isService = String(productType).toLowerCase() === 'service';
+        return {
+          id: rid || b.id || id('prod'),
+          name: b.name || '',
+          category: isService ? (b.category || 'Services') : (b.category || ''),
+          rate: num(b.rate != null ? b.rate : b.basePrice),
+          unit: isService ? 'service' : (b.unit || ''),
+          description: b.description || '',
+          status: b.active === false ? 'Inactive' : (b.status || 'Active'),
+          product_type: productType,
+          designer: isService ? '' : (b.designer || ''),
+          stock: num(b.stock),
+          material: isService ? '' : (b.material || ''),
+          size: isService ? '' : (b.size || ''),
+          min_quantity: isService ? 1 : num(b.minQuantity),
+          image: b.image || b.photo || '',
+        };
+      });
       if (done !== null) return done;
     }
 

@@ -49,7 +49,7 @@ var DEFAULT_HEADERS = {
     'TotalAmount', 'AdvancePayment', 'BalanceAmount', 'Remarks', 'AssignedDesigner', 'TokenNo',
     'DocType', 'TrackingNumber', 'StatusHistory', 'DeliveryAddress', 'QuotationId'
   ],
-  Products: ['Id', 'Name', 'Category', 'Rate', 'Unit', 'Description', 'Status', 'ProductType', 'Designer', 'Stock', 'Material', 'Size', 'MinQuantity'],
+  Products: ['Id', 'Name', 'Category', 'Rate', 'Unit', 'Description', 'Status', 'ProductType', 'Designer', 'Stock', 'Material', 'Size', 'MinQuantity', 'Image'],
   Invoices: [
     'Id', 'InvoiceNo', 'Date', 'DueDate', 'OrderId', 'CustomerId', 'CustomerName', 'CustomerPhone',
     'CustomerEmail', 'CustomerAddress', 'Items', 'Subtotal', 'TaxRate', 'Tax', 'Discount',
@@ -2585,6 +2585,8 @@ function toApiProduct_(p) {
     minQuantity: Number(p.minquantity || 1),
     stock: Number(p.stock || 0),
     designer: p.designer || '',
+    image: p.image || p.photo || '',
+    photo: p.image || p.photo || '',
     active: String(p.status || 'Active').toLowerCase() !== 'inactive',
     status: p.status || 'Active',
   };
@@ -2593,19 +2595,22 @@ function toApiProduct_(p) {
 function normalizeProduct_(body, existing) {
   existing = existing || {};
   var rate = body.basePrice != null ? body.basePrice : (body.rate != null ? body.rate : (existing.rate || 0));
+  var ptype = body.productType || body.producttype || existing.producttype || 'Product';
+  var isService = String(ptype).toLowerCase() === 'service';
   return {
     id: body.id || existing.id || ('product_' + Date.now()),
     name: body.name || existing.name || '',
-    category: body.category || existing.category || '',
-    producttype: body.productType || body.producttype || existing.producttype || 'Product',
+    category: isService ? (body.category || existing.category || 'Services') : (body.category || existing.category || ''),
+    producttype: ptype,
     rate: Number(rate || 0),
-    unit: body.unit || existing.unit || 'per piece',
-    description: body.description || existing.description || '',
-    material: body.material || existing.material || '',
-    size: body.size || existing.size || '',
-    minquantity: Number(body.minQuantity != null ? body.minQuantity : (existing.minquantity || 1)),
+    unit: isService ? 'service' : (body.unit || existing.unit || 'per piece'),
+    description: body.description != null ? body.description : (existing.description || ''),
+    material: isService ? '' : (body.material || existing.material || ''),
+    size: isService ? '' : (body.size || existing.size || ''),
+    minquantity: isService ? 1 : Number(body.minQuantity != null ? body.minQuantity : (existing.minquantity || 1)),
     stock: Number(body.stock != null ? body.stock : (existing.stock || 0)),
-    designer: body.designer || existing.designer || '',
+    designer: isService ? '' : (body.designer || existing.designer || ''),
+    image: body.image != null ? body.image : (body.photo != null ? body.photo : (existing.image || '')),
     status: body.active === false ? 'Inactive' : (body.status || existing.status || 'Active'),
   };
 }

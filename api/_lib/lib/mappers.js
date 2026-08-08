@@ -74,6 +74,9 @@ function mapProduct(row) {
     material: row.material || '',
     size: row.size || '',
     minQuantity: num(row.min_quantity),
+    image: row.image || '',
+    photo: row.image || '',
+    active: String(row.status || 'Active').toLowerCase() !== 'inactive',
   };
 }
 
