@@ -111,17 +111,19 @@ const POS = () => {
         key={p.id}
         type="button"
         onClick={() => addToCart(p)}
-        className="text-left rounded-lg border border-gray-200 bg-white p-2 hover:border-orange-300 hover:shadow-sm transition-all"
+        className="text-left rounded-xl border-2 border-gray-700 bg-white p-4 hover:border-orange-500 hover:shadow-md transition-all"
         data-testid={`pos-product-${p.id}`}
       >
-        <div className="flex items-center gap-1 mb-1">
-          {service ? <Wrench className="h-3.5 w-3.5 text-gray-400" /> : <Package className="h-3.5 w-3.5 text-gray-400" />}
-          <span className="text-[9px] px-1 rounded border text-gray-600">{service ? 'Svc' : 'Prod'}</span>
+        <div className="flex items-center gap-2 mb-2">
+          {service ? <Wrench className="h-4 w-4 text-gray-600" /> : <Package className="h-4 w-4 text-gray-600" />}
+          <span className="text-[10px] px-1.5 py-0.5 rounded border border-gray-600 text-gray-700">
+            {service ? 'Service' : 'Product'}
+          </span>
         </div>
-        <div className="text-[11px] font-semibold leading-tight line-clamp-2 min-h-[2rem]" style={{ color: '#2E2E2E' }}>
+        <div className="text-sm font-semibold leading-snug line-clamp-2 min-h-[2.5rem]" style={{ color: '#2E2E2E' }}>
           {p.name}
         </div>
-        <div className="text-xs font-bold mt-0.5" style={{ color: primary || '#F26522' }}>
+        <div className="text-base font-bold mt-2" style={{ color: primary || '#F26522' }}>
           {formatCurrency(p.rate || p.basePrice)}
         </div>
       </button>
@@ -372,7 +374,7 @@ const POS = () => {
                 <div className="flex items-center justify-between sticky top-0 bg-[#fafafa]/z-10 py-1">
                   <h3 className="text-xs font-bold uppercase tracking-wide text-gray-600">Products ({productItems.length})</h3>
                 </div>
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                   {productItems.map(renderPosCard)}
                 </div>
               </div>
@@ -383,7 +385,7 @@ const POS = () => {
                 <div className="flex items-center justify-between sticky top-0 bg-[#fafafa] z-10 py-1 border-t border-gray-100 pt-3">
                   <h3 className="text-xs font-bold uppercase tracking-wide text-gray-600">Services ({serviceItems.length})</h3>
                 </div>
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                   {serviceItems.map(renderPosCard)}
                 </div>
               </div>

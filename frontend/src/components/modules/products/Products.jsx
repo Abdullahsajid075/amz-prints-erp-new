@@ -263,37 +263,37 @@ const Products = () => {
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {filteredProducts.map((product) => {
                 const service = String(product.productType || '').toLowerCase() === 'service';
                 return (
                   <div
                     key={product.id}
-                    className="rounded-lg border border-gray-200 bg-white p-2 hover:border-orange-300 hover:shadow-sm transition-all"
+                    className="rounded-xl border-2 border-gray-700 bg-white p-4 hover:border-orange-500 hover:shadow-md transition-all"
                     data-testid={`product-card-${product.id}`}
                   >
-                    <div className="flex items-start gap-1.5 mb-1">
+                    <div className="flex items-center gap-2 mb-2">
                       {service ? (
-                        <Wrench className="h-3.5 w-3.5 text-gray-400 shrink-0 mt-0.5" />
+                        <Wrench className="h-4 w-4 text-gray-600 shrink-0" />
                       ) : (
-                        <Package className="h-3.5 w-3.5 text-gray-400 shrink-0 mt-0.5" />
+                        <Package className="h-4 w-4 text-gray-600 shrink-0" />
                       )}
-                      <Badge variant="outline" className="text-[9px] px-1 py-0 h-4">
-                        {service ? 'Svc' : 'Prod'}
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 border-gray-600 text-gray-700">
+                        {service ? 'Service' : 'Product'}
                       </Badge>
                     </div>
-                    <p className="text-[11px] font-semibold leading-tight line-clamp-2 min-h-[2rem]" style={{ color: '#2E2E2E' }}>
+                    <p className="text-sm font-semibold leading-snug line-clamp-2 min-h-[2.5rem]" style={{ color: '#2E2E2E' }}>
                       {product.name}
                     </p>
-                    <p className="text-xs font-bold mt-0.5" style={{ color: '#F26522' }}>
+                    <p className="text-base font-bold mt-2" style={{ color: '#F26522' }}>
                       {formatCurrency(product.basePrice ?? product.rate ?? 0)}
                     </p>
-                    <div className="flex gap-0.5 pt-1.5">
-                      <Button size="sm" variant="outline" className="h-6 flex-1 text-[10px] px-1" onClick={() => openEditDialog(product)}>
-                        <Edit className="h-2.5 w-2.5" />
+                    <div className="flex gap-1.5 pt-3">
+                      <Button size="sm" variant="outline" className="h-8 flex-1 text-xs border-gray-600" onClick={() => openEditDialog(product)}>
+                        <Edit className="h-3.5 w-3.5 mr-1" />Edit
                       </Button>
-                      <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => handleDelete(product)}>
-                        <Trash2 className="h-2.5 w-2.5 text-red-600" />
+                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => handleDelete(product)}>
+                        <Trash2 className="h-3.5 w-3.5 text-red-600" />
                       </Button>
                     </div>
                   </div>

@@ -451,10 +451,12 @@ function appendObject_(sheet, sheetName, obj) {
 }
 
 function updateObjectProps_(sheet, sheetName, rowNumber, updates) {
-  var headers = getRawHeaders_(sheet, sheetName);
+  // Ensure missing columns (e.g. VendorId / VendorName) exist before writing
+  var headers = ensureHeaders_(sheet, sheetName);
   var flat = coerceKeys_(updates);
   headers.forEach(function (rawHeader, i) {
     var key = normalizeHeader_(rawHeader);
+    if (!key) return;
     if (flat[key] !== undefined) {
       sheet.getRange(rowNumber, i + 1).setValue(serializeCell_(flat[key]));
     }
@@ -1740,12 +1742,18 @@ function normalizePurchase_(body, existing) {
   var date = body.purchaseDate || body.date || existing.date
     || Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Karachi', 'yyyy-MM-dd');
 
+  // Always prefer incoming vendor fields on update (do not keep stale vendorName)
+  var hasVendorId = body.vendorId != null && String(body.vendorId) !== '';
+  var hasVendorName = body.vendorName != null && String(body.vendorName).trim() !== '';
+  var vendorId = hasVendorId ? String(body.vendorId) : String(existing.vendorid || '');
+  var vendorName = hasVendorName ? String(body.vendorName).trim() : String(existing.vendorname || '');
+
   return {
     id: id,
     purchaseno: po,
     date: date,
-    vendorid: body.vendorId != null ? body.vendorId : (existing.vendorid || ''),
-    vendorname: body.vendorName != null ? body.vendorName : (existing.vendorname || ''),
+    vendorid: vendorId,
+    vendorname: vendorName,
     items: items,
     total: Number(total || 0),
     paid: Number(paid || 0),

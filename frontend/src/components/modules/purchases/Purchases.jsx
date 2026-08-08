@@ -247,13 +247,18 @@ const Purchases = () => {
       return;
     }
     setSaving(true);
-    const vendor = vendors.find(v => v.id === formData.vendorId);
+    const vendor = vendors.find((v) => String(v.id) === String(formData.vendorId));
+    if (!vendor) {
+      toast.error('Selected vendor not found — list refresh karke dubara select karein');
+      setSaving(false);
+      return;
+    }
     const totalAmount = calcTotal();
     let paidAmount = Number(formData.paidAmount) || 0;
     if (formData.status === 'Fully Paid') paidAmount = totalAmount;
     const payload = {
-      vendorId: formData.vendorId,
-      vendorName: vendor?.name || formData.vendorName || '',
+      vendorId: String(vendor.id),
+      vendorName: String(vendor.name || '').trim(),
       vendorInvoiceNumber: formData.vendorInvoiceNumber || '',
       purchaseDate: formData.purchaseDate || new Date().toISOString().split('T')[0],
       date: formData.purchaseDate || new Date().toISOString().split('T')[0],
@@ -481,10 +486,27 @@ const Purchases = () => {
                     <Building2 className="h-3 w-3 mr-1" />Add New Vendor
                   </Button>
                 </div>
-                <Select value={formData.vendorId} onValueChange={(v) => setFormData({ ...formData, vendorId: v })}>
+                <Select
+                  value={formData.vendorId ? String(formData.vendorId) : undefined}
+                  onValueChange={(v) => {
+                    const vend = vendors.find((x) => String(x.id) === String(v));
+                    setFormData({
+                      ...formData,
+                      vendorId: String(v),
+                      vendorName: vend?.name || '',
+                    });
+                  }}
+                >
                   <SelectTrigger data-testid="vendor-select"><SelectValue placeholder="Select vendor" /></SelectTrigger>
-                  <SelectContent>{vendors.map(v => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}</SelectContent>
+                  <SelectContent>
+                    {vendors.map((v) => (
+                      <SelectItem key={String(v.id)} value={String(v.id)}>{v.name}</SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
+                {formData.vendorName ? (
+                  <p className="text-[11px] text-gray-500 mt-1">Selected: {formData.vendorName}</p>
+                ) : null}
                 {!vendors.length && (
                   <p className="text-[11px] text-red-600 mt-1">
                     Koi vendor nahi —{' '}
