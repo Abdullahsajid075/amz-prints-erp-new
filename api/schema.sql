@@ -159,9 +159,13 @@ create table if not exists purchases (
   vendor_name text default '',
   items jsonb default '[]'::jsonb,
   total numeric default 0,
+  paid_amount numeric default 0,
   status text default 'Pending',
   created_at timestamptz default now()
 );
+
+-- Existing projects: run once in SQL editor if column missing
+-- alter table purchases add column if not exists paid_amount numeric default 0;
 
 -- ========== EXPENSES / PAYMENTS ==========
 create table if not exists expenses (

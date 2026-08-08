@@ -135,7 +135,7 @@ function App() {
           <Route path="accounts" element={<Accounts />} />
           <Route path="accounts/payments" element={<Payments />} />
           <Route path="accounts/expenses" element={<Expenses />} />
-          <Route path="accounts/vendors" element={<Vendors />} />
+          <Route path="accounts/vendors" element={<ProtectedRoute requireVendors><Vendors /></ProtectedRoute>} />
 
           <Route path="payments" element={<Navigate to="/accounts/payments" replace />} />
           <Route path="expenses" element={<Navigate to="/accounts/expenses" replace />} />

@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { dashboardAPI, expensesAPI } from '@/services/api';
+import { dashboardAPI, expensesAPI, purchasesAPI } from '@/services/api';
+import { totalVendorPayables } from '@/utils/vendorPayables';
 import { useAuth, getUserDisplayName } from '@/context/AuthContext';
 import { useBrand } from '@/context/BrandContext';
 import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
@@ -94,7 +95,7 @@ const Dashboard = () => {
     totalQuotations: 0, totalOrders: 0, totalInvoices: 0,
     pendingOrders: 0, completedOrders: 0, readyOrders: 0,
     designingOrders: 0, printingOrders: 0,
-    revenue: 0, expenses: 0, receivables: 0, collected: 0,
+    revenue: 0, expenses: 0, receivables: 0, collected: 0, payables: 0,
     activeCustomers: 0, fulfillmentRate: 0, collectionRate: 0,
   });
   const [recentOrders, setRecentOrders] = useState([]);
@@ -111,6 +112,7 @@ const Dashboard = () => {
 
       const bootPromise = dashboardAPI.bootstrap(params);
       const expensesPromise = expensesAPI.getAll(params).catch(() => ({ data: [] }));
+      const purchasesPromise = purchasesAPI.getAll().catch(() => ({ data: [] }));
 
       const boot = await bootPromise;
       const data = boot.data || {};
@@ -120,13 +122,19 @@ const Dashboard = () => {
       setAttention(Array.isArray(data.attention) ? data.attention : []);
       setLoading(false);
 
-      const expensesRes = await expensesPromise;
+      const [expensesRes, purchasesRes] = await Promise.all([expensesPromise, purchasesPromise]);
       const list = Array.isArray(expensesRes.data) ? expensesRes.data : [];
       setRecentExpenses(list.slice(0, 6));
       const expenseTotal = list.reduce((s, e) => s + Number(e.amount || 0), 0);
+      const purchaseList = Array.isArray(purchasesRes.data) ? purchasesRes.data : [];
+      const payablesFromPurchases = totalVendorPayables(purchaseList);
       setStats((prev) => ({
         ...prev,
         expenses: Number(prev.expenses) > 0 ? prev.expenses : expenseTotal,
+        // Prefer server payables; fall back to live purchase balances
+        payables: Number(prev.payables || prev.vendorPayables) > 0
+          ? Number(prev.payables || prev.vendorPayables)
+          : payablesFromPurchases,
       }));
     } catch (error) {
       console.error('Dashboard load failed', error);
@@ -501,11 +509,12 @@ const Dashboard = () => {
         />
         <MetricTile
           testId="stat-payables"
-          label="Net position"
-          value={formatCurrency(net)}
-          sub="Revenue − expenses"
-          icon={net >= 0 ? Wallet : TrendingDown}
-          tint={net >= 0 ? '#14B8A6' : '#E11D48'}
+          label="Vendor payables"
+          value={formatCurrency(stats.payables || stats.vendorPayables || 0)}
+          sub={net >= 0 ? `Net +${formatCurrency(net)}` : `Net ${formatCurrency(net)}`}
+          icon={Wallet}
+          tint="#E11D48"
+          onClick={() => navigate('/purchases')}
         />
       </section>
 

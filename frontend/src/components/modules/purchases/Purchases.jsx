@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { purchasesAPI, vendorsAPI, ordersAPI, productsAPI, paymentsAPI } from '@/services/api';
 import { formatCurrency, formatDate } from '@/utils/helpers';
+import { notifyPaymentEvent } from '@/services/notifications';
 import { Plus, Search, Eye, Edit, Trash2, ShoppingBag, PackageCheck, Paperclip, AlertTriangle, X, Save, FileText, Link2, PackagePlus, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -142,11 +143,11 @@ const Purchases = () => {
     }
   };
 
-  const createVendorPayment = async ({ vendorName, amount, refId, poNumber }) => {
+  const createVendorPayment = async ({ vendorName, vendorPhone, amount, refId, poNumber }) => {
     if (!paymentsAPI?.create || !(Number(amount) > 0)) return;
     try {
-      await paymentsAPI.create({
-        type: 'vendor',
+      const payment = {
+        type: 'outflow',
         amount: Number(amount),
         vendorName: vendorName || '',
         refId: refId || poNumber || '',
@@ -154,9 +155,36 @@ const Purchases = () => {
         category: 'Purchase Payment',
         method: 'Cash',
         party: vendorName || '',
+        partyPhone: vendorPhone || '',
+        phone: vendorPhone || '',
         reference: poNumber || refId || '',
-        notes: `Auto from purchase ${poNumber || refId || ''}`,
-      });
+        notes: `Vendor payment — PO ${poNumber || refId || ''}`,
+        totalAmount: Number(amount),
+        balanceDue: 0,
+      };
+      const res = await paymentsAPI.create(payment);
+      const saved = res?.data || payment;
+
+      if (vendorPhone) {
+        try {
+          await notifyPaymentEvent({
+            ...saved,
+            type: 'outflow',
+            party: vendorName || saved.party,
+            partyPhone: vendorPhone,
+            amount: Number(amount),
+            method: saved.method || 'Cash',
+            reference: poNumber || refId || saved.reference || '',
+            notes: `Payment transfer for PO ${poNumber || refId || ''}`,
+          }, { openWhatsApp: true });
+          toast.success('Payment saved — WhatsApp opened for vendor');
+        } catch (waErr) {
+          console.error('Vendor WhatsApp failed', waErr);
+          toast.message('Payment saved — WhatsApp could not open');
+        }
+      } else {
+        toast.message('Payment saved — add vendor phone to send WhatsApp');
+      }
     } catch (err) {
       console.error('Payment create failed', err);
       toast.error('Purchase saved but payment record failed');
@@ -212,6 +240,7 @@ const Purchases = () => {
         if (paymentAmount > 0) {
           await createVendorPayment({
             vendorName: vendor?.name || payload.vendorName,
+            vendorPhone: vendor?.phone || '',
             amount: paymentAmount,
             refId: saved?.id || editing?.id,
             poNumber: saved?.poNumber || editing?.poNumber,

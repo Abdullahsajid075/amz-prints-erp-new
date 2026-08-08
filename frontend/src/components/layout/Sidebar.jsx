@@ -9,6 +9,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useBrand } from '@/context/BrandContext';
+import { useAuth } from '@/context/AuthContext';
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', testId: 'nav-dashboard' },
@@ -42,7 +43,7 @@ const menuItems = [
     children: [
       { label: 'Payments', path: '/accounts/payments' },
       { label: 'Expenses', path: '/accounts/expenses' },
-      { label: 'Vendors', path: '/accounts/vendors' },
+      { label: 'Vendors', path: '/accounts/vendors', requireVendors: true },
     ]
   },
   { icon: BarChart3, label: 'Reports', path: '/reports', testId: 'nav-reports' },
@@ -51,6 +52,13 @@ const menuItems = [
 
 const Sidebar = ({ isOpen, closeSidebar }) => {
   const { company, primary } = useBrand();
+  const { canAccessVendors } = useAuth();
+
+  const visibleMenu = menuItems.map((item) => {
+    if (!item.children) return item;
+    const children = item.children.filter((c) => !c.requireVendors || canAccessVendors);
+    return { ...item, children };
+  });
 
   return (
     <>
@@ -67,7 +75,7 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
           </div>
           <ScrollArea className="flex-1 px-3 py-4">
             <nav className="space-y-1">
-              {menuItems.map((item) => (
+              {visibleMenu.map((item) => (
                 <div key={item.path}>
                   <NavLink
                     to={item.path}
@@ -84,7 +92,7 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
                       </>
                     )}
                   </NavLink>
-                  {item.children && (
+                  {item.children && item.children.length > 0 && (
                     <div className="ml-8 mt-1 mb-2 space-y-1">
                       {item.children.map((child) => (
                         <NavLink

@@ -2,9 +2,10 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { useBrand } from '@/context/BrandContext';
+import { useAuth } from '@/context/AuthContext';
 import { CreditCard, Receipt, Truck } from 'lucide-react';
 
-const links = [
+const allLinks = [
   {
     title: 'Payments',
     description: 'Money in / money out and payment methods',
@@ -21,15 +22,18 @@ const links = [
   },
   {
     title: 'Vendors',
-    description: 'Supplier directory and contacts',
+    description: 'Suppliers and payables (restricted)',
     path: '/accounts/vendors',
     icon: Truck,
     testId: 'accounts-vendors',
+    requireVendors: true,
   },
 ];
 
 const Accounts = () => {
   const { primary } = useBrand();
+  const { canAccessVendors } = useAuth();
+  const links = allLinks.filter((item) => !item.requireVendors || canAccessVendors);
 
   return (
     <div className="space-y-6" data-testid="accounts-hub">

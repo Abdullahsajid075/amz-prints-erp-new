@@ -169,6 +169,8 @@ function mapExpense(row) {
 
 function mapPurchase(row) {
   if (!row) return null;
+  const total = num(row.total);
+  const paidAmount = num(row.paid_amount != null ? row.paid_amount : row.paid);
   return {
     id: row.id,
     purchaseNo: row.purchase_no || '',
@@ -176,9 +178,12 @@ function mapPurchase(row) {
     vendorId: row.vendor_id || '',
     vendorName: row.vendor_name || '',
     items: Array.isArray(row.items) ? row.items : [],
-    total: num(row.total),
-    totalAmount: num(row.total),
+    total,
+    totalAmount: total,
+    paidAmount,
+    paid: paidAmount,
     status: row.status || '',
+    outstanding: Math.max(0, total - paidAmount),
   };
 }
 

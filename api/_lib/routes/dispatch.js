@@ -206,15 +206,21 @@ async function dispatch(req, res) {
 
     // Dashboard
     if (method === 'GET' && (path === '/dashboard/stats' || path === '/dashboard/bootstrap')) {
-      const [{ data: orders }, { data: customers }, { data: expenses }, { data: payments }] = await Promise.all([
+      const [{ data: orders }, { data: customers }, { data: expenses }, { data: purchases }] = await Promise.all([
         supabase.from('orders').select('*'),
         supabase.from('customers').select('id'),
         supabase.from('expenses').select('amount'),
-        supabase.from('payments').select('*'),
+        supabase.from('purchases').select('total,paid_amount,status'),
       ]);
       const realOrders = (orders || []).filter((o) => String(o.doc_type || 'Order').toLowerCase() !== 'quotation');
       const revenue = realOrders.reduce((s, o) => s + num(o.total_amount), 0);
       const expenseSum = (expenses || []).reduce((s, e) => s + num(e.amount), 0);
+      const payables = (purchases || []).reduce((s, p) => {
+        const status = String(p.status || '').toLowerCase();
+        if (status.includes('cancel')) return s;
+        if (status.includes('fully paid') || status === 'paid') return s;
+        return s + Math.max(0, num(p.total) - num(p.paid_amount));
+      }, 0);
       const stats = {
         totalOrders: realOrders.length,
         pendingOrders: realOrders.filter((o) => !['Delivered', 'Cancelled'].includes(o.status)).length,
@@ -222,7 +228,8 @@ async function dispatch(req, res) {
         revenue,
         expenses: expenseSum,
         receivables: realOrders.reduce((s, o) => s + num(o.balance_amount), 0),
-        payables: 0,
+        payables,
+        vendorPayables: payables,
         activeCustomers: (customers || []).length,
       };
       if (path === '/dashboard/bootstrap') {
@@ -536,6 +543,7 @@ async function dispatch(req, res) {
         vendor_name: b.vendorName || '',
         items: b.items || [],
         total: num(b.total != null ? b.total : b.totalAmount),
+        paid_amount: num(b.paidAmount != null ? b.paidAmount : b.paid_amount),
         status: b.status || 'Pending',
       }));
       if (done !== null) return done;

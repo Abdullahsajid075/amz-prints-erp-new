@@ -200,10 +200,11 @@ Thank you for your prompt payment.
 
   payment_sent: `Dear *{CustomerName}*,
 
-A payment of *{payment_amount}* has been sent to you via {payment_method}.
+Payment transfer of *{payment_amount}* has been sent to you.
 
-Txn: {transaction_number}
-Type: {payment_type}
+Method: {payment_method}
+Reference: {transaction_number}
+{payment_type}
 
 Thank you for your partnership with *Amazon Printing Services*.
 

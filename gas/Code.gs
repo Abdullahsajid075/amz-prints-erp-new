@@ -56,7 +56,7 @@ var DEFAULT_HEADERS = {
     'PreviousBalance', 'Total', 'Paid', 'Status', 'Notes', 'ShareToken'
   ],
   Vendors: ['Id', 'Name', 'Phone', 'Email', 'Address', 'Notes'],
-  Purchases: ['Id', 'PurchaseNo', 'Date', 'VendorId', 'VendorName', 'Items', 'Total', 'Status'],
+  Purchases: ['Id', 'PurchaseNo', 'Date', 'VendorId', 'VendorName', 'Items', 'Total', 'Paid', 'Status'],
   Expenses: ['Id', 'Date', 'Category', 'Amount', 'Description', 'PaymentMethod'],
   Payments: ['Id', 'Date', 'Type', 'Category', 'RefId', 'CustomerName', 'CustomerId', 'PartyPhone', 'Amount', 'Method', 'Notes', 'BalanceDue', 'TotalAmount'],
   Counters: [
@@ -2192,6 +2192,17 @@ function getDashboardBootstrap_() {
   var receivables = orders.reduce(function (s, o) { return s + Number(o.balanceamount || 0); }, 0);
   var collected = orders.reduce(function (s, o) { return s + Number(o.advancepayment || 0); }, 0);
 
+  // Vendor payables from Purchases (Total − PaidAmount)
+  var purchases = getSheetRows_(SHEET_NAMES.PURCHASES);
+  var payables = purchases.reduce(function (s, p) {
+    var status = String(p.status || '').toLowerCase();
+    if (status.indexOf('cancel') !== -1) return s;
+    var total = Number(p.total || 0);
+    var paid = Number(p.paidamount || p.paid || 0);
+    if (status.indexOf('fully paid') !== -1 || status === 'paid') return s;
+    return s + Math.max(0, total - paid);
+  }, 0);
+
   // Last 6 months sales from orders
   var monthMap = {};
   var now = new Date();
@@ -2241,7 +2252,8 @@ function getDashboardBootstrap_() {
       expenses: 0,
       receivables: receivables,
       collected: collected,
-      payables: 0,
+      payables: payables,
+      vendorPayables: payables,
       activeCustomers: customers.length,
       fulfillmentRate: orders.length ? Math.round((completed / orders.length) * 100) : 0,
       collectionRate: revenue > 0 ? Math.round((collected / revenue) * 100) : 0,
