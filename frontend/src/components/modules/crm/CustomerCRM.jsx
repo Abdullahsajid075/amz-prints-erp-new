@@ -22,6 +22,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { customersAPI, settingsAPI } from '@/services/api';
+import { customerMatchesQuery } from '@/utils/customerSearch';
 import { resolveCrmStages, normalizeStageKey, DEFAULT_CRM_STAGES } from '@/utils/crmStages';
 import { useBrand } from '@/context/BrandContext';
 import { useAuth } from '@/context/AuthContext';
@@ -176,11 +177,11 @@ const CustomerCRM = () => {
   useEffect(() => { load(); }, [load]);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return customers;
-    return customers.filter((c) =>
-      [c.name, c.phone, c.email, c.city, c.stage].some((v) => String(v || '').toLowerCase().includes(q))
-    );
+    if (!search.trim()) return customers;
+    return customers.filter((c) => {
+      if (customerMatchesQuery(c, search)) return true;
+      return String(c.stage || '').toLowerCase().includes(search.trim().toLowerCase());
+    });
   }, [customers, search]);
 
   const byStage = useMemo(() => {

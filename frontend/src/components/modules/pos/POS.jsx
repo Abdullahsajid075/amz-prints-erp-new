@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { productsAPI, ordersAPI, invoicesAPI, customersAPI } from '@/services/api';
 import { applyServerNotificationHint } from '@/services/notifications';
 import { formatCurrency } from '@/utils/helpers';
-import { productImageSrc } from '@/utils/productImage';
+import { customerMatchesQuery } from '@/utils/customerSearch';
 import { barcodeBlock, openPrintWindow, printOnLoadScript, POS_MAJOR_SERVICES } from '@/utils/printHelpers';
 import { useBrand } from '@/context/BrandContext';
 import { Search, Plus, Minus, Trash2, Printer, ShoppingCart, FileSpreadsheet, PackagePlus, UserPlus, Package, Wrench } from 'lucide-react';
@@ -31,6 +31,8 @@ const POS = () => {
   const [search, setSearch] = useState('');
   const [cart, setCart] = useState([]);
   const [customerId, setCustomerId] = useState(WALK_IN.id);
+  const [customerQuery, setCustomerQuery] = useState('');
+  const [customerListOpen, setCustomerListOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [checkingOut, setCheckingOut] = useState(false);
   const [lastSale, setLastSale] = useState(null);
@@ -82,6 +84,12 @@ const POS = () => {
     return [walkOpt, ...rest.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))];
   }, [customers]);
 
+  const filteredCustomers = useMemo(() => {
+    const q = customerQuery.trim();
+    if (!q) return customerOptions.slice(0, 60);
+    return customerOptions.filter((c) => customerMatchesQuery(c, q)).slice(0, 60);
+  }, [customerOptions, customerQuery]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return products.filter((p) => {
@@ -97,35 +105,24 @@ const POS = () => {
   const serviceItems = useMemo(() => filtered.filter((p) => isServiceItem(p)), [filtered]);
 
   const renderPosCard = (p) => {
-    const img = productImageSrc(p);
     const service = isServiceItem(p);
     return (
       <button
         key={p.id}
         type="button"
         onClick={() => addToCart(p)}
-        className="text-left rounded-lg border border-gray-200 bg-white overflow-hidden hover:border-orange-300 hover:shadow-sm transition-all"
+        className="text-left rounded-lg border border-gray-200 bg-white p-2 hover:border-orange-300 hover:shadow-sm transition-all"
         data-testid={`pos-product-${p.id}`}
       >
-        <div className="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden relative">
-          {img ? (
-            <img src={img} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-          ) : service ? (
-            <Wrench className="h-5 w-5 text-gray-300" />
-          ) : (
-            <Package className="h-5 w-5 text-gray-300" />
-          )}
-          <span className="absolute top-0.5 left-0.5 text-[9px] px-1 rounded bg-white/90 border text-gray-600">
-            {service ? 'Svc' : 'Prod'}
-          </span>
+        <div className="flex items-center gap-1 mb-1">
+          {service ? <Wrench className="h-3.5 w-3.5 text-gray-400" /> : <Package className="h-3.5 w-3.5 text-gray-400" />}
+          <span className="text-[9px] px-1 rounded border text-gray-600">{service ? 'Svc' : 'Prod'}</span>
         </div>
-        <div className="p-1.5 space-y-0.5">
-          <div className="text-[11px] font-semibold leading-tight line-clamp-2 min-h-[2rem]" style={{ color: '#2E2E2E' }}>
-            {p.name}
-          </div>
-          <div className="text-xs font-bold" style={{ color: primary || '#F26522' }}>
-            {formatCurrency(p.rate || p.basePrice)}
-          </div>
+        <div className="text-[11px] font-semibold leading-tight line-clamp-2 min-h-[2rem]" style={{ color: '#2E2E2E' }}>
+          {p.name}
+        </div>
+        <div className="text-xs font-bold mt-0.5" style={{ color: primary || '#F26522' }}>
+          {formatCurrency(p.rate || p.basePrice)}
         </div>
       </button>
     );
@@ -415,20 +412,66 @@ const POS = () => {
                   <UserPlus className="h-3.5 w-3.5 mr-1" />Add in Customers
                 </Button>
               </div>
-              <select
-                className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
-                value={customerId}
-                onChange={(e) => setCustomerId(e.target.value)}
-                data-testid="pos-customer-select"
-              >
-                {customerOptions.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name || 'Customer'}{c.phone ? ` · ${c.phone}` : ''}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <div className="rounded-md border bg-white px-3 py-2 text-sm mb-1">
+                  <span className="font-medium">{selectedCustomer?.name || 'Walk-in'}</span>
+                  {selectedCustomer?.phone ? (
+                    <span className="text-gray-500 text-xs"> · {selectedCustomer.phone}</span>
+                  ) : null}
+                </div>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
+                  <Input
+                    className="pl-8 h-9 text-sm"
+                    placeholder="Search customer name or phone…"
+                    value={customerQuery}
+                    data-testid="pos-customer-select"
+                    onFocus={() => setCustomerListOpen(true)}
+                    onChange={(e) => {
+                      setCustomerQuery(e.target.value);
+                      setCustomerListOpen(true);
+                    }}
+                    onBlur={() => setTimeout(() => setCustomerListOpen(false), 150)}
+                  />
+                </div>
+                {customerListOpen && (
+                  <div className="absolute z-40 mt-1 w-full rounded-lg border bg-white shadow-lg max-h-48 overflow-y-auto">
+                    <button
+                      type="button"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-orange-50 border-b font-medium"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setCustomerId(WALK_IN.id);
+                        setCustomerQuery('');
+                        setCustomerListOpen(false);
+                      }}
+                    >
+                      Walk-in
+                    </button>
+                    {filteredCustomers.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-orange-50 border-b last:border-0"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setCustomerId(c.id);
+                          setCustomerQuery('');
+                          setCustomerListOpen(false);
+                        }}
+                      >
+                        <span className="font-medium">{c.name || 'Customer'}</span>
+                        {c.phone ? <span className="text-gray-500"> · {c.phone}</span> : null}
+                      </button>
+                    ))}
+                    {!filteredCustomers.length && (
+                      <p className="px-3 py-2 text-xs text-gray-500">No match — add customer in Customers page</p>
+                    )}
+                  </div>
+                )}
+              </div>
               <p className="text-[11px] text-gray-500">
-                Default is Walk-in (one shared customer). Pick another only from saved customers — POS will not create new ones.
+                Default is Walk-in. Type name/phone to find saved customers.
               </p>
             </div>
             <div>

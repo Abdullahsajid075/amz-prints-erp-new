@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Switch } from '@/components/ui/switch';
 import { customersAPI } from '@/services/api';
 import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
+import { customerMatchesQuery } from '@/utils/customerSearch';
 import { Plus, Search, Edit, Trash2, User, Phone, Mail, MapPin, FileText, Receipt, CreditCard, TrendingUp, X, Save, BookOpen, Bell, Kanban } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -44,12 +45,7 @@ const Customers = () => {
 
   useEffect(() => { fetchCustomers(); }, [fetchCustomers]);
 
-  const filtered = customers.filter(c =>
-    !search ||
-    c.name?.toLowerCase().includes(search.toLowerCase()) ||
-    c.phone?.includes(search) ||
-    c.email?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = customers.filter((c) => customerMatchesQuery(c, search));
 
   const openCreate = useCallback(() => { setEditing(null); setFormData(empty); setDialogOpen(true); }, []);
 

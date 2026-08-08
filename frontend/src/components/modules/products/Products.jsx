@@ -10,9 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { productsAPI, designersAPI } from '@/services/api';
 import { formatCurrency } from '@/utils/helpers';
-import { compressImageFile, productImageSrc } from '@/utils/productImage';
 import { clearGasCache } from '@/services/gasClient';
-import { Plus, Search, Edit, Trash2, Package, X, Save, ImagePlus, Wrench } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Package, X, Save, Wrench } from 'lucide-react';
 import { toast } from 'sonner';
 
 const PRODUCT_CATEGORIES = [
@@ -37,7 +36,6 @@ const emptyProduct = {
   minQuantity: 1,
   stock: 0,
   designer: '',
-  image: '',
   active: true,
 };
 
@@ -53,7 +51,6 @@ const Products = () => {
   const [editingProduct, setEditingProduct] = useState(null);
   const [formData, setFormData] = useState(emptyProduct);
   const [saving, setSaving] = useState(false);
-  const [imageBusy, setImageBusy] = useState(false);
 
   const isService = String(formData.productType || '').toLowerCase() === 'service';
 
@@ -65,7 +62,6 @@ const Products = () => {
       const list = (response.data || []).map((p) => ({
         ...p,
         basePrice: p.basePrice ?? p.rate ?? 0,
-        image: productImageSrc(p),
       }));
       setProducts(list);
     } catch (error) {
@@ -121,25 +117,8 @@ const Products = () => {
       basePrice: product.basePrice ?? product.rate ?? 0,
       productType: product.productType || 'Product',
       designer: product.designer || '',
-      image: product.image || product.photo || '',
     });
     setDialogOpen(true);
-  };
-
-  const onPickImage = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    setImageBusy(true);
-    try {
-      const dataUrl = await compressImageFile(file);
-      setFormData((prev) => ({ ...prev, image: dataUrl }));
-      toast.success('Photo added (catalog only — not on invoice/slip)');
-    } catch (err) {
-      toast.error(err.message || 'Image failed');
-    } finally {
-      setImageBusy(false);
-    }
   };
 
   const handleSave = async (e) => {
@@ -160,36 +139,35 @@ const Products = () => {
             size: '',
             designer: '',
             minQuantity: 1,
-            image: formData.image || '',
             active: formData.active !== false,
             status: formData.active === false ? 'Inactive' : 'Active',
           }
         : {
-            ...formData,
-            basePrice: Number(formData.basePrice),
-            rate: Number(formData.basePrice),
+            name: formData.name,
+            category: formData.category || '',
             productType: formData.productType || 'Product',
-            image: formData.image || '',
+            description: formData.description || '',
+            basePrice: Number(formData.basePrice) || 0,
+            rate: Number(formData.basePrice) || 0,
+            unit: formData.unit || 'per piece',
+            material: formData.material || '',
+            size: formData.size || '',
+            minQuantity: formData.minQuantity || 1,
+            stock: formData.stock || 0,
+            designer: formData.designer || '',
+            active: formData.active !== false,
+            status: formData.active === false ? 'Inactive' : 'Active',
           };
-      let saved;
       if (editingProduct) {
-        saved = await productsAPI.update(editingProduct.id, payload);
+        await productsAPI.update(editingProduct.id, payload);
+        toast.success(service ? 'Service updated' : 'Product updated');
       } else {
-        saved = await productsAPI.create(payload);
+        await productsAPI.create(payload);
+        toast.success(service ? 'Service created' : 'Product created');
       }
       clearGasCache();
-      const savedImg = productImageSrc(saved?.data || {});
-      // Confirm photo persisted (Drive URL). Old GAS / missing Drive auth returns empty image.
-      if (formData.image && !savedImg) {
-        await fetchProducts();
-        toast.error(
-          'Product saved but photo failed. Redeploy Apps Script (New version) and approve Google Drive access, then upload photo again.'
-        );
-      } else {
-        toast.success(service ? (editingProduct ? 'Service updated' : 'Service created') : (editingProduct ? 'Product updated' : 'Product created'));
-        setDialogOpen(false);
-        fetchProducts();
-      }
+      setDialogOpen(false);
+      fetchProducts();
     } catch (err) {
       const msg = err?.response?.data?.message || err?.message || 'Save failed';
       toast.error(msg);
@@ -214,7 +192,7 @@ const Products = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: '#2E2E2E' }}>Products</h1>
-          <p className="text-sm text-gray-600">Catalog · photos stay on product cards only</p>
+          <p className="text-sm text-gray-600">Products & services catalog</p>
         </div>
         <Button onClick={openCreateDialog} style={{ backgroundColor: '#F26522' }} className="text-white h-9" data-testid="add-product-button">
           <Plus className="h-4 w-4 mr-1.5" />
@@ -285,43 +263,38 @@ const Products = () => {
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
               {filteredProducts.map((product) => {
                 const service = String(product.productType || '').toLowerCase() === 'service';
-                const img = productImageSrc(product);
                 return (
                   <div
                     key={product.id}
-                    className="rounded-lg border border-gray-200 bg-white overflow-hidden hover:border-orange-300 hover:shadow-sm transition-all"
+                    className="rounded-lg border border-gray-200 bg-white p-2 hover:border-orange-300 hover:shadow-sm transition-all"
                     data-testid={`product-card-${product.id}`}
                   >
-                    <div className="aspect-square bg-gray-50 relative flex items-center justify-center overflow-hidden">
-                      {img ? (
-                        <img src={img} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      ) : service ? (
-                        <Wrench className="h-6 w-6 text-gray-300" />
+                    <div className="flex items-start gap-1.5 mb-1">
+                      {service ? (
+                        <Wrench className="h-3.5 w-3.5 text-gray-400 shrink-0 mt-0.5" />
                       ) : (
-                        <Package className="h-6 w-6 text-gray-300" />
+                        <Package className="h-3.5 w-3.5 text-gray-400 shrink-0 mt-0.5" />
                       )}
-                      <Badge className="absolute top-1 left-1 text-[9px] px-1 py-0 h-4 bg-white/90 text-gray-700 border">
+                      <Badge variant="outline" className="text-[9px] px-1 py-0 h-4">
                         {service ? 'Svc' : 'Prod'}
                       </Badge>
                     </div>
-                    <div className="p-1.5 space-y-0.5">
-                      <p className="text-[11px] font-semibold leading-tight line-clamp-2 min-h-[2rem]" style={{ color: '#2E2E2E' }}>
-                        {product.name}
-                      </p>
-                      <p className="text-xs font-bold" style={{ color: '#F26522' }}>
-                        {formatCurrency(product.basePrice ?? product.rate ?? 0)}
-                      </p>
-                      <div className="flex gap-0.5 pt-0.5">
-                        <Button size="sm" variant="outline" className="h-6 flex-1 text-[10px] px-1" onClick={() => openEditDialog(product)}>
-                          <Edit className="h-2.5 w-2.5" />
-                        </Button>
-                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => handleDelete(product)}>
-                          <Trash2 className="h-2.5 w-2.5 text-red-600" />
-                        </Button>
-                      </div>
+                    <p className="text-[11px] font-semibold leading-tight line-clamp-2 min-h-[2rem]" style={{ color: '#2E2E2E' }}>
+                      {product.name}
+                    </p>
+                    <p className="text-xs font-bold mt-0.5" style={{ color: '#F26522' }}>
+                      {formatCurrency(product.basePrice ?? product.rate ?? 0)}
+                    </p>
+                    <div className="flex gap-0.5 pt-1.5">
+                      <Button size="sm" variant="outline" className="h-6 flex-1 text-[10px] px-1" onClick={() => openEditDialog(product)}>
+                        <Edit className="h-2.5 w-2.5" />
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => handleDelete(product)}>
+                        <Trash2 className="h-2.5 w-2.5 text-red-600" />
+                      </Button>
                     </div>
                   </div>
                 );
@@ -339,8 +312,8 @@ const Products = () => {
             </DialogTitle>
             <DialogDescription>
               {isService
-                ? 'Service: only description + service charges. Photo optional (catalog only).'
-                : 'Photo is for catalog cards only — never printed on order slip / invoice.'}
+                ? 'Service: only description + service charges.'
+                : 'Product catalog details for orders and invoices.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -373,27 +346,6 @@ const Products = () => {
                 required
                 data-testid="product-name-input"
               />
-            </div>
-
-            <div>
-              <Label>Photo (catalog only)</Label>
-              <div className="flex items-center gap-3 mt-1">
-                <div className="w-16 h-16 rounded-md border bg-gray-50 overflow-hidden flex items-center justify-center shrink-0">
-                  {formData.image ? (
-                    <img src={formData.image} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                  ) : (
-                    <ImagePlus className="h-5 w-5 text-gray-300" />
-                  )}
-                </div>
-                <div className="space-y-1">
-                  <Input type="file" accept="image/*" onChange={onPickImage} disabled={imageBusy} className="text-xs" />
-                  {formData.image && (
-                    <Button type="button" variant="ghost" size="sm" className="h-7 text-xs text-red-600" onClick={() => setFormData({ ...formData, image: '' })}>
-                      Remove photo
-                    </Button>
-                  )}
-                </div>
-              </div>
             </div>
 
             {isService ? (
@@ -501,7 +453,7 @@ const Products = () => {
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                 <X className="h-4 w-4 mr-1" />Cancel
               </Button>
-              <Button type="submit" style={{ backgroundColor: '#F26522' }} className="text-white" disabled={saving || imageBusy}>
+              <Button type="submit" style={{ backgroundColor: '#F26522' }} className="text-white" disabled={saving}>
                 <Save className="h-4 w-4 mr-1" />
                 {saving ? 'Saving…' : 'Save'}
               </Button>
