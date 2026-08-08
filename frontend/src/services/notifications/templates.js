@@ -330,13 +330,11 @@ export function resolveWhatsAppTemplate(templates, event, status) {
   if (event === 'payment_sent') {
     return t.payment_sent || DEFAULT_WHATSAPP_TEMPLATES.payment_sent;
   }
-  // Always use the standard Ready message (avoid stale Settings templates / duplicates)
-  if (status === 'Ready') {
-    return DEFAULT_WHATSAPP_TEMPLATES.Ready;
-  }
+  // Prefer Settings templates (including Ready); fall back to defaults
   if (status && t[status]) return t[status];
-  if (status === 'Order Received' && (t.created || DEFAULT_WHATSAPP_TEMPLATES.created)) {
-    return t['Order Received'] || t.created || DEFAULT_WHATSAPP_TEMPLATES['Order Received'];
+  if (status === 'Ready') return DEFAULT_WHATSAPP_TEMPLATES.Ready;
+  if (status === 'Order Received') {
+    return t['Order Received'] || t.created || DEFAULT_WHATSAPP_TEMPLATES['Order Received'] || DEFAULT_WHATSAPP_TEMPLATES.created;
   }
   return t.status || DEFAULT_WHATSAPP_TEMPLATES.status;
 }

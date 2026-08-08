@@ -106,6 +106,7 @@ export async function notifyOrderEvent({
   notifications: notifOverride,
   openWhatsApp = true,
   pendingWindow = null,
+  sendEmail = true,
 } = {}) {
   if (!order && !invoice && !payment) return { ok: false, reason: 'no_payload' };
 
@@ -188,7 +189,8 @@ export async function notifyOrderEvent({
 
   const emailTo = order?.customerEmail || customer?.email || invoice?.customerEmail || payment?.partyEmail;
   if (
-    emailTo
+    sendEmail
+    && emailTo
     && customerAllows(customer, 'email')
     && shouldSendEmail(notifications, event, status)
   ) {

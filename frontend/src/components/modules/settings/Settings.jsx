@@ -930,10 +930,19 @@ const Settings = () => {
                   try {
                     const to = settings.company.email;
                     if (!to) { toast.error('Set company email first'); return; }
-                    await sendTestEmail(to);
-                    toast.success(`Test email sent to ${to}`);
+                    const res = await sendTestEmail(to);
+                    const data = res?.data || res;
+                    if (data?.ok === false || data?.error) {
+                      toast.error(data.error || data.reason || 'Email failed — authorize Gmail in Apps Script (Run any mail function once)');
+                      return;
+                    }
+                    if (data?.message && /queued/i.test(String(data.message))) {
+                      toast.error('Backend did not send mail (API stub). Point REACT_APP_GAS_API_URL to Apps Script web app.');
+                      return;
+                    }
+                    toast.success(`Test email sent to ${to} — check inbox/spam`);
                   } catch (err) {
-                    toast.error(err?.response?.data?.message || 'Test email failed — check Apps Script Gmail permissions');
+                    toast.error(err?.response?.data?.message || 'Test email failed — check Apps Script Gmail / MailApp permissions');
                   }
                 }}
               >

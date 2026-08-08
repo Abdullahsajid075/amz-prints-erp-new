@@ -130,7 +130,12 @@ const OrdersList = () => {
         company,
         { trackUrl, TrackUrl: trackUrl, trackingNumber: full.trackingNumber || full.orderId }
       );
-      const template = resolveWhatsAppTemplate(null, 'status', full.status);
+      let templates = null;
+      try {
+        const settingsRes = await settingsAPI.get();
+        templates = settingsRes.data?.notifications?.whatsappTemplates || null;
+      } catch { /* use defaults */ }
+      const template = resolveWhatsAppTemplate(templates, 'status', full.status);
       let msg = fillTemplate(template, vars);
       // Only append track link if template didn't already include it
       if (trackUrl && !String(msg || '').includes(trackUrl) && !/Track your order/i.test(msg)) {

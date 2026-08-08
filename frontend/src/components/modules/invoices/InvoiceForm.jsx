@@ -7,8 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { invoicesAPI, customersAPI, productsAPI } from '@/services/api';
-import { applyServerNotificationHint, notifyOrderEvent, printPaymentSlip, openWhatsAppChat, fillTemplate, resolveWhatsAppTemplate, buildTemplateVars, buildWhatsAppAppUrl } from '@/services/notifications';
+import { invoicesAPI, customersAPI, productsAPI, settingsAPI } from '@/services/api';
+import { notifyOrderEvent, printPaymentSlip, openWhatsAppChat, fillTemplate, resolveWhatsAppTemplate, buildTemplateVars } from '@/services/notifications';
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import { formatCurrency } from '@/utils/helpers';
 import { catalogFieldsForOrderLine } from '@/utils/productImage';
@@ -245,7 +245,12 @@ const InvoiceForm = () => {
         balance_due: bal,
       }
     );
-    const template = resolveWhatsAppTemplate(null, 'invoice_generated');
+    let templates = null;
+    try {
+      const settingsRes = await settingsAPI.get();
+      templates = settingsRes.data?.notifications?.whatsappTemplates || null;
+    } catch { /* defaults */ }
+    const template = resolveWhatsAppTemplate(templates, 'invoice_generated');
     let text = fillTemplate(template, vars);
     if (invoiceUrl && !text.includes(invoiceUrl)) {
       text = `${text}\n\nInvoice link: ${invoiceUrl}`;
@@ -373,8 +378,7 @@ const InvoiceForm = () => {
         res = await invoicesAPI.create(payload);
         toast.success(`Invoice ${payload.invoiceNumber} created`);
         const data = { ...payload, ...(res.data || {}) };
-        // Always open invoice WhatsApp (link + pending). Do not open a second payment chat.
-        applyServerNotificationHint(data);
+        // Single WhatsApp open (Settings invoice template) — skip GAS hint to avoid duplicate
         await sendInvoiceWhatsApp(data, grandTotal, balance, Number(payload.paidAmount) || 0, waWindow);
         waWindow = null;
         const paidNow = Number(payload.paidAmount) || 0;

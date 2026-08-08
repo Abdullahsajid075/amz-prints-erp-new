@@ -179,6 +179,24 @@ const POS = () => {
     );
   };
 
+  const setQtyManual = (productId, raw) => {
+    const n = Math.floor(Number(raw));
+    if (!Number.isFinite(n)) return;
+    setCart((prev) =>
+      prev
+        .map((c) => (c.productId === productId ? { ...c, quantity: n } : c))
+        .filter((c) => c.quantity > 0)
+    );
+  };
+
+  const clearCart = () => {
+    if (!cart.length) return;
+    setCart([]);
+    setDiscountValue('');
+    setDiscountType('amount');
+    toast.message('Cart cleared');
+  };
+
   const printReceipt = (sale) => {
     const website = company.website || 'https://amzprints.com';
     const logoHtml = company.logo
@@ -523,6 +541,14 @@ const POS = () => {
               </div>
             </div>
 
+            <div className="flex items-center justify-between gap-2">
+              <Label className="mb-0">Cart ({cart.length})</Label>
+              {!!cart.length && (
+                <Button type="button" size="sm" variant="outline" className="h-7 text-xs text-red-600 border-red-200" onClick={clearCart} data-testid="pos-clear-cart">
+                  Clear
+                </Button>
+              )}
+            </div>
             <div className="space-y-2 max-h-[36vh] overflow-y-auto">
               {!cart.length && <p className="text-sm text-gray-500 text-center py-6">Tap products to add</p>}
               {cart.map((item) => (
@@ -535,7 +561,15 @@ const POS = () => {
                     <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQty(item.productId, -1)}>
                       <Minus className="h-3 w-3" />
                     </Button>
-                    <span className="w-6 text-center text-sm font-semibold">{item.quantity}</span>
+                    <Input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={item.quantity}
+                      onChange={(e) => setQtyManual(item.productId, e.target.value)}
+                      className="h-7 w-14 text-center text-sm font-semibold px-1"
+                      data-testid={`pos-qty-${item.productId}`}
+                    />
                     <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQty(item.productId, 1)}>
                       <Plus className="h-3 w-3" />
                     </Button>

@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ordersAPI, customersAPI, designersAPI, tokensAPI, productsAPI } from '@/services/api';
-import { applyServerNotificationHint, notifyOrderEvent, printPaymentSlip } from '@/services/notifications';
+import { notifyOrderEvent, printPaymentSlip } from '@/services/notifications';
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import { ORDER_STATUS } from '@/utils/constants';
 import { formatCurrency } from '@/utils/helpers';
@@ -380,8 +380,15 @@ const OrderForm = () => {
           trackingNumber: server.trackingNumber || orderData.trackingNumber,
         };
 
+        // One WhatsApp only: status change wins; else payment_received. Always print slip for money.
         if (receivedDelta > 0) {
           printOrderPaymentReceipt(data, receivedDelta);
+        }
+        const statusChanged = String(prevStatus) !== String(data.status || orderData.status);
+        if (statusChanged) {
+          await notifyOrderEvent({ event: 'status', order: data, sendEmail: false });
+          toast.message('WhatsApp opened — tap Send (status update)');
+        } else if (receivedDelta > 0) {
           await notifyOrderEvent({
             event: 'payment_received',
             order: data,
@@ -395,15 +402,9 @@ const OrderForm = () => {
               balanceDue: data.balanceAmount,
               totalAmount: data.totalAmount,
             },
+            sendEmail: false,
           });
-          toast.message('Payment receipt printed + WhatsApp');
-        }
-
-        if (String(prevStatus) !== String(data.status || orderData.status)) {
-          // Always use frontend templates (Ready text + single WhatsApp open).
-          // Skip GAS hint to avoid duplicate / outdated message text.
-          await notifyOrderEvent({ event: 'status', order: data });
-          toast.message('WhatsApp opened — tap Send to notify customer');
+          toast.message('Payment slip + WhatsApp — tap Send');
         }
       } else {
         const created = await ordersAPI.create(orderData);
@@ -420,14 +421,11 @@ const OrderForm = () => {
         }
         toast.success('Order created successfully');
         const data = { ...orderData, ...(created.data || {}) };
-        if (applyServerNotificationHint(data)) {
-          toast.message('WhatsApp opened — tap Send to notify customer');
-        } else {
-          await notifyOrderEvent({ event: 'created', order: data });
-          toast.message('Customer notification prepared');
-        }
         if (nextAdvance > 0) {
           printOrderPaymentReceipt(data, nextAdvance);
+        }
+        // Single WhatsApp: prefer Settings templates via notifyOrderEvent (skip GAS hint = no double open)
+        if (nextAdvance > 0) {
           await notifyOrderEvent({
             event: 'payment_received',
             order: data,
@@ -441,7 +439,12 @@ const OrderForm = () => {
               balanceDue: data.balanceAmount,
               totalAmount: data.totalAmount,
             },
+            sendEmail: false,
           });
+          toast.message('Payment slip + WhatsApp — tap Send');
+        } else {
+          await notifyOrderEvent({ event: 'created', order: data, sendEmail: false });
+          toast.message('WhatsApp opened — tap Send to notify customer');
         }
       }
       navigate('/orders');

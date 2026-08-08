@@ -7,7 +7,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { paymentsAPI, settingsAPI, customersAPI, expensesAPI } from '@/services/api';
+import { paymentsAPI, settingsAPI, customersAPI, expensesAPI, ordersAPI, invoicesAPI } from '@/services/api';
+import { clearGasCache } from '@/services/gasClient';
 import { notifyPaymentEvent, printPaymentSlip } from '@/services/notifications';
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import { formatCurrency, formatDate } from '@/utils/helpers';
@@ -45,6 +46,9 @@ const empty = {
   notes: '',
   balanceDue: 0,
   totalAmount: 0,
+  linkedOrderId: '',
+  linkedInvoiceId: '',
+  linkedLabel: '',
 };
 
 function normalizePayment(p = {}) {
@@ -64,7 +68,20 @@ function normalizePayment(p = {}) {
     notes: p.notes || '',
     balanceDue: Number(p.balanceDue ?? p.balancedue ?? 0) || 0,
     totalAmount: Number(p.totalAmount ?? p.totalamount ?? 0) || 0,
+    linkedOrderId: p.linkedOrderId || p.linkedorderid || '',
+    linkedInvoiceId: p.linkedInvoiceId || p.linkedinvoiceid || '',
+    linkedLabel: p.linkedLabel || '',
   };
+}
+
+function matchRef(row, needle) {
+  const n = String(needle || '').trim().toLowerCase();
+  if (!n) return false;
+  const keys = [
+    row.orderId, row.orderid, row.id, row.trackingNumber, row.trackingnumber,
+    row.invoiceNumber, row.invoiceno, row.invoiceNo, row.shareToken,
+  ].map((v) => String(v || '').trim().toLowerCase()).filter(Boolean);
+  return keys.includes(n) || keys.some((k) => k.endsWith(n) || n.endsWith(k));
 }
 
 const Payments = () => {
@@ -79,6 +96,7 @@ const Payments = () => {
   const [editing, setEditing] = useState(null);
   const [formData, setFormData] = useState(empty);
   const [saving, setSaving] = useState(false);
+  const [lookingUp, setLookingUp] = useState(false);
 
   const loadCustomers = useCallback(async () => {
     try {
@@ -150,8 +168,132 @@ const Payments = () => {
       partyPhone: p.partyPhone || p.phone || '',
       balanceDue: Number(p.balanceDue) || 0,
       totalAmount: Number(p.totalAmount) || 0,
+      linkedOrderId: p.linkedOrderId || '',
+      linkedInvoiceId: p.linkedInvoiceId || '',
     });
     setDialogOpen(true);
+  };
+
+  /** Auto-fill amount / customer from Order or Invoice number (optional link). */
+  const lookupReference = async () => {
+    const ref = String(formData.reference || '').trim();
+    if (!ref) {
+      toast.error('Enter Order / Invoice number first');
+      return;
+    }
+    setLookingUp(true);
+    try {
+      const [ordRes, invRes] = await Promise.all([
+        ordersAPI.getAll().catch(() => ({ data: [] })),
+        invoicesAPI.getAll().catch(() => ({ data: [] })),
+      ]);
+      const orders = Array.isArray(ordRes.data) ? ordRes.data : [];
+      const invoices = Array.isArray(invRes.data) ? invRes.data : [];
+
+      const order = orders.find((o) => matchRef(o, ref) && String(o.docType || 'Order').toLowerCase() !== 'quotation');
+      if (order) {
+        const total = Number(order.totalAmount || 0) || 0;
+        const bal = Number(order.balanceAmount != null ? order.balanceAmount : Math.max(0, total - Number(order.advancePayment || 0)));
+        setFormData((prev) => ({
+          ...prev,
+          reference: order.orderId || ref,
+          linkedOrderId: order.id || '',
+          linkedInvoiceId: '',
+          linkedLabel: `Order ${order.orderId || order.id}`,
+          customerId: order.customerId || prev.customerId,
+          party: order.customerName || prev.party,
+          partyPhone: order.customerPhone || prev.partyPhone,
+          partyEmail: order.customerEmail || prev.partyEmail,
+          partyAddress: order.customerAddress || prev.partyAddress,
+          totalAmount: total,
+          balanceDue: bal,
+          amount: bal > 0 ? bal : total,
+          category: prev.category || 'Invoice Payment',
+          type: 'inflow',
+        }));
+        toast.success(`Linked to order ${order.orderId} — amount set to balance`);
+        return;
+      }
+
+      const invoice = invoices.find((inv) => matchRef(inv, ref));
+      if (invoice) {
+        const total = Number(invoice.total ?? invoice.totalAmount ?? 0) || 0;
+        const paid = Number(invoice.paidAmount ?? invoice.paid ?? 0) || 0;
+        const bal = Number(invoice.balanceAmount != null ? invoice.balanceAmount : Math.max(0, total - paid));
+        setFormData((prev) => ({
+          ...prev,
+          reference: invoice.invoiceNumber || invoice.invoiceNo || ref,
+          linkedInvoiceId: invoice.id || '',
+          linkedOrderId: invoice.orderId || '',
+          linkedLabel: `Invoice ${invoice.invoiceNumber || invoice.invoiceNo || invoice.id}`,
+          customerId: invoice.customerId || prev.customerId,
+          party: invoice.customerName || prev.party,
+          partyPhone: invoice.customerPhone || prev.partyPhone,
+          partyEmail: invoice.customerEmail || prev.partyEmail,
+          partyAddress: invoice.customerAddress || prev.partyAddress,
+          totalAmount: total,
+          balanceDue: bal,
+          amount: bal > 0 ? bal : total,
+          category: 'Invoice Payment',
+          type: 'inflow',
+        }));
+        toast.success(`Linked to invoice — amount set to balance due`);
+        return;
+      }
+
+      toast.error('No matching order or invoice — payment can still be saved as general Cash In');
+      setFormData((prev) => ({ ...prev, linkedOrderId: '', linkedInvoiceId: '', linkedLabel: '' }));
+    } catch (err) {
+      console.error(err);
+      toast.error('Lookup failed');
+    } finally {
+      setLookingUp(false);
+    }
+  };
+
+  const applyPaymentToDocument = async (payment) => {
+    const amt = Number(payment.amount) || 0;
+    if (amt <= 0) return;
+    if (payment.linkedInvoiceId) {
+      try {
+        const res = await invoicesAPI.getById(payment.linkedInvoiceId);
+        const inv = res.data || {};
+        const total = Number(inv.total ?? inv.totalAmount ?? payment.totalAmount ?? 0) || 0;
+        const prevPaid = Number(inv.paidAmount ?? inv.paid ?? 0) || 0;
+        const paidAmount = prevPaid + amt;
+        const balance = Math.max(0, total - paidAmount);
+        const status = balance <= 0 ? 'Paid' : (paidAmount > 0 ? 'Partial' : 'Unpaid');
+        await invoicesAPI.update(payment.linkedInvoiceId, {
+          ...inv,
+          paidAmount,
+          status,
+        });
+        toast.message(`Invoice updated — paid ${formatCurrency(paidAmount)}`);
+      } catch (err) {
+        console.warn('Invoice apply failed', err);
+        toast.error('Payment saved, but invoice balance not updated');
+      }
+      return;
+    }
+    if (payment.linkedOrderId) {
+      try {
+        const res = await ordersAPI.getById(payment.linkedOrderId);
+        const order = res.data || {};
+        const total = Number(order.totalAmount || payment.totalAmount || 0) || 0;
+        const prevAdv = Number(order.advancePayment || 0) || 0;
+        const advancePayment = prevAdv + amt;
+        const balanceAmount = Math.max(0, total - advancePayment);
+        await ordersAPI.update(payment.linkedOrderId, {
+          ...order,
+          advancePayment,
+          balanceAmount,
+        });
+        toast.message(`Order updated — advance ${formatCurrency(advancePayment)}`);
+      } catch (err) {
+        console.warn('Order apply failed', err);
+        toast.error('Payment saved, but order advance not updated');
+      }
+    }
   };
 
   const afterSaveActions = async (payment, { pendingWindow = null } = {}) => {
@@ -189,12 +331,14 @@ const Payments = () => {
         pendingWindow,
       });
       if (notify?.whatsappOpened) toast.message('WhatsApp opened — tap Send');
-      else toast.error('WhatsApp did not open — check phone / Settings → Notifications');
+      else toast.error('WhatsApp did not open — check phone / Settings → Notifications (templates On)');
     } else {
       if (pendingWindow && !pendingWindow.closed) {
         try { pendingWindow.close(); } catch { /* ignore */ }
       }
-      toast.error('Party phone missing — WhatsApp not sent');
+      if (String(payment.type || '').toLowerCase() !== 'outflow') {
+        toast.message('Payment recorded (no phone — WhatsApp skipped)');
+      }
     }
   };
 
@@ -209,9 +353,6 @@ const Payments = () => {
     } else if (!formData.party?.trim()) {
       toast.error('Party / person is required');
       return;
-    } else if (!String(formData.partyPhone || '').trim()) {
-      toast.error('Party phone required for WhatsApp receipt');
-      return;
     }
     if (!(Number(formData.amount) > 0)) {
       toast.error('Enter a valid amount');
@@ -224,7 +365,7 @@ const Payments = () => {
 
     // Pre-open WhatsApp tab during click (survives popup blocker after await)
     let waWindow = null;
-    if (!editing && String(formData.partyPhone || '').trim()) {
+    if (!editing && formData.type === 'inflow' && String(formData.partyPhone || '').trim()) {
       try {
         waWindow = window.open('about:blank', '_blank');
       } catch {
@@ -252,6 +393,8 @@ const Payments = () => {
         notes: formData.notes || '',
         balanceDue: Number(formData.balanceDue) || 0,
         totalAmount: Number(formData.totalAmount) || 0,
+        linkedOrderId: formData.linkedOrderId || '',
+        linkedInvoiceId: formData.linkedInvoiceId || '',
       };
       let saved;
       if (editing) {
@@ -262,13 +405,19 @@ const Payments = () => {
         const res = await paymentsAPI.create(payload);
         saved = normalizePayment({ ...payload, ...(res.data || {}) });
         toast.success(payload.type === 'outflow' ? 'Cash Out recorded' : 'Cash In recorded');
+        // Apply to linked order/invoice balances (optional link)
+        if (payload.type === 'inflow' && (payload.linkedOrderId || payload.linkedInvoiceId)) {
+          await applyPaymentToDocument({ ...saved, ...payload });
+        }
       }
+      clearGasCache();
       setDialogOpen(false);
       loadPayments();
       if (!editing) {
         await afterSaveActions({
           ...saved,
           totalAmount: saved.totalAmount || payload.totalAmount,
+          balanceDue: saved.balanceDue ?? payload.balanceDue,
         }, { pendingWindow: waWindow });
       } else if (waWindow && !waWindow.closed) {
         try { waWindow.close(); } catch { /* ignore */ }
@@ -497,13 +646,42 @@ const Payments = () => {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div><Label>Bill / Order Total (optional)</Label><Input type="number" min="0" step="0.01" value={formData.totalAmount || 0} onChange={(e) => setFormData({ ...formData, totalAmount: parseFloat(e.target.value) || 0 })} placeholder="For WhatsApp Total" /></div>
-              <div><Label>Balance Due (optional)</Label><Input type="number" min="0" step="0.01" value={formData.balanceDue || 0} onChange={(e) => setFormData({ ...formData, balanceDue: parseFloat(e.target.value) || 0 })} /></div>
+            <div>
+              <Label>Order / Invoice # (optional)</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={formData.reference}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    reference: e.target.value,
+                    linkedOrderId: '',
+                    linkedInvoiceId: '',
+                    linkedLabel: '',
+                  })}
+                  onBlur={() => {
+                    if (formData.reference?.trim() && !formData.linkedOrderId && !formData.linkedInvoiceId) {
+                      lookupReference();
+                    }
+                  }}
+                  placeholder="ORD-0001 / INV-… / leave blank for general Cash In"
+                  data-testid="payment-reference-input"
+                />
+                <Button type="button" variant="outline" className="shrink-0" disabled={lookingUp} onClick={lookupReference}>
+                  {lookingUp ? '…' : 'Lookup'}
+                </Button>
+              </div>
+              {formData.linkedLabel ? (
+                <p className="text-[11px] text-emerald-700 mt-1">Linked: {formData.linkedLabel} — amount auto-filled from balance</p>
+              ) : (
+                <p className="text-[11px] text-gray-500 mt-1">Optional. Lookup fills customer + amount. Blank = general cash (still in Payments + Net position).</p>
+              )}
             </div>
-            <div><Label>Reference / Txn #</Label><Input value={formData.reference} onChange={(e) => setFormData({ ...formData, reference: e.target.value })} placeholder="Invoice, Order or Txn ID" /></div>
+            <div className="grid grid-cols-2 gap-4">
+              <div><Label>Bill / Order Total</Label><Input type="number" min="0" step="0.01" value={formData.totalAmount || 0} onChange={(e) => setFormData({ ...formData, totalAmount: parseFloat(e.target.value) || 0 })} placeholder="Auto from lookup" /></div>
+              <div><Label>Balance Due</Label><Input type="number" min="0" step="0.01" value={formData.balanceDue || 0} onChange={(e) => setFormData({ ...formData, balanceDue: parseFloat(e.target.value) || 0 })} /></div>
+            </div>
             <div><Label>Notes</Label><Textarea rows={2} value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} /></div>
-            <p className="text-xs text-gray-500">Save → pocket slip + WhatsApp (Total / Received / Balance). Edit never creates a duplicate payment.</p>
+            <p className="text-xs text-gray-500">Save → updates order/invoice balance (if linked) · mini slip · WhatsApp · Dashboard / Reports / Ledger refresh.</p>
             <DialogFooter className="gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}><X className="h-4 w-4 mr-1" />Cancel</Button>
               <Button type="submit" style={{ backgroundColor: '#F26522' }} className="text-white" disabled={saving} data-testid="save-payment-button"><Save className="h-4 w-4 mr-1" />{saving ? 'Saving...' : editing ? 'Update' : 'Record'}</Button>

@@ -188,7 +188,11 @@ const Dashboard = () => {
 
   const displayName = getUserDisplayName(user);
   const greeting = greetingForHour(new Date().getHours());
-  const net = Number(stats.revenue || 0) - Number(stats.expenses || 0);
+  // Prefer cash net (Payments Cash In − Out); fallback to revenue − expenses
+  const net = Number.isFinite(Number(stats.cashNet))
+    ? Number(stats.cashNet)
+    : (Number(stats.cashIn || 0) - Number(stats.cashOut || stats.expenses || 0))
+      || (Number(stats.revenue || 0) - Number(stats.expenses || 0));
   const todayLabel = new Date().toLocaleDateString('en-PK', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
@@ -355,7 +359,7 @@ const Dashboard = () => {
             {[
               { label: 'Revenue', value: formatCurrency(stats.revenue), hint: `${stats.collectionRate || 0}% collected` },
               { label: 'Receivables', value: formatCurrency(stats.receivables), hint: 'Customer balances' },
-              { label: 'Net position', value: formatCurrency(net), hint: 'Revenue − expenses' },
+              { label: 'Net position', value: formatCurrency(net), hint: 'Cash In − Cash Out (Payments)' },
               { label: 'Open orders', value: stats.pendingOrders || 0, hint: `${stats.fulfillmentRate || 0}% fulfilled` },
             ].map((k) => (
               <div key={k.label} className="rounded-2xl bg-black/15 border border-white/25 p-3.5">

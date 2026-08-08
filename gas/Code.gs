@@ -919,14 +919,47 @@ function handleCustomers_(path, method, body) {
     var orders = getSheetRows_(SHEET_NAMES.ORDERS).filter(function (o) {
       return String(o.customerid) === String(customer.id) || String(o.customerphone) === String(customer.phone);
     });
+    var payRows = [];
+    try {
+      payRows = getSheetRows_(SHEET_NAMES.PAYMENTS).filter(function (p) {
+        var t = String(p.type || 'inflow').toLowerCase();
+        if (t === 'outflow' || t === 'out') return false;
+        return String(p.customerid) === String(customer.id)
+          || String(p.partyphone || p.phone || '') === String(customer.phone || '')
+          || String(p.customername || p.party || '').toLowerCase() === String(customer.name || '').toLowerCase();
+      });
+    } catch (eLed) { payRows = []; }
+    var invRows = [];
+    try {
+      invRows = getSheetRows_(SHEET_NAMES.INVOICES).filter(function (inv) {
+        return String(inv.customerid) === String(customer.id)
+          || String(inv.customerphone) === String(customer.phone);
+      });
+    } catch (eInv) { invRows = []; }
+    var orderPaid = orders.reduce(function (s, o) { return s + Number(o.advancepayment || 0); }, 0);
+    var paymentPaid = payRows.reduce(function (s, p) { return s + Number(p.amount || 0); }, 0);
+    var billed = orders.reduce(function (s, o) { return s + Number(o.totalamount || o.total || 0); }, 0);
+    // Prefer order balances for outstanding; payments already reflected when applied to orders
+    var outstanding = orders.reduce(function (s, o) { return s + Number(o.balanceamount || 0); }, 0);
     return {
       customer: toApiCustomer_(customer),
-      invoices: [],
-      orders: orders,
-      payments: [],
-      totalBilled: orders.reduce(function (s, o) { return s + Number(o.totalamount || o.total || 0); }, 0),
-      totalPaid: orders.reduce(function (s, o) { return s + Number(o.advancepayment || 0); }, 0),
-      outstanding: orders.reduce(function (s, o) { return s + Number(o.balanceamount || 0); }, 0),
+      invoices: invRows.map(toApiInvoice_),
+      orders: orders.map(toApiOrder_),
+      payments: payRows.map(function (p) {
+        return {
+          id: p.id,
+          date: p.date || '',
+          type: p.type || 'inflow',
+          amount: Number(p.amount || 0),
+          method: p.method || '',
+          reference: p.refid || p.reference || '',
+          party: p.customername || p.party || '',
+          notes: p.notes || '',
+        };
+      }),
+      totalBilled: billed,
+      totalPaid: Math.max(orderPaid, paymentPaid),
+      outstanding: outstanding,
     };
   }
 
@@ -2425,6 +2458,27 @@ function getDashboardBootstrap_(params) {
     return s + Number(ex.amount || 0);
   }, 0);
 
+  // Payments cash position (Cash In / Cash Out) — drives Net cash on dashboard
+  var paymentsAll = [];
+  try { paymentsAll = getSheetRows_(SHEET_NAMES.PAYMENTS); } catch (ePay) { paymentsAll = []; }
+  var paymentsInRange = paymentsAll.filter(function (p) {
+    return inDateRange_(p.date, from, to);
+  });
+  var cashIn = paymentsInRange.reduce(function (s, p) {
+    var t = String(p.type || 'inflow').toLowerCase();
+    if (t === 'outflow' || t === 'out') return s;
+    return s + Number(p.amount || 0);
+  }, 0);
+  var cashOut = paymentsInRange.reduce(function (s, p) {
+    var t = String(p.type || '').toLowerCase();
+    if (t === 'outflow' || t === 'out') return s + Number(p.amount || 0);
+    return s;
+  }, 0);
+  // Net cash = money in − money out (fallback: expenses if no outflow rows)
+  var cashNet = cashIn - (cashOut > 0 ? cashOut : expenseTotal);
+  // Collected = order advances + cash-in payments (cash position visibility)
+  collected = collected + cashIn;
+
   // Vendor payables from Purchases (Total − PaidAmount) in range
   var payables = purchases.reduce(function (s, p) {
     var status = String(p.status || '').toLowerCase();
@@ -2499,6 +2553,9 @@ function getDashboardBootstrap_(params) {
       expenses: expenseTotal,
       receivables: receivables,
       collected: collected,
+      cashIn: cashIn,
+      cashOut: cashOut > 0 ? cashOut : expenseTotal,
+      cashNet: cashNet,
       payables: payables,
       vendorPayables: payables,
       activeCustomers: customers.length,
