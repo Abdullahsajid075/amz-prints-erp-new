@@ -269,6 +269,7 @@ async function dispatch(req, res) {
           status: body.status || 'Active',
           permissions: body.permissions || [],
           email: body.email || body.username || '',
+          employee_id: body.employeeId || body.employee_id || '',
         };
         await supabase.from('users').insert(row);
         return send(res, mapUser(row, true));
@@ -282,6 +283,7 @@ async function dispatch(req, res) {
           status: body.status,
           permissions: body.permissions,
           email: body.email,
+          employee_id: body.employeeId != null ? body.employeeId : body.employee_id,
         };
         if (body.password) updates.password = body.password;
         Object.keys(updates).forEach((k) => updates[k] === undefined && delete updates[k]);
@@ -485,16 +487,23 @@ async function dispatch(req, res) {
     if (path === '/employees' || path.startsWith('/employees/')) {
       const done = await handleCollection('employees', '/employees', mapEmployee, (b, rid) => ({
         id: rid || b.id || id('emp'),
+        employee_code: b.employeeCode || b.employee_code || '',
         name: b.name || '',
         phone: b.phone || '',
         email: b.email || '',
+        cnic: b.cnic || '',
         role: b.role || 'Staff',
+        designation: b.designation || '',
         department: b.department || 'General',
         join_date: b.joinDate || b.join_date || '',
         salary: num(b.salary),
         status: b.status || 'Active',
         address: b.address || '',
+        city: b.city || '',
+        emergency_contact: b.emergencyContact || b.emergency_contact || '',
+        emergency_phone: b.emergencyPhone || b.emergency_phone || '',
         notes: b.notes || '',
+        photo: b.photo || b.image || '',
       }));
       if (done !== null) return done;
     }
@@ -773,22 +782,25 @@ async function dispatch(req, res) {
       }
     }
 
-    // Designers (from users)
+    // Designers from HR employees (role Designer)
     if (path === '/designers' && method === 'GET') {
-      const { data } = await supabase.from('users').select('*');
-      let designers = (data || []).filter((u) => String(u.role || '').toLowerCase().includes('designer') && isActive(u));
-      if (!designers.length) designers = (data || []).filter(isActive);
-      return send(res, designers.map((u) => ({
-        id: u.id || u.username,
-        name: u.name || u.username,
-        email: u.email || '',
-        role: u.role || '',
-      })));
-    }
-
-    function isActive(u) {
-      const s = String(u.status || 'Active').toLowerCase();
-      return s !== 'inactive';
+      const { data } = await supabase.from('employees').select('*');
+      const designers = (data || []).filter((e) => {
+        const role = String(e.role || '').toLowerCase();
+        const status = String(e.status || 'Active').toLowerCase();
+        return status !== 'inactive' && role.includes('designer');
+      });
+      return send(res, designers.map((e) => {
+        const emp = mapEmployee(e);
+        return {
+          id: emp.id,
+          name: emp.name,
+          email: emp.email || '',
+          phone: emp.phone || '',
+          role: emp.role || 'Designer',
+          photo: emp.photo || '',
+        };
+      }));
     }
 
     // Counters

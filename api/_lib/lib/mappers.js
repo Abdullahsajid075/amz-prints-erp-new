@@ -112,18 +112,27 @@ function mapInvoice(row) {
 
 function mapEmployee(row) {
   if (!row) return null;
+  const photo = row.photo || row.image || '';
   return {
     id: row.id,
+    employeeCode: row.employee_code || '',
     name: row.name || '',
     phone: row.phone || '',
     email: row.email || '',
+    cnic: row.cnic || '',
     role: row.role || 'Staff',
+    designation: row.designation || '',
     department: row.department || 'General',
     joinDate: row.join_date || '',
     salary: num(row.salary),
     status: row.status || 'Active',
     address: row.address || '',
+    city: row.city || '',
+    emergencyContact: row.emergency_contact || '',
+    emergencyPhone: row.emergency_phone || '',
     notes: row.notes || '',
+    photo,
+    image: photo,
   };
 }
 
@@ -204,6 +213,7 @@ function mapUser(row, includePassword = false) {
     role: row.role || '',
     status: row.status || 'Active',
     email: row.email || row.username || '',
+    employeeId: row.employee_id || '',
     permissions: Array.isArray(row.permissions) ? row.permissions : [],
   };
   if (includePassword) base.password = row.password || '';

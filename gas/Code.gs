@@ -39,10 +39,13 @@ var DEFAULT_CRM_STAGES = [
 ];
 
 var DEFAULT_HEADERS = {
-  Users: ['Username', 'Password', 'Name', 'Role', 'Status', 'Permissions'],
+  Users: ['Username', 'Password', 'Name', 'Role', 'Status', 'Permissions', 'EmployeeId'],
   Customers: ['Id', 'Name', 'Phone', 'Email', 'Address', 'City', 'Notes', 'InCrm', 'Stage', 'StageUpdatedAt', 'NotifyWhatsApp', 'NotifyEmail'],
   CrmNotes: ['Id', 'CustomerId', 'Note', 'CreatedAt', 'CreatedBy'],
-  Employees: ['Id', 'Name', 'Phone', 'Email', 'Role', 'Department', 'JoinDate', 'Salary', 'Status', 'Address', 'Notes'],
+  Employees: [
+    'Id', 'EmployeeCode', 'Name', 'Phone', 'Email', 'Cnic', 'Role', 'Designation', 'Department',
+    'JoinDate', 'Salary', 'Status', 'Address', 'City', 'EmergencyContact', 'EmergencyPhone', 'Notes', 'Photo'
+  ],
   Orders: [
     'Id', 'OrderId', 'Date', 'CustomerId', 'CustomerName', 'CustomerPhone',
     'CustomerEmail', 'CustomerAddress', 'Status', 'DeliveryDate', 'Products',
@@ -206,7 +209,9 @@ function normalizeHeader_(header) {
     doctype: 'doctype', trackingnumber: 'trackingnumber', statushistory: 'statushistory',
     deliveryaddress: 'deliveryaddress', quotationid: 'quotationid',
     unit: 'unit', description: 'description',
-    image: 'image', photo: 'image', productimage: 'image', img: 'image', picture: 'image',
+    image: 'image', productimage: 'image', img: 'image', picture: 'photo',
+    photo: 'photo', employeecode: 'employeecode', cnic: 'cnic', designation: 'designation',
+    emergencycontact: 'emergencycontact', emergencyphone: 'emergencyphone', employeeid: 'employeeid',
     orderid: 'orderid', date: 'date', time: 'time', deliverydate: 'deliverydate',
     products: 'products', items: 'items', totalamount: 'totalamount', total: 'total',
     advancepayment: 'advancepayment', balanceamount: 'balanceamount', assigneddesigner: 'assigneddesigner',
@@ -407,6 +412,8 @@ function valueForHeader_(obj, rawHeader) {
     total: ['total', 'totalamount'],
     paid: ['paid', 'paidamount'],
     tax: ['tax'],
+    image: ['image', 'photo'],
+    photo: ['photo', 'image'],
   };
 
   var keys = fallbacks[key] || [key];
@@ -1451,6 +1458,7 @@ function toApiUser_(u, includePassword) {
     name: u.name || '',
     role: u.role || 'Sales',
     status: u.status || 'Active',
+    employeeId: u.employeeid || '',
     permissions: parsePermissions_(u.permissions),
   };
   if (includePassword) out.password = u.password || '';
@@ -1479,6 +1487,7 @@ function handleUsers_(path, method, body) {
         name: body.name || username,
         role: body.role || 'Sales',
         status: body.status || 'Active',
+        employeeid: body.employeeId || body.employeeid || '',
         permissions: Array.isArray(body.permissions) || Array.isArray(body.menus)
           ? JSON.stringify(body.permissions || body.menus || [])
           : (body.permissions || '[]'),
@@ -1506,6 +1515,7 @@ function handleUsers_(path, method, body) {
       name: body.name != null ? body.name : users[index].name,
       role: body.role != null ? body.role : users[index].role,
       status: body.status != null ? body.status : users[index].status,
+      employeeid: body.employeeId != null ? body.employeeId : (body.employeeid != null ? body.employeeid : (users[index].employeeid || '')),
       permissions: body.permissions != null || body.menus != null
         ? JSON.stringify(body.permissions || body.menus || [])
         : users[index].permissions,
@@ -2570,19 +2580,25 @@ function toPublicTrackOrder_(o) {
   };
 }
 
-/** Sheets cells cap ~50k chars — store catalog photos in Drive, keep URL in Image column. */
+/** Sheets cells cap ~50k chars — store photos in Drive, keep URL in sheet. */
 function getOrCreateFolder_(name) {
   var it = DriveApp.getFoldersByName(name);
   if (it.hasNext()) return it.next();
   return DriveApp.createFolder(name);
 }
 
-function saveProductImageToDrive_(dataUrl, productId) {
+function saveDataUrlImageToDrive_(dataUrl, fileId, folderName) {
   var raw = String(dataUrl || '').trim();
   if (!raw) return '';
-  // Already a hosted URL (Drive / http) — keep as-is
+  // Already a hosted URL — keep as-is (never echo huge data: URLs back; Apps Script responses max ~50KB)
   if (/^https?:\/\//i.test(raw)) return raw;
-  if (raw.indexOf('data:image') !== 0) return raw;
+  if (raw.indexOf('data:image') !== 0) {
+    // Unknown short token — keep; reject huge blobs that would break Sheets / response
+    if (raw.length > 2000) {
+      throw new Error('Invalid image data. Choose a photo again.');
+    }
+    return raw;
+  }
 
   var comma = raw.indexOf(',');
   if (comma < 0) return '';
@@ -2590,28 +2606,134 @@ function saveProductImageToDrive_(dataUrl, productId) {
   var b64 = raw.substring(comma + 1);
   if (!b64) return '';
 
-  // Sheets cannot hold large data URLs; always prefer Drive for data: images
   try {
     var contentType = 'image/jpeg';
     var m = meta.match(/data:([^;]+)/i);
     if (m && m[1]) contentType = m[1];
     var bytes = Utilities.base64Decode(b64);
     var ext = contentType.indexOf('png') >= 0 ? '.png' : '.jpg';
-    var blob = Utilities.newBlob(bytes, contentType, String(productId || 'product') + ext);
-    var folder = getOrCreateFolder_('AMZ-ERP-Product-Images');
+    var blob = Utilities.newBlob(bytes, contentType, String(fileId || 'file') + ext);
+    var folder = getOrCreateFolder_(folderName || 'AMZ-ERP-Images');
     var file = folder.createFile(blob);
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     return 'https://drive.google.com/uc?export=view&id=' + file.getId();
   } catch (err) {
-    // Last resort: only keep if under Sheets cell limit
-    if (raw.length <= 45000) return raw;
-    throw new Error('Product image too large to save. Try a smaller photo. (' + (err.message || err) + ')');
+    var msg = String(err && err.message ? err.message : err);
+    // Do NOT fall back to data URLs — Sheets cells + GAS JSON responses both break above ~45–50KB
+    throw new Error(
+      'Photo upload failed. Redeploy GAS as a new version and approve Google Drive permission, then try again. (' + msg + ')'
+    );
   }
+}
+
+function saveProductImageToDrive_(dataUrl, productId) {
+  return saveDataUrlImageToDrive_(dataUrl, productId, 'AMZ-ERP-Product-Images');
+}
+
+function saveEmployeePhotoToDrive_(dataUrl, employeeId) {
+  return saveDataUrlImageToDrive_(dataUrl, employeeId, 'AMZ-ERP-Employee-Photos');
+}
+
+function toApiEmployee_(e) {
+  var photo = e.photo || e.image || '';
+  return {
+    id: e.id,
+    employeeCode: e.employeecode || '',
+    name: e.name || '',
+    phone: e.phone || '',
+    email: e.email || '',
+    cnic: e.cnic || '',
+    role: e.role || 'Staff',
+    designation: e.designation || '',
+    department: e.department || 'General',
+    joinDate: e.joindate || '',
+    salary: Number(e.salary || 0),
+    status: e.status || 'Active',
+    address: e.address || '',
+    city: e.city || '',
+    emergencyContact: e.emergencycontact || '',
+    emergencyPhone: e.emergencyphone || '',
+    notes: e.notes || '',
+    photo: photo,
+    image: photo,
+  };
+}
+
+function normalizeEmployee_(body, existing) {
+  existing = existing || {};
+  var id = body.id || existing.id || ('emp_' + Date.now());
+  var incomingPhoto = body.photo != null ? body.photo : (body.image != null ? body.image : null);
+  var photoVal = incomingPhoto != null
+    ? saveEmployeePhotoToDrive_(incomingPhoto, id)
+    : (existing.photo || existing.image || '');
+  return {
+    id: id,
+    employeecode: body.employeeCode != null ? body.employeeCode : (body.employeecode != null ? body.employeecode : (existing.employeecode || '')),
+    name: body.name || existing.name || '',
+    phone: body.phone != null ? body.phone : (existing.phone || ''),
+    email: body.email != null ? body.email : (existing.email || ''),
+    cnic: body.cnic != null ? body.cnic : (existing.cnic || ''),
+    role: body.role || existing.role || 'Staff',
+    designation: body.designation != null ? body.designation : (existing.designation || ''),
+    department: body.department || existing.department || 'General',
+    joindate: body.joinDate != null ? body.joinDate : (body.joindate != null ? body.joindate : (existing.joindate || '')),
+    salary: Number(body.salary != null ? body.salary : (existing.salary || 0)),
+    status: body.status || existing.status || 'Active',
+    address: body.address != null ? body.address : (existing.address || ''),
+    city: body.city != null ? body.city : (existing.city || ''),
+    emergencycontact: body.emergencyContact != null ? body.emergencyContact : (existing.emergencycontact || ''),
+    emergencyphone: body.emergencyPhone != null ? body.emergencyPhone : (existing.emergencyphone || ''),
+    notes: body.notes != null ? body.notes : (existing.notes || ''),
+    photo: photoVal,
+  };
+}
+
+function handleEmployees_(path, method, body) {
+  var sheet = getOrCreateSheet_(SHEET_NAMES.EMPLOYEES);
+  ensureHeaders_(sheet, SHEET_NAMES.EMPLOYEES);
+  var rows = getSheetRows_(SHEET_NAMES.EMPLOYEES);
+
+  if (path === '/employees') {
+    if (method === 'GET') return rows.map(toApiEmployee_);
+    if (method === 'POST') {
+      var created = normalizeEmployee_(body);
+      appendObject_(sheet, SHEET_NAMES.EMPLOYEES, created);
+      return toApiEmployee_(created);
+    }
+  }
+
+  var id = path.split('/')[2];
+  var index = findById_(rows, id);
+  if (index < 0) throw new Error('Employee not found');
+
+  if (method === 'GET') return toApiEmployee_(rows[index]);
+  if (method === 'PUT') {
+    var updated = normalizeEmployee_(body, rows[index]);
+    updated.id = rows[index].id;
+    updateObjectProps_(sheet, SHEET_NAMES.EMPLOYEES, rows[index]._row, updated);
+    return toApiEmployee_(updated);
+  }
+  if (method === 'DELETE') {
+    deleteRow_(sheet, rows[index]._row, SHEET_NAMES.EMPLOYEES);
+    return { success: true };
+  }
+  throw new Error('Method not allowed');
+}
+
+function sanitizeCatalogImage_(img) {
+  var s = String(img || '').trim();
+  if (!s) return '';
+  // Prefer Drive / http URLs. Drop broken oversized data URLs (Sheets truncate / GAS 50KB limit).
+  if (/^https?:\/\//i.test(s)) return s;
+  if (s.indexOf('data:image') === 0) {
+    return s.length <= 8000 ? s : '';
+  }
+  return s.length <= 2000 ? s : '';
 }
 
 function toApiProduct_(p) {
   var rate = Number(p.rate || p.baseprice || 0);
-  var img = p.image || p.photo || '';
+  var img = sanitizeCatalogImage_(p.image || p.photo || '');
   return {
     id: p.id,
     name: p.name,
@@ -2663,14 +2785,20 @@ function normalizeProduct_(body, existing) {
 
 function handleProducts_(path, method, body) {
   var sheet = getSheet_(SHEET_NAMES.PRODUCTS);
+  ensureHeaders_(sheet, SHEET_NAMES.PRODUCTS);
   var rows = getSheetRows_(SHEET_NAMES.PRODUCTS);
 
   if (path === '/products') {
     if (method === 'GET') return rows.map(toApiProduct_);
     if (method === 'POST') {
-      var created = normalizeProduct_(body);
+      var created = normalizeProduct_(body || {});
       appendObject_(sheet, SHEET_NAMES.PRODUCTS, created);
-      return toApiProduct_(created);
+      var apiCreated = toApiProduct_(created);
+      // Guaranteed short URL when photo was sent
+      if ((body && (body.image || body.photo)) && !apiCreated.image) {
+        throw new Error('Photo was not stored. Redeploy GAS and approve Drive access.');
+      }
+      return apiCreated;
     }
   }
 
@@ -2680,10 +2808,14 @@ function handleProducts_(path, method, body) {
 
   if (method === 'GET') return toApiProduct_(rows[index]);
   if (method === 'PUT') {
-    var updated = normalizeProduct_(body, rows[index]);
+    var updated = normalizeProduct_(body || {}, rows[index]);
     updated.id = rows[index].id;
     updateObjectProps_(sheet, SHEET_NAMES.PRODUCTS, rows[index]._row, updated);
-    return toApiProduct_(updated);
+    var apiUpdated = toApiProduct_(updated);
+    if ((body && (body.image || body.photo)) && !apiUpdated.image) {
+      throw new Error('Photo was not stored. Redeploy GAS and approve Drive access.');
+    }
+    return apiUpdated;
   }
   if (method === 'DELETE') {
     deleteRow_(sheet, rows[index]._row, SHEET_NAMES.PRODUCTS);
@@ -2756,8 +2888,7 @@ function handleRequest_(e) {
     }
 
     if (path === '/employees' || path.indexOf('/employees/') === 0) {
-      getOrCreateSheet_(SHEET_NAMES.EMPLOYEES);
-      return jsonResponse_(handleCollection_(SHEET_NAMES.EMPLOYEES, path, method, body, '/employees'));
+      return jsonResponse_(handleEmployees_(path, method, body));
     }
 
     if (path === '/products' || path.indexOf('/products/') === 0) {
@@ -2781,24 +2912,24 @@ function handleRequest_(e) {
     }
 
     if (path === '/designers' && method === 'GET') {
-      var users = getSheetRows_(SHEET_NAMES.USERS);
-      var designers = users.filter(function (u) {
-        var role = String(u.role || '');
-        var status = String(u.status || 'Active').toLowerCase();
+      // Designer selection comes from HR Employees (role Designer), not a separate module
+      getOrCreateSheet_(SHEET_NAMES.EMPLOYEES);
+      var empRows = getSheetRows_(SHEET_NAMES.EMPLOYEES);
+      var designers = empRows.filter(function (e) {
+        var role = String(e.role || '').toLowerCase();
+        var status = String(e.status || 'Active').toLowerCase();
         if (status === 'inactive') return false;
-        return role.toLowerCase().indexOf('designer') !== -1;
+        return role.indexOf('designer') !== -1;
       });
-      if (!designers.length) {
-        designers = users.filter(function (u) {
-          return String(u.status || 'Active').toLowerCase() !== 'inactive';
-        });
-      }
-      return jsonResponse_(designers.map(function (u) {
+      return jsonResponse_(designers.map(function (e) {
+        var api = toApiEmployee_(e);
         return {
-          id: u.id || u.username || '',
-          name: u.name || u.username || '',
-          email: u.email || '',
-          role: u.role || '',
+          id: api.id || '',
+          name: api.name || '',
+          email: api.email || '',
+          phone: api.phone || '',
+          role: api.role || 'Designer',
+          photo: api.photo || '',
         };
       }));
     }

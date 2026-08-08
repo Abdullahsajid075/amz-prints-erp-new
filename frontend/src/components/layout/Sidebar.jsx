@@ -35,7 +35,6 @@ const menuItems = [
   { icon: UsersRound, label: 'HR', path: '/hr', testId: 'nav-hr',
     children: [
       { label: 'Employees', path: '/hr/employees' },
-      { label: 'Designers', path: '/designers' },
     ]
   },
   { icon: Calculator, label: 'Cost Calculator', path: '/calculator', testId: 'nav-calculator' },

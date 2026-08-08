@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
-import { settingsAPI, usersAPI } from '@/services/api';
+import { settingsAPI, usersAPI, employeesAPI } from '@/services/api';
 import { clearGasCache } from '@/services/gasClient';
 import { useBrand } from '@/context/BrandContext';
 import {
@@ -17,7 +17,7 @@ import {
   sendTestEmail,
   openWhatsAppChat,
 } from '@/services/notifications';
-import { Save, Building2, FileText, Palette, Users, ShoppingCart, Package, UserCog, CreditCard, Bell, Shield, Database, Trash2, Plus, X, Edit, MessageCircle, Mail, Kanban } from 'lucide-react';
+import { Save, Building2, FileText, Palette, Users, ShoppingCart, Package, UserCog, CreditCard, Bell, Shield, Database, Trash2, Plus, X, Edit, MessageCircle, Mail, Kanban, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { DEFAULT_CRM_STAGES } from '@/utils/crmStages';
 
@@ -54,7 +54,7 @@ const defaultSettings = {
   system: { currency: 'PKR', dateFormat: 'DD MMM YYYY', backupEnabled: true, backupFrequency: 'daily' }
 };
 
-const emptyUser = { username: '', password: '', name: '', role: 'Sales', status: 'Active', permissions: [] };
+const emptyUser = { username: '', password: '', name: '', role: 'Sales', status: 'Active', permissions: [], employeeId: '' };
 
 const readFileAsDataURL = (file) =>
   new Promise((resolve, reject) => {
@@ -164,6 +164,7 @@ const Settings = () => {
   const [newCategory, setNewCategory] = useState('');
   const [newRole, setNewRole] = useState('');
   const [sheetUsers, setSheetUsers] = useState([]);
+  const [hrEmployees, setHrEmployees] = useState([]);
   const [userForm, setUserForm] = useState(emptyUser);
   const [editingUserId, setEditingUserId] = useState(null);
   const [usersLoading, setUsersLoading] = useState(false);
@@ -185,8 +186,12 @@ const Settings = () => {
   const loadUsers = useCallback(async () => {
     setUsersLoading(true);
     try {
-      const res = await usersAPI.getAll();
-      setSheetUsers(Array.isArray(res.data) ? res.data : []);
+      const [usersRes, empRes] = await Promise.all([
+        usersAPI.getAll(),
+        employeesAPI.getAll().catch(() => ({ data: [] })),
+      ]);
+      setSheetUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
+      setHrEmployees(Array.isArray(empRes.data) ? empRes.data : []);
     } catch (err) {
       console.error(err);
       toast.error('Failed to load users from Users sheet');
@@ -267,6 +272,7 @@ const Settings = () => {
         role: userForm.role,
         status: userForm.status,
         permissions: userForm.permissions || [],
+        employeeId: userForm.employeeId || '',
       };
       if (editingUserId) {
         await usersAPI.update(editingUserId, payload);
@@ -296,7 +302,33 @@ const Settings = () => {
       role: u.role || 'Sales',
       status: u.status || 'Active',
       permissions: u.permissions || [],
+      employeeId: u.employeeId || '',
     });
+  };
+
+  const grantLoginFromEmployee = (emp) => {
+    const linked = sheetUsers.find((u) => String(u.employeeId || '') === String(emp.id));
+    if (linked) {
+      editUser(linked);
+      toast.message(`${emp.name} already has login — edit below`);
+      return;
+    }
+    const uname = String(emp.email || emp.phone || emp.name || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9._@-]+/g, '')
+      .slice(0, 32) || `emp_${String(emp.id).slice(-6)}`;
+    setEditingUserId(null);
+    setUserForm({
+      ...emptyUser,
+      username: uname,
+      password: '',
+      name: emp.name || '',
+      role: emp.role || 'Sales',
+      status: 'Active',
+      employeeId: emp.id || '',
+    });
+    toast.message(`Set a password for ${emp.name}, then click Add User`);
   };
 
   const deleteUser = async (u) => {
@@ -620,13 +652,83 @@ const Settings = () => {
           <div className="space-y-4">
             <Card>
               <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" />HR Employees → Grant Login</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-gray-600">
+                  Employees from <strong>HR → Employees</strong>. Click <strong>Grant Login</strong> to create a Users account (username + password).
+                  Role <strong>Designer</strong> employees also appear in order/product designer selection.
+                </p>
+                {usersLoading ? (
+                  <p className="text-sm text-gray-500">Loading employees…</p>
+                ) : (
+                  <div className="overflow-x-auto border rounded-lg max-h-64 overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <thead className="sticky top-0 bg-gray-50">
+                        <tr className="border-b">
+                          <th className="text-left p-2">Employee</th>
+                          <th className="text-left p-2">Role</th>
+                          <th className="text-left p-2">Login</th>
+                          <th className="text-right p-2">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {hrEmployees.map((emp) => {
+                          const linked = sheetUsers.find((u) => String(u.employeeId || '') === String(emp.id));
+                          return (
+                            <tr key={emp.id} className="border-b">
+                              <td className="p-2">
+                                <div className="flex items-center gap-2">
+                                  {emp.photo || emp.image ? (
+                                    <img src={emp.photo || emp.image} alt="" className="w-7 h-7 rounded object-cover" referrerPolicy="no-referrer" />
+                                  ) : (
+                                    <div className="w-7 h-7 rounded bg-gray-100" />
+                                  )}
+                                  <div>
+                                    <p className="font-medium leading-tight">{emp.name}</p>
+                                    <p className="text-[11px] text-gray-500">{emp.phone || emp.email || '—'}</p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="p-2"><Badge variant="outline">{emp.role || 'Staff'}</Badge></td>
+                              <td className="p-2 text-xs text-gray-600">{linked ? linked.username : '—'}</td>
+                              <td className="p-2 text-right">
+                                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => grantLoginFromEmployee(emp)}>
+                                  <KeyRound className="h-3 w-3 mr-1" />
+                                  {linked ? 'Edit Login' : 'Grant Login'}
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {!hrEmployees.length && (
+                          <tr>
+                            <td colSpan={4} className="p-4 text-center text-gray-500">
+                              No employees yet — add them under HR → Employees first
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5" />User Access (Users sheet)</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-sm text-gray-600">
                   These accounts live on the Google Sheet <strong>Users</strong> and are used for login.
-                  Redeploy Code.gs after first deploy so <code>/users</code> CRUD is available. Run Sync Sheets / prepareDatabase to add the Permissions column.
+                  Prefer granting access from the HR employees list above.
                 </p>
+                {userForm.employeeId && (
+                  <p className="text-xs text-orange-700 bg-orange-50 border border-orange-100 rounded px-2 py-1">
+                    Linked employee id: {userForm.employeeId}
+                  </p>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
                   <div><Label>Username</Label><Input value={userForm.username} onChange={(e) => setUserForm({ ...userForm, username: e.target.value })} /></div>
                   <div><Label>Password{editingUserId ? ' (blank = keep)' : ''}</Label><Input type="password" value={userForm.password} onChange={(e) => setUserForm({ ...userForm, password: e.target.value })} /></div>

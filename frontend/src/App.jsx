@@ -14,7 +14,6 @@ import DeliverySlip from '@/components/modules/orders/DeliverySlip';
 import Customers from '@/components/modules/customers/Customers';
 import CustomerCRM from '@/components/modules/crm/CustomerCRM';
 import Products from '@/components/modules/products/Products';
-import Designers from '@/components/modules/designers/Designers';
 import Employees from '@/components/modules/employees/Employees';
 import Inventory from '@/components/modules/inventory/Inventory';
 import POSStatement from '@/components/modules/pos/POSStatement';
@@ -122,7 +121,7 @@ function App() {
           <Route path="purchases" element={<Purchases />} />
           <Route path="inventory" element={<Navigate to="/warehouse/inventory" replace />} />
           <Route path="production" element={<Navigate to="/warehouse" replace />} />
-          <Route path="designers" element={<Designers />} />
+          <Route path="designers" element={<Navigate to="/hr/employees" replace />} />
           <Route path="hr" element={<Navigate to="/hr/employees" replace />} />
           <Route path="hr/employees" element={<Employees />} />
           <Route path="employees" element={<Navigate to="/hr/employees" replace />} />

@@ -5,30 +5,60 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { employeesAPI } from '@/services/api';
+import { clearGasCache } from '@/services/gasClient';
+import { compressImageFile } from '@/utils/productImage';
 import { useBrand } from '@/context/BrandContext';
 import { formatCurrency } from '@/utils/helpers';
 import {
-  Plus, Search, Edit, Trash2, UsersRound, Phone, Mail, Briefcase, Building2,
+  Plus, Search, Edit, Trash2, UsersRound, Phone, Briefcase, Building2, ImagePlus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const empty = {
+  employeeCode: '',
   name: '',
   phone: '',
   email: '',
+  cnic: '',
   role: 'Staff',
+  designation: '',
   department: 'General',
   joinDate: new Date().toISOString().slice(0, 10),
   salary: '',
   status: 'Active',
   address: '',
+  city: '',
+  emergencyContact: '',
+  emergencyPhone: '',
   notes: '',
+  photo: '',
 };
 
-const ROLES = ['Staff', 'Manager', 'Designer', 'Production', 'Accounts', 'Sales', 'HR', 'Admin', 'Other'];
+const ROLES = ['Staff', 'Manager', 'Designer', 'Production', 'Accounts', 'Sales', 'HR', 'Admin', 'Cashier', 'Other'];
 const DEPARTMENTS = ['General', 'Sales', 'Design', 'Production', 'Accounts', 'HR', 'Warehouse', 'Management'];
+
+const normalizeEmployee = (e) => ({
+  id: e.id,
+  employeeCode: e.employeeCode || e.employeecode || '',
+  name: e.name || '',
+  phone: e.phone || '',
+  email: e.email || '',
+  cnic: e.cnic || '',
+  role: e.role || 'Staff',
+  designation: e.designation || '',
+  department: e.department || 'General',
+  joinDate: e.joinDate || e.joindate || '',
+  salary: e.salary,
+  status: e.status || 'Active',
+  address: e.address || '',
+  city: e.city || '',
+  emergencyContact: e.emergencyContact || e.emergencycontact || '',
+  emergencyPhone: e.emergencyPhone || e.emergencyphone || '',
+  notes: e.notes || '',
+  photo: e.photo || e.image || '',
+});
 
 const Employees = () => {
   const { primary } = useBrand();
@@ -36,29 +66,20 @@ const Employees = () => {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
+  const [imageBusy, setImageBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      clearGasCache();
       const res = await employeesAPI.getAll();
       const list = Array.isArray(res.data) ? res.data : [];
-      setEmployees(list.map((e) => ({
-        id: e.id,
-        name: e.name || '',
-        phone: e.phone || '',
-        email: e.email || '',
-        role: e.role || 'Staff',
-        department: e.department || 'General',
-        joinDate: e.joinDate || e.joindate || '',
-        salary: e.salary,
-        status: e.status || 'Active',
-        address: e.address || '',
-        notes: e.notes || '',
-      })));
+      setEmployees(list.map(normalizeEmployee));
     } catch (err) {
       console.error(err);
       toast.error('Failed to load employees');
@@ -72,17 +93,18 @@ const Employees = () => {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return employees;
-    return employees.filter((e) =>
-      [e.name, e.phone, e.email, e.role, e.department, e.status]
-        .some((v) => String(v || '').toLowerCase().includes(q))
-    );
-  }, [employees, search]);
+    return employees.filter((e) => {
+      if (roleFilter !== 'all' && String(e.role || '') !== roleFilter) return false;
+      if (!q) return true;
+      return [e.name, e.phone, e.email, e.role, e.department, e.designation, e.employeeCode, e.cnic, e.status]
+        .some((v) => String(v || '').toLowerCase().includes(q));
+    });
+  }, [employees, search, roleFilter]);
 
   const stats = useMemo(() => ({
     total: employees.length,
     active: employees.filter((e) => String(e.status || 'Active').toLowerCase() === 'active').length,
-    departments: new Set(employees.map((e) => e.department || 'General')).size,
+    designers: employees.filter((e) => /designer/i.test(e.role || '')).length,
   }), [employees]);
 
   const openCreate = () => {
@@ -96,10 +118,27 @@ const Employees = () => {
     setForm({
       ...empty,
       ...emp,
-      salary: emp.salary != null ? String(emp.salary) : '',
-      joinDate: emp.joinDate || emp.joindate || empty.joinDate,
+      salary: emp.salary != null && emp.salary !== '' ? String(emp.salary) : '',
+      joinDate: emp.joinDate || empty.joinDate,
+      photo: emp.photo || '',
     });
     setDialogOpen(true);
+  };
+
+  const onPickPhoto = async (ev) => {
+    const file = ev.target.files?.[0];
+    ev.target.value = '';
+    if (!file) return;
+    setImageBusy(true);
+    try {
+      const dataUrl = await compressImageFile(file);
+      setForm((prev) => ({ ...prev, photo: dataUrl }));
+      toast.success('Photo ready');
+    } catch (err) {
+      toast.error(err.message || 'Photo failed');
+    } finally {
+      setImageBusy(false);
+    }
   };
 
   const handleSave = async (e) => {
@@ -113,7 +152,8 @@ const Employees = () => {
       const payload = {
         ...form,
         name: form.name.trim(),
-        salary: form.salary === '' ? '' : Number(form.salary) || 0,
+        salary: form.salary === '' ? 0 : Number(form.salary) || 0,
+        photo: form.photo || '',
       };
       if (editing) {
         await employeesAPI.update(editing.id, payload);
@@ -122,6 +162,7 @@ const Employees = () => {
         await employeesAPI.create(payload);
         toast.success('Employee added');
       }
+      clearGasCache();
       setDialogOpen(false);
       load();
     } catch (err) {
@@ -145,95 +186,121 @@ const Employees = () => {
   };
 
   return (
-    <div className="space-y-6" data-testid="employees-page">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-5" data-testid="employees-page">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold" style={{ color: '#1F2937' }}>HR · Employees</h1>
-          <p className="text-gray-600 mt-1">Staff directory, roles, departments & status</p>
+          <h1 className="text-2xl font-bold" style={{ color: '#1F2937' }}>HR · Employees</h1>
+          <p className="text-sm text-gray-600 mt-0.5">
+            Staff directory with photo · Designers here appear in order/product assignment · Grant login in Settings → Users
+          </p>
         </div>
-        <Button onClick={openCreate} className="text-white" style={{ backgroundColor: accent }} data-testid="add-employee-button">
-          <Plus className="h-4 w-4 mr-2" />Add Employee
+        <Button onClick={openCreate} className="text-white h-9" style={{ backgroundColor: accent }} data-testid="add-employee-button">
+          <Plus className="h-4 w-4 mr-1.5" />Add Employee
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2">
         <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white" style={{ backgroundColor: accent }}>
-              <UsersRound className="h-5 w-5" />
+          <CardContent className="p-3 flex items-center gap-2">
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: accent }}>
+              <UsersRound className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Total</p>
-              <p className="text-lg font-bold">{stats.total}</p>
+              <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Total</p>
+              <p className="text-base font-bold">{stats.total}</p>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-500 text-white">
-              <Briefcase className="h-5 w-5" />
+          <CardContent className="p-3 flex items-center gap-2">
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-emerald-500 text-white">
+              <Briefcase className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Active</p>
-              <p className="text-lg font-bold text-emerald-700">{stats.active}</p>
+              <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Active</p>
+              <p className="text-base font-bold text-emerald-700">{stats.active}</p>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-violet-500 text-white">
-              <Building2 className="h-5 w-5" />
+          <CardContent className="p-3 flex items-center gap-2">
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-sky-500 text-white">
+              <Building2 className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Departments</p>
-              <p className="text-lg font-bold">{stats.departments}</p>
+              <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Designers</p>
+              <p className="text-base font-bold">{stats.designers}</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-        <Input className="pl-9" placeholder="Search employees…" value={search} onChange={(e) => setSearch(e.target.value)} />
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input className="pl-9 h-9" placeholder="Search employees…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        <select
+          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+          value={roleFilter}
+          onChange={(e) => setRoleFilter(e.target.value)}
+        >
+          <option value="all">All roles</option>
+          {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+        </select>
       </div>
 
       {loading ? (
-        <div className="py-12 text-center text-gray-500">Loading employees…</div>
+        <div className="py-12 text-center text-gray-500 text-sm">Loading employees…</div>
       ) : filtered.length === 0 ? (
         <Card>
-          <CardContent className="py-12 text-center text-gray-500">
-            No employees yet. Click Add Employee to create the HR directory.
+          <CardContent className="py-10 text-center text-gray-500 text-sm">
+            No employees yet. Add staff here — set role <strong>Designer</strong> for order assignment.
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
           {filtered.map((emp) => (
-            <Card key={emp.id} className="hover:shadow-md transition-shadow" data-testid={`employee-${emp.id}`}>
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-semibold text-lg" style={{ color: '#1F2937' }}>{emp.name}</p>
-                    <p className="text-sm text-gray-500">{emp.role || 'Staff'} · {emp.department || 'General'}</p>
-                  </div>
+            <Card key={emp.id} className="overflow-hidden hover:shadow-sm transition-shadow" data-testid={`employee-${emp.id}`}>
+              <CardContent className="p-0">
+                <div className="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden relative">
+                  {emp.photo ? (
+                    <img src={emp.photo} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    <UsersRound className="h-8 w-8 text-gray-300" />
+                  )}
                   <Badge
                     variant="outline"
-                    className={String(emp.status || '').toLowerCase() === 'active' ? 'border-emerald-300 text-emerald-700' : 'border-gray-300 text-gray-500'}
+                    className={`absolute top-1 right-1 text-[9px] px-1 py-0 h-4 bg-white/90 ${
+                      String(emp.status || '').toLowerCase() === 'active'
+                        ? 'border-emerald-300 text-emerald-700'
+                        : 'border-gray-300 text-gray-500'
+                    }`}
                   >
                     {emp.status || 'Active'}
                   </Badge>
                 </div>
-                {emp.phone && <p className="text-sm text-gray-600 flex items-center gap-2"><Phone className="h-3.5 w-3.5" />{emp.phone}</p>}
-                {emp.email && <p className="text-sm text-gray-600 flex items-center gap-2"><Mail className="h-3.5 w-3.5" />{emp.email}</p>}
-                {emp.salary !== '' && emp.salary != null && (
-                  <p className="text-sm font-medium" style={{ color: accent }}>Salary: {formatCurrency(Number(emp.salary) || 0)}</p>
-                )}
-                <div className="flex gap-2 pt-1">
-                  <Button size="sm" variant="outline" className="flex-1" onClick={() => openEdit(emp)}>
-                    <Edit className="h-3.5 w-3.5 mr-1" />Edit
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => handleDelete(emp.id)}>
-                    <Trash2 className="h-3.5 w-3.5 text-rose-500" />
-                  </Button>
+                <div className="p-2 space-y-1">
+                  <p className="font-semibold text-sm leading-tight line-clamp-1" style={{ color: '#1F2937' }}>{emp.name}</p>
+                  <p className="text-[11px] text-gray-500 line-clamp-1">
+                    {emp.role || 'Staff'}{emp.designation ? ` · ${emp.designation}` : ''}
+                  </p>
+                  {emp.phone && (
+                    <p className="text-[11px] text-gray-600 flex items-center gap-1 truncate">
+                      <Phone className="h-3 w-3 shrink-0" />{emp.phone}
+                    </p>
+                  )}
+                  {emp.salary != null && emp.salary !== '' && Number(emp.salary) > 0 && (
+                    <p className="text-[11px] font-medium" style={{ color: accent }}>{formatCurrency(Number(emp.salary) || 0)}</p>
+                  )}
+                  <div className="flex gap-1 pt-1">
+                    <Button size="sm" variant="outline" className="h-7 flex-1 text-[11px]" onClick={() => openEdit(emp)}>
+                      <Edit className="h-3 w-3 mr-1" />Edit
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => handleDelete(emp.id)}>
+                      <Trash2 className="h-3 w-3 text-rose-500" />
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -242,15 +309,46 @@ const Employees = () => {
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? 'Edit employee' : 'Add employee'}</DialogTitle>
+            <DialogDescription>
+              Photo is for HR directory. Role <strong>Designer</strong> shows in order/product designer dropdowns.
+              Grant ERP login from Settings → Users.
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSave} className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="w-16 h-16 rounded-lg border bg-gray-50 overflow-hidden flex items-center justify-center shrink-0">
+                {form.photo ? (
+                  <img src={form.photo} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  <ImagePlus className="h-5 w-5 text-gray-300" />
+                )}
+              </div>
+              <div className="space-y-1 flex-1">
+                <Label>Photo</Label>
+                <Input type="file" accept="image/*" onChange={onPickPhoto} disabled={imageBusy} className="text-xs" />
+                {form.photo && (
+                  <Button type="button" variant="ghost" size="sm" className="h-7 text-xs text-red-600 px-0" onClick={() => setForm({ ...form, photo: '' })}>
+                    Remove photo
+                  </Button>
+                )}
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="sm:col-span-2">
                 <Label>Full name *</Label>
                 <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+              </div>
+              <div>
+                <Label>Employee code</Label>
+                <Input value={form.employeeCode} onChange={(e) => setForm({ ...form, employeeCode: e.target.value })} placeholder="EMP-001" />
+              </div>
+              <div>
+                <Label>CNIC</Label>
+                <Input value={form.cnic} onChange={(e) => setForm({ ...form, cnic: e.target.value })} placeholder="xxxxx-xxxxxxx-x" />
               </div>
               <div>
                 <Label>Phone</Label>
@@ -261,7 +359,7 @@ const Employees = () => {
                 <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
               </div>
               <div>
-                <Label>Role</Label>
+                <Label>Role *</Label>
                 <select
                   className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
                   value={form.role}
@@ -269,6 +367,10 @@ const Employees = () => {
                 >
                   {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
                 </select>
+              </div>
+              <div>
+                <Label>Designation</Label>
+                <Input value={form.designation} onChange={(e) => setForm({ ...form, designation: e.target.value })} placeholder="e.g. Senior Designer" />
               </div>
               <div>
                 <Label>Department</Label>
@@ -300,9 +402,21 @@ const Employees = () => {
                   <option value="On Leave">On Leave</option>
                 </select>
               </div>
+              <div>
+                <Label>City</Label>
+                <Input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+              </div>
               <div className="sm:col-span-2">
                 <Label>Address</Label>
                 <Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
+              </div>
+              <div>
+                <Label>Emergency contact</Label>
+                <Input value={form.emergencyContact} onChange={(e) => setForm({ ...form, emergencyContact: e.target.value })} />
+              </div>
+              <div>
+                <Label>Emergency phone</Label>
+                <Input value={form.emergencyPhone} onChange={(e) => setForm({ ...form, emergencyPhone: e.target.value })} />
               </div>
               <div className="sm:col-span-2">
                 <Label>Notes</Label>
@@ -311,7 +425,7 @@ const Employees = () => {
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" className="text-white" style={{ backgroundColor: accent }} disabled={saving}>
+              <Button type="submit" className="text-white" style={{ backgroundColor: accent }} disabled={saving || imageBusy}>
                 {saving ? 'Saving…' : 'Save'}
               </Button>
             </DialogFooter>

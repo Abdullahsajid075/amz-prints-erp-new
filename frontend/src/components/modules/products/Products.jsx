@@ -174,18 +174,22 @@ const Products = () => {
       let saved;
       if (editingProduct) {
         saved = await productsAPI.update(editingProduct.id, payload);
-        toast.success(service ? 'Service updated' : 'Product updated');
       } else {
         saved = await productsAPI.create(payload);
-        toast.success(service ? 'Service created' : 'Product created');
-      }
-      const savedImg = productImageSrc(saved?.data || {});
-      if (formData.image && !savedImg) {
-        toast.warning('Saved, but photo did not return — redeploy GAS if using Sheets');
       }
       clearGasCache();
-      setDialogOpen(false);
-      fetchProducts();
+      const savedImg = productImageSrc(saved?.data || {});
+      // Confirm photo persisted (Drive URL). Old GAS / missing Drive auth returns empty image.
+      if (formData.image && !savedImg) {
+        await fetchProducts();
+        toast.error(
+          'Product saved but photo failed. Redeploy Apps Script (New version) and approve Google Drive access, then upload photo again.'
+        );
+      } else {
+        toast.success(service ? (editingProduct ? 'Service updated' : 'Service created') : (editingProduct ? 'Product updated' : 'Product created'));
+        setDialogOpen(false);
+        fetchProducts();
+      }
     } catch (err) {
       const msg = err?.response?.data?.message || err?.message || 'Save failed';
       toast.error(msg);

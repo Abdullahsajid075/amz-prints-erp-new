@@ -13,6 +13,7 @@ create table if not exists users (
   status text default 'Active',
   permissions jsonb default '[]'::jsonb,
   email text default '',
+  employee_id text default '',
   created_at timestamptz default now()
 );
 
@@ -47,18 +48,34 @@ create index if not exists crm_notes_customer_idx on crm_notes (customer_id);
 -- ========== EMPLOYEES ==========
 create table if not exists employees (
   id text primary key,
+  employee_code text default '',
   name text default '',
   phone text default '',
   email text default '',
+  cnic text default '',
   role text default 'Staff',
+  designation text default '',
   department text default 'General',
   join_date text default '',
   salary numeric default 0,
   status text default 'Active',
   address text default '',
+  city text default '',
+  emergency_contact text default '',
+  emergency_phone text default '',
   notes text default '',
+  photo text default '',
   created_at timestamptz default now()
 );
+
+-- alter table employees add column if not exists employee_code text default '';
+-- alter table employees add column if not exists cnic text default '';
+-- alter table employees add column if not exists designation text default '';
+-- alter table employees add column if not exists city text default '';
+-- alter table employees add column if not exists emergency_contact text default '';
+-- alter table employees add column if not exists emergency_phone text default '';
+-- alter table employees add column if not exists photo text default '';
+-- alter table users add column if not exists employee_id text default '';
 
 -- ========== PRODUCTS ==========
 create table if not exists products (
