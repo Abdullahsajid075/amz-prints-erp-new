@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,9 +6,19 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { quotationsAPI } from '@/services/api';
 import { formatCurrency, formatDate } from '@/utils/helpers';
+import { sortBy } from '@/utils/sortBy';
+import SortBar from '@/components/shared/SortBar';
 import { useBrand } from '@/context/BrandContext';
 import { Plus, Search, Eye, Edit, Trash2, Printer, FileText } from 'lucide-react';
 import { toast } from 'sonner';
+
+const QUOTATION_SORT_OPTS = [
+  { value: 'date', label: 'Date' },
+  { value: 'orderId', label: 'Quote #' },
+  { value: 'customerName', label: 'Customer' },
+  { value: 'totalAmount', label: 'Amount' },
+  { value: 'status', label: 'Status' },
+];
 
 const Quotations = () => {
   const navigate = useNavigate();
@@ -16,6 +26,7 @@ const Quotations = () => {
   const [quotations, setQuotations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const [sort, setSort] = useState({ field: 'date', dir: 'desc' });
 
   const fetchQuotations = useCallback(async () => {
     setLoading(true);
@@ -43,6 +54,15 @@ const Quotations = () => {
       String(q.customerPhone || '').toLowerCase().includes(s)
     );
   });
+
+  const sorted = useMemo(() => sortBy(filtered, sort, {
+    date: (q) => q.date || '',
+    orderId: (q) => q.orderId || q.quotationId || '',
+    quotationId: (q) => q.orderId || q.quotationId || '',
+    customerName: (q) => q.customerName || '',
+    totalAmount: (q) => Number(q.totalAmount || 0),
+    status: (q) => q.status || '',
+  }), [filtered, sort]);
 
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this quotation?')) return;
@@ -85,15 +105,18 @@ const Quotations = () => {
 
       <Card>
         <CardContent className="p-4">
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-            <Input
-              className="pl-10"
-              placeholder="Search by ID, customer, phone..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              data-testid="quotation-search"
-            />
+          <div className="flex flex-col sm:flex-row gap-3 items-end">
+            <div className="relative flex-1 max-w-md w-full">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+              <Input
+                className="pl-10"
+                placeholder="Search by ID, customer, phone..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                data-testid="quotation-search"
+              />
+            </div>
+            <SortBar value={sort} onChange={setSort} options={QUOTATION_SORT_OPTS} className="w-full sm:w-auto sm:min-w-[280px]" />
           </div>
         </CardContent>
       </Card>
@@ -102,7 +125,7 @@ const Quotations = () => {
         <CardContent className="p-0">
           {loading ? (
             <p className="text-center py-10 text-gray-500">Loading...</p>
-          ) : filtered.length === 0 ? (
+          ) : sorted.length === 0 ? (
             <p className="text-center py-10 text-gray-500">No quotations yet.</p>
           ) : (
             <div className="overflow-x-auto">
@@ -118,7 +141,7 @@ const Quotations = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((q) => (
+                  {sorted.map((q) => (
                     <tr key={q.id} className="border-b hover:bg-orange-50/40" data-testid={`quotation-row-${q.id}`}>
                       <td className="py-2.5 px-3 font-semibold">{q.orderId}</td>
                       <td className="py-2.5 px-3">
@@ -157,7 +180,7 @@ const Quotations = () => {
         </CardContent>
       </Card>
 
-      {!loading && filtered.length === 0 && (
+      {!loading && sorted.length === 0 && (
         <div className="text-center">
           <FileText className="h-10 w-10 mx-auto text-gray-300 mb-2" />
         </div>

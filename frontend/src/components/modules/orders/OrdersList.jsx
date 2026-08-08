@@ -9,9 +9,19 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { ordersAPI, invoicesAPI, settingsAPI } from '@/services/api';
 import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
 import { ORDER_STATUS } from '@/utils/constants';
+import { sortBy } from '@/utils/sortBy';
+import SortBar from '@/components/shared/SortBar';
 import { openWhatsAppChat, fillTemplate, buildTemplateVars, resolveWhatsAppTemplate } from '@/services/notifications';
 import { Plus, Search, Eye, Edit, Copy, Trash2, User, Phone, Mail, MapPin, Calendar, Package, FileText, X, Printer, MessageCircle, Receipt, Truck, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
+
+const ORDER_SORT_OPTS = [
+  { value: 'date', label: 'Date' },
+  { value: 'orderId', label: 'Order ID' },
+  { value: 'customerName', label: 'Customer' },
+  { value: 'status', label: 'Status' },
+  { value: 'totalAmount', label: 'Amount' },
+];
 
 const IN_PROGRESS_STATUSES = ['Order Received', 'Designing', 'Proof Approval', 'Printing', 'Finishing', 'Packing', 'Ready'];
 const COMPLETED_STATUSES = ['Delivered', 'Cancelled'];
@@ -36,6 +46,7 @@ const OrdersList = () => {
   const [viewOrder, setViewOrder] = useState(null);
   const [viewOpen, setViewOpen] = useState(false);
   const [filters, setFilters] = useState({ search: '', status: undefined });
+  const [sort, setSort] = useState({ field: 'date', dir: 'desc' });
   const [company, setCompany] = useState({});
 
   const fetchOrders = useCallback(async () => {
@@ -67,11 +78,19 @@ const OrdersList = () => {
     settingsAPI.get().then(res => setCompany(res.data?.company || {})).catch(() => {});
   }, []);
 
+  const sortedOrders = useMemo(() => sortBy(orders, sort, {
+    date: (o) => o.date || o.orderDate || '',
+    orderId: (o) => o.orderId || o.id || '',
+    customerName: (o) => o.customerName || '',
+    status: (o) => o.status || '',
+    totalAmount: (o) => orderDisplayTotal(o),
+  }), [orders, sort]);
+
   const { inProgress, completed } = useMemo(() => {
-    const ip = orders.filter(o => IN_PROGRESS_STATUSES.includes(o.status));
-    const co = orders.filter(o => COMPLETED_STATUSES.includes(o.status));
+    const ip = sortedOrders.filter(o => IN_PROGRESS_STATUSES.includes(o.status));
+    const co = sortedOrders.filter(o => COMPLETED_STATUSES.includes(o.status));
     return { inProgress: ip, completed: co };
-  }, [orders]);
+  }, [sortedOrders]);
 
   const handleView = async (orderId) => {
     try {
@@ -332,6 +351,9 @@ const OrdersList = () => {
             <Button onClick={fetchOrders} style={{ backgroundColor: '#F26522' }} className="text-white" data-testid="search-button">
               <Search className="h-4 w-4 mr-2" />Search
             </Button>
+          </div>
+          <div className="mt-3 max-w-md">
+            <SortBar value={sort} onChange={setSort} options={ORDER_SORT_OPTS} />
           </div>
         </CardContent>
       </Card>

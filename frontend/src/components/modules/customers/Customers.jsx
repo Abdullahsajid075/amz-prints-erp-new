@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,8 +12,16 @@ import { Switch } from '@/components/ui/switch';
 import { customersAPI } from '@/services/api';
 import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
 import { customerMatchesQuery } from '@/utils/customerSearch';
+import { sortBy } from '@/utils/sortBy';
+import SortBar from '@/components/shared/SortBar';
 import { Plus, Search, Edit, Trash2, User, Phone, Mail, MapPin, FileText, Receipt, CreditCard, TrendingUp, X, Save, BookOpen, Bell, Kanban } from 'lucide-react';
 import { toast } from 'sonner';
+
+const CUSTOMER_SORT_OPTS = [
+  { value: 'name', label: 'Name' },
+  { value: 'phone', label: 'Phone' },
+  { value: 'city', label: 'City' },
+];
 
 const empty = {
   name: '', phone: '', email: '', address: '', city: '', notes: '',
@@ -26,6 +34,7 @@ const Customers = () => {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const [sort, setSort] = useState({ field: 'name', dir: 'asc' });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [formData, setFormData] = useState(empty);
@@ -46,6 +55,11 @@ const Customers = () => {
   useEffect(() => { fetchCustomers(); }, [fetchCustomers]);
 
   const filtered = customers.filter((c) => customerMatchesQuery(c, search));
+  const sorted = useMemo(() => sortBy(filtered, sort, {
+    name: (c) => c.name || '',
+    phone: (c) => c.phone || '',
+    city: (c) => c.city || '',
+  }), [filtered, sort]);
 
   const openCreate = useCallback(() => { setEditing(null); setFormData(empty); setDialogOpen(true); }, []);
 
@@ -131,9 +145,12 @@ const Customers = () => {
       </div>
 
       <Card><CardContent className="p-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-          <Input placeholder="Search by name, phone, or email..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" data-testid="customer-search" />
+        <div className="flex flex-col sm:flex-row gap-3 items-end">
+          <div className="relative flex-1 w-full">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+            <Input placeholder="Search by name, phone, or email..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" data-testid="customer-search" />
+          </div>
+          <SortBar value={sort} onChange={setSort} options={CUSTOMER_SORT_OPTS} className="w-full sm:w-auto sm:min-w-[280px]" />
         </div>
       </CardContent></Card>
 
@@ -141,7 +158,7 @@ const Customers = () => {
         <CardHeader><CardTitle>Customer Directory</CardTitle></CardHeader>
         <CardContent>
           {loading ? <div className="text-center py-8 text-gray-500">Loading...</div>
-            : filtered.length === 0 ? (
+            : sorted.length === 0 ? (
               <div className="text-center py-12">
                 <User className="h-12 w-12 mx-auto text-gray-300 mb-3" />
                 <p className="text-gray-500 mb-4">No customers yet.</p>
@@ -149,7 +166,7 @@ const Customers = () => {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filtered.map(c => (
+                {sorted.map(c => (
                   <div key={c.id} className="bg-white border border-gray-100 rounded-xl p-4 hover:shadow-md hover:border-orange-200 transition-all" data-testid={`customer-card-${c.id}`}>
                     <div className="flex items-start gap-3 mb-3">
                       <div className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: '#FFF3ED' }}>

@@ -16,11 +16,21 @@ import {
 } from '@/utils/employeeDocuments';
 import { useBrand } from '@/context/BrandContext';
 import { formatCurrency } from '@/utils/helpers';
+import { sortBy } from '@/utils/sortBy';
+import SortBar from '@/components/shared/SortBar';
 import {
   Plus, Search, Edit, Trash2, UsersRound, Phone, Briefcase, Building2, ImagePlus,
   IdCard, BadgeCheck, FileText, Download,
 } from 'lucide-react';
 import { toast } from 'sonner';
+
+const EMPLOYEE_SORT_OPTS = [
+  { value: 'name', label: 'Name' },
+  { value: 'designation', label: 'Designation' },
+  { value: 'department', label: 'Department' },
+  { value: 'joinDate', label: 'Join date' },
+  { value: 'status', label: 'Status' },
+];
 
 const empty = {
   employeeCode: '',
@@ -93,6 +103,7 @@ const Employees = () => {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [sort, setSort] = useState({ field: 'name', dir: 'asc' });
   const [roleFilter, setRoleFilter] = useState('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [docsOpen, setDocsOpen] = useState(false);
@@ -129,6 +140,14 @@ const Employees = () => {
         .some((v) => String(v || '').toLowerCase().includes(q));
     });
   }, [employees, search, roleFilter]);
+
+  const sorted = useMemo(() => sortBy(filtered, sort, {
+    name: (e) => e.name || '',
+    designation: (e) => e.designation || '',
+    department: (e) => e.department || '',
+    joinDate: (e) => e.joinDate || '',
+    status: (e) => e.status || '',
+  }), [filtered, sort]);
 
   const stats = useMemo(() => ({
     total: employees.length,
@@ -282,8 +301,8 @@ const Employees = () => {
         </Card>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-2">
-        <div className="relative flex-1 max-w-md">
+      <div className="flex flex-col sm:flex-row flex-wrap gap-2 items-end">
+        <div className="relative flex-1 max-w-md w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input className="pl-9 h-9" placeholder="Search employees…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
@@ -295,11 +314,12 @@ const Employees = () => {
           <option value="all">All roles</option>
           {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
+        <SortBar value={sort} onChange={setSort} options={EMPLOYEE_SORT_OPTS} className="w-full sm:w-auto sm:min-w-[280px]" />
       </div>
 
       {loading ? (
         <div className="py-12 text-center text-gray-500 text-sm">Loading employees…</div>
-      ) : filtered.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-gray-500 text-sm">
             No employees yet. Add staff here — set role <strong>Designer</strong> for order assignment.
@@ -307,7 +327,7 @@ const Employees = () => {
         </Card>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-          {filtered.map((emp) => (
+          {sorted.map((emp) => (
             <Card key={emp.id} className="overflow-hidden hover:shadow-sm transition-shadow" data-testid={`employee-${emp.id}`}>
               <CardContent className="p-0">
                 <div className="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden relative">

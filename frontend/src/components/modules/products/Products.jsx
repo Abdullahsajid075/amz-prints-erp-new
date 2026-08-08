@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,12 +10,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { productsAPI, designersAPI } from '@/services/api';
 import { formatCurrency } from '@/utils/helpers';
+import { sortBy } from '@/utils/sortBy';
+import SortBar from '@/components/shared/SortBar';
 import { clearGasCache } from '@/services/gasClient';
 import { compressImageFile, productImageSrc } from '@/utils/productImage';
 import {
   Plus, Search, Edit, Trash2, Package, X, Save, Wrench, ImagePlus, Boxes,
 } from 'lucide-react';
 import { toast } from 'sonner';
+
+const PRODUCT_SORT_OPTS = [
+  { value: 'name', label: 'Name' },
+  { value: 'basePrice', label: 'Price' },
+  { value: 'stock', label: 'Stock' },
+  { value: 'category', label: 'Category' },
+];
 
 const PRODUCT_CATEGORIES = [
   'Business Cards', 'Flyers & Brochures', 'Posters', 'Banners', 'Stickers & Labels',
@@ -49,6 +58,7 @@ const Products = () => {
   const [designers, setDesigners] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const [sort, setSort] = useState({ field: 'name', dir: 'asc' });
   const [categoryFilter, setCategoryFilter] = useState(undefined);
   const [typeFilter, setTypeFilter] = useState('all');
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -102,6 +112,14 @@ const Products = () => {
     const matchType = typeFilter === 'all' || productType === typeFilter;
     return matchSearch && matchCategory && matchType;
   });
+
+  const sorted = useMemo(() => sortBy(filteredProducts, sort, {
+    name: (p) => p.name || '',
+    basePrice: (p) => Number(p.basePrice ?? p.rate ?? 0) || 0,
+    rate: (p) => Number(p.basePrice ?? p.rate ?? 0) || 0,
+    stock: (p) => Number(p.stock ?? 0) || 0,
+    category: (p) => p.category || '',
+  }), [filteredProducts, sort]);
 
   const openCreateDialog = useCallback(() => {
     setEditingProduct(null);
@@ -314,17 +332,20 @@ const Products = () => {
               </SelectContent>
             </Select>
           </div>
+          <div className="mt-2 max-w-md">
+            <SortBar value={sort} onChange={setSort} options={PRODUCT_SORT_OPTS} />
+          </div>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader className="py-3 px-4">
-          <CardTitle className="text-base">Catalog ({filteredProducts.length})</CardTitle>
+          <CardTitle className="text-base">Catalog ({sorted.length})</CardTitle>
         </CardHeader>
         <CardContent className="px-3 pb-3 pt-0">
           {loading ? (
             <div className="text-center py-8 text-sm text-gray-500">Loading…</div>
-          ) : filteredProducts.length === 0 ? (
+          ) : sorted.length === 0 ? (
             <div className="text-center py-10">
               <Package className="h-8 w-8 mx-auto text-gray-300 mb-2" />
               <p className="text-sm text-gray-500 mb-3">No items yet.</p>
@@ -334,7 +355,7 @@ const Products = () => {
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-              {filteredProducts.map((product) => {
+              {sorted.map((product) => {
                 const service = String(product.productType || '').toLowerCase() === 'service';
                 const img = productImageSrc(product);
                 return (

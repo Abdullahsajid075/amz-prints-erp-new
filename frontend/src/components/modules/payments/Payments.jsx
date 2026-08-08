@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,9 +11,18 @@ import { paymentsAPI, settingsAPI, customersAPI, expensesAPI } from '@/services/
 import { notifyPaymentEvent, printPaymentSlip } from '@/services/notifications';
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import { formatCurrency, formatDate } from '@/utils/helpers';
+import { sortBy } from '@/utils/sortBy';
+import SortBar from '@/components/shared/SortBar';
 import { useBrand } from '@/context/BrandContext';
 import { Plus, Search, Edit, Trash2, CreditCard, TrendingUp, TrendingDown, Wallet, Building, Save, X, ArrowDownLeft, ArrowUpRight, Printer, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
+
+const PAYMENT_SORT_OPTS = [
+  { value: 'date', label: 'Date' },
+  { value: 'party', label: 'Party' },
+  { value: 'amount', label: 'Amount' },
+  { value: 'type', label: 'Type' },
+];
 
 const CATEGORIES = ['Invoice Payment', 'Purchase Payment', 'Expense Payment', 'Refund', 'Other Income', 'Owner Deposit', 'Owner Withdrawal'];
 const TYPES = [
@@ -65,6 +74,7 @@ const Payments = () => {
   const [methods, setMethods] = useState(['Cash', 'Bank Transfer', 'UPI', 'Card', 'Cheque']);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({ search: '', category: undefined, method: undefined, from: '', to: '' });
+  const [sort, setSort] = useState({ field: 'date', dir: 'desc' });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [formData, setFormData] = useState(empty);
@@ -115,6 +125,13 @@ const Payments = () => {
     p.party?.toLowerCase().includes(filters.search.toLowerCase()) ||
     p.reference?.toLowerCase().includes(filters.search.toLowerCase())
   );
+
+  const sorted = useMemo(() => sortBy(filtered, sort, {
+    date: (p) => p.date || '',
+    party: (p) => p.party || '',
+    amount: (p) => Number(p.amount || 0),
+    type: (p) => p.type || '',
+  }), [filtered, sort]);
 
   const stats = {
     inflow: filtered.filter(p => p.type === 'inflow').reduce((s, p) => s + (p.amount || 0), 0),
@@ -346,13 +363,16 @@ const Payments = () => {
           </Select>
           <Button onClick={loadPayments} style={{ backgroundColor: '#F26522' }} className="text-white">Apply</Button>
         </div>
+        <div className="mt-3 max-w-md">
+          <SortBar value={sort} onChange={setSort} options={PAYMENT_SORT_OPTS} />
+        </div>
       </CardContent></Card>
 
       <Card>
         <CardHeader><CardTitle>Transaction History</CardTitle></CardHeader>
         <CardContent>
           {loading ? <div className="text-center py-8 text-gray-500">Loading...</div>
-            : filtered.length === 0 ? (
+            : sorted.length === 0 ? (
               <div className="text-center py-12">
                 <CreditCard className="h-12 w-12 mx-auto text-gray-300 mb-3" />
                 <p className="text-gray-500 mb-4">No transactions yet.</p>
@@ -372,7 +392,7 @@ const Payments = () => {
                     <th className="text-right py-3 px-3 text-xs uppercase font-semibold text-gray-600">Actions</th>
                   </tr></thead>
                   <tbody>
-                    {filtered.map(p => {
+                    {sorted.map(p => {
                       const isIn = p.type === 'inflow';
                       const T = isIn ? ArrowDownLeft : ArrowUpRight;
                       return (

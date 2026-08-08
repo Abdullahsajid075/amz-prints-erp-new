@@ -10,11 +10,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { purchasesAPI, vendorsAPI, ordersAPI, productsAPI, paymentsAPI } from '@/services/api';
 import { formatCurrency, formatDate } from '@/utils/helpers';
+import { sortBy } from '@/utils/sortBy';
+import SortBar from '@/components/shared/SortBar';
 import { notifyPaymentEvent } from '@/services/notifications';
 import { Plus, Search, Eye, Edit, Trash2, ShoppingBag, PackageCheck, Paperclip, AlertTriangle, X, Save, FileText, Link2, PackagePlus, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const PO_STATUS = ['Draft', 'Ordered', 'Partial Paid', 'Fully Paid', 'Received'];
+
+const PURCHASE_SORT_OPTS = [
+  { value: 'date', label: 'Date' },
+  { value: 'vendorName', label: 'Vendor' },
+  { value: 'totalAmount', label: 'Amount' },
+  { value: 'status', label: 'Status' },
+  { value: 'poNumber', label: 'PO #' },
+];
 
 /** Closed / finished — never offered when linking a customer order on a PO */
 const isOpenOrder = (order) => {
@@ -88,6 +98,7 @@ const Purchases = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const [sort, setSort] = useState({ field: 'date', dir: 'desc' });
   const [statusFilter, setStatusFilter] = useState(undefined);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
@@ -136,6 +147,16 @@ const Purchases = () => {
     const matchStatus = !statusFilter || p.status === statusFilter;
     return matchS && matchStatus;
   });
+
+  const sorted = useMemo(() => sortBy(filtered, sort, {
+    date: (p) => p.purchaseDate || p.date || '',
+    purchaseDate: (p) => p.purchaseDate || p.date || '',
+    vendorName: (p) => p.vendorName || '',
+    totalAmount: (p) => Number(p.totalAmount ?? p.total ?? 0) || 0,
+    total: (p) => Number(p.totalAmount ?? p.total ?? 0) || 0,
+    status: (p) => p.status || '',
+    poNumber: (p) => p.poNumber || '',
+  }), [filtered, sort]);
 
   const isPaidStatus = (s) => s === 'Partial Paid' || s === 'Fully Paid';
   const isUnpaidLike = (s) => !isPaidStatus(s) && s !== 'Received';
@@ -422,13 +443,16 @@ const Purchases = () => {
             <SelectContent><SelectItem value="all">All Statuses</SelectItem>{PO_STATUS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
           </Select>
         </div>
+        <div className="mt-3 max-w-md">
+          <SortBar value={sort} onChange={setSort} options={PURCHASE_SORT_OPTS} />
+        </div>
       </CardContent></Card>
 
       <Card>
         <CardHeader><CardTitle>Purchase Orders</CardTitle></CardHeader>
         <CardContent>
           {loading ? <div className="text-center py-8 text-gray-500">Loading...</div>
-            : filtered.length === 0 ? (
+            : sorted.length === 0 ? (
               <div className="text-center py-12">
                 <ShoppingBag className="h-12 w-12 mx-auto text-gray-300 mb-3" />
                 <p className="text-gray-500 mb-4">No purchase orders yet.</p>
@@ -450,7 +474,7 @@ const Purchases = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map(p => {
+                    {sorted.map(p => {
                       const isOverdue = p.expectedDeliveryDate && new Date(p.expectedDeliveryDate) < new Date() && p.status !== 'Received';
                       return (
                         <tr key={p.id} className="border-b hover:bg-orange-50 transition-colors" data-testid={`purchase-row-${p.id}`}>

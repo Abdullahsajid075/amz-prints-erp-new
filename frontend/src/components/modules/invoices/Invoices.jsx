@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,8 +7,18 @@ import { Badge } from '@/components/ui/badge';
 import { invoicesAPI } from '@/services/api';
 import { notifyOrderEvent } from '@/services/notifications';
 import { formatCurrency, formatDate } from '@/utils/helpers';
+import { sortBy } from '@/utils/sortBy';
+import SortBar from '@/components/shared/SortBar';
 import { Plus, Search, Eye, Edit, FileText, MessageCircle, Copy as CopyIcon, Bell } from 'lucide-react';
 import { toast } from 'sonner';
+
+const INVOICE_SORT_OPTS = [
+  { value: 'date', label: 'Date' },
+  { value: 'invoiceNumber', label: 'Invoice #' },
+  { value: 'customerName', label: 'Customer' },
+  { value: 'totalAmount', label: 'Amount' },
+  { value: 'status', label: 'Status' },
+];
 
 const invoiceBalance = (invoice) =>
   Math.max(0, Number(invoice.totalAmount || 0) + Number(invoice.previousBalance || 0) - Number(invoice.paidAmount || 0));
@@ -18,6 +28,7 @@ const Invoices = () => {
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const [sort, setSort] = useState({ field: 'date', dir: 'desc' });
 
   const fetchInvoices = useCallback(async () => {
     setLoading(true);
@@ -42,6 +53,15 @@ const Invoices = () => {
     inv.customerName?.toLowerCase().includes(search.toLowerCase()) ||
     inv.orderId?.toLowerCase().includes(search.toLowerCase())
   );
+
+  const sorted = useMemo(() => sortBy(filtered, sort, {
+    date: (inv) => inv.date || '',
+    invoiceNumber: (inv) => inv.invoiceNumber || '',
+    customerName: (inv) => inv.customerName || '',
+    totalAmount: (inv) => Number(inv.totalAmount ?? inv.total ?? 0) || 0,
+    total: (inv) => Number(inv.totalAmount ?? inv.total ?? 0) || 0,
+    status: (inv) => inv.status || '',
+  }), [filtered, sort]);
 
   const copyShareLink = (invoice) => {
     if (!invoice.shareToken) {
@@ -183,15 +203,18 @@ const Invoices = () => {
 
       <Card>
         <CardContent className="p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Search by invoice number, order ID, or customer name..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-10"
-              data-testid="invoice-search"
-            />
+          <div className="flex flex-col sm:flex-row gap-3 items-end">
+            <div className="relative flex-1 w-full">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search by invoice number, order ID, or customer name..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-10"
+                data-testid="invoice-search"
+              />
+            </div>
+            <SortBar value={sort} onChange={setSort} options={INVOICE_SORT_OPTS} className="w-full sm:w-auto sm:min-w-[280px]" />
           </div>
         </CardContent>
       </Card>
@@ -203,7 +226,7 @@ const Invoices = () => {
         <CardContent>
           {loading ? (
             <div className="text-center py-8 text-gray-500">Loading invoices...</div>
-          ) : filtered.length === 0 ? (
+          ) : sorted.length === 0 ? (
             <div className="text-center py-12">
               <FileText className="h-12 w-12 mx-auto text-gray-300 mb-3" />
               <p className="text-gray-500 mb-4">No invoices found. Create your first invoice from an order.</p>
@@ -214,7 +237,7 @@ const Invoices = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-              {filtered.map(invoice => (
+              {sorted.map(invoice => (
                 <div
                   key={invoice.id}
                   className="group relative bg-white border border-gray-100 rounded-xl p-3.5 hover:shadow-md hover:border-orange-200 transition-all"

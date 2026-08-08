@@ -10,10 +10,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { vendorsAPI, purchasesAPI } from '@/services/api';
 import { formatCurrency } from '@/utils/helpers';
+import { sortBy } from '@/utils/sortBy';
+import SortBar from '@/components/shared/SortBar';
 import { useAuth } from '@/context/AuthContext';
 import { aggregateVendorPurchases, canAccessVendors, canManageVendors } from '@/utils/vendorPayables';
 import { Plus, Search, Edit, Trash2, Building2, Phone, Mail, MapPin, TrendingUp, Package, AlertCircle, X, Save, Shield } from 'lucide-react';
 import { toast } from 'sonner';
+
+const VENDOR_SORT_OPTS = [
+  { value: 'name', label: 'Name' },
+  { value: 'phone', label: 'Phone' },
+  { value: 'city', label: 'City' },
+];
 
 const emptyVendor = { name: '', contactPerson: '', phone: '', email: '', address: '', category: 'Materials', paymentTerms: 'Net 30', taxId: '', notes: '' };
 const CATEGORIES = ['Materials', 'Ink & Toner', 'Machinery', 'Outsourced Printing', 'Packaging', 'Services', 'Other'];
@@ -28,6 +36,7 @@ const Vendors = () => {
   const [purchases, setPurchases] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const [sort, setSort] = useState({ field: 'name', dir: 'asc' });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [formData, setFormData] = useState(emptyVendor);
@@ -73,6 +82,12 @@ const Vendors = () => {
     || v.contactPerson?.toLowerCase().includes(search.toLowerCase())
     || v.phone?.includes(search)
   );
+
+  const sorted = useMemo(() => sortBy(filtered, sort, {
+    name: (v) => v.name || '',
+    phone: (v) => v.phone || '',
+    city: (v) => v.city || '',
+  }), [filtered, sort]);
 
   const stats = {
     total: enriched.length,
@@ -188,9 +203,12 @@ const Vendors = () => {
       </div>
 
       <Card><CardContent className="p-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-          <Input placeholder="Search vendors..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" data-testid="vendor-search" />
+        <div className="flex flex-col sm:flex-row gap-3 items-end">
+          <div className="relative flex-1 w-full">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+            <Input placeholder="Search vendors..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" data-testid="vendor-search" />
+          </div>
+          <SortBar value={sort} onChange={setSort} options={VENDOR_SORT_OPTS} className="w-full sm:w-auto sm:min-w-[280px]" />
         </div>
       </CardContent></Card>
 
@@ -198,7 +216,7 @@ const Vendors = () => {
         <CardHeader><CardTitle>Vendor Directory</CardTitle></CardHeader>
         <CardContent>
           {loading ? <div className="text-center py-8 text-gray-500">Loading...</div>
-            : filtered.length === 0 ? (
+            : sorted.length === 0 ? (
               <div className="text-center py-12">
                 <Building2 className="h-12 w-12 mx-auto text-gray-300 mb-3" />
                 <p className="text-gray-500 mb-4">No vendors yet.</p>
@@ -208,7 +226,7 @@ const Vendors = () => {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filtered.map((v) => (
+                {sorted.map((v) => (
                   <div key={v.id} className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-lg hover:border-orange-300 transition-all" data-testid={`vendor-card-${v.id}`}>
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-3">

@@ -34,6 +34,8 @@ const POS = () => {
   const [customerQuery, setCustomerQuery] = useState('');
   const [customerListOpen, setCustomerListOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [discountType, setDiscountType] = useState('amount'); // amount | percent
+  const [discountValue, setDiscountValue] = useState('');
   const [checkingOut, setCheckingOut] = useState(false);
   const [lastSale, setLastSale] = useState(null);
 
@@ -130,10 +132,21 @@ const POS = () => {
     );
   };
 
-  const total = useMemo(
+  const subtotal = useMemo(
     () => cart.reduce((s, i) => s + i.quantity * i.rate, 0),
     [cart]
   );
+
+  const discountAmount = useMemo(() => {
+    const raw = Number(discountValue) || 0;
+    if (raw <= 0 || subtotal <= 0) return 0;
+    if (discountType === 'percent') {
+      return Math.min(subtotal, Math.round((subtotal * Math.min(100, raw)) / 100));
+    }
+    return Math.min(subtotal, Math.max(0, raw));
+  }, [discountType, discountValue, subtotal]);
+
+  const payable = Math.max(0, subtotal - discountAmount);
 
   const addToCart = (product) => {
     const rate = Number(product.rate || product.basePrice || 0);
@@ -214,6 +227,10 @@ const POS = () => {
         <tbody>${rows}</tbody>
       </table>
       <hr />
+      ${Number(sale.subtotal) > 0 && Number(sale.discount) > 0
+        ? `<div class="total" style="font-size:11px;font-weight:600"><span>SUBTOTAL</span><span>${formatCurrency(sale.subtotal)}</span></div>
+           <div class="total" style="font-size:11px;font-weight:600"><span>DISCOUNT</span><span>-${formatCurrency(sale.discount)}</span></div>`
+        : ''}
       <div class="total"><span>TOTAL</span><span>${formatCurrency(sale.totalAmount)}</span></div>
       <div class="total" style="font-size:11px;margin-top:2px"><span>PAID</span><span>${formatCurrency(sale.totalAmount)}</span></div>
       <hr />
@@ -242,16 +259,19 @@ const POS = () => {
         material,
       }));
       const cust = selectedCustomer || WALK_IN;
+      const discNote = discountAmount > 0
+        ? ` · Disc ${discountType === 'percent' ? `${Number(discountValue) || 0}%` : ''} Rs ${discountAmount} (sub ${subtotal})`
+        : '';
       const payload = {
         customerId: cust.id || WALK_IN.id,
         customerName: cust.name || 'Walk-in',
         customerPhone: cust.phone || '',
         products: productsPayload,
-        totalAmount: total,
-        advancePayment: total,
+        totalAmount: payable,
+        advancePayment: payable,
         balanceAmount: 0,
         status: 'Delivered',
-        remarks: `POS Sale · ${paymentMethod}`,
+        remarks: `POS Sale · ${paymentMethod}${discNote}`,
         docType: 'POS',
         paymentMethod,
       };
@@ -264,6 +284,10 @@ const POS = () => {
         id: created.data?.id,
         date: new Date().toLocaleString(),
         paymentMethod,
+        subtotal,
+        discount: discountAmount,
+        discountType,
+        discountValue: Number(discountValue) || 0,
       };
       setLastSale(sale);
       toast.success(`Sale ${sale.orderId} completed`);
@@ -272,6 +296,8 @@ const POS = () => {
       }
       setCart([]);
       setCustomerId(WALK_IN.id);
+      setDiscountValue('');
+      setDiscountType('amount');
       printReceipt(sale);
     } catch (err) {
       console.error(err);
@@ -318,9 +344,11 @@ const POS = () => {
                       })),
                       paidAmount: lastSale.totalAmount || 0,
                       taxRate: 0,
-                      discount: 0,
+                      discount: Number(lastSale.discount) || 0,
                       previousBalance: 0,
-                      notes: 'Converted from POS sale',
+                      notes: Number(lastSale.discount) > 0
+                        ? `Converted from POS sale · Discount Rs ${lastSale.discount}`
+                        : 'Converted from POS sale',
                       date: new Date().toISOString().slice(0, 10),
                     };
                     const created = await invoicesAPI.create(inv);
@@ -520,9 +548,54 @@ const POS = () => {
               ))}
             </div>
 
-            <div className="border-t pt-3 flex items-center justify-between">
-              <span className="font-semibold">Total</span>
-              <span className="text-2xl font-bold" style={{ color: primary || '#F26522' }}>{formatCurrency(total)}</span>
+            <div className="border-t pt-3 space-y-2">
+              <div>
+                <Label>Discount</Label>
+                <div className="flex gap-2 mt-1">
+                  <div className="flex gap-1">
+                    {[
+                      { key: 'amount', label: 'Rs' },
+                      { key: 'percent', label: '%' },
+                    ].map((m) => (
+                      <Button
+                        key={m.key}
+                        type="button"
+                        size="sm"
+                        variant={discountType === m.key ? 'default' : 'outline'}
+                        style={discountType === m.key ? { backgroundColor: primary || '#F26522' } : undefined}
+                        className={`h-9 ${discountType === m.key ? 'text-white' : ''}`}
+                        onClick={() => setDiscountType(m.key)}
+                      >
+                        {m.label}
+                      </Button>
+                    ))}
+                  </div>
+                  <Input
+                    type="number"
+                    min="0"
+                    step={discountType === 'percent' ? '1' : '1'}
+                    placeholder={discountType === 'percent' ? '0%' : '0'}
+                    value={discountValue}
+                    onChange={(e) => setDiscountValue(e.target.value)}
+                    className="h-9"
+                    data-testid="pos-discount-input"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-sm text-gray-600">
+                <span>Subtotal</span>
+                <span>{formatCurrency(subtotal)}</span>
+              </div>
+              {discountAmount > 0 && (
+                <div className="flex items-center justify-between text-sm text-emerald-700">
+                  <span>Discount{discountType === 'percent' ? ` (${Number(discountValue) || 0}%)` : ''}</span>
+                  <span>-{formatCurrency(discountAmount)}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="font-semibold">Total due</span>
+                <span className="text-2xl font-bold" style={{ color: primary || '#F26522' }}>{formatCurrency(payable)}</span>
+              </div>
             </div>
             <Button
               className="w-full text-white"

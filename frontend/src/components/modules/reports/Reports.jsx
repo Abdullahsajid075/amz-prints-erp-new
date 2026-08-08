@@ -7,6 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { reportsAPI, ordersAPI, expensesAPI, paymentsAPI, purchasesAPI } from '@/services/api';
 import { formatCurrency, formatDate } from '@/utils/helpers';
+import { sortBy } from '@/utils/sortBy';
+import SortBar from '@/components/shared/SortBar';
 import { useBrand } from '@/context/BrandContext';
 import { TrendingUp, TrendingDown, DollarSign, ShoppingBag, Calendar, Printer, FileSpreadsheet } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend, AreaChart, Area } from 'recharts';
@@ -69,6 +71,9 @@ const Reports = () => {
   const [data, setData] = useState({ sales: [], purchases: [], expenses: [], profitLoss: null, topCustomers: [], topProducts: [], assets: [], comparison: [] });
   const [orders, setOrders] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [expenseRows, setExpenseRows] = useState([]);
+  const [purchaseRows, setPurchaseRows] = useState([]);
+  const [sort, setSort] = useState({ field: 'date', dir: 'desc' });
   const [loading, setLoading] = useState(false);
 
   const fetchReports = useCallback(async () => {
@@ -93,11 +98,13 @@ const Reports = () => {
 
       setOrders(orderList);
       setPayments(paymentList);
+      setExpenseRows(expenseList);
+      setPurchaseRows(purchaseList);
 
       // Build client-side summary when GAS reports are thin
       const filteredOrders = orderList.filter((o) => inRange(o.date, dateRange.from, dateRange.to) && String(o.docType || 'Order').toLowerCase() !== 'quotation');
       const filteredExpenses = expenseList.filter((e) => inRange(e.date, dateRange.from, dateRange.to));
-      const filteredPurchases = purchaseList.filter((p) => inRange(p.date, dateRange.from, dateRange.to));
+      const filteredPurchases = purchaseList.filter((p) => inRange(p.purchaseDate || p.date, dateRange.from, dateRange.to));
       const orderAmt = (o) => {
         const direct = Number(o.totalAmount || 0);
         if (direct > 0) return direct;
@@ -191,12 +198,71 @@ const Reports = () => {
     () => payments.filter((p) => inRange(p.date, dateRange.from, dateRange.to)),
     [payments, dateRange.from, dateRange.to]
   );
+  const filteredExpenseDetails = useMemo(
+    () => expenseRows.filter((e) => inRange(e.date, dateRange.from, dateRange.to)),
+    [expenseRows, dateRange.from, dateRange.to]
+  );
+  const filteredPurchaseDetails = useMemo(
+    () => purchaseRows.filter((p) => inRange(p.purchaseDate || p.date, dateRange.from, dateRange.to)),
+    [purchaseRows, dateRange.from, dateRange.to]
+  );
+
+  const detailGetters = useMemo(() => ({
+    date: (r) => r.date || r.purchaseDate || '',
+    name: (r) => r.customerName || r.party || r.vendorName || r.name || r.description || '',
+    amount: (r) => Number(r.totalAmount ?? r.total ?? r.amount ?? 0) || 0,
+    status: (r) => r.status || r.type || '',
+    orderId: (r) => r.orderId || r.poNumber || r.purchaseNo || r.id || '',
+  }), []);
+
+  const sortedBookingOrders = useMemo(
+    () => sortBy(filteredBookingOrders, sort, detailGetters),
+    [filteredBookingOrders, sort, detailGetters]
+  );
+  const sortedPosOrders = useMemo(
+    () => sortBy(filteredPosOrders, sort, detailGetters),
+    [filteredPosOrders, sort, detailGetters]
+  );
+  const sortedPayments = useMemo(
+    () => sortBy(filteredPayments, sort, detailGetters),
+    [filteredPayments, sort, detailGetters]
+  );
+  const sortedExpenses = useMemo(
+    () => sortBy(filteredExpenseDetails, sort, {
+      ...detailGetters,
+      name: (r) => r.description || r.category || '',
+      amount: (r) => Number(r.amount || 0),
+    }),
+    [filteredExpenseDetails, sort, detailGetters]
+  );
+  const sortedPurchases = useMemo(
+    () => sortBy(filteredPurchaseDetails, sort, {
+      ...detailGetters,
+      date: (r) => r.purchaseDate || r.date || '',
+      name: (r) => r.vendorName || '',
+      amount: (r) => Number(r.totalAmount ?? r.total ?? 0),
+      orderId: (r) => r.poNumber || r.purchaseNo || r.id || '',
+    }),
+    [filteredPurchaseDetails, sort, detailGetters]
+  );
+  const sortedSalesOrders = useMemo(
+    () => sortBy(filteredOrders, sort, detailGetters),
+    [filteredOrders, sort, detailGetters]
+  );
+
+  const DETAIL_SORT_OPTS = [
+    { value: 'date', label: 'Date' },
+    { value: 'name', label: 'Name / Party' },
+    { value: 'amount', label: 'Amount' },
+    { value: 'status', label: 'Status / Type' },
+    { value: 'orderId', label: 'Ref / ID' },
+  ];
 
   const exportCsv = () => {
     let csv = '';
     let name = `report-${reportType}`;
     if (reportType === 'orders') {
-      csv = toCsv(filteredBookingOrders, [
+      csv = toCsv(sortedBookingOrders, [
         { label: 'Order', key: 'orderId' },
         { label: 'Date', key: 'date' },
         { label: 'Customer', key: 'customerName' },
@@ -204,28 +270,43 @@ const Reports = () => {
         { label: 'Total', key: 'totalAmount' },
         { label: 'Advance', key: 'advancePayment' },
       ]);
-    } else if (reportType === 'pos') {
-      csv = toCsv(filteredPosOrders, [
-        { label: 'POS #', key: 'orderId' },
+    } else if (reportType === 'pos' || reportType === 'sales') {
+      const rows = reportType === 'pos' ? sortedPosOrders : sortedSalesOrders;
+      csv = toCsv(rows, [
+        { label: 'Ref #', key: 'orderId' },
         { label: 'Date', key: 'date' },
         { label: 'Customer', key: 'customerName' },
         { label: 'Phone', key: 'customerPhone' },
+        { label: 'Type', get: (r) => (isPosOrder(r) ? 'POS' : 'Order') },
         { label: 'Total', key: 'totalAmount' },
         { label: 'Paid', key: 'advancePayment' },
         { label: 'Status', key: 'status' },
       ]);
     } else if (reportType === 'payments') {
-      csv = toCsv(filteredPayments, [
+      csv = toCsv(sortedPayments, [
         { label: 'Date', key: 'date' },
         { label: 'Type', key: 'type' },
         { label: 'Party', get: (r) => r.party || r.customerName || '' },
         { label: 'Amount', key: 'amount' },
         { label: 'Method', get: (r) => r.method || r.Method || '' },
+        { label: 'Ref', get: (r) => r.reference || r.refId || '' },
       ]);
     } else if (reportType === 'expenses') {
-      csv = toCsv(data.expenses || [], [
+      csv = toCsv(sortedExpenses, [
+        { label: 'Date', key: 'date' },
         { label: 'Category', key: 'category' },
+        { label: 'Description', key: 'description' },
         { label: 'Amount', key: 'amount' },
+        { label: 'Method', get: (r) => r.paymentMethod || r.method || '' },
+      ]);
+    } else if (reportType === 'purchases') {
+      csv = toCsv(sortedPurchases, [
+        { label: 'PO #', get: (r) => r.poNumber || r.purchaseNo || r.id },
+        { label: 'Date', get: (r) => r.purchaseDate || r.date },
+        { label: 'Vendor', key: 'vendorName' },
+        { label: 'Status', key: 'status' },
+        { label: 'Total', get: (r) => r.totalAmount ?? r.total },
+        { label: 'Paid', get: (r) => r.paidAmount ?? r.paid },
       ]);
     } else if (reportType === 'customers') {
       csv = toCsv(data.topCustomers || [], [
@@ -338,14 +419,20 @@ const Reports = () => {
       </div>
 
       <Tabs value={reportType} onValueChange={setReportType}>
-        <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6 no-print">
+        <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8 no-print h-auto flex-wrap gap-1">
           <TabsTrigger value="pl">P&L</TabsTrigger>
           <TabsTrigger value="sales">Sales</TabsTrigger>
+          <TabsTrigger value="pos">POS</TabsTrigger>
           <TabsTrigger value="purchases">Purchases</TabsTrigger>
           <TabsTrigger value="expenses">Expenses</TabsTrigger>
+          <TabsTrigger value="payments">Payments</TabsTrigger>
           <TabsTrigger value="orders">Orders</TabsTrigger>
           <TabsTrigger value="customers">Top</TabsTrigger>
         </TabsList>
+
+        <div className="no-print mt-3 max-w-md">
+          <SortBar value={sort} onChange={setSort} options={DETAIL_SORT_OPTS} />
+        </div>
 
         <TabsContent value="pl" className="space-y-4">
           <Card><CardHeader><CardTitle>Profit & Loss Comparison</CardTitle></CardHeader><CardContent>
@@ -382,53 +469,126 @@ const Reports = () => {
           </div>
         </TabsContent>
 
-        <TabsContent value="sales"><Card><CardHeader><CardTitle>Sales Report</CardTitle></CardHeader><CardContent>
-          <ResponsiveContainer width="100%" height={350}>
-            <LineChart data={data.sales}>
-              <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="period" /><YAxis /><Tooltip /><Legend />
-              <Line type="monotone" dataKey="amount" stroke={primary || '#F26522'} strokeWidth={2} name="Sales" />
-              <Line type="monotone" dataKey="orders" stroke="#10B981" strokeWidth={2} name="Orders" />
-            </LineChart>
-          </ResponsiveContainer>
-        </CardContent></Card></TabsContent>
-
-        <TabsContent value="purchases"><Card><CardHeader><CardTitle>Purchase Report</CardTitle></CardHeader><CardContent>
-          <ResponsiveContainer width="100%" height={350}>
-            <BarChart data={data.purchases}>
-              <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="period" /><YAxis /><Tooltip /><Legend />
-              <Bar dataKey="amount" fill="#8B5CF6" name="Purchase Value" />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent></Card></TabsContent>
-
-        <TabsContent value="expenses"><Card><CardHeader><CardTitle>Expense Report by Category</CardTitle></CardHeader><CardContent>
-          <ResponsiveContainer width="100%" height={350}>
-            <PieChart>
-              <Pie data={data.expenses} cx="50%" cy="50%" outerRadius={110} dataKey="amount" nameKey="category" label={(e) => e.category}>
-                {(data.expenses || []).map((cat) => <Cell key={cat.category} fill={COLORS[(data.expenses || []).indexOf(cat) % COLORS.length]} />)}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-        </CardContent></Card></TabsContent>
-
-        <TabsContent value="payments">
-          <Card><CardHeader><CardTitle>Payments ({filteredPayments.length})</CardTitle></CardHeader><CardContent>
+        <TabsContent value="sales" className="space-y-4">
+          <Card><CardHeader><CardTitle>Sales chart</CardTitle></CardHeader><CardContent>
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={data.sales}>
+                <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="period" /><YAxis /><Tooltip /><Legend />
+                <Line type="monotone" dataKey="amount" stroke={primary || '#F26522'} strokeWidth={2} name="Sales" />
+                <Line type="monotone" dataKey="orders" stroke="#10B981" strokeWidth={2} name="Orders" />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent></Card>
+          <Card><CardHeader><CardTitle>Sales detail ({sortedSalesOrders.length})</CardTitle></CardHeader><CardContent>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead><tr className="border-b bg-gray-50">
-                  <th className="text-left p-2">Date</th><th className="text-left p-2">Party</th><th className="text-left p-2">Type</th><th className="text-right p-2">Amount</th>
+                  <th className="text-left p-2">Ref</th><th className="text-left p-2">Date</th><th className="text-left p-2">Customer</th><th className="text-left p-2">Type</th><th className="text-left p-2">Status</th><th className="text-right p-2">Total</th>
                 </tr></thead>
                 <tbody>
-                  {filteredPayments.map((p) => (
+                  {sortedSalesOrders.map((o) => (
+                    <tr key={o.id} className="border-b">
+                      <td className="p-2 font-medium">{o.orderId}</td>
+                      <td className="p-2">{formatDate(o.date)}</td>
+                      <td className="p-2">{o.customerName || '—'}</td>
+                      <td className="p-2"><Badge variant="outline">{isPosOrder(o) ? 'POS' : 'Order'}</Badge></td>
+                      <td className="p-2">{o.status}</td>
+                      <td className="p-2 text-right font-semibold" style={{ color: primary || '#F26522' }}>{formatCurrency(o.totalAmount)}</td>
+                    </tr>
+                  ))}
+                  {!sortedSalesOrders.length && <tr><td colSpan={6} className="p-6 text-center text-gray-500">No sales in range</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </CardContent></Card>
+        </TabsContent>
+
+        <TabsContent value="purchases" className="space-y-4">
+          <Card><CardHeader><CardTitle>Purchase chart</CardTitle></CardHeader><CardContent>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={data.purchases}>
+                <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="period" /><YAxis /><Tooltip /><Legend />
+                <Bar dataKey="amount" fill="#8B5CF6" name="Purchase Value" />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent></Card>
+          <Card><CardHeader><CardTitle>Purchase detail ({sortedPurchases.length})</CardTitle></CardHeader><CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b bg-gray-50">
+                  <th className="text-left p-2">PO #</th><th className="text-left p-2">Date</th><th className="text-left p-2">Vendor</th><th className="text-left p-2">Status</th><th className="text-right p-2">Total</th><th className="text-right p-2">Paid</th>
+                </tr></thead>
+                <tbody>
+                  {sortedPurchases.map((p) => (
+                    <tr key={p.id} className="border-b">
+                      <td className="p-2 font-medium">{p.poNumber || p.purchaseNo || p.id}</td>
+                      <td className="p-2">{formatDate(p.purchaseDate || p.date)}</td>
+                      <td className="p-2">{p.vendorName || '—'}</td>
+                      <td className="p-2"><Badge variant="outline">{p.status || '—'}</Badge></td>
+                      <td className="p-2 text-right font-semibold">{formatCurrency(p.totalAmount ?? p.total)}</td>
+                      <td className="p-2 text-right">{formatCurrency(p.paidAmount ?? p.paid)}</td>
+                    </tr>
+                  ))}
+                  {!sortedPurchases.length && <tr><td colSpan={6} className="p-6 text-center text-gray-500">No purchases in range</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </CardContent></Card>
+        </TabsContent>
+
+        <TabsContent value="expenses" className="space-y-4">
+          <Card><CardHeader><CardTitle>Expense by category</CardTitle></CardHeader><CardContent>
+            <ResponsiveContainer width="100%" height={280}>
+              <PieChart>
+                <Pie data={data.expenses} cx="50%" cy="50%" outerRadius={110} dataKey="amount" nameKey="category" label={(e) => e.category}>
+                  {(data.expenses || []).map((cat) => <Cell key={cat.category} fill={COLORS[(data.expenses || []).indexOf(cat) % COLORS.length]} />)}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </CardContent></Card>
+          <Card><CardHeader><CardTitle>Expense detail ({sortedExpenses.length})</CardTitle></CardHeader><CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b bg-gray-50">
+                  <th className="text-left p-2">Date</th><th className="text-left p-2">Category</th><th className="text-left p-2">Description</th><th className="text-left p-2">Method</th><th className="text-right p-2">Amount</th>
+                </tr></thead>
+                <tbody>
+                  {sortedExpenses.map((e) => (
+                    <tr key={e.id} className="border-b">
+                      <td className="p-2">{formatDate(e.date)}</td>
+                      <td className="p-2">{e.category || '—'}</td>
+                      <td className="p-2">{e.description || e.paidTo || '—'}</td>
+                      <td className="p-2">{e.paymentMethod || e.method || '—'}</td>
+                      <td className="p-2 text-right font-semibold text-red-600">{formatCurrency(e.amount)}</td>
+                    </tr>
+                  ))}
+                  {!sortedExpenses.length && <tr><td colSpan={5} className="p-6 text-center text-gray-500">No expenses in range</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </CardContent></Card>
+        </TabsContent>
+
+        <TabsContent value="payments">
+          <Card><CardHeader><CardTitle>Payments detail ({sortedPayments.length})</CardTitle></CardHeader><CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b bg-gray-50">
+                  <th className="text-left p-2">Date</th><th className="text-left p-2">Party</th><th className="text-left p-2">Type</th><th className="text-left p-2">Method</th><th className="text-left p-2">Ref</th><th className="text-right p-2">Amount</th>
+                </tr></thead>
+                <tbody>
+                  {sortedPayments.map((p) => (
                     <tr key={p.id} className="border-b">
                       <td className="p-2">{formatDate(p.date)}</td>
                       <td className="p-2">{p.party || p.customerName || '—'}</td>
-                      <td className="p-2">{p.type}</td>
+                      <td className="p-2"><Badge variant="outline">{p.type}</Badge></td>
+                      <td className="p-2">{p.method || '—'}</td>
+                      <td className="p-2">{p.reference || p.refId || '—'}</td>
                       <td className="p-2 text-right font-semibold">{formatCurrency(p.amount)}</td>
                     </tr>
                   ))}
-                  {!filteredPayments.length && <tr><td colSpan={4} className="p-6 text-center text-gray-500">No payments in range</td></tr>}
+                  {!sortedPayments.length && <tr><td colSpan={6} className="p-6 text-center text-gray-500">No payments in range</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -436,23 +596,24 @@ const Reports = () => {
         </TabsContent>
 
         <TabsContent value="orders">
-          <Card><CardHeader><CardTitle>Orders Detail ({filteredBookingOrders.length})</CardTitle></CardHeader><CardContent>
+          <Card><CardHeader><CardTitle>Orders detail ({sortedBookingOrders.length})</CardTitle></CardHeader><CardContent>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead><tr className="border-b bg-gray-50">
-                  <th className="text-left p-2">Order</th><th className="text-left p-2">Date</th><th className="text-left p-2">Customer</th><th className="text-left p-2">Status</th><th className="text-right p-2">Total</th>
+                  <th className="text-left p-2">Order</th><th className="text-left p-2">Date</th><th className="text-left p-2">Customer</th><th className="text-left p-2">Status</th><th className="text-right p-2">Total</th><th className="text-right p-2">Balance</th>
                 </tr></thead>
                 <tbody>
-                  {filteredBookingOrders.map((o) => (
+                  {sortedBookingOrders.map((o) => (
                     <tr key={o.id} className="border-b">
                       <td className="p-2 font-medium">{o.orderId}</td>
                       <td className="p-2">{formatDate(o.date)}</td>
                       <td className="p-2">{o.customerName}</td>
                       <td className="p-2"><Badge variant="outline">{o.status}</Badge></td>
                       <td className="p-2 text-right font-semibold" style={{ color: primary || '#F26522' }}>{formatCurrency(o.totalAmount)}</td>
+                      <td className="p-2 text-right">{formatCurrency(o.balanceAmount)}</td>
                     </tr>
                   ))}
-                  {!filteredBookingOrders.length && <tr><td colSpan={5} className="p-6 text-center text-gray-500">No orders in range</td></tr>}
+                  {!sortedBookingOrders.length && <tr><td colSpan={6} className="p-6 text-center text-gray-500">No orders in range</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -462,26 +623,27 @@ const Reports = () => {
         <TabsContent value="pos">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>POS Statement ({filteredPosOrders.length})</CardTitle>
+              <CardTitle>POS detail ({sortedPosOrders.length})</CardTitle>
               <Button variant="outline" size="sm" onClick={() => window.location.assign('/pos/statement')}>Open full statement</Button>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead><tr className="border-b bg-gray-50">
-                    <th className="text-left p-2">POS #</th><th className="text-left p-2">Date</th><th className="text-left p-2">Customer</th><th className="text-left p-2">Status</th><th className="text-right p-2">Total</th>
+                    <th className="text-left p-2">POS #</th><th className="text-left p-2">Date</th><th className="text-left p-2">Customer</th><th className="text-left p-2">Phone</th><th className="text-left p-2">Status</th><th className="text-right p-2">Total</th>
                   </tr></thead>
                   <tbody>
-                    {filteredPosOrders.map((o) => (
+                    {sortedPosOrders.map((o) => (
                       <tr key={o.id} className="border-b">
                         <td className="p-2 font-medium">{o.orderId}</td>
                         <td className="p-2">{formatDate(o.date)}</td>
                         <td className="p-2">{o.customerName || 'Walk-in'}</td>
+                        <td className="p-2">{o.customerPhone || '—'}</td>
                         <td className="p-2"><Badge variant="outline">{o.status}</Badge></td>
                         <td className="p-2 text-right font-semibold" style={{ color: primary || '#F26522' }}>{formatCurrency(o.totalAmount)}</td>
                       </tr>
                     ))}
-                    {!filteredPosOrders.length && <tr><td colSpan={5} className="p-6 text-center text-gray-500">No POS sales in range</td></tr>}
+                    {!sortedPosOrders.length && <tr><td colSpan={6} className="p-6 text-center text-gray-500">No POS sales in range</td></tr>}
                   </tbody>
                 </table>
               </div>
