@@ -177,15 +177,25 @@ create table if not exists purchases (
   date text default '',
   vendor_id text default '',
   vendor_name text default '',
+  vendor_invoice_number text default '',
+  expected_delivery_date text default '',
+  actual_delivery_date text default '',
+  linked_order_id text default '',
   items jsonb default '[]'::jsonb,
   total numeric default 0,
   paid_amount numeric default 0,
-  status text default 'Pending',
+  status text default 'Draft',
+  notes text default '',
   created_at timestamptz default now()
 );
 
--- Existing projects: run once in SQL editor if column missing
+-- Existing projects: run once in SQL editor if columns missing
 -- alter table purchases add column if not exists paid_amount numeric default 0;
+-- alter table purchases add column if not exists vendor_invoice_number text default '';
+-- alter table purchases add column if not exists expected_delivery_date text default '';
+-- alter table purchases add column if not exists actual_delivery_date text default '';
+-- alter table purchases add column if not exists linked_order_id text default '';
+-- alter table purchases add column if not exists notes text default '';
 
 -- ========== EXPENSES / PAYMENTS ==========
 create table if not exists expenses (

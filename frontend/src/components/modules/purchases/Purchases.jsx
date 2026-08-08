@@ -23,7 +23,47 @@ const emptyPurchase = {
   status: 'Draft',
   linkedOrderId: '',
   items: [{ _key: 'i_init', productId: '', name: '', quantity: 1, rate: 0, unit: 'piece' }],
-  notes: '', totalAmount: 0, paidAmount: 0
+  notes: '', totalAmount: 0, paidAmount: 0, poNumber: '',
+};
+
+/** Normalize GAS/API purchase shapes → UI fields */
+const normalizePurchase = (p = {}) => {
+  const total = Number(p.totalAmount ?? p.total ?? 0) || 0;
+  const paid = Number(p.paidAmount ?? p.paid ?? 0) || 0;
+  const po = p.poNumber || p.purchaseNo || p.purchaseno || '';
+  const date = p.purchaseDate || p.date || p.purchasedate || '';
+  let items = p.items;
+  if (typeof items === 'string') {
+    try { items = JSON.parse(items); } catch { items = []; }
+  }
+  if (!Array.isArray(items)) items = [];
+  return {
+    ...p,
+    id: p.id,
+    poNumber: po,
+    purchaseNo: po,
+    purchaseDate: date,
+    date,
+    vendorId: p.vendorId || p.vendorid || '',
+    vendorName: p.vendorName || p.vendorname || '',
+    vendorInvoiceNumber: p.vendorInvoiceNumber || p.vendorinvoicenumber || '',
+    expectedDeliveryDate: p.expectedDeliveryDate || p.expecteddeliverydate || '',
+    actualDeliveryDate: p.actualDeliveryDate || p.actualdeliverydate || '',
+    linkedOrderId: p.linkedOrderId || p.linkedorderid || '',
+    items: items.map((it, i) => ({
+      ...it,
+      _key: it._key || it.id || `i_${i}`,
+      productId: it.productId || it.productid || '',
+      name: it.name || '',
+      quantity: Number(it.quantity) || 0,
+      rate: Number(it.rate) || 0,
+      unit: it.unit || 'piece',
+    })),
+    totalAmount: total,
+    paidAmount: paid,
+    status: p.status || 'Draft',
+    notes: p.notes || '',
+  };
 };
 
 const Purchases = () => {
@@ -51,7 +91,7 @@ const Purchases = () => {
         ordersAPI.getAll(),
         productsAPI.getAll(),
       ]);
-      setPurchases(pRes.data || []);
+      setPurchases((Array.isArray(pRes.data) ? pRes.data : []).map(normalizePurchase));
       setVendors(vRes.data || []);
       setOrders(oRes.data || []);
       setProducts(prodRes.data || []);
@@ -63,8 +103,12 @@ const Purchases = () => {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const filtered = purchases.filter(p => {
-    const matchS = !search || p.poNumber?.toLowerCase().includes(search.toLowerCase()) || p.vendorName?.toLowerCase().includes(search.toLowerCase());
+  const filtered = purchases.filter((p) => {
+    const q = search.trim().toLowerCase();
+    const matchS = !q
+      || String(p.poNumber || '').toLowerCase().includes(q)
+      || String(p.vendorName || '').toLowerCase().includes(q)
+      || String(p.vendorInvoiceNumber || '').toLowerCase().includes(q);
     const matchStatus = !statusFilter || p.status === statusFilter;
     return matchS && matchStatus;
   });
@@ -83,20 +127,21 @@ const Purchases = () => {
 
   const openCreate = () => { setEditing(null); setFormData(emptyPurchase); setDialogOpen(true); };
   const openEdit = (p) => {
-    setEditing(p);
+    const row = normalizePurchase(p);
+    setEditing(row);
     setFormData({
       ...emptyPurchase,
-      ...p,
-      items: (p.items?.length ? p.items : emptyPurchase.items).map((it, i) => ({
+      ...row,
+      items: (row.items?.length ? row.items : emptyPurchase.items).map((it, i) => ({
         ...it,
         _key: it._key || it.id || `i_${i}`,
         productId: it.productId || '',
       })),
-      paidAmount: p.paidAmount || 0,
+      paidAmount: row.paidAmount || 0,
     });
     setDialogOpen(true);
   };
-  const openView = (p) => { setViewData(p); setViewOpen(true); };
+  const openView = (p) => { setViewData(normalizePurchase(p)); setViewOpen(true); };
 
   const calcTotal = () => formData.items.reduce((s, i) => s + (Number(i.quantity) * Number(i.rate)), 0);
 
@@ -207,28 +252,42 @@ const Purchases = () => {
     let paidAmount = Number(formData.paidAmount) || 0;
     if (formData.status === 'Fully Paid') paidAmount = totalAmount;
     const payload = {
-      ...formData,
-      vendorName: vendor?.name,
+      vendorId: formData.vendorId,
+      vendorName: vendor?.name || formData.vendorName || '',
+      vendorInvoiceNumber: formData.vendorInvoiceNumber || '',
+      purchaseDate: formData.purchaseDate || new Date().toISOString().split('T')[0],
+      date: formData.purchaseDate || new Date().toISOString().split('T')[0],
+      expectedDeliveryDate: formData.expectedDeliveryDate || '',
+      actualDeliveryDate: formData.status === 'Received'
+        ? (formData.actualDeliveryDate || new Date().toISOString().split('T')[0])
+        : (formData.actualDeliveryDate || ''),
+      status: formData.status || 'Draft',
+      linkedOrderId: formData.linkedOrderId || '',
+      items: formData.items.map(({ productId, name, quantity, rate, unit }) => ({
+        productId, name, quantity: Number(quantity) || 0, rate: Number(rate) || 0, unit: unit || 'piece',
+      })),
+      notes: formData.notes || '',
       totalAmount,
+      total: totalAmount,
       paidAmount,
+      paid: paidAmount,
+      poNumber: formData.poNumber || editing?.poNumber || '',
+      purchaseNo: formData.poNumber || editing?.poNumber || '',
       paymentStatus: formData.status === 'Fully Paid' ? 'Paid'
         : formData.status === 'Partial Paid' ? 'Partially Paid'
           : formData.status === 'Received' && paidAmount >= totalAmount ? 'Paid'
             : paidAmount > 0 ? 'Partially Paid' : 'Unpaid',
-      actualDeliveryDate: formData.status === 'Received'
-        ? (formData.actualDeliveryDate || new Date().toISOString().split('T')[0])
-        : formData.actualDeliveryDate,
     };
     try {
       let saved;
       const wasReceived = editing?.status === 'Received';
       if (editing) {
         const res = await purchasesAPI.update(editing.id, payload);
-        saved = res.data || { ...editing, ...payload };
+        saved = normalizePurchase(res.data || { ...editing, ...payload });
         toast.success('Updated');
       } else {
         const res = await purchasesAPI.create(payload);
-        saved = res.data || payload;
+        saved = normalizePurchase(res.data || payload);
         toast.success('Purchase order created');
       }
 
@@ -263,17 +322,24 @@ const Purchases = () => {
 
   const markReceived = async (p) => {
     if (!window.confirm('Mark as received? This updates inventory.')) return;
+    const row = normalizePurchase(p);
     try {
-      await purchasesAPI.update(p.id, {
-        ...p,
+      await purchasesAPI.update(row.id, {
+        ...row,
+        vendorId: row.vendorId,
+        vendorName: row.vendorName,
+        purchaseDate: row.purchaseDate,
+        items: row.items,
+        totalAmount: row.totalAmount,
+        paidAmount: row.paidAmount,
         status: 'Received',
         actualDeliveryDate: new Date().toISOString().split('T')[0],
       });
-      if (p.status !== 'Received') {
-        await applyStockIncrease(p.items);
+      if (row.status !== 'Received') {
+        await applyStockIncrease(row.items);
       }
       toast.success('Marked received. Inventory updated.');
-      if (p.linkedOrderId) toast.info(`Linked order ${p.linkedOrderId} updated to Ready for Delivery.`);
+      if (row.linkedOrderId) toast.info(`Linked order ${row.linkedOrderId} updated to Ready for Delivery.`);
       fetchAll();
     } catch (err) {
       console.error(err);

@@ -549,17 +549,31 @@ async function dispatch(req, res) {
     }
 
     if (path === '/purchases' || path.startsWith('/purchases/')) {
-      const done = await handleCollection('purchases', '/purchases', mapPurchase, (b, rid) => ({
-        id: rid || b.id || id('pur'),
-        purchase_no: b.purchaseNo || b.purchase_no || '',
-        date: b.date || today(),
-        vendor_id: b.vendorId || '',
-        vendor_name: b.vendorName || '',
-        items: b.items || [],
-        total: num(b.total != null ? b.total : b.totalAmount),
-        paid_amount: num(b.paidAmount != null ? b.paidAmount : b.paid_amount),
-        status: b.status || 'Pending',
-      }));
+      const done = await handleCollection('purchases', '/purchases', mapPurchase, (b, rid) => {
+        const items = Array.isArray(b.items) ? b.items : [];
+        let total = num(b.total != null ? b.total : b.totalAmount);
+        if (!(total > 0) && items.length) {
+          total = items.reduce((s, it) => s + (num(it.quantity) * num(it.rate)), 0);
+        }
+        const year = new Date().getFullYear();
+        const autoPo = `PO-${year}-${String(Date.now()).slice(-4)}`;
+        return {
+          id: rid || b.id || id('pur'),
+          purchase_no: b.poNumber || b.purchaseNo || b.purchase_no || autoPo,
+          date: b.purchaseDate || b.date || today(),
+          vendor_id: b.vendorId || b.vendor_id || '',
+          vendor_name: b.vendorName || b.vendor_name || '',
+          vendor_invoice_number: b.vendorInvoiceNumber || '',
+          expected_delivery_date: b.expectedDeliveryDate || '',
+          actual_delivery_date: b.actualDeliveryDate || '',
+          linked_order_id: b.linkedOrderId || '',
+          items,
+          total,
+          paid_amount: num(b.paidAmount != null ? b.paidAmount : b.paid_amount),
+          status: b.status || 'Draft',
+          notes: b.notes || '',
+        };
+      });
       if (done !== null) return done;
     }
 

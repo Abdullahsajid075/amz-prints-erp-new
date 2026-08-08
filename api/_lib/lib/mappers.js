@@ -186,20 +186,29 @@ function mapExpense(row) {
 
 function mapPurchase(row) {
   if (!row) return null;
-  const total = num(row.total);
+  const total = num(row.total != null ? row.total : row.total_amount);
   const paidAmount = num(row.paid_amount != null ? row.paid_amount : row.paid);
+  const po = row.purchase_no || row.po_number || '';
+  const date = row.date || row.purchase_date || '';
   return {
     id: row.id,
-    purchaseNo: row.purchase_no || '',
-    date: row.date || '',
+    poNumber: po,
+    purchaseNo: po,
+    purchaseDate: date,
+    date,
     vendorId: row.vendor_id || '',
     vendorName: row.vendor_name || '',
+    vendorInvoiceNumber: row.vendor_invoice_number || '',
+    expectedDeliveryDate: row.expected_delivery_date || '',
+    actualDeliveryDate: row.actual_delivery_date || '',
+    linkedOrderId: row.linked_order_id || '',
     items: Array.isArray(row.items) ? row.items : [],
     total,
     totalAmount: total,
     paidAmount,
     paid: paidAmount,
-    status: row.status || '',
+    status: row.status || 'Draft',
+    notes: row.notes || '',
     outstanding: Math.max(0, total - paidAmount),
   };
 }

@@ -59,7 +59,10 @@ var DEFAULT_HEADERS = {
     'PreviousBalance', 'Total', 'Paid', 'Status', 'Notes', 'ShareToken'
   ],
   Vendors: ['Id', 'Name', 'Phone', 'Email', 'Address', 'Notes'],
-  Purchases: ['Id', 'PurchaseNo', 'Date', 'VendorId', 'VendorName', 'Items', 'Total', 'Paid', 'Status'],
+  Purchases: [
+    'Id', 'PurchaseNo', 'Date', 'VendorId', 'VendorName', 'Items', 'Total', 'Paid', 'Status',
+    'VendorInvoiceNumber', 'ExpectedDeliveryDate', 'ActualDeliveryDate', 'LinkedOrderId', 'Notes'
+  ],
   Expenses: ['Id', 'Date', 'Category', 'Amount', 'Description', 'PaymentMethod'],
   Payments: ['Id', 'Date', 'Type', 'Category', 'RefId', 'CustomerName', 'CustomerId', 'PartyPhone', 'Amount', 'Method', 'Notes', 'BalanceDue', 'TotalAmount'],
   Counters: [
@@ -222,7 +225,11 @@ function normalizeHeader_(header) {
     invoiceno: 'invoiceno', invoicenumber: 'invoiceno', sharetoken: 'sharetoken',
     key: 'key', value: 'value',
     amount: 'amount', method: 'method', paymentmethod: 'paymentmethod', vendorname: 'vendorname',
-    vendorid: 'vendorid', purchaseno: 'purchaseno', refid: 'refid',
+    vendorid: 'vendorid', purchaseno: 'purchaseno', ponumber: 'purchaseno',
+    purchasedate: 'date', totalamount: 'total',
+    vendorinvoicenumber: 'vendorinvoicenumber', expecteddeliverydate: 'expecteddeliverydate',
+    actualdeliverydate: 'actualdeliverydate', linkedorderid: 'linkedorderid',
+    refid: 'refid',
     type: 'type',
     paidamount: 'paid', paid: 'paid', taxrate: 'taxrate',
     duedate: 'duedate', previousbalance: 'previousbalance', servicenote: 'servicenote',
@@ -1652,6 +1659,138 @@ function handleOrderById_(path, method, body) {
   throw new Error('Method not allowed');
 }
 
+/* ===================== PURCHASES ===================== */
+
+function parsePurchaseItems_(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string' && raw.trim()) {
+    try {
+      var parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) { return []; }
+  }
+  return [];
+}
+
+function nextPurchaseNo_() {
+  var rows = getSheetRows_(SHEET_NAMES.PURCHASES);
+  var year = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Karachi', 'yyyy');
+  var max = 0;
+  rows.forEach(function (r) {
+    var no = String(r.purchaseno || '');
+    var m = no.match(/PO-?\d{4}-?(\d+)/i) || no.match(/(\d+)$/);
+    if (m) max = Math.max(max, Number(m[1]) || 0);
+  });
+  var next = String(max + 1);
+  while (next.length < 4) next = '0' + next;
+  return 'PO-' + year + '-' + next;
+}
+
+function toApiPurchase_(p) {
+  var items = parsePurchaseItems_(p.items);
+  var total = Number(p.total != null ? p.total : (p.totalamount || 0));
+  var paid = Number(p.paid != null ? p.paid : (p.paidamount || 0));
+  var po = p.purchaseno || p.ponumber || '';
+  var date = p.date || p.purchasedate || '';
+  return {
+    id: p.id,
+    poNumber: po,
+    purchaseNo: po,
+    purchaseDate: date,
+    date: date,
+    vendorId: p.vendorid || '',
+    vendorName: p.vendorname || '',
+    vendorInvoiceNumber: p.vendorinvoicenumber || '',
+    expectedDeliveryDate: p.expecteddeliverydate || '',
+    actualDeliveryDate: p.actualdeliverydate || '',
+    linkedOrderId: p.linkedorderid || '',
+    items: items,
+    totalAmount: total,
+    total: total,
+    paidAmount: paid,
+    paid: paid,
+    status: p.status || 'Draft',
+    notes: p.notes || '',
+    outstanding: Math.max(0, total - paid),
+  };
+}
+
+function normalizePurchase_(body, existing) {
+  existing = existing || {};
+  var id = body.id || existing.id || ('purchase_' + Date.now());
+  var items = body.items != null ? body.items : (existing.items || []);
+  if (typeof items === 'string') items = parsePurchaseItems_(items);
+  if (!Array.isArray(items)) items = [];
+
+  var total = body.totalAmount != null ? body.totalAmount
+    : (body.total != null ? body.total : (existing.total != null ? existing.total : 0));
+  if (!(Number(total) > 0) && items.length) {
+    total = items.reduce(function (s, it) {
+      return s + (Number(it.quantity || 0) * Number(it.rate || 0));
+    }, 0);
+  }
+
+  var paid = body.paidAmount != null ? body.paidAmount
+    : (body.paid != null ? body.paid : (existing.paid != null ? existing.paid : 0));
+
+  var po = body.poNumber || body.purchaseNo || body.purchaseno
+    || existing.purchaseno || existing.ponumber || '';
+  if (!po) po = nextPurchaseNo_();
+
+  var date = body.purchaseDate || body.date || existing.date
+    || Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Karachi', 'yyyy-MM-dd');
+
+  return {
+    id: id,
+    purchaseno: po,
+    date: date,
+    vendorid: body.vendorId != null ? body.vendorId : (existing.vendorid || ''),
+    vendorname: body.vendorName != null ? body.vendorName : (existing.vendorname || ''),
+    items: items,
+    total: Number(total || 0),
+    paid: Number(paid || 0),
+    status: body.status || existing.status || 'Draft',
+    vendorinvoicenumber: body.vendorInvoiceNumber != null ? body.vendorInvoiceNumber : (existing.vendorinvoicenumber || ''),
+    expecteddeliverydate: body.expectedDeliveryDate != null ? body.expectedDeliveryDate : (existing.expecteddeliverydate || ''),
+    actualdeliverydate: body.actualDeliveryDate != null ? body.actualDeliveryDate : (existing.actualdeliverydate || ''),
+    linkedorderid: body.linkedOrderId != null ? body.linkedOrderId : (existing.linkedorderid || ''),
+    notes: body.notes != null ? body.notes : (existing.notes || ''),
+  };
+}
+
+function handlePurchases_(path, method, body) {
+  var sheet = getSheet_(SHEET_NAMES.PURCHASES);
+  ensureHeaders_(sheet, SHEET_NAMES.PURCHASES);
+  var rows = getSheetRows_(SHEET_NAMES.PURCHASES);
+
+  if (path === '/purchases') {
+    if (method === 'GET') return rows.map(toApiPurchase_);
+    if (method === 'POST') {
+      var created = normalizePurchase_(body || {});
+      appendObject_(sheet, SHEET_NAMES.PURCHASES, created);
+      return toApiPurchase_(created);
+    }
+  }
+
+  var id = path.split('/')[2];
+  var index = findById_(rows, id);
+  if (index < 0) throw new Error('Purchase not found');
+
+  if (method === 'GET') return toApiPurchase_(rows[index]);
+  if (method === 'PUT') {
+    var updated = normalizePurchase_(body || {}, rows[index]);
+    updated.id = rows[index].id;
+    if (!updated.purchaseno) updated.purchaseno = rows[index].purchaseno || nextPurchaseNo_();
+    updateObjectProps_(sheet, SHEET_NAMES.PURCHASES, rows[index]._row, updated);
+    return toApiPurchase_(updated);
+  }
+  if (method === 'DELETE') {
+    deleteRow_(sheet, rows[index]._row, SHEET_NAMES.PURCHASES);
+    return { success: true };
+  }
+  throw new Error('Method not allowed');
+}
+
 /* ===================== GENERIC COLLECTION ===================== */
 
 function handleCollection_(sheetName, path, method, body, basePath) {
@@ -2902,7 +3041,7 @@ function handleRequest_(e) {
       return jsonResponse_(handleCollection_(SHEET_NAMES.VENDORS, path, method, body, '/vendors'));
     }
     if (path === '/purchases' || path.indexOf('/purchases/') === 0) {
-      return jsonResponse_(handleCollection_(SHEET_NAMES.PURCHASES, path, method, body, '/purchases'));
+      return jsonResponse_(handlePurchases_(path, method, body));
     }
     if (path === '/expenses' || path.indexOf('/expenses/') === 0) {
       return jsonResponse_(handleCollection_(SHEET_NAMES.EXPENSES, path, method, body, '/expenses'));
