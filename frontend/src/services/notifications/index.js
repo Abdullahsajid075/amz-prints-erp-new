@@ -129,13 +129,19 @@ export async function notifyOrderEvent({
     || payment?.phone
     || '';
 
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://erp.amzprints.com';
+  const trackingNumber = order?.trackingNumber || '';
+  const trackUrl = trackingNumber ? `${origin}/track/${encodeURIComponent(trackingNumber)}` : '';
   const vars = buildTemplateVars(order || {}, company, {
     status,
     customerName: order?.customerName || customer?.name || invoice?.customerName || payment?.party,
+    trackUrl,
+    TrackUrl: trackUrl,
+    trackingNumber,
     invoice_number: invoice?.invoiceNumber || invoice?.invoiceNo || payment?.reference || '',
     invoice_date: invoice?.date || invoice?.invoiceDate || '',
     invoice_url: invoice?.shareToken
-      ? `${typeof window !== 'undefined' ? window.location.origin : ''}/invoice/${invoice.shareToken}`
+      ? `${origin}/invoice/${invoice.shareToken}`
       : (invoice?.invoiceUrl || ''),
     amount: invoice?.totalAmount ?? invoice?.total ?? order?.totalAmount ?? payment?.amount,
     paidAmount: invoice?.paidAmount ?? payment?.amount ?? 0,

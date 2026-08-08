@@ -106,13 +106,18 @@ const OrdersList = () => {
       const full = order.customerPhone ? order : (await ordersAPI.getById(order.id)).data;
       if (!full.customerPhone) { toast.error('Customer phone not available'); return; }
       const trackUrl = trackingLinkFor(full);
-      const vars = buildTemplateVars({ ...full, trackUrl, trackingNumber: full.trackingNumber || full.orderId }, company);
+      const vars = buildTemplateVars(
+        { ...full, trackingNumber: full.trackingNumber || full.orderId },
+        company,
+        { trackUrl, TrackUrl: trackUrl, trackingNumber: full.trackingNumber || full.orderId }
+      );
       const template = resolveWhatsAppTemplate(null, 'status', full.status);
-      const msg = fillTemplate(template, vars);
-      const withLink = String(msg || '').includes(trackUrl)
-        ? msg
-        : `${msg}\n\nTrack your order (no login): ${trackUrl}`;
-      const result = openWhatsAppChat(full.customerPhone, withLink);
+      let msg = fillTemplate(template, vars);
+      // Only append track link if template didn't already include it
+      if (trackUrl && !String(msg || '').includes(trackUrl) && !/Track your order/i.test(msg)) {
+        msg = `${msg}\n\nTrack your order : ${trackUrl}`;
+      }
+      const result = openWhatsAppChat(full.customerPhone, msg);
       if (!result.ok) toast.error('Could not open WhatsApp');
       else toast.message('WhatsApp opened — tap Send');
     } catch (err) { console.error(err); toast.error('Failed to open WhatsApp'); }

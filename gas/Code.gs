@@ -1061,7 +1061,7 @@ function defaultWhatsAppTemplate_(event, status) {
     return 'Dear {Customer Name},\n\nYour order is now in production.\n\nOrder No: {Order Number}\n\n{Company Name}';
   }
   if (status === 'Ready') {
-    return 'Good news!\n\nYour order is ready for collection.\n\nOrder No: {Order Number}\nTracking No: {Tracking Number}\n\n{Company Name}';
+    return 'Dear {Customer Name},\nYour order #{Order Number} is ready for pickup/delivery.\n\nPlease visit our office to receive your Order\n\n*( Paid Home Delivery Available )*\n\nThank you for choosing Amazon Printing Services.\n\n📍 King Road, Mandi Bahauddin\n🌐 amzprints.com\n\nTrack your order : {Track Url}';
   }
   if (status === 'Delivered') {
     return 'Dear {Customer Name},\n\nYour order has been delivered successfully.\n\nOrder No: {Order Number}\n\nThank you for choosing {Company Name}.';
@@ -1080,10 +1080,17 @@ function fillNotifyTemplate_(template, vars) {
 
 function buildNotifyVars_(orderApi, company, extras) {
   extras = extras || {};
+  var trackNo = orderApi.trackingNumber || extras.trackingNumber || '';
+  var trackUrl = extras.trackUrl || '';
+  if (!trackUrl && trackNo) {
+    trackUrl = 'https://erp.amzprints.com/track/' + encodeURIComponent(trackNo);
+  }
   return {
     'Customer Name': orderApi.customerName || extras.customerName || 'Customer',
     'Order Number': orderApi.orderId || orderApi.id || '',
-    'Tracking Number': orderApi.trackingNumber || '',
+    'Tracking Number': trackNo,
+    'Track Url': trackUrl,
+    TrackUrl: trackUrl,
     Status: orderApi.status || extras.status || '',
     'Company Name': company.name || 'AMZ Prints',
     'Company Phone': company.phone || '',
@@ -1254,34 +1261,66 @@ function nextOrderId_() {
 
 function normalizeOrder_(body, existing) {
   existing = existing || {};
-  var products = body.products || body.items || existing.products || [];
+  var products = body.products != null ? body.products : (body.items != null ? body.items : existing.products);
+  if (typeof products === 'string') {
+    try { products = JSON.parse(products); } catch (e) { products = existing.products || []; }
+  }
+  if (!Array.isArray(products)) products = [];
+  // Strip UI-only keys; keep catalog fields that matter for reprints / slips
+  products = products.map(function (p) {
+    p = p || {};
+    return {
+      productId: p.productId || p.id || '',
+      name: p.name || '',
+      quantity: Number(p.quantity) || 0,
+      rate: Number(p.rate) || 0,
+      size: p.size || '',
+      material: p.material || '',
+      notes: p.notes || '',
+    };
+  });
+  function pick(keyCamel, keyLower, fallback) {
+    if (body[keyCamel] !== undefined && body[keyCamel] !== null) return body[keyCamel];
+    if (body[keyLower] !== undefined && body[keyLower] !== null) return body[keyLower];
+    return fallback;
+  }
   return {
     id: body.id || existing.id || ('order_' + Date.now()),
     orderid: body.orderId || body.orderid || existing.orderid || nextOrderId_(),
-    date: body.date || existing.date || nowDate_(),
-    customerid: body.customerId || body.customerid || existing.customerid || '',
-    customername: body.customerName || body.customername || existing.customername || '',
-    customerphone: body.customerPhone || body.customerphone || existing.customerphone || '',
-    customeremail: body.customerEmail || body.customeremail || existing.customeremail || '',
-    customeraddress: body.customerAddress || body.customeraddress || existing.customeraddress || '',
-    status: body.status || existing.status || 'Order Received',
-    deliverydate: body.deliveryDate || body.deliverydate || existing.deliverydate || '',
+    date: pick('date', 'date', existing.date || nowDate_()) || nowDate_(),
+    customerid: pick('customerId', 'customerid', existing.customerid || '') || '',
+    customername: pick('customerName', 'customername', existing.customername || '') || '',
+    customerphone: pick('customerPhone', 'customerphone', existing.customerphone || '') || '',
+    customeremail: pick('customerEmail', 'customeremail', existing.customeremail || '') || '',
+    customeraddress: pick('customerAddress', 'customeraddress', existing.customeraddress || '') || '',
+    status: pick('status', 'status', existing.status || 'Order Received') || 'Order Received',
+    deliverydate: pick('deliveryDate', 'deliverydate', existing.deliverydate || '') || '',
     products: products,
     totalamount: Number(body.totalAmount != null ? body.totalAmount : (body.totalamount != null ? body.totalamount : existing.totalamount || 0)),
     advancepayment: Number(body.advancePayment != null ? body.advancePayment : (body.advancepayment != null ? body.advancepayment : existing.advancepayment || 0)),
     balanceamount: Number(body.balanceAmount != null ? body.balanceAmount : (body.balanceamount != null ? body.balanceamount : existing.balanceamount || 0)),
-    remarks: body.remarks || existing.remarks || '',
-    assigneddesigner: body.assignedDesigner || body.assigneddesigner || existing.assigneddesigner || '',
-    tokenno: body.tokenNo || body.tokenno || existing.tokenno || '',
-    doctype: body.docType || body.doctype || existing.doctype || 'Order',
-    trackingnumber: body.trackingNumber || body.trackingnumber || existing.trackingnumber || '',
-    statushistory: body.statusHistory || body.statushistory || existing.statushistory || [],
-    deliveryaddress: body.deliveryAddress || body.deliveryaddress || existing.deliveryaddress || '',
-    quotationid: body.quotationId || body.quotationid || existing.quotationid || '',
+    remarks: pick('remarks', 'remarks', existing.remarks || '') || '',
+    assigneddesigner: pick('assignedDesigner', 'assigneddesigner', existing.assigneddesigner || '') || '',
+    tokenno: pick('tokenNo', 'tokenno', existing.tokenno || '') || '',
+    doctype: pick('docType', 'doctype', existing.doctype || 'Order') || 'Order',
+    trackingnumber: pick('trackingNumber', 'trackingnumber', existing.trackingnumber || '') || '',
+    statushistory: body.statusHistory != null ? body.statusHistory : (body.statushistory != null ? body.statushistory : (existing.statushistory || [])),
+    deliveryaddress: pick('deliveryAddress', 'deliveryaddress', existing.deliveryaddress || '') || '',
+    quotationid: pick('quotationId', 'quotationid', existing.quotationid || '') || '',
   };
 }
 
 function toApiOrder_(o) {
+  var products = o.products;
+  if (typeof products === 'string') {
+    try { products = JSON.parse(products); } catch (e) { products = []; }
+  }
+  if (!Array.isArray(products)) products = [];
+  var statusHistory = o.statushistory;
+  if (typeof statusHistory === 'string') {
+    try { statusHistory = JSON.parse(statusHistory); } catch (e2) { statusHistory = []; }
+  }
+  if (!Array.isArray(statusHistory)) statusHistory = statusHistory ? [statusHistory] : [];
   return {
     id: o.id,
     orderId: o.orderid,
@@ -1293,7 +1332,7 @@ function toApiOrder_(o) {
     customerAddress: o.customeraddress,
     status: o.status,
     deliveryDate: o.deliverydate,
-    products: Array.isArray(o.products) ? o.products : [],
+    products: products,
     totalAmount: Number(o.totalamount != null && o.totalamount !== '' ? o.totalamount : (o.total != null ? o.total : 0)),
     advancePayment: Number(o.advancepayment || 0),
     balanceAmount: Number(
@@ -1306,7 +1345,7 @@ function toApiOrder_(o) {
     tokenNo: o.tokenno || '',
     docType: o.doctype || 'Order',
     trackingNumber: o.trackingnumber || '',
-    statusHistory: Array.isArray(o.statushistory) ? o.statushistory : (o.statushistory ? o.statushistory : []),
+    statusHistory: statusHistory,
     deliveryAddress: o.deliveryaddress || '',
     quotationId: o.quotationid || '',
   };

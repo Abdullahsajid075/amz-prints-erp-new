@@ -123,6 +123,7 @@ const OrderForm = () => {
         customerId: o.customerId || '',
         assignedDesigner: o.assignedDesigner || '',
         deliveryDate: dateOnly(o.deliveryDate),
+        date: dateOnly(o.date) || dateOnly(new Date()),
         remarks: o.remarks || '',
         advancePayment: Number(o.advancePayment) || 0,
         status: o.status || ORDER_STATUS.RECEIVED,
@@ -130,6 +131,8 @@ const OrderForm = () => {
         products,
         orderId: o.orderId || '',
         quotationId: o.quotationId || '',
+        trackingNumber: o.trackingNumber || '',
+        deliveryAddress: o.deliveryAddress || o.customerAddress || '',
       });
       setOriginalStatus(o.status || ORDER_STATUS.RECEIVED);
       setOriginalAdvance(Number(o.advancePayment) || 0);
@@ -292,12 +295,45 @@ const OrderForm = () => {
 
     setLoading(true);
     try {
+      const designerId = formData.assignedDesigner;
+      const designerRow = designers.find((d) => String(d.id) === String(designerId))
+        || designers.find((d) => String(d.name).toLowerCase() === String(designerId || '').toLowerCase());
+      const designerName = designerRow?.name || formData.assignedDesigner || '';
+
+      const cleanProducts = formData.products.map((p) => ({
+        productId: p.productId || '',
+        name: p.name || '',
+        quantity: Number(p.quantity) || 0,
+        rate: Number(p.rate) || 0,
+        size: p.size || '',
+        material: p.material || '',
+        notes: p.notes || '',
+      }));
+
+      const totalAmount = cleanProducts.reduce((t, p) => t + (p.quantity * p.rate), 0);
+      const advancePayment = Number(formData.advancePayment) || 0;
       const orderData = {
-        ...formData,
         id: isEdit ? orderId : formData.id,
         orderId: formData.orderId || undefined,
-        totalAmount: calculateTotal(),
-        balanceAmount: calculateBalance(),
+        date: formData.date || undefined,
+        customerId: formData.customerId || '',
+        customerName: formData.customerName || '',
+        customerPhone: formData.customerPhone || '',
+        customerEmail: formData.customerEmail || '',
+        customerAddress: formData.customerAddress || '',
+        assignedDesigner: designerName,
+        deliveryDate: formData.deliveryDate || '',
+        deliveryAddress: formData.deliveryAddress || formData.customerAddress || '',
+        remarks: formData.remarks || '',
+        advancePayment,
+        status: formData.status || ORDER_STATUS.RECEIVED,
+        tokenNo: formData.tokenNo || '',
+        quotationId: formData.quotationId || '',
+        trackingNumber: formData.trackingNumber || undefined,
+        products: cleanProducts,
+        totalAmount,
+        balanceAmount: Math.max(0, totalAmount - advancePayment),
+        docType: 'Order',
       };
 
       const prevStatus = isEdit ? originalStatus : '';
@@ -308,7 +344,21 @@ const OrderForm = () => {
       if (isEdit) {
         const updated = await ordersAPI.update(orderId, orderData);
         toast.success('Order updated successfully');
-        const data = { ...orderData, ...(updated.data || {}) };
+        const server = updated.data || {};
+        const data = {
+          ...orderData,
+          ...server,
+          // Prefer what we just saved if server omits / mis-parses products
+          products: (Array.isArray(server.products) && server.products.length)
+            ? server.products
+            : orderData.products,
+          customerName: server.customerName || orderData.customerName,
+          customerPhone: server.customerPhone || orderData.customerPhone,
+          customerAddress: server.customerAddress || orderData.customerAddress,
+          assignedDesigner: server.assignedDesigner || orderData.assignedDesigner,
+          remarks: server.remarks != null ? server.remarks : orderData.remarks,
+          trackingNumber: server.trackingNumber || orderData.trackingNumber,
+        };
 
         if (receivedDelta > 0) {
           printOrderPaymentReceipt(data, receivedDelta);
@@ -330,12 +380,10 @@ const OrderForm = () => {
         }
 
         if (String(prevStatus) !== String(data.status || orderData.status)) {
-          if (applyServerNotificationHint(data)) {
-            toast.message('WhatsApp opened — tap Send to notify customer');
-          } else {
-            await notifyOrderEvent({ event: 'status', order: data });
-            toast.message('Status WhatsApp prepared');
-          }
+          // Always use frontend templates (Ready text + single WhatsApp open).
+          // Skip GAS hint to avoid duplicate / outdated message text.
+          await notifyOrderEvent({ event: 'status', order: data });
+          toast.message('WhatsApp opened — tap Send to notify customer');
         }
       } else {
         const created = await ordersAPI.create(orderData);

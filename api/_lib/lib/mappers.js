@@ -22,6 +22,11 @@ function mapOrder(row) {
   if (!row) return null;
   const total = num(row.total_amount);
   const advance = num(row.advance_payment);
+  let products = row.products;
+  if (typeof products === 'string') {
+    try { products = JSON.parse(products); } catch { products = []; }
+  }
+  if (!Array.isArray(products)) products = [];
   return {
     id: row.id,
     orderId: row.order_id || '',
@@ -33,7 +38,7 @@ function mapOrder(row) {
     customerAddress: row.customer_address || '',
     status: row.status || '',
     deliveryDate: row.delivery_date || '',
-    products: Array.isArray(row.products) ? row.products : [],
+    products,
     totalAmount: total,
     advancePayment: advance,
     balanceAmount: row.balance_amount != null && row.balance_amount !== ''
