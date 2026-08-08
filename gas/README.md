@@ -19,8 +19,9 @@ Usually one of these:
 6. **Deploy → Manage deployments → Edit → New version → Deploy**
 
 ### Employee / product photos
-Photos are stored in Google Drive folders (`AMZ-ERP-Employee-Photos`, `AMZ-ERP-Product-Images`).  
-If ERP shows *You do not have permission to call DriveApp…*, repeat step 5–6 above.
+- **Employee photos** try Drive first; if Drive is not authorized they save as a compressed image in the Employees sheet (no Drive needed).
+- **Product photos** still prefer Drive folders (`AMZ-ERP-Product-Images`).
+- Optional: run **`authorizeDriveAccess`** → Allow → Deploy New version for Drive URLs.
 
 ### 2. Prepare database (pick one)
 

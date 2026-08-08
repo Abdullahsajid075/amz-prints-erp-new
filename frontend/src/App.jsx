@@ -35,6 +35,7 @@ import Accounts from '@/components/modules/accounts/Accounts';
 import POS from '@/components/modules/pos/POS';
 import PrintingCostCalculator from '@/components/modules/calculator/PrintingCostCalculator';
 import PublicOrderTracking from '@/components/modules/tracking/PublicOrderTracking';
+import PublicEmployeeVerify from '@/components/modules/employees/PublicEmployeeVerify';
 
 /**
  * App shell (Brand + Auth) only mounts for protected routes.
@@ -85,6 +86,15 @@ function App() {
           element={(
             <BrandProvider>
               <PublicOrderTracking />
+              <Toaster position="top-right" richColors closeButton />
+            </BrandProvider>
+          )}
+        />
+        <Route
+          path="/verify/employee/:code"
+          element={(
+            <BrandProvider>
+              <PublicEmployeeVerify />
               <Toaster position="top-right" richColors closeButton />
             </BrandProvider>
           )}

@@ -9,10 +9,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { employeesAPI } from '@/services/api';
 import { clearGasCache } from '@/services/gasClient';
 import { compressImageFile } from '@/utils/productImage';
+import {
+  printEmployeeCard,
+  printEmployeeBadge,
+  printExperienceLetter,
+} from '@/utils/employeeDocuments';
 import { useBrand } from '@/context/BrandContext';
 import { formatCurrency } from '@/utils/helpers';
 import {
   Plus, Search, Edit, Trash2, UsersRound, Phone, Briefcase, Building2, ImagePlus,
+  IdCard, BadgeCheck, FileText, Download,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -26,6 +32,9 @@ const empty = {
   designation: '',
   department: 'General',
   joinDate: new Date().toISOString().slice(0, 10),
+  endDate: '',
+  validFrom: new Date().toISOString().slice(0, 10),
+  validUntil: '',
   salary: '',
   status: 'Active',
   address: '',
@@ -36,8 +45,23 @@ const empty = {
   photo: '',
 };
 
-const ROLES = ['Staff', 'Manager', 'Designer', 'Production', 'Accounts', 'Sales', 'HR', 'Admin', 'Cashier', 'Other'];
-const DEPARTMENTS = ['General', 'Sales', 'Design', 'Production', 'Accounts', 'HR', 'Warehouse', 'Management'];
+const ROLES = ['Staff', 'Manager', 'Designer', 'Production', 'Accounts', 'Sales', 'HR', 'Admin', 'Cashier', 'CEO', 'Director', 'Intern', 'Student', 'Other'];
+const DESIGNATIONS = [
+  'CEO',
+  'Director',
+  'Manager',
+  'Senior Designer',
+  'Designer',
+  'Production Supervisor',
+  'Accounts Officer',
+  'Sales Executive',
+  'HR Officer',
+  'Cashier',
+  'Intern',
+  'Student',
+  'Other',
+];
+const DEPARTMENTS = ['General', 'Sales', 'Design', 'Production', 'Accounts', 'HR', 'Warehouse', 'Management', 'Executive'];
 
 const normalizeEmployee = (e) => ({
   id: e.id,
@@ -50,6 +74,9 @@ const normalizeEmployee = (e) => ({
   designation: e.designation || '',
   department: e.department || 'General',
   joinDate: e.joinDate || e.joindate || '',
+  endDate: e.endDate || e.enddate || '',
+  validFrom: e.validFrom || e.validfrom || '',
+  validUntil: e.validUntil || e.validuntil || '',
   salary: e.salary,
   status: e.status || 'Active',
   address: e.address || '',
@@ -61,13 +88,15 @@ const normalizeEmployee = (e) => ({
 });
 
 const Employees = () => {
-  const { primary } = useBrand();
+  const { primary, company } = useBrand();
   const accent = primary || '#F26522';
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [docsOpen, setDocsOpen] = useState(false);
+  const [docsEmp, setDocsEmp] = useState(null);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
@@ -104,7 +133,7 @@ const Employees = () => {
   const stats = useMemo(() => ({
     total: employees.length,
     active: employees.filter((e) => String(e.status || 'Active').toLowerCase() === 'active').length,
-    designers: employees.filter((e) => /designer/i.test(e.role || '')).length,
+    designers: employees.filter((e) => /designer/i.test(e.role || '') || /designer/i.test(e.designation || '')).length,
   }), [employees]);
 
   const openCreate = () => {
@@ -120,9 +149,24 @@ const Employees = () => {
       ...emp,
       salary: emp.salary != null && emp.salary !== '' ? String(emp.salary) : '',
       joinDate: emp.joinDate || empty.joinDate,
+      endDate: emp.endDate || '',
+      validFrom: emp.validFrom || emp.joinDate || empty.validFrom,
+      validUntil: emp.validUntil || '',
       photo: emp.photo || '',
     });
     setDialogOpen(true);
+  };
+
+  const openDocs = (emp) => {
+    setDocsEmp(emp);
+    setDocsOpen(true);
+  };
+
+  const runDoc = (fn) => {
+    if (!docsEmp) return;
+    const res = fn(docsEmp, company || {});
+    if (!res?.ok) toast.error('Popup blocked — allow popups to print / save PDF');
+    else toast.message('Print dialog open — choose Save as PDF if needed');
   };
 
   const onPickPhoto = async (ev) => {
@@ -154,6 +198,9 @@ const Employees = () => {
         name: form.name.trim(),
         salary: form.salary === '' ? 0 : Number(form.salary) || 0,
         photo: form.photo || '',
+        endDate: form.endDate || '',
+        validFrom: form.validFrom || '',
+        validUntil: form.validUntil || '',
       };
       if (editing) {
         await employeesAPI.update(editing.id, payload);
@@ -191,7 +238,7 @@ const Employees = () => {
         <div>
           <h1 className="text-2xl font-bold" style={{ color: '#1F2937' }}>HR · Employees</h1>
           <p className="text-sm text-gray-600 mt-0.5">
-            Staff directory with photo · Designers here appear in order/product assignment · Grant login in Settings → Users
+            Staff directory · ID card / badge / experience letter · Designers appear in order assignment
           </p>
         </div>
         <Button onClick={openCreate} className="text-white h-9" style={{ backgroundColor: accent }} data-testid="add-employee-button">
@@ -283,8 +330,12 @@ const Employees = () => {
                 <div className="p-2 space-y-1">
                   <p className="font-semibold text-sm leading-tight line-clamp-1" style={{ color: '#1F2937' }}>{emp.name}</p>
                   <p className="text-[11px] text-gray-500 line-clamp-1">
-                    {emp.role || 'Staff'}{emp.designation ? ` · ${emp.designation}` : ''}
+                    {emp.designation || emp.role || 'Staff'}
+                    {emp.department ? ` · ${emp.department}` : ''}
                   </p>
+                  {emp.validUntil && (
+                    <p className="text-[10px] text-amber-700">Valid till {emp.validUntil}</p>
+                  )}
                   {emp.phone && (
                     <p className="text-[11px] text-gray-600 flex items-center gap-1 truncate">
                       <Phone className="h-3 w-3 shrink-0" />{emp.phone}
@@ -297,6 +348,9 @@ const Employees = () => {
                     <Button size="sm" variant="outline" className="h-7 flex-1 text-[11px]" onClick={() => openEdit(emp)}>
                       <Edit className="h-3 w-3 mr-1" />Edit
                     </Button>
+                    <Button size="sm" variant="outline" className="h-7 w-7 p-0" title="Card / Badge / Letter" onClick={() => openDocs(emp)}>
+                      <IdCard className="h-3.5 w-3.5" style={{ color: accent }} />
+                    </Button>
                     <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => handleDelete(emp.id)}>
                       <Trash2 className="h-3 w-3 text-rose-500" />
                     </Button>
@@ -308,13 +362,41 @@ const Employees = () => {
         </div>
       )}
 
+      <Dialog open={docsOpen} onOpenChange={setDocsOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Documents — {docsEmp?.name}</DialogTitle>
+            <DialogDescription>
+              Print or Save as PDF from the browser print dialog. Card {`2.2"×3.5"`} · Badge 65×25 mm.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2">
+            <Button className="justify-start text-white h-10" style={{ backgroundColor: accent }} onClick={() => runDoc(printEmployeeCard)}>
+              <IdCard className="h-4 w-4 mr-2" /> View / Download ID Card (double-sided)
+            </Button>
+            <Button variant="outline" className="justify-start h-10" onClick={() => runDoc(printEmployeeBadge)}>
+              <BadgeCheck className="h-4 w-4 mr-2" /> View / Download Name Badge
+            </Button>
+            <Button variant="outline" className="justify-start h-10" onClick={() => runDoc(printExperienceLetter)}>
+              <FileText className="h-4 w-4 mr-2" /> Download Experience Letter
+            </Button>
+            <p className="text-[11px] text-gray-500 flex items-start gap-1.5 pt-1">
+              <Download className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              Experience letter uses Settings logo, stamp &amp; signature. QR opens public verification.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDocsOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? 'Edit employee' : 'Add employee'}</DialogTitle>
             <DialogDescription>
-              Photo is for HR directory. Role <strong>Designer</strong> shows in order/product designer dropdowns.
-              Grant ERP login from Settings → Users.
+              Photo saves even without Google Drive (compressed). Set card validity for ID cards.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSave} className="space-y-3">
@@ -370,7 +452,26 @@ const Employees = () => {
               </div>
               <div>
                 <Label>Designation</Label>
-                <Input value={form.designation} onChange={(e) => setForm({ ...form, designation: e.target.value })} placeholder="e.g. Senior Designer" />
+                <select
+                  className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                  value={DESIGNATIONS.includes(form.designation) ? form.designation : (form.designation ? 'Other' : '')}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === 'Other') setForm({ ...form, designation: form.designation && !DESIGNATIONS.includes(form.designation) ? form.designation : '' });
+                    else setForm({ ...form, designation: v });
+                  }}
+                >
+                  <option value="">Select…</option>
+                  {DESIGNATIONS.map((d) => <option key={d} value={d}>{d}</option>)}
+                </select>
+                {(form.designation === '' || form.designation === 'Other' || !DESIGNATIONS.includes(form.designation)) && (
+                  <Input
+                    className="mt-1.5"
+                    value={form.designation === 'Other' ? '' : form.designation}
+                    onChange={(e) => setForm({ ...form, designation: e.target.value })}
+                    placeholder="Custom designation"
+                  />
+                )}
               </div>
               <div>
                 <Label>Department</Label>
@@ -385,6 +486,18 @@ const Employees = () => {
               <div>
                 <Label>Join date</Label>
                 <Input type="date" value={form.joinDate} onChange={(e) => setForm({ ...form, joinDate: e.target.value })} />
+              </div>
+              <div>
+                <Label>End date (experience letter)</Label>
+                <Input type="date" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} />
+              </div>
+              <div>
+                <Label>Card valid from</Label>
+                <Input type="date" value={form.validFrom} onChange={(e) => setForm({ ...form, validFrom: e.target.value })} />
+              </div>
+              <div>
+                <Label>Card valid until</Label>
+                <Input type="date" value={form.validUntil} onChange={(e) => setForm({ ...form, validUntil: e.target.value })} />
               </div>
               <div>
                 <Label>Salary</Label>

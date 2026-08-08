@@ -194,6 +194,41 @@ async function dispatch(req, res) {
           companyNote: 'For questions, contact Amazon Printing Services with your Order ID.',
         });
       }
+      if (method === 'GET' && path.startsWith('/public/employee/')) {
+        const code = decodeURIComponent(path.replace('/public/employee/', '')).trim().toLowerCase();
+        if (!code) return sendError(res, 'Employee code required', 400);
+        const { data: rows } = await supabase.from('employees').select('*');
+        const row = (rows || []).find((e) => {
+          const keys = [e.id, e.employee_code]
+            .map((v) => String(v || '').trim().toLowerCase())
+            .filter(Boolean);
+          return keys.includes(code);
+        });
+        if (!row) return sendError(res, 'Employee not found', 404);
+        const api = mapEmployee(row);
+        const status = String(api.status || 'Active');
+        let expired = false;
+        if (api.validUntil) {
+          const t = new Date(api.validUntil).getTime();
+          if (!Number.isNaN(t)) expired = t < Date.now();
+        }
+        const active = status.toLowerCase() === 'active' && !expired;
+        return send(res, {
+          verified: true,
+          employeeCode: api.employeeCode || api.id || '',
+          name: api.name || '',
+          designation: api.designation || api.role || '',
+          department: api.department || '',
+          joinDate: api.joinDate || '',
+          endDate: api.endDate || '',
+          validFrom: api.validFrom || '',
+          validUntil: api.validUntil || '',
+          status,
+          active,
+          expired,
+          companyNote: 'Verified employment record — Amazon Printing / AMZ Prints.',
+        });
+      }
       return sendError(res, 'Not found', 404);
     }
 
@@ -496,6 +531,9 @@ async function dispatch(req, res) {
         designation: b.designation || '',
         department: b.department || 'General',
         join_date: b.joinDate || b.join_date || '',
+        end_date: b.endDate || b.end_date || '',
+        valid_from: b.validFrom || b.valid_from || '',
+        valid_until: b.validUntil || b.valid_until || '',
         salary: num(b.salary),
         status: b.status || 'Active',
         address: b.address || '',

@@ -44,7 +44,8 @@ var DEFAULT_HEADERS = {
   CrmNotes: ['Id', 'CustomerId', 'Note', 'CreatedAt', 'CreatedBy'],
   Employees: [
     'Id', 'EmployeeCode', 'Name', 'Phone', 'Email', 'Cnic', 'Role', 'Designation', 'Department',
-    'JoinDate', 'Salary', 'Status', 'Address', 'City', 'EmergencyContact', 'EmergencyPhone', 'Notes', 'Photo'
+    'JoinDate', 'EndDate', 'ValidFrom', 'ValidUntil', 'Salary', 'Status', 'Address', 'City',
+    'EmergencyContact', 'EmergencyPhone', 'Notes', 'Photo'
   ],
   Orders: [
     'Id', 'OrderId', 'Date', 'CustomerId', 'CustomerName', 'CustomerPhone',
@@ -214,6 +215,7 @@ function normalizeHeader_(header) {
     unit: 'unit', description: 'description',
     image: 'image', productimage: 'image', img: 'image', picture: 'photo',
     photo: 'photo', employeecode: 'employeecode', cnic: 'cnic', designation: 'designation',
+    validfrom: 'validfrom', validuntil: 'validuntil', enddate: 'enddate',
     emergencycontact: 'emergencycontact', emergencyphone: 'emergencyphone', employeeid: 'employeeid',
     orderid: 'orderid', date: 'date', time: 'time', deliverydate: 'deliverydate',
     products: 'products', items: 'items', totalamount: 'totalamount', total: 'total',
@@ -2685,7 +2687,51 @@ function handlePublic_(path, method) {
     if (!order) throw new Error('Order not found for: ' + tracking);
     return toPublicTrackOrder_(order);
   }
+  if (method === 'GET' && path.indexOf('/public/employee/') === 0) {
+    var empCode = decodeURIComponent(path.replace('/public/employee/', '')).trim();
+    return toPublicEmployeeVerify_(empCode);
+  }
   throw new Error('Not found');
+}
+
+/** Public employee / experience-letter verification (no sensitive fields). */
+function toPublicEmployeeVerify_(code) {
+  var needle = String(code || '').trim().toLowerCase();
+  if (!needle) throw new Error('Employee code required');
+  getOrCreateSheet_(SHEET_NAMES.EMPLOYEES);
+  var rows = getSheetRows_(SHEET_NAMES.EMPLOYEES);
+  var row = rows.find(function (e) {
+    var keys = [e.id, e.employeecode]
+      .map(function (v) { return String(v || '').trim().toLowerCase(); })
+      .filter(Boolean);
+    return keys.indexOf(needle) !== -1;
+  });
+  if (!row) throw new Error('Employee not found');
+  var api = toApiEmployee_(row);
+  var status = String(api.status || 'Active');
+  var active = status.toLowerCase() === 'active';
+  var validUntil = api.validUntil || '';
+  var expired = false;
+  if (validUntil) {
+    try {
+      expired = new Date(validUntil).getTime() < Date.now();
+    } catch (e) { /* ignore */ }
+  }
+  return {
+    verified: true,
+    employeeCode: api.employeeCode || api.id || '',
+    name: api.name || '',
+    designation: api.designation || api.role || '',
+    department: api.department || '',
+    joinDate: api.joinDate || '',
+    endDate: api.endDate || '',
+    validFrom: api.validFrom || '',
+    validUntil: validUntil,
+    status: status,
+    active: active && !expired,
+    expired: expired,
+    companyNote: 'Verified employment record — Amazon Printing / AMZ Prints.',
+  };
 }
 
 /** Customer-safe tracking payload (no login). */
@@ -2820,8 +2866,33 @@ function saveProductImageToDrive_(dataUrl, productId) {
   return saveDataUrlImageToDrive_(dataUrl, productId, 'AMZ-ERP-Product-Images');
 }
 
+/**
+ * Employee photos: try Drive first; if Drive OAuth is missing, store a compact
+ * data-URL in the Employees sheet (Sheets cell limit ~50k — frontend compresses).
+ * This unblocks HR photo save without requiring Drive permission.
+ */
 function saveEmployeePhotoToDrive_(dataUrl, employeeId) {
-  return saveDataUrlImageToDrive_(dataUrl, employeeId, 'AMZ-ERP-Employee-Photos');
+  var raw = String(dataUrl || '').trim();
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw)) return raw;
+
+  try {
+    return saveDataUrlImageToDrive_(raw, employeeId, 'AMZ-ERP-Employee-Photos');
+  } catch (err) {
+    var msg = String(err && err.message ? err.message : err);
+    var isDriveAuth = /permission|authorization|auth\/drive|DriveApp|Drive permission/i.test(msg);
+    if (raw.indexOf('data:image') === 0 && raw.length <= 45000) {
+      // Fallback — no Drive needed
+      return raw;
+    }
+    if (isDriveAuth) {
+      throw new Error(
+        'Photo too large for Sheets fallback and Drive is not authorized. ' +
+        'Use a smaller photo, or run authorizeDriveAccess then Deploy New version. (' + msg + ')'
+      );
+    }
+    throw err;
+  }
 }
 
 function toApiEmployee_(e) {
@@ -2837,6 +2908,9 @@ function toApiEmployee_(e) {
     designation: e.designation || '',
     department: e.department || 'General',
     joinDate: e.joindate || '',
+    endDate: e.enddate || '',
+    validFrom: e.validfrom || '',
+    validUntil: e.validuntil || '',
     salary: Number(e.salary || 0),
     status: e.status || 'Active',
     address: e.address || '',
@@ -2867,6 +2941,9 @@ function normalizeEmployee_(body, existing) {
     designation: body.designation != null ? body.designation : (existing.designation || ''),
     department: body.department || existing.department || 'General',
     joindate: body.joinDate != null ? body.joinDate : (body.joindate != null ? body.joindate : (existing.joindate || '')),
+    enddate: body.endDate != null ? body.endDate : (body.enddate != null ? body.enddate : (existing.enddate || '')),
+    validfrom: body.validFrom != null ? body.validFrom : (body.validfrom != null ? body.validfrom : (existing.validfrom || '')),
+    validuntil: body.validUntil != null ? body.validUntil : (body.validuntil != null ? body.validuntil : (existing.validuntil || '')),
     salary: Number(body.salary != null ? body.salary : (existing.salary || 0)),
     status: body.status || existing.status || 'Active',
     address: body.address != null ? body.address : (existing.address || ''),
