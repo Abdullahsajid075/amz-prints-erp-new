@@ -1,10 +1,9 @@
 <?php
 /**
- * Header — English only, NADRA in main, cart + full mobile nav
+ * Header — English only, NADRA in main, full mobile nav (no cart in menus)
  *
  * @package AMZ_Prints
  */
-$cart_count = function_exists( 'amz_prints_cart_count' ) ? amz_prints_cart_count() : 0;
 ?><!DOCTYPE html>
 <html <?php language_attributes(); ?>>
 <head>
@@ -48,12 +47,6 @@ $cart_count = function_exists( 'amz_prints_cart_count' ) ? amz_prints_cart_count
 						<a class="nav-link-main" href="<?php echo esc_url( home_url( '/customer-login/' ) ); ?>">Login</a>
 					<?php endif; ?>
 				</li>
-				<li class="nav-cart-item">
-					<a class="nav-link-main nav-cart" href="<?php echo esc_url( home_url( '/cart/' ) ); ?>">
-						Cart
-						<span class="nav-cart__count" data-cart-count <?php echo $cart_count ? '' : 'hidden'; ?>><?php echo esc_html( (string) $cart_count ); ?></span>
-					</a>
-				</li>
 				<li class="has-more">
 					<button type="button" class="nav-link-main more-trigger" aria-expanded="false" aria-controls="more-menu">
 						More
@@ -64,8 +57,6 @@ $cart_count = function_exists( 'amz_prints_cart_count' ) ? amz_prints_cart_count
 						<li><a href="<?php echo esc_url( home_url( '/how-we-work/' ) ); ?>">How We Work</a></li>
 						<li><a href="<?php echo esc_url( home_url( '/track-order/' ) ); ?>">Track Order</a></li>
 						<li><a href="<?php echo esc_url( home_url( '/my-account/' ) ); ?>">My Account</a></li>
-						<li><a href="<?php echo esc_url( home_url( '/cart/' ) ); ?>">Cart</a></li>
-						<li><a href="<?php echo esc_url( home_url( '/checkout/' ) ); ?>">Checkout</a></li>
 						<li><a href="<?php echo esc_url( home_url( '/gallery/' ) ); ?>">Gallery</a></li>
 						<li><a href="<?php echo esc_url( home_url( '/about/' ) ); ?>">About</a></li>
 						<li><a href="<?php echo esc_url( home_url( '/contact/' ) ); ?>">Contact</a></li>
@@ -74,26 +65,20 @@ $cart_count = function_exists( 'amz_prints_cart_count' ) ? amz_prints_cart_count
 				</li>
 			</ul>
 
-			<!-- Mobile-only expanded links so every important item is one tap away -->
 			<ul class="site-nav__mobile-extra" aria-label="More pages">
 				<li><a href="<?php echo esc_url( home_url( '/services/' ) ); ?>">All Services</a></li>
 				<li><a href="<?php echo esc_url( home_url( '/pricing/' ) ); ?>">Pricing</a></li>
 				<li><a href="<?php echo esc_url( home_url( '/how-we-work/' ) ); ?>">How We Work</a></li>
 				<li><a href="<?php echo esc_url( home_url( '/track-order/' ) ); ?>">Track Order</a></li>
-				<li><a href="<?php echo esc_url( home_url( '/cart/' ) ); ?>">Cart</a></li>
-				<li><a href="<?php echo esc_url( home_url( '/checkout/' ) ); ?>">Checkout</a></li>
 				<li><a href="<?php echo esc_url( home_url( '/gallery/' ) ); ?>">Gallery</a></li>
 				<li><a href="<?php echo esc_url( home_url( '/about/' ) ); ?>">About</a></li>
 				<li><a href="<?php echo esc_url( home_url( '/contact/' ) ); ?>">Contact</a></li>
 				<li><a href="<?php echo esc_url( home_url( '/quote/' ) ); ?>">Get a Quote</a></li>
+				<li><a href="<?php echo esc_url( home_url( '/customer-login/' ) ); ?>">Create Account</a></li>
 			</ul>
 		</nav>
 
 		<div class="site-header__actions">
-			<a class="btn btn--cart btn--sm" href="<?php echo esc_url( home_url( '/cart/' ) ); ?>" aria-label="<?php esc_attr_e( 'Cart', 'amz-prints' ); ?>">
-				Cart
-				<span class="nav-cart__count" data-cart-count <?php echo $cart_count ? '' : 'hidden'; ?>><?php echo esc_html( (string) $cart_count ); ?></span>
-			</a>
 			<?php if ( function_exists( 'amz_prints_customer_is_logged_in' ) && amz_prints_customer_is_logged_in() ) : ?>
 				<a class="btn btn--login btn--sm" href="<?php echo esc_url( home_url( '/my-account/' ) ); ?>">Account</a>
 			<?php else : ?>

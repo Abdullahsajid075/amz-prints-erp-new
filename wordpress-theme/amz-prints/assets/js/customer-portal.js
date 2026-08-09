@@ -25,8 +25,24 @@
       .then(function (r) { return r.json(); });
   }
 
-  /* Email / password login */
+  /* Auth tabs */
+  var tabs = document.querySelector('[data-auth-tabs]');
   var loginForm = document.getElementById('amz-customer-login-form');
+  var registerForm = document.getElementById('amz-customer-register-form');
+  if (tabs) {
+    tabs.querySelectorAll('[data-auth-tab]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var tab = btn.getAttribute('data-auth-tab');
+        tabs.querySelectorAll('[data-auth-tab]').forEach(function (b) {
+          b.classList.toggle('is-active', b === btn);
+        });
+        if (loginForm) loginForm.hidden = tab !== 'login';
+        if (registerForm) registerForm.hidden = tab !== 'register';
+      });
+    });
+  }
+
+  /* Email / password login */
   if (loginForm) {
     loginForm.addEventListener('submit', function (e) {
       e.preventDefault();
@@ -37,7 +53,8 @@
       msg(out, 'Signing in…', false);
       post('amz_prints_customer_login', {
         email: fd.get('email') || '',
-        password: fd.get('password') || ''
+        password: fd.get('password') || '',
+        redirect: fd.get('redirect') || ''
       }).then(function (res) {
         if (btn) btn.disabled = false;
         if (!res || !res.success) {
@@ -47,6 +64,37 @@
         msg(out, 'Success — redirecting…', false);
         var redirect = fd.get('redirect') || (res.data && res.data.redirect) || cfg.accountUrl;
         window.location.href = redirect;
+      }).catch(function () {
+        if (btn) btn.disabled = false;
+        msg(out, 'Network error. Try again.', true);
+      });
+    });
+  }
+
+  /* Create account */
+  if (registerForm) {
+    registerForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var fd = new FormData(registerForm);
+      var out = document.getElementById('amz-customer-register-msg');
+      var btn = registerForm.querySelector('[type="submit"]');
+      if (btn) btn.disabled = true;
+      msg(out, 'Creating account…', false);
+      post('amz_prints_customer_register', {
+        name: fd.get('name') || '',
+        email: fd.get('email') || '',
+        phone: fd.get('phone') || '',
+        password: fd.get('password') || '',
+        address: fd.get('address') || '',
+        redirect: fd.get('redirect') || ''
+      }).then(function (res) {
+        if (btn) btn.disabled = false;
+        if (!res || !res.success) {
+          msg(out, (res && res.data && res.data.message) || 'Registration failed', true);
+          return;
+        }
+        msg(out, (res.data && res.data.message) || 'Account created — redirecting…', false);
+        window.location.href = fd.get('redirect') || (res.data && res.data.redirect) || cfg.accountUrl;
       }).catch(function () {
         if (btn) btn.disabled = false;
         msg(out, 'Network error. Try again.', true);

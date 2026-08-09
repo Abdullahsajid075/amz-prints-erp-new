@@ -31,6 +31,11 @@ if ( $product ) {
 			<p><?php esc_html_e( 'Product not found. Browse the catalog for available items.', 'amz-prints' ); ?></p>
 			<a class="btn btn--primary" href="<?php echo esc_url( home_url( '/products/' ) ); ?>"><?php esc_html_e( 'All products', 'amz-prints' ); ?></a>
 		<?php else : ?>
+			<p class="product-breadcrumb">
+				<a href="<?php echo esc_url( home_url( '/products/' ) ); ?>"><?php esc_html_e( 'Products', 'amz-prints' ); ?></a>
+				<span>/</span>
+				<strong><?php echo esc_html( $product['name'] ); ?></strong>
+			</p>
 			<div class="product-detail">
 				<div class="product-detail__gallery">
 					<?php if ( ! empty( $images ) ) : ?>

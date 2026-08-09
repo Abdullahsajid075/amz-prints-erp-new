@@ -5,24 +5,26 @@
  * @package AMZ_Prints
  */
 
-if ( ! amz_prints_mod( 'amz_popup_enabled', false ) ) {
+$enabled = (bool) amz_prints_mod( 'amz_popup_enabled', true );
+if ( ! $enabled ) {
 	return;
 }
 
-$image_id = absint( amz_prints_mod( 'amz_popup_image', 0 ) );
-if ( ! $image_id ) {
-	return;
-}
-$image_url = wp_get_attachment_image_url( $image_id, 'large' );
+$image_id  = absint( amz_prints_mod( 'amz_popup_image', 0 ) );
+$image_url = $image_id ? wp_get_attachment_image_url( $image_id, 'large' ) : '';
 if ( ! $image_url ) {
-	return;
+	$image_url = trim( (string) amz_prints_mod( 'amz_popup_image_url', '' ) );
+}
+if ( ! $image_url ) {
+	// Visible placeholder so admin sees the popup system works until an image is uploaded.
+	$image_url = 'https://images.unsplash.com/photo-1562564055-71e051d33c19?auto=format&fit=crop&w=900&q=80';
 }
 
 $show = false;
 if ( amz_prints_mod( 'amz_popup_page_all', false ) ) {
 	$show = true;
 }
-if ( amz_prints_mod( 'amz_popup_page_home', true ) && is_front_page() ) {
+if ( amz_prints_mod( 'amz_popup_page_home', true ) && ( is_front_page() || is_page( 'home' ) ) ) {
 	$show = true;
 }
 if ( amz_prints_mod( 'amz_popup_page_products', false ) && ( is_page( 'products' ) || is_page_template( 'page-templates/template-products.php' ) ) ) {
@@ -31,30 +33,36 @@ if ( amz_prints_mod( 'amz_popup_page_products', false ) && ( is_page( 'products'
 if ( amz_prints_mod( 'amz_popup_page_services', false ) && ( is_page( 'services' ) || is_page_template( 'page-templates/template-services.php' ) ) ) {
 	$show = true;
 }
+// Force show for testing: /?show_popup=1
+if ( isset( $_GET['show_popup'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+	$show = true;
+}
 if ( ! $show ) {
 	return;
 }
 
-$style      = sanitize_key( (string) amz_prints_mod( 'amz_popup_style', 'centered' ) );
-$allowed    = array( 'centered', 'banner', 'corner', 'fullscreen', 'card' );
+$style       = sanitize_key( (string) amz_prints_mod( 'amz_popup_style', 'centered' ) );
+$allowed     = array( 'centered', 'banner', 'corner', 'fullscreen', 'card' );
 if ( ! in_array( $style, $allowed, true ) ) {
 	$style = 'centered';
 }
-$show_close = (bool) amz_prints_mod( 'amz_popup_show_close', true );
-$link       = trim( (string) amz_prints_mod( 'amz_popup_link', '' ) );
-$delay      = max( 0, (int) amz_prints_mod( 'amz_popup_delay', 800 ) );
-$cookie_days = max( 1, (int) amz_prints_mod( 'amz_popup_cookie_days', 3 ) );
+$show_close  = (bool) amz_prints_mod( 'amz_popup_show_close', true );
+$link        = trim( (string) amz_prints_mod( 'amz_popup_link', '' ) );
+$delay       = max( 0, (int) amz_prints_mod( 'amz_popup_delay', 600 ) );
+$cookie_days = max( 0, (int) amz_prints_mod( 'amz_popup_cookie_days', 1 ) );
+$force       = isset( $_GET['show_popup'] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 ?>
 <div
 	class="amz-popup amz-popup--<?php echo esc_attr( $style ); ?>"
 	id="amz-promo-popup"
-	hidden
 	data-popup
 	data-delay="<?php echo esc_attr( (string) $delay ); ?>"
 	data-cookie-days="<?php echo esc_attr( (string) $cookie_days ); ?>"
+	data-force="<?php echo $force ? '1' : '0'; ?>"
 	role="dialog"
 	aria-modal="true"
 	aria-label="<?php esc_attr_e( 'Promotion', 'amz-prints' ); ?>"
+	aria-hidden="true"
 >
 	<div class="amz-popup__backdrop" data-popup-close tabindex="-1"></div>
 	<div class="amz-popup__dialog">
@@ -63,11 +71,11 @@ $cookie_days = max( 1, (int) amz_prints_mod( 'amz_popup_cookie_days', 3 ) );
 		<?php endif; ?>
 		<?php if ( $link ) : ?>
 			<a class="amz-popup__media" href="<?php echo esc_url( $link ); ?>">
-				<img src="<?php echo esc_url( $image_url ); ?>" alt="<?php echo esc_attr( amz_prints_mod( 'amz_company_name', 'AMZ Prints' ) ); ?>" loading="lazy">
+				<img src="<?php echo esc_url( $image_url ); ?>" alt="<?php echo esc_attr( amz_prints_mod( 'amz_company_name', 'AMZ Prints' ) ); ?>">
 			</a>
 		<?php else : ?>
 			<div class="amz-popup__media">
-				<img src="<?php echo esc_url( $image_url ); ?>" alt="<?php echo esc_attr( amz_prints_mod( 'amz_company_name', 'AMZ Prints' ) ); ?>" loading="lazy">
+				<img src="<?php echo esc_url( $image_url ); ?>" alt="<?php echo esc_attr( amz_prints_mod( 'amz_company_name', 'AMZ Prints' ) ); ?>">
 			</div>
 		<?php endif; ?>
 	</div>

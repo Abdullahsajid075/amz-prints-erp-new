@@ -1,6 +1,6 @@
 <?php
 /**
- * Homepage
+ * Homepage — full hero + supporting image strip + shop products
  *
  * @package AMZ_Prints
  */
@@ -15,10 +15,9 @@ $cta1     = amz_prints_mod( 'amz_hero_cta_primary', amz_t( 'quote' ) );
 $cta2     = amz_prints_mod( 'amz_hero_cta_secondary', amz_t( 'view_services' ) );
 $cta1_url = amz_prints_mod( 'amz_hero_cta_primary_url', '/products/' );
 $cta2_url = amz_prints_mod( 'amz_hero_cta_secondary_url', '/services/' );
-$layout   = amz_prints_mod( 'amz_hero_layout', 'mosaic' );
 
 $fallback_imgs = array(
-	'https://images.unsplash.com/photo-1562564055-71e051d33c19?auto=format&fit=crop&w=1600&q=80',
+	'https://images.unsplash.com/photo-1562564055-71e051d33c19?auto=format&fit=crop&w=1920&q=80',
 	'https://images.unsplash.com/photo-1626785774573-4b7993143459?auto=format&fit=crop&w=900&q=80',
 	'https://images.unsplash.com/photo-1586075010923-2dd4570fb338?auto=format&fit=crop&w=900&q=80',
 	'https://images.unsplash.com/photo-1503690970856-d1a3c8d8e9e3?auto=format&fit=crop&w=900&q=80',
@@ -28,18 +27,11 @@ $fallback_imgs = array(
 
 $main_id  = absint( amz_prints_mod( 'amz_hero_image', 0 ) );
 $main_url = $main_id ? wp_get_attachment_image_url( $main_id, 'amz-hero' ) : '';
-if ( ! $main_url ) {
-	$main_url = $fallback_imgs[0];
-}
 
-$support = array();
-foreach ( array( 'amz_hero_support_1', 'amz_hero_support_2', 'amz_hero_support_3', 'amz_hero_support_4', 'amz_hero_support_5' ) as $i => $key ) {
-	$id  = absint( amz_prints_mod( $key, 0 ) );
-	$url = $id ? wp_get_attachment_image_url( $id, 'amz-card' ) : '';
-	$support[] = $url ? $url : $fallback_imgs[ $i + 1 ];
+$hero_slides = array();
+if ( $main_url ) {
+	$hero_slides[] = $main_url;
 }
-
-$hero_slides = array( $main_url );
 foreach ( array( 'amz_hero_image_2', 'amz_hero_image_3' ) as $key ) {
 	$id = absint( amz_prints_mod( $key, 0 ) );
 	if ( $id ) {
@@ -49,14 +41,32 @@ foreach ( array( 'amz_hero_image_2', 'amz_hero_image_3' ) as $key ) {
 		}
 	}
 }
+if ( empty( $hero_slides ) ) {
+	$hero_slides[] = $fallback_imgs[0];
+}
 while ( count( $hero_slides ) < 3 ) {
 	$hero_slides[] = $fallback_imgs[ count( $hero_slides ) % count( $fallback_imgs ) ];
 }
 $hero_slides = array_slice( $hero_slides, 0, 3 );
-$catalog     = array_slice( amz_prints_services_catalog(), 0, 6 );
+
+$support = array();
+foreach ( array( 'amz_hero_support_1', 'amz_hero_support_2', 'amz_hero_support_3', 'amz_hero_support_4', 'amz_hero_support_5' ) as $i => $key ) {
+	$id  = absint( amz_prints_mod( $key, 0 ) );
+	$url = $id ? wp_get_attachment_image_url( $id, 'amz-card' ) : '';
+	$support[] = $url ? $url : $fallback_imgs[ min( $i + 1, count( $fallback_imgs ) - 1 ) ];
+}
+
+$catalog = array_slice( amz_prints_services_catalog(), 0, 6 );
+$erp_all = function_exists( 'amz_prints_erp_get_products' ) ? amz_prints_erp_get_products() : array();
+$cats    = array();
+foreach ( $erp_all as $p ) {
+	$c = trim( (string) ( $p['category'] ?? '' ) );
+	if ( $c ) {
+		$cats[ sanitize_title( $c ) ] = $c;
+	}
+}
 ?>
 
-<?php if ( 'slider' === $layout ) : ?>
 <section class="hero hero--slider" data-hero-slider data-hero-interval="3000">
 	<div class="hero__media" aria-hidden="true">
 		<div class="hero__slides">
@@ -65,6 +75,7 @@ $catalog     = array_slice( amz_prints_services_catalog(), 0, 6 );
 			<?php endforeach; ?>
 		</div>
 		<div class="hero__veil"></div>
+		<div class="hero__grain"></div>
 	</div>
 	<div class="hero__content container">
 		<p class="hero__brand reveal" data-reveal><?php echo esc_html( $company ); ?></p>
@@ -82,34 +93,18 @@ $catalog     = array_slice( amz_prints_services_catalog(), 0, 6 );
 		<?php endforeach; ?>
 	</div>
 </section>
-<?php else : ?>
-<section class="hero hero--mosaic">
-	<div class="container hero-mosaic">
-		<div class="hero-mosaic__copy reveal" data-reveal>
-			<p class="hero__brand"><?php echo esc_html( $company ); ?></p>
-			<p class="hero__legal"><?php echo esc_html( $legal ); ?></p>
-			<h1 class="hero__title"><?php echo esc_html( $headline ); ?></h1>
-			<p class="hero__sub"><?php echo esc_html( $sub ); ?></p>
-			<div class="hero__actions">
-				<a class="btn btn--primary btn--lg" href="<?php echo esc_url( home_url( $cta1_url ) ); ?>"><?php echo esc_html( $cta1 ); ?></a>
-				<a class="btn btn--ghost btn--lg" href="<?php echo esc_url( home_url( $cta2_url ) ); ?>"><?php echo esc_html( $cta2 ); ?></a>
-			</div>
-		</div>
-		<div class="hero-mosaic__visual" data-hero-mosaic>
-			<figure class="hero-mosaic__main reveal" data-reveal>
-				<img src="<?php echo esc_url( $main_url ); ?>" alt="<?php echo esc_attr( $company ); ?>" loading="eager">
-			</figure>
-			<div class="hero-mosaic__side" data-hero-mosaic-track>
-				<?php foreach ( $support as $i => $url ) : ?>
-					<figure class="hero-mosaic__tile reveal" data-reveal style="--i:<?php echo esc_attr( (string) $i ); ?>">
-						<img src="<?php echo esc_url( $url ); ?>" alt="" loading="lazy">
-					</figure>
-				<?php endforeach; ?>
-			</div>
+
+<section class="hero-strip" aria-label="<?php esc_attr_e( 'Featured images', 'amz-prints' ); ?>">
+	<div class="container">
+		<div class="hero-strip__track" data-hero-strip>
+			<?php foreach ( $support as $i => $url ) : ?>
+				<figure class="hero-strip__item reveal" data-reveal style="--i:<?php echo esc_attr( (string) $i ); ?>">
+					<img src="<?php echo esc_url( $url ); ?>" alt="" loading="lazy">
+				</figure>
+			<?php endforeach; ?>
 		</div>
 	</div>
 </section>
-<?php endif; ?>
 
 <section class="quick-actions">
 	<div class="container quick-actions__grid">
@@ -179,78 +174,40 @@ $catalog     = array_slice( amz_prints_services_catalog(), 0, 6 );
 </section>
 
 <?php if ( amz_prints_mod( 'amz_show_products', true ) ) : ?>
-<section class="section section--products" id="products">
+<section class="section section--shop" id="products">
 	<div class="container">
-		<header class="section-head reveal" data-reveal>
-			<h2><?php echo esc_html( amz_prints_mod( 'amz_products_title', 'Popular products' ) ); ?></h2>
-			<p><?php echo esc_html( amz_prints_mod( 'amz_products_sub', 'Ready to order — customize finishes, quantities, and turnaround.' ) ); ?></p>
+		<header class="shop-head reveal" data-reveal>
+			<p class="shop-head__eyebrow"><?php esc_html_e( 'Products', 'amz-prints' ); ?></p>
+			<h2><?php echo esc_html( amz_prints_mod( 'amz_products_title', 'Our Products' ) ); ?></h2>
+			<p><?php echo esc_html( amz_prints_mod( 'amz_products_sub', 'Browse print products and open any item for full details.' ) ); ?></p>
 		</header>
-		<div class="product-grid">
-			<?php
-			$erp_home_products = function_exists( 'amz_prints_erp_get_products' ) ? amz_prints_erp_get_products() : array();
-			if ( ! empty( $erp_home_products ) ) :
-				$erp_home_products = array_slice( $erp_home_products, 0, 6 );
-				foreach ( $erp_home_products as $product ) :
-					$purl   = function_exists( 'amz_prints_erp_product_url' ) ? amz_prints_erp_product_url( $product['id'] ) : home_url( '/products/' );
-					$price  = amz_prints_erp_product_price_label( $product );
-					$excerpt = $product['description'] ? wp_trim_words( $product['description'], 14 ) : ( $product['category'] ?: '' );
-					$img     = ! empty( $product['image'] ) ? $product['image'] : '';
-					?>
-					<article class="product-tile reveal" data-reveal>
-						<a href="<?php echo esc_url( $purl ); ?>">
-							<div class="product-tile__media">
-								<?php if ( $img ) : ?>
-									<img src="<?php echo function_exists( 'amz_prints_product_img_src' ) ? amz_prints_product_img_src( $img ) : esc_url( $img ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>" alt="<?php echo esc_attr( $product['name'] ); ?>" loading="lazy">
-								<?php else : ?>
-									<div class="product-tile__placeholder" aria-hidden="true"><span><?php echo esc_html( mb_substr( $product['name'], 0, 1 ) ); ?></span></div>
-								<?php endif; ?>
-							</div>
-							<div class="product-tile__body">
-								<h3><?php echo esc_html( $product['name'] ); ?></h3>
-								<?php if ( $excerpt ) : ?><p><?php echo esc_html( $excerpt ); ?></p><?php endif; ?>
-								<span class="product-tile__price"><?php echo esc_html( $price ); ?></span>
-							</div>
-						</a>
-					</article>
-					<?php
-				endforeach;
-			else :
-				$products = new WP_Query( array(
-					'post_type'      => 'amz_product',
-					'posts_per_page' => 6,
-					'orderby'        => 'menu_order',
-					'order'          => 'ASC',
-				) );
-				if ( $products->have_posts() ) :
-					while ( $products->have_posts() ) :
-						$products->the_post();
-						$price = get_post_meta( get_the_ID(), '_amz_price_label', true );
-						?>
-						<article class="product-tile reveal" data-reveal>
-							<a href="<?php the_permalink(); ?>">
-								<div class="product-tile__media">
-									<?php if ( has_post_thumbnail() ) : ?>
-										<?php the_post_thumbnail( 'amz-product' ); ?>
-									<?php else : ?>
-										<div class="product-tile__placeholder" aria-hidden="true"><span><?php echo esc_html( mb_substr( get_the_title(), 0, 1 ) ); ?></span></div>
-									<?php endif; ?>
-								</div>
-								<div class="product-tile__body">
-									<h3><?php the_title(); ?></h3>
-									<p><?php echo esc_html( wp_trim_words( get_the_excerpt() ?: get_the_content(), 14 ) ); ?></p>
-									<?php if ( $price ) : ?><span class="product-tile__price"><?php echo esc_html( $price ); ?></span><?php endif; ?>
-								</div>
-							</a>
-						</article>
-						<?php
-					endwhile;
-					wp_reset_postdata();
-				endif;
-			endif;
-			?>
-		</div>
+
+		<?php if ( ! empty( $erp_all ) ) : ?>
+			<nav class="shop-cats" data-shop-cats aria-label="<?php esc_attr_e( 'Product categories', 'amz-prints' ); ?>">
+				<button type="button" class="is-active" data-cat="all"><?php esc_html_e( 'All Product', 'amz-prints' ); ?></button>
+				<?php foreach ( $cats as $slug => $label ) : ?>
+					<button type="button" data-cat="<?php echo esc_attr( $slug ); ?>"><?php echo esc_html( $label ); ?></button>
+				<?php endforeach; ?>
+			</nav>
+
+			<div class="shop-carousel" data-shop-carousel>
+				<button type="button" class="shop-carousel__arrow" data-shop-prev aria-label="<?php esc_attr_e( 'Previous', 'amz-prints' ); ?>">←</button>
+				<div class="shop-carousel__viewport">
+					<div class="shop-carousel__track" data-shop-track>
+						<?php foreach ( $erp_all as $product ) : ?>
+							<?php get_template_part( 'template-parts/product', 'card', array( 'product' => $product ) ); ?>
+						<?php endforeach; ?>
+					</div>
+				</div>
+				<button type="button" class="shop-carousel__arrow" data-shop-next aria-label="<?php esc_attr_e( 'Next', 'amz-prints' ); ?>">→</button>
+			</div>
+			<div class="shop-dots" data-shop-dots aria-hidden="true"></div>
+		<?php else : ?>
+			<p class="form-note"><?php esc_html_e( 'Live ERP products unavailable. Redeploy Code.gs public/products.', 'amz-prints' ); ?></p>
+		<?php endif; ?>
+
 		<div class="section-foot reveal" data-reveal>
-			<a class="text-link" href="<?php echo esc_url( home_url( '/products/' ) ); ?>"><?php esc_html_e( 'Shop all products', 'amz-prints' ); ?></a>
+			<a class="text-link" href="<?php echo esc_url( home_url( '/products/' ) ); ?>"><?php esc_html_e( 'View all products', 'amz-prints' ); ?></a>
 		</div>
 	</div>
 </section>

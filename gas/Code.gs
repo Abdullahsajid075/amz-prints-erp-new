@@ -3051,6 +3051,10 @@ function handlePublicCustomer_(path, method, body) {
   body = body || {};
   var token = String((body && body.token) || '').trim();
 
+  if (method === 'POST' && path === '/public/customer/register') {
+    return createPublicCustomerAccount_(body);
+  }
+
   if (method === 'POST' && path === '/public/customer/login') {
     var email = String(body.email || '').trim().toLowerCase();
     var password = String(body.password || '');
@@ -3152,6 +3156,80 @@ function handlePublicCustomer_(path, method, body) {
 }
 
 /**
+ * New website customer account → Customers sheet + CRM lead.
+ */
+function createPublicCustomerAccount_(body) {
+  body = body || {};
+  var name = String(body.name || '').trim();
+  var email = String(body.email || '').trim().toLowerCase();
+  var phone = String(body.phone || '').trim();
+  var password = String(body.password || body.newPassword || '').trim();
+  var address = String(body.address || '').trim();
+  if (!name) throw new Error('Name is required');
+  if (!email || email.indexOf('@') < 0) throw new Error('Valid email is required');
+  if (password.length < 6) throw new Error('Password must be at least 6 characters');
+
+  var existing = findCustomerByEmail_(email);
+  if (existing) throw new Error('An account already exists for this email. Please log in.');
+
+  if (phone) {
+    var byPhone = findCustomerByPhone_(phone);
+    if (byPhone && String(byPhone.email || '').trim()) {
+      throw new Error('This phone is already linked to another customer account. Please log in.');
+    }
+  }
+
+  var created = upsertCustomer_({
+    name: name,
+    phone: phone,
+    email: email,
+    address: address,
+    inCrm: true,
+    stage: 'lead',
+    notes: 'Website registration',
+    portalPassword: password,
+    notifyWhatsApp: true,
+    notifyEmail: true,
+  });
+
+  var sheet = getSheet_(SHEET_NAMES.CUSTOMERS);
+  var rows = getSheetRows_(SHEET_NAMES.CUSTOMERS) || [];
+  var row = rows.find(function (c) { return String(c.id) === String(created.id); });
+  if (!row) throw new Error('Could not create customer account');
+  // Ensure password + CRM flags persisted even if upsert skipped optional fields
+  updateObjectProps_(sheet, SHEET_NAMES.CUSTOMERS, row._row, {
+    portalpassword: password,
+    email: email,
+    incrm: true,
+    stage: 'lead',
+    stageupdatedat: new Date().toISOString(),
+  });
+  invalidateSheetCache_(SHEET_NAMES.CUSTOMERS);
+  row.portalpassword = password;
+  row.email = email;
+  row.incrm = true;
+
+  try {
+    var noteSheet = getOrCreateSheet_(SHEET_NAMES.CRM_NOTES);
+    ensureHeaders_(noteSheet, SHEET_NAMES.CRM_NOTES);
+    appendObject_(noteSheet, SHEET_NAMES.CRM_NOTES, {
+      id: 'note_' + Date.now(),
+      customerid: created.id,
+      note: 'Website account created',
+      createdat: new Date().toISOString(),
+      createdby: 'website',
+    });
+  } catch (eNote) { /* optional */ }
+
+  return {
+    ok: true,
+    token: issueCustomerToken_(Object.assign({}, created, { email: email, portalpassword: password })),
+    customer: sanitizePortalCustomer_(Object.assign({}, created, { email: email, portalpassword: password })),
+    message: 'Account created. You can place orders now.',
+  };
+}
+
+/**
  * Create website store order for authenticated customer (no staff token required).
  * Prices are revalidated against the Products sheet.
  */
@@ -3159,6 +3237,24 @@ function createPublicWebsiteOrder_(body) {
   body = body || {};
   var customer = validateCustomerToken_(body.token);
   if (!customer) throw new Error('Please log in to place an order');
+
+  // Ensure customer is in CRM when they place an online order
+  try {
+    var sheetCust = getSheet_(SHEET_NAMES.CUSTOMERS);
+    var custRows = getSheetRows_(SHEET_NAMES.CUSTOMERS) || [];
+    var custRow = custRows.find(function (c) { return String(c.id) === String(customer.id); });
+    if (custRow) {
+      updateObjectProps_(sheetCust, SHEET_NAMES.CUSTOMERS, custRow._row, {
+        incrm: true,
+        stage: custRow.stage || 'customer',
+        stageupdatedat: new Date().toISOString(),
+        email: customer.email || custRow.email || '',
+        phone: String(body.customerPhone || customer.phone || custRow.phone || '').trim(),
+        address: String(body.deliveryAddress || body.address || customer.address || custRow.address || '').trim(),
+      });
+      invalidateSheetCache_(SHEET_NAMES.CUSTOMERS);
+    }
+  } catch (eCrm) { /* best-effort */ }
 
   var accepted = body.policyAccepted === true || body.policyAccepted === 'true' || body.policyAccepted === 1 || body.policyAccepted === '1';
   if (!accepted) throw new Error('Please accept the Order Processing Policy before placing your order');

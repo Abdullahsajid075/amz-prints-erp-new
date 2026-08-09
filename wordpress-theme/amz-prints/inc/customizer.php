@@ -423,13 +423,14 @@ function amz_prints_customize_register( $wp_customize ) {
 	) );
 
 	$wp_customize->add_setting( 'amz_popup_enabled', array(
-		'default'           => false,
+		'default'           => true,
 		'sanitize_callback' => function( $v ) { return (bool) $v; },
 	) );
 	$wp_customize->add_control( 'amz_popup_enabled', array(
-		'label'   => __( 'Enable promo popup', 'amz-prints' ),
-		'section' => 'amz_popup',
-		'type'    => 'checkbox',
+		'label'       => __( 'Enable promo popup', 'amz-prints' ),
+		'description' => __( 'Shows on the Home Page when loading (default). Upload an image below.', 'amz-prints' ),
+		'section'     => 'amz_popup',
+		'type'        => 'checkbox',
 	) );
 
 	$wp_customize->add_setting( 'amz_popup_image', array(
@@ -437,10 +438,22 @@ function amz_prints_customize_register( $wp_customize ) {
 		'sanitize_callback' => 'absint',
 	) );
 	$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'amz_popup_image', array(
-		'label'     => __( 'Popup image', 'amz-prints' ),
-		'section'   => 'amz_popup',
-		'mime_type' => 'image',
+		'label'       => __( 'Popup image', 'amz-prints' ),
+		'description' => __( 'Upload/select the promotional image shown in the popup.', 'amz-prints' ),
+		'section'     => 'amz_popup',
+		'mime_type'   => 'image',
 	) ) );
+
+	$wp_customize->add_setting( 'amz_popup_image_url', array(
+		'default'           => '',
+		'sanitize_callback' => 'esc_url_raw',
+	) );
+	$wp_customize->add_control( 'amz_popup_image_url', array(
+		'label'       => __( 'Popup image URL (optional)', 'amz-prints' ),
+		'description' => __( 'If media upload fails, paste a direct image URL here.', 'amz-prints' ),
+		'section'     => 'amz_popup',
+		'type'        => 'url',
+	) );
 
 	$wp_customize->add_setting( 'amz_popup_style', array(
 		'default'           => 'centered',
@@ -510,14 +523,14 @@ function amz_prints_customize_register( $wp_customize ) {
 	) );
 
 	$wp_customize->add_setting( 'amz_popup_cookie_days', array(
-		'default'           => 3,
+		'default'           => 1,
 		'sanitize_callback' => 'absint',
 	) );
 	$wp_customize->add_control( 'amz_popup_cookie_days', array(
 		'label'       => __( 'Hide for N days after close', 'amz-prints' ),
 		'section'     => 'amz_popup',
 		'type'        => 'number',
-		'description' => __( 'Also hidden for the rest of the browser session.', 'amz-prints' ),
+		'description' => __( 'Also hidden for the rest of the browser session. Test anytime with /?show_popup=1', 'amz-prints' ),
 	) );
 
 	/* ── Store / Checkout ── */

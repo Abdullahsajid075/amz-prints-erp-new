@@ -161,6 +161,46 @@ function amz_prints_customer_fetch_session() {
 }
 
 /**
+ * AJAX: create new customer account
+ */
+function amz_prints_ajax_customer_register() {
+	check_ajax_referer( 'amz_prints_customer', 'nonce' );
+	$name     = isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '';
+	$email    = isset( $_POST['email'] ) ? sanitize_email( wp_unslash( $_POST['email'] ) ) : '';
+	$phone    = isset( $_POST['phone'] ) ? sanitize_text_field( wp_unslash( $_POST['phone'] ) ) : '';
+	$password = isset( $_POST['password'] ) ? (string) wp_unslash( $_POST['password'] ) : '';
+	$address  = isset( $_POST['address'] ) ? sanitize_textarea_field( wp_unslash( $_POST['address'] ) ) : '';
+
+	$result = amz_prints_customer_api( '/public/customer/register', array(
+		'name'     => $name,
+		'email'    => $email,
+		'phone'    => $phone,
+		'password' => $password,
+		'address'  => $address,
+	) );
+	if ( is_wp_error( $result ) ) {
+		$err = $result->get_error_message();
+		if ( 'Not found' === $err || false !== stripos( $err, 'not found' ) ) {
+			$err = __( 'ERP registration API not found. Redeploy latest Code.gs (New version).', 'amz-prints' );
+		}
+		wp_send_json_error( array( 'message' => $err ), 400 );
+	}
+	if ( empty( $result['token'] ) ) {
+		wp_send_json_error( array( 'message' => __( 'Could not create account.', 'amz-prints' ) ), 400 );
+	}
+	amz_prints_customer_set_token( $result['token'] );
+	$redirect = isset( $_POST['redirect'] ) ? esc_url_raw( wp_unslash( $_POST['redirect'] ) ) : '';
+	$redirect = $redirect ? wp_validate_redirect( $redirect, amz_prints_customer_account_url() ) : amz_prints_customer_account_url();
+	wp_send_json_success( array(
+		'customer' => isset( $result['customer'] ) ? $result['customer'] : array(),
+		'redirect' => $redirect,
+		'message'  => isset( $result['message'] ) ? $result['message'] : __( 'Account created.', 'amz-prints' ),
+	) );
+}
+add_action( 'wp_ajax_amz_prints_customer_register', 'amz_prints_ajax_customer_register' );
+add_action( 'wp_ajax_nopriv_amz_prints_customer_register', 'amz_prints_ajax_customer_register' );
+
+/**
  * AJAX: email/password login
  */
 function amz_prints_ajax_customer_login() {

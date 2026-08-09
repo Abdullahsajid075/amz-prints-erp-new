@@ -2,134 +2,49 @@
 /**
  * Template Name: Products
  *
- * Live catalog from ERP when available; falls back to WP products.
- *
  * @package AMZ_Prints
  */
 
 get_header();
 
-$accents      = array( 'orange', 'ink', 'forest', 'slate', 'ember', 'steel' );
 $erp_products = function_exists( 'amz_prints_erp_get_products' ) ? amz_prints_erp_get_products() : array();
+$cats         = array();
+foreach ( $erp_products as $p ) {
+	$c = trim( (string) ( $p['category'] ?? '' ) );
+	if ( $c ) {
+		$cats[ sanitize_title( $c ) ] = $c;
+	}
+}
 ?>
 
-<section class="page-hero page-hero--compact">
+<section class="page-hero page-hero--compact page-hero--shop">
 	<div class="container">
-		<p class="page-hero__brand"><?php echo esc_html( amz_prints_mod( 'amz_company_name', 'AMZ Prints' ) ); ?></p>
-		<h1><?php the_title(); ?></h1>
-		<p class="page-hero__lead"><?php echo esc_html( amz_prints_mod( 'amz_products_sub', 'Ready to order — customize finishes, quantities, and turnaround.' ) ); ?></p>
+		<p class="shop-head__eyebrow"><?php esc_html_e( 'Products', 'amz-prints' ); ?></p>
+		<h1><?php echo esc_html( amz_prints_mod( 'amz_products_title', 'Our Products' ) ); ?></h1>
+		<p class="page-hero__lead"><?php echo esc_html( amz_prints_mod( 'amz_products_sub', 'Browse print products and open any item for full details.' ) ); ?></p>
 	</div>
 </section>
 
-<section class="section section--products-page">
+<section class="section section--shop section--products-page">
 	<div class="container">
-		<?php
-		while ( have_posts() ) :
-			the_post();
-			if ( trim( get_the_content() ) ) :
-				?>
-				<div class="content-narrow reveal" data-reveal><?php the_content(); ?></div>
-				<?php
-			endif;
-		endwhile;
-		?>
-
 		<?php if ( empty( $erp_products ) ) : ?>
-			<p class="form-note products-erp-note reveal" data-reveal>
-				<?php esc_html_e( 'Live ERP catalog unavailable right now. Showing local products if any. Redeploy latest Code.gs (public/products) to sync ERP items.', 'amz-prints' ); ?>
+			<p class="form-note">
+				<?php esc_html_e( 'Live ERP catalog unavailable right now. Redeploy latest Code.gs (public/products) to sync ERP items.', 'amz-prints' ); ?>
 			</p>
-		<?php endif; ?>
-
-		<div class="product-cards">
-			<?php if ( ! empty( $erp_products ) ) : ?>
-				<?php foreach ( $erp_products as $i => $product ) : ?>
-					<?php
-					$accent  = $accents[ $i % count( $accents ) ];
-					$purl    = function_exists( 'amz_prints_erp_product_url' ) ? amz_prints_erp_product_url( $product['id'] ) : home_url( '/products/' );
-					$price   = amz_prints_erp_product_price_label( $product );
-					$excerpt = $product['description'] ? wp_trim_words( $product['description'], 18 ) : ( $product['category'] ? $product['category'] : __( 'Professional print product', 'amz-prints' ) );
-					$tag     = ! empty( $product['productType'] ) ? $product['productType'] : __( 'Print Product', 'amz-prints' );
-					$letter  = mb_substr( $product['name'], 0, 1 );
-					$img     = ! empty( $product['image'] ) ? $product['image'] : '';
-					$orderable = (float) ( $product['basePrice'] ?? 0 ) > 0;
-					?>
-					<article class="product-card product-card--<?php echo esc_attr( $accent ); ?> reveal" data-reveal>
-						<a href="<?php echo esc_url( $purl ); ?>" class="product-card__link">
-							<div class="product-card__media">
-								<?php if ( $img ) : ?>
-									<img src="<?php echo function_exists( 'amz_prints_product_img_src' ) ? amz_prints_product_img_src( $img ) : esc_url( $img ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>" alt="<?php echo esc_attr( $product['name'] ); ?>" loading="lazy">
-								<?php else : ?>
-									<div class="product-card__placeholder" aria-hidden="true">
-										<span class="product-card__letter"><?php echo esc_html( $letter ); ?></span>
-										<span class="product-card__shine"></span>
-									</div>
-								<?php endif; ?>
-								<span class="product-card__tag"><?php echo esc_html( $tag ); ?></span>
-							</div>
-							<div class="product-card__body">
-								<h3><?php echo esc_html( $product['name'] ); ?></h3>
-								<p><?php echo esc_html( $excerpt ); ?></p>
-								<div class="product-card__meta">
-									<span class="product-card__price"><?php echo esc_html( $price ); ?></span>
-									<span class="product-card__cta"><?php echo $orderable ? esc_html__( 'View & buy', 'amz-prints' ) : esc_html__( 'Get a quote', 'amz-prints' ); ?></span>
-								</div>
-							</div>
-						</a>
-						<?php if ( $orderable ) : ?>
-							<div class="product-card__buy" data-add-cart="<?php echo esc_attr( $product['id'] ); ?>">
-								<button type="button" class="btn btn--primary btn--sm" data-add-to-cart data-product-id="<?php echo esc_attr( $product['id'] ); ?>"><?php esc_html_e( 'Add to cart', 'amz-prints' ); ?></button>
-							</div>
-						<?php endif; ?>
-					</article>
+		<?php else : ?>
+			<nav class="shop-cats" data-shop-cats aria-label="<?php esc_attr_e( 'Product categories', 'amz-prints' ); ?>">
+				<button type="button" class="is-active" data-cat="all"><?php esc_html_e( 'All Product', 'amz-prints' ); ?></button>
+				<?php foreach ( $cats as $slug => $label ) : ?>
+					<button type="button" data-cat="<?php echo esc_attr( $slug ); ?>"><?php echo esc_html( $label ); ?></button>
 				<?php endforeach; ?>
-			<?php else : ?>
-				<?php
-				$products = new WP_Query( array(
-					'post_type'      => 'amz_product',
-					'posts_per_page' => -1,
-					'orderby'        => 'menu_order',
-					'order'          => 'ASC',
-				) );
-				$i = 0;
-				if ( $products->have_posts() ) :
-					while ( $products->have_posts() ) :
-						$products->the_post();
-						$price  = get_post_meta( get_the_ID(), '_amz_price_label', true );
-						$accent = $accents[ $i % count( $accents ) ];
-						$i++;
-						?>
-						<article class="product-card product-card--<?php echo esc_attr( $accent ); ?> reveal" data-reveal>
-							<a href="<?php the_permalink(); ?>" class="product-card__link">
-								<div class="product-card__media">
-									<?php if ( has_post_thumbnail() ) : ?>
-										<?php the_post_thumbnail( 'amz-product' ); ?>
-									<?php else : ?>
-										<div class="product-card__placeholder" aria-hidden="true">
-											<span class="product-card__letter"><?php echo esc_html( mb_substr( get_the_title(), 0, 1 ) ); ?></span>
-											<span class="product-card__shine"></span>
-										</div>
-									<?php endif; ?>
-									<span class="product-card__tag"><?php esc_html_e( 'Print Product', 'amz-prints' ); ?></span>
-								</div>
-								<div class="product-card__body">
-									<h3><?php the_title(); ?></h3>
-									<p><?php echo esc_html( wp_trim_words( get_the_excerpt() ?: get_the_content(), 18 ) ); ?></p>
-									<div class="product-card__meta">
-										<?php if ( $price ) : ?>
-											<span class="product-card__price"><?php echo esc_html( $price ); ?></span>
-										<?php endif; ?>
-										<span class="product-card__cta"><?php esc_html_e( 'View details', 'amz-prints' ); ?></span>
-									</div>
-								</div>
-							</a>
-						</article>
-						<?php
-					endwhile;
-					wp_reset_postdata();
-				endif;
-				?>
-			<?php endif; ?>
-		</div>
+			</nav>
+
+			<div class="shop-grid" data-shop-grid>
+				<?php foreach ( $erp_products as $product ) : ?>
+					<?php get_template_part( 'template-parts/product', 'card', array( 'product' => $product ) ); ?>
+				<?php endforeach; ?>
+			</div>
+		<?php endif; ?>
 	</div>
 </section>
 

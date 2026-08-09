@@ -467,6 +467,53 @@ async function dispatch(req, res) {
         };
 
         try {
+          if (method === 'POST' && path === '/public/customer/register') {
+            const name = String(body.name || '').trim();
+            const email = String(body.email || '').trim().toLowerCase();
+            const phone = String(body.phone || '').trim();
+            const password = String(body.password || body.newPassword || '').trim();
+            const address = String(body.address || '').trim();
+            if (!name) return sendError(res, 'Name is required', 400);
+            if (!email || !email.includes('@')) return sendError(res, 'Valid email is required', 400);
+            if (password.length < 6) return sendError(res, 'Password must be at least 6 characters', 400);
+            const { data: existingRows } = await supabase.from('customers').select('*').ilike('email', email).limit(5);
+            const exists = (existingRows || []).find((c) => String(c.email || '').trim().toLowerCase() === email);
+            if (exists) return sendError(res, 'An account already exists for this email. Please log in.', 400);
+            const customerId = id('cust');
+            const row = {
+              id: customerId,
+              name,
+              phone,
+              email,
+              address,
+              city: '',
+              notes: 'Website registration',
+              in_crm: true,
+              stage: 'lead',
+              stage_updated_at: new Date().toISOString(),
+              notify_whatsapp: true,
+              notify_email: true,
+              portal_password: password,
+            };
+            const { error } = await supabase.from('customers').insert(row);
+            if (error) return sendError(res, error.message || 'Could not create account', 500);
+            try {
+              await supabase.from('crm_notes').insert({
+                id: id('note'),
+                customer_id: customerId,
+                note: 'Website account created',
+                created_at: new Date().toISOString(),
+                created_by: 'website',
+              });
+            } catch { /* optional */ }
+            return send(res, {
+              ok: true,
+              token: issueCustomerToken(row),
+              customer: sanitizePortalCustomer(row),
+              message: 'Account created. You can place orders now.',
+            });
+          }
+
           if (method === 'POST' && path === '/public/customer/login') {
             const email = String(body.email || '').trim().toLowerCase();
             const password = String(body.password || '');
@@ -582,6 +629,16 @@ async function dispatch(req, res) {
           if (method === 'POST' && path === '/public/customer/order') {
             const customer = await validateCustomerToken(body.token);
             if (!customer) return sendError(res, 'Please log in to place an order', 401);
+            // Auto-add / keep customer in CRM on website order
+            try {
+              await supabase.from('customers').update({
+                in_crm: true,
+                stage: customer.stage || 'customer',
+                stage_updated_at: new Date().toISOString(),
+                phone: String(body.customerPhone || customer.phone || '').trim() || customer.phone,
+                address: String(body.deliveryAddress || body.address || customer.address || '').trim() || customer.address,
+              }).eq('id', customer.id);
+            } catch { /* best-effort */ }
             const accepted = body.policyAccepted === true || body.policyAccepted === 'true' || body.policyAccepted === 1 || body.policyAccepted === '1';
             if (!accepted) return sendError(res, 'Please accept the Order Processing Policy before placing your order', 400);
 
