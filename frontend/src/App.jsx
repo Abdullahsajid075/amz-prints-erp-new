@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import '@/App.css';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from '@/context/AuthContext';
 import { BrandProvider } from '@/context/BrandContext';
 import { Toaster } from '@/components/ui/sonner';
@@ -36,6 +36,7 @@ import Accounts from '@/components/modules/accounts/Accounts';
 import POS from '@/components/modules/pos/POS';
 import PrintingCostCalculator from '@/components/modules/calculator/PrintingCostCalculator';
 import PublicOrderTracking from '@/components/modules/tracking/PublicOrderTracking';
+import StoryPage from '@/components/modules/story/StoryPage';
 
 /**
  * App shell (Brand + Auth) only mounts for protected routes.
@@ -54,15 +55,22 @@ function AuthenticatedApp() {
   );
 }
 
-function App() {
+function DocumentTitle() {
+  const { pathname } = useLocation();
   useEffect(() => {
+    if (pathname.startsWith('/story')) return;
     document.title = 'AMAZON ERP';
-  }, []);
+  }, [pathname]);
+  return null;
+}
 
+function App() {
   return (
     <BrowserRouter>
+      <DocumentTitle />
       <Routes>
         {/* Public — no Auth / no Vercel login */}
+        <Route path="/story" element={<StoryPage />} />
         <Route path="/login" element={<Login />} />
         <Route
           path="/invoice/:shareToken"
