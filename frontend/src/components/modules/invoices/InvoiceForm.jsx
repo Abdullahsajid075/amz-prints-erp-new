@@ -13,7 +13,7 @@ import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPic
 import { formatCurrency } from '@/utils/helpers';
 import { catalogFieldsForOrderLine } from '@/utils/productImage';
 import { useBrand } from '@/context/BrandContext';
-import { ArrowLeft, Save, Plus, Trash2, PackagePlus } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Trash2, PackagePlus, Receipt, User } from 'lucide-react';
 import { toast } from 'sonner';
 
 const emptyItem = () => ({
@@ -106,7 +106,12 @@ const InvoiceForm = () => {
         if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
         try { return new Date(d).toISOString().slice(0, 10); } catch { return ''; }
       };
-      const items = (inv.items || []).map((i) => {
+      let rawItems = inv.items;
+      if (typeof rawItems === 'string') {
+        try { rawItems = JSON.parse(rawItems); } catch { rawItems = []; }
+      }
+      if (!Array.isArray(rawItems)) rawItems = [];
+      const items = rawItems.map((i) => {
         const productType = i.productType || 'Product';
         const service = String(productType).toLowerCase() === 'service';
         return {
@@ -123,6 +128,7 @@ const InvoiceForm = () => {
       });
       setFormData({
         ...emptyInvoice,
+        id: inv.id || invoiceId,
         invoiceNumber: inv.invoiceNumber || '',
         orderId: inv.orderId || '',
         customerId: inv.customerId || '',
@@ -145,11 +151,14 @@ const InvoiceForm = () => {
       setLoaded(true);
     } catch (err) {
       console.error(err);
-      toast.error('Failed to load invoice');
+      toast.error(err?.response?.data?.message || 'Failed to load invoice');
+      setLoaded(false);
+      // Avoid infinite "Loading…" — send user back after failed edit load
+      setTimeout(() => navigate('/invoices'), 800);
     } finally {
       setPageLoading(false);
     }
-  }, [invoiceId, isEdit]);
+  }, [invoiceId, isEdit, navigate]);
 
   useEffect(() => {
     loadCustomers();

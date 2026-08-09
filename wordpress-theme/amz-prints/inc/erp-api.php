@@ -187,19 +187,36 @@ function amz_prints_erp_get_products( $force_refresh = false ) {
 		if ( $primary && ! in_array( $primary, $images, true ) ) {
 			array_unshift( $images, $primary );
 		}
+		$variations = array();
+		if ( ! empty( $row['variations'] ) && is_array( $row['variations'] ) ) {
+			foreach ( $row['variations'] as $v ) {
+				if ( ! is_array( $v ) || empty( $v['name'] ) ) {
+					continue;
+				}
+				$variations[] = array(
+					'id'    => (string) ( $v['id'] ?? '' ),
+					'name'  => (string) $v['name'],
+					'price' => isset( $v['price'] ) && $v['price'] !== null && $v['price'] !== '' ? (float) $v['price'] : null,
+					'sku'   => (string) ( $v['sku'] ?? '' ),
+				);
+			}
+		}
 		$products[] = array(
-			'id'           => (string) ( $row['id'] ?? '' ),
-			'name'         => $name,
-			'category'     => (string) ( $row['category'] ?? '' ),
-			'productType'  => (string) ( $row['productType'] ?? 'Product' ),
-			'basePrice'    => $price,
-			'unit'         => (string) ( $row['unit'] ?? 'per piece' ),
-			'description'  => (string) ( $row['description'] ?? '' ),
-			'material'     => (string) ( $row['material'] ?? '' ),
-			'size'         => (string) ( $row['size'] ?? '' ),
-			'minQuantity'  => isset( $row['minQuantity'] ) ? (float) $row['minQuantity'] : 1,
-			'image'        => $primary ?: ( $images[0] ?? '' ),
-			'images'       => $images,
+			'id'              => (string) ( $row['id'] ?? '' ),
+			'name'            => $name,
+			'category'        => (string) ( $row['category'] ?? '' ),
+			'productType'     => (string) ( $row['productType'] ?? 'Product' ),
+			'basePrice'       => $price,
+			'unit'            => (string) ( $row['unit'] ?? 'per piece' ),
+			'description'     => (string) ( $row['description'] ?? '' ),
+			'fullDescription' => (string) ( $row['fullDescription'] ?? '' ),
+			'material'        => (string) ( $row['material'] ?? '' ),
+			'size'            => (string) ( $row['size'] ?? '' ),
+			'minQuantity'     => isset( $row['minQuantity'] ) ? (float) $row['minQuantity'] : 1,
+			'image'           => $primary ?: ( $images[0] ?? '' ),
+			'images'          => $images,
+			'variations'      => $variations,
+			'showOnWebsite'   => ! empty( $row['showOnWebsite'] ) || ! array_key_exists( 'showOnWebsite', $row ),
 		);
 	}
 

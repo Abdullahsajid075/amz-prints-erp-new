@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
 import { productsAPI, designersAPI } from '@/services/api';
 import { formatCurrency } from '@/utils/helpers';
 import { sortBy } from '@/utils/sortBy';
@@ -15,7 +16,7 @@ import SortBar from '@/components/shared/SortBar';
 import { clearGasCache } from '@/services/gasClient';
 import { compressImageFile, productImageSrc } from '@/utils/productImage';
 import {
-  Plus, Search, Edit, Trash2, Package, X, Save, Wrench, ImagePlus, Boxes,
+  Plus, Search, Edit, Trash2, Package, X, Save, Wrench, ImagePlus, Boxes, Globe,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -36,11 +37,19 @@ const MATERIALS = [
   'PVC', 'Fabric', 'Metal', 'Acrylic', 'Corrugated',
 ];
 
+const emptyVariation = () => ({
+  id: `var_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+  name: '',
+  price: '',
+  sku: '',
+});
+
 const emptyProduct = {
   name: '',
   category: '',
   productType: 'Product',
   description: '',
+  fullDescription: '',
   basePrice: 0,
   unit: 'per piece',
   material: '',
@@ -50,6 +59,8 @@ const emptyProduct = {
   designer: '',
   image: '',
   active: true,
+  showOnWebsite: true,
+  variations: [],
 };
 
 const Products = () => {
@@ -138,14 +149,26 @@ const Products = () => {
 
   const openEditDialog = (product) => {
     setEditingProduct(product);
+    const variations = Array.isArray(product.variations)
+      ? product.variations.map((v, i) => ({
+          id: v.id || `var_${i + 1}`,
+          name: v.name || '',
+          price: v.price != null && v.price !== '' ? String(v.price) : '',
+          sku: v.sku || '',
+        }))
+      : [];
     setFormData({
       ...emptyProduct,
       ...product,
       basePrice: product.basePrice ?? product.rate ?? 0,
       productType: product.productType || 'Product',
+      description: product.description || '',
+      fullDescription: product.fullDescription || '',
       designer: product.designer || '',
       stock: Number(product.stock ?? 0) || 0,
       image: productImageSrc(product),
+      showOnWebsite: product.showOnWebsite !== false,
+      variations,
     });
     setDialogOpen(true);
   };
@@ -211,12 +234,21 @@ const Products = () => {
     setSaving(true);
     try {
       const service = String(formData.productType || '').toLowerCase() === 'service';
+      const variations = (formData.variations || [])
+        .map((v, i) => ({
+          id: v.id || `var_${i + 1}`,
+          name: String(v.name || '').trim(),
+          price: v.price === '' || v.price == null ? null : Number(v.price),
+          sku: String(v.sku || '').trim(),
+        }))
+        .filter((v) => v.name);
       const payload = service
         ? {
             name: formData.name,
             productType: 'Service',
             category: formData.category || 'Services',
             description: formData.description || '',
+            fullDescription: formData.fullDescription || '',
             basePrice: Number(formData.basePrice) || 0,
             rate: Number(formData.basePrice) || 0,
             unit: 'service',
@@ -228,12 +260,15 @@ const Products = () => {
             image: formData.image || '',
             active: formData.active !== false,
             status: formData.active === false ? 'Inactive' : 'Active',
+            showOnWebsite: formData.showOnWebsite !== false,
+            variations,
           }
         : {
             name: formData.name,
             category: formData.category || '',
             productType: formData.productType || 'Product',
             description: formData.description || '',
+            fullDescription: formData.fullDescription || '',
             basePrice: Number(formData.basePrice) || 0,
             rate: Number(formData.basePrice) || 0,
             unit: formData.unit || 'per piece',
@@ -245,6 +280,8 @@ const Products = () => {
             image: formData.image || '',
             active: formData.active !== false,
             status: formData.active === false ? 'Inactive' : 'Active',
+            showOnWebsite: formData.showOnWebsite !== false,
+            variations,
           };
       if (editingProduct) {
         await productsAPI.update(editingProduct.id, payload);
@@ -378,6 +415,15 @@ const Products = () => {
                       >
                         {service ? 'Service' : 'Product'}
                       </Badge>
+                      {product.showOnWebsite !== false ? (
+                        <Badge className="absolute top-1.5 right-1.5 text-[10px] px-1.5 py-0 h-5 bg-emerald-600 text-white border-0">
+                          <Globe className="h-3 w-3 mr-0.5" />Web
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="absolute top-1.5 right-1.5 text-[10px] px-1.5 py-0 h-5 bg-white/90 text-gray-500">
+                          Hidden
+                        </Badge>
+                      )}
                     </div>
                     <div className="p-3 space-y-1.5">
                       <p className="text-sm font-semibold leading-snug line-clamp-2 min-h-[2.5rem]" style={{ color: '#2E2E2E' }}>
@@ -528,6 +574,19 @@ const Products = () => {
               </Select>
             </div>
 
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-orange-100 bg-[#FFF9F5] px-3 py-2.5">
+              <div>
+                <Label htmlFor="show-on-website" className="text-sm font-semibold">Show on website</Label>
+                <p className="text-[11px] text-gray-500 mt-0.5">Off = hidden from storefront catalog &amp; checkout</p>
+              </div>
+              <Switch
+                id="show-on-website"
+                checked={formData.showOnWebsite !== false}
+                onCheckedChange={(v) => setFormData({ ...formData, showOnWebsite: !!v })}
+                data-testid="product-show-website-switch"
+              />
+            </div>
+
             <div>
               <Label htmlFor="name">{isService ? 'Service name *' : 'Product name *'}</Label>
               <Input
@@ -542,15 +601,26 @@ const Products = () => {
             {isService ? (
               <>
                 <div>
-                  <Label htmlFor="description">Description *</Label>
+                  <Label htmlFor="description">Short description *</Label>
                   <Textarea
                     id="description"
                     placeholder="What this service includes…"
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    rows={4}
+                    rows={3}
                     required
                     data-testid="product-description-input"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="fullDescription">Full description</Label>
+                  <Textarea
+                    id="fullDescription"
+                    placeholder="Detailed service info shown on the website product page…"
+                    value={formData.fullDescription}
+                    onChange={(e) => setFormData({ ...formData, fullDescription: e.target.value })}
+                    rows={5}
+                    data-testid="product-full-description-input"
                   />
                 </div>
                 <div>
@@ -650,16 +720,111 @@ const Products = () => {
                   />
                 </div>
                 <div className="sm:col-span-2">
-                  <Label>Description</Label>
+                  <Label>Short description</Label>
                   <Textarea
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     rows={2}
+                    placeholder="Shown on product cards / lists"
                     data-testid="product-description-input"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <Label>Full description</Label>
+                  <Textarea
+                    value={formData.fullDescription}
+                    onChange={(e) => setFormData({ ...formData, fullDescription: e.target.value })}
+                    rows={5}
+                    placeholder="Full details for the website product page"
+                    data-testid="product-full-description-input"
                   />
                 </div>
               </div>
             )}
+
+            <div className="rounded-lg border p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <Label className="text-sm font-semibold">Variations</Label>
+                  <p className="text-[11px] text-gray-500">e.g. A4 Matte, A3 Gloss — optional price override</p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8"
+                  onClick={() => setFormData((prev) => ({
+                    ...prev,
+                    variations: [...(prev.variations || []), emptyVariation()],
+                  }))}
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1" />Add
+                </Button>
+              </div>
+              {(formData.variations || []).length === 0 ? (
+                <p className="text-xs text-gray-500">No variations — base price is used.</p>
+              ) : (
+                <div className="space-y-2">
+                  {(formData.variations || []).map((v, idx) => (
+                    <div key={v.id || idx} className="grid grid-cols-12 gap-2 items-end">
+                      <div className="col-span-5">
+                        <Label className="text-[11px]">Name</Label>
+                        <Input
+                          value={v.name}
+                          placeholder="A4 / Matte"
+                          onChange={(e) => setFormData((prev) => {
+                            const variations = [...(prev.variations || [])];
+                            variations[idx] = { ...variations[idx], name: e.target.value };
+                            return { ...prev, variations };
+                          })}
+                        />
+                      </div>
+                      <div className="col-span-3">
+                        <Label className="text-[11px]">Price (optional)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={v.price}
+                          placeholder="Base"
+                          onChange={(e) => setFormData((prev) => {
+                            const variations = [...(prev.variations || [])];
+                            variations[idx] = { ...variations[idx], price: e.target.value };
+                            return { ...prev, variations };
+                          })}
+                        />
+                      </div>
+                      <div className="col-span-3">
+                        <Label className="text-[11px]">SKU</Label>
+                        <Input
+                          value={v.sku}
+                          placeholder="Optional"
+                          onChange={(e) => setFormData((prev) => {
+                            const variations = [...(prev.variations || [])];
+                            variations[idx] = { ...variations[idx], sku: e.target.value };
+                            return { ...prev, variations };
+                          })}
+                        />
+                      </div>
+                      <div className="col-span-1">
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="h-9 w-9"
+                          onClick={() => setFormData((prev) => ({
+                            ...prev,
+                            variations: (prev.variations || []).filter((_, i) => i !== idx),
+                          }))}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-600" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <DialogFooter className="gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>

@@ -71,19 +71,35 @@ function amz_prints_erp_get_product( $id ) {
 	if ( $primary && ! in_array( $primary, $images, true ) ) {
 		array_unshift( $images, $primary );
 	}
+	$variations = array();
+	if ( ! empty( $data['variations'] ) && is_array( $data['variations'] ) ) {
+		foreach ( $data['variations'] as $v ) {
+			if ( ! is_array( $v ) || empty( $v['name'] ) ) {
+				continue;
+			}
+			$variations[] = array(
+				'id'    => (string) ( $v['id'] ?? '' ),
+				'name'  => (string) $v['name'],
+				'price' => isset( $v['price'] ) && $v['price'] !== null && $v['price'] !== '' ? (float) $v['price'] : null,
+				'sku'   => (string) ( $v['sku'] ?? '' ),
+			);
+		}
+	}
 	return array(
-		'id'          => (string) ( $data['id'] ?? $id ),
-		'name'        => $name,
-		'category'    => (string) ( $data['category'] ?? '' ),
-		'productType' => (string) ( $data['productType'] ?? 'Product' ),
-		'basePrice'   => $price,
-		'unit'        => (string) ( $data['unit'] ?? 'per piece' ),
-		'description' => (string) ( $data['description'] ?? '' ),
-		'material'    => (string) ( $data['material'] ?? '' ),
-		'size'        => (string) ( $data['size'] ?? '' ),
-		'minQuantity' => isset( $data['minQuantity'] ) ? (float) $data['minQuantity'] : 1,
-		'image'       => $primary ?: ( $images[0] ?? '' ),
-		'images'      => $images,
+		'id'              => (string) ( $data['id'] ?? $id ),
+		'name'            => $name,
+		'category'        => (string) ( $data['category'] ?? '' ),
+		'productType'     => (string) ( $data['productType'] ?? 'Product' ),
+		'basePrice'       => $price,
+		'unit'            => (string) ( $data['unit'] ?? 'per piece' ),
+		'description'     => (string) ( $data['description'] ?? '' ),
+		'fullDescription' => (string) ( $data['fullDescription'] ?? '' ),
+		'material'        => (string) ( $data['material'] ?? '' ),
+		'size'            => (string) ( $data['size'] ?? '' ),
+		'minQuantity'     => isset( $data['minQuantity'] ) ? (float) $data['minQuantity'] : 1,
+		'image'           => $primary ?: ( $images[0] ?? '' ),
+		'images'          => $images,
+		'variations'      => $variations,
 	);
 }
 

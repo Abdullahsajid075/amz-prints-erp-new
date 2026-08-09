@@ -60,15 +60,44 @@ if ( $product ) {
 				<div class="product-detail__body">
 					<p class="page-hero__brand"><?php echo esc_html( $product['category'] ?: $product['productType'] ); ?></p>
 					<h2><?php echo esc_html( $product['name'] ); ?></h2>
-					<p class="product-card__price" style="font-size:1.25rem;font-weight:800;"><?php echo esc_html( $price_label ); ?></p>
+					<p class="product-card__price" style="font-size:1.25rem;font-weight:800;" data-display-price><?php echo esc_html( $price_label ); ?></p>
 					<?php if ( ! empty( $product['description'] ) ) : ?>
 						<p><?php echo esc_html( $product['description'] ); ?></p>
+					<?php endif; ?>
+					<?php if ( ! empty( $product['fullDescription'] ) ) : ?>
+						<div class="product-detail__full" style="white-space:pre-wrap;margin:0.75rem 0;line-height:1.55;"><?php echo esc_html( $product['fullDescription'] ); ?></div>
 					<?php endif; ?>
 					<ul class="check-list">
 						<?php if ( ! empty( $product['size'] ) ) : ?><li><?php echo esc_html( 'Size: ' . $product['size'] ); ?></li><?php endif; ?>
 						<?php if ( ! empty( $product['material'] ) ) : ?><li><?php echo esc_html( 'Material: ' . $product['material'] ); ?></li><?php endif; ?>
 						<li><?php echo esc_html( sprintf( __( 'Min quantity: %s', 'amz-prints' ), $product['minQuantity'] ?: 1 ) ); ?></li>
 					</ul>
+					<?php if ( ! empty( $product['variations'] ) ) : ?>
+						<div class="product-detail__variations" style="margin:0.85rem 0;">
+							<label for="amz-variation"><?php esc_html_e( 'Variation', 'amz-prints' ); ?></label>
+							<select id="amz-variation" data-product-variation style="display:block;width:100%;margin-top:0.35rem;padding:0.55rem 0.7rem;border:1px solid #d1d5db;border-radius:0.5rem;">
+								<option value="" data-price="<?php echo esc_attr( $product['basePrice'] ); ?>"><?php esc_html_e( 'Standard / base price', 'amz-prints' ); ?></option>
+								<?php foreach ( $product['variations'] as $variation ) : ?>
+									<?php
+									$v_price = isset( $variation['price'] ) && null !== $variation['price']
+										? (float) $variation['price']
+										: (float) $product['basePrice'];
+									?>
+									<option
+										value="<?php echo esc_attr( $variation['id'] ); ?>"
+										data-name="<?php echo esc_attr( $variation['name'] ); ?>"
+										data-price="<?php echo esc_attr( $v_price ); ?>"
+									>
+										<?php
+										echo esc_html(
+											$variation['name'] . ' — Rs. ' . number_format_i18n( $v_price, $v_price == floor( $v_price ) ? 0 : 2 )
+										);
+										?>
+									</option>
+								<?php endforeach; ?>
+							</select>
+						</div>
+					<?php endif; ?>
 					<div class="product-detail__actions">
 						<label>
 							<?php esc_html_e( 'Qty', 'amz-prints' ); ?>
@@ -100,6 +129,29 @@ if ( $product ) {
 						if (main) { main.src = btn.getAttribute('data-thumb'); main.hidden = false; }
 					});
 				});
+				var sel = document.querySelector('[data-product-variation]');
+				var priceEl = document.querySelector('[data-display-price]');
+				var addBtn = document.querySelector('[data-add-to-cart]');
+				function syncVariation() {
+					if (!sel || !addBtn) return;
+					var opt = sel.options[sel.selectedIndex];
+					var price = opt.getAttribute('data-price') || addBtn.getAttribute('data-price');
+					var vName = opt.getAttribute('data-name') || '';
+					var vId = sel.value || '';
+					addBtn.setAttribute('data-variation-id', vId);
+					addBtn.setAttribute('data-variation-name', vName);
+					addBtn.setAttribute('data-selected-price', price);
+					if (priceEl) {
+						var n = Number(price) || 0;
+						priceEl.textContent = n > 0
+							? ('From Rs. ' + n.toLocaleString('en-PK'))
+							: priceEl.textContent;
+					}
+				}
+				if (sel) {
+					sel.addEventListener('change', syncVariation);
+					syncVariation();
+				}
 			});
 			</script>
 		<?php endif; ?>

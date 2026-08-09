@@ -90,19 +90,34 @@
   function addToCart(product, qty) {
     if (!product || !product.id) return;
     qty = Math.max(1, Number(qty) || Number(product.minQuantity) || 1);
+    var variationId = String(product.variationId || '');
+    var variationName = String(product.variationName || '');
+    var rate = Number(
+      product.selectedPrice != null ? product.selectedPrice
+        : (product.basePrice != null ? product.basePrice : product.rate)
+    ) || 0;
+    var lineName = product.name || '';
+    if (variationName) lineName = lineName + ' — ' + variationName;
     var items = readCart();
-    var idx = items.findIndex(function (r) { return String(r.id) === String(product.id); });
+    var idx = items.findIndex(function (r) {
+      return String(r.id) === String(product.id)
+        && String(r.variationId || '') === variationId;
+    });
     if (idx >= 0) {
       items[idx].quantity = (Number(items[idx].quantity) || 0) + qty;
+      items[idx].rate = rate;
+      items[idx].name = lineName;
     } else {
       items.push({
         id: String(product.id),
-        name: product.name || '',
-        rate: Number(product.basePrice != null ? product.basePrice : product.rate) || 0,
+        name: lineName,
+        rate: rate,
         quantity: qty,
         image: product.image || '',
         unit: product.unit || '',
         minQuantity: Number(product.minQuantity) || 1,
+        variationId: variationId,
+        variationName: variationName,
       });
     }
     writeCart(items);
@@ -282,7 +297,14 @@
       ajax('amz_prints_place_order', {
         token: authNow.token,
         items: JSON.stringify(items.map(function (r) {
-          return { productId: r.id, name: r.name, quantity: r.quantity, rate: r.rate };
+          return {
+            productId: r.id,
+            name: r.name,
+            quantity: r.quantity,
+            rate: r.rate,
+            variationId: r.variationId || '',
+            variationName: r.variationName || '',
+          };
         })),
         payment_method: form.payment_method.value,
         discount: String(totals.discount),
@@ -400,9 +422,12 @@
           id: btn.getAttribute('data-id'),
           name: btn.getAttribute('data-name'),
           basePrice: btn.getAttribute('data-price'),
+          selectedPrice: btn.getAttribute('data-selected-price') || btn.getAttribute('data-price'),
           image: btn.getAttribute('data-image') || '',
           unit: btn.getAttribute('data-unit') || '',
           minQuantity: btn.getAttribute('data-min') || 1,
+          variationId: btn.getAttribute('data-variation-id') || '',
+          variationName: btn.getAttribute('data-variation-name') || '',
         };
         var qtyInput = document.querySelector('[data-product-qty]');
         var qty = qtyInput ? qtyInput.value : product.minQuantity;

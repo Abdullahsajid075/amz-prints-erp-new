@@ -57,7 +57,10 @@ var DEFAULT_HEADERS = {
     'DocType', 'TrackingNumber', 'StatusHistory', 'DeliveryAddress', 'QuotationId',
     'PaymentMethod', 'PaymentStatus', 'Discount', 'DeliveryCharges', 'OrderSource', 'PaymentHistory'
   ],
-  Products: ['Id', 'Name', 'Category', 'Rate', 'Unit', 'Description', 'Status', 'ProductType', 'Designer', 'Stock', 'Material', 'Size', 'MinQuantity', 'Image'],
+  Products: [
+    'Id', 'Name', 'Category', 'Rate', 'Unit', 'Description', 'FullDescription', 'Status', 'ProductType',
+    'Designer', 'Stock', 'Material', 'Size', 'MinQuantity', 'Image', 'ShowOnWebsite', 'Variations'
+  ],
   Invoices: [
     'Id', 'InvoiceNo', 'Date', 'DueDate', 'OrderId', 'CustomerId', 'CustomerName', 'CustomerPhone',
     'CustomerEmail', 'CustomerAddress', 'Items', 'Subtotal', 'TaxRate', 'Tax', 'Discount',
@@ -2037,6 +2040,11 @@ function normalizeInvoice_(body, existing) {
 }
 
 function toApiInvoice_(inv) {
+  var items = inv.items;
+  if (typeof items === 'string') {
+    try { items = JSON.parse(items); } catch (eItems) { items = []; }
+  }
+  if (!Array.isArray(items)) items = [];
   return {
     id: inv.id,
     invoiceNumber: inv.invoiceno || '',
@@ -2048,7 +2056,7 @@ function toApiInvoice_(inv) {
     customerPhone: inv.customerphone || '',
     customerEmail: inv.customeremail || '',
     customerAddress: inv.customeraddress || '',
-    items: Array.isArray(inv.items) ? inv.items : [],
+    items: items,
     subtotal: Number(inv.subtotal || 0),
     taxRate: Number(inv.taxrate || 0),
     tax: Number(inv.tax || 0),
@@ -2125,6 +2133,12 @@ function handleInvoices_(path, method, body) {
 
   var id = path.split('/')[2];
   var index = findById_(rows, id);
+  if (index < 0) {
+    index = rows.findIndex(function (r) {
+      return String(r.invoiceno || '').toLowerCase() === String(id || '').toLowerCase()
+        || String(r.sharetoken || '') === String(id || '');
+    });
+  }
   if (index < 0) throw new Error('Invoice not found');
 
   if (method === 'GET') return toApiInvoice_(rows[index]);
@@ -2935,9 +2949,36 @@ function sanitizePortalCustomer_(c) {
   };
 }
 
+function parseProductVariations_(raw) {
+  var list = raw;
+  if (typeof list === 'string') {
+    try { list = JSON.parse(list); } catch (eVar) { list = []; }
+  }
+  if (!Array.isArray(list)) return [];
+  return list.map(function (v, idx) {
+    v = v || {};
+    return {
+      id: String(v.id || ('var_' + (idx + 1))),
+      name: String(v.name || v.label || '').trim(),
+      price: v.price != null && v.price !== '' ? Number(v.price) : null,
+      sku: String(v.sku || '').trim(),
+    };
+  }).filter(function (v) { return !!v.name; });
+}
+
+function isShowOnWebsite_(p) {
+  if (!p) return false;
+  if (p.showonwebsite === undefined || p.showonwebsite === null || p.showonwebsite === '') {
+    // Legacy rows without the column: keep visible if Active
+    return String(p.status || 'Active').toLowerCase() !== 'inactive';
+  }
+  return isNotifyOn_(p.showonwebsite);
+}
+
 function toPublicProduct_(p) {
   var api = toApiProduct_(p);
   if (!api.active) return null;
+  if (!api.showOnWebsite) return null;
   var images = [];
   if (api.image) images.push(api.image);
   var extra = p.images || p.gallery;
@@ -2986,17 +3027,36 @@ function handlePublicWebsiteOrder_(body, customer) {
     if (String(match.status || 'Active').toLowerCase() === 'inactive') {
       throw new Error('Product unavailable: ' + (match.name || pid));
     }
+    if (!isShowOnWebsite_(match)) {
+      throw new Error('Product not available on website: ' + (match.name || pid));
+    }
     var rate = Number(match.rate || match.baseprice || 0);
+    var lineName = match.name;
+    var variations = parseProductVariations_(match.variations);
+    var variationId = String(line.variationId || line.variation_id || '').trim();
+    var variationName = String(line.variationName || line.variation || '').trim();
+    if (variationId || variationName) {
+      var picked = variations.find(function (v) {
+        return (variationId && String(v.id) === variationId)
+          || (variationName && String(v.name).toLowerCase() === variationName.toLowerCase());
+      });
+      if (picked) {
+        if (picked.price != null && !isNaN(picked.price)) rate = Number(picked.price);
+        lineName = match.name + ' — ' + picked.name;
+      }
+    }
     var minQ = Number(match.minquantity || 1) || 1;
     if (qty < minQ) qty = minQ;
     products.push({
       productId: match.id,
-      name: match.name,
+      name: lineName,
       quantity: qty,
       rate: rate,
       size: match.size || '',
       material: match.material || '',
       notes: line.notes || '',
+      variationId: variationId || '',
+      variationName: variationName || '',
     });
     subtotal += qty * rate;
   });
@@ -3506,6 +3566,7 @@ function sanitizeCatalogImage_(img) {
 function toApiProduct_(p) {
   var rate = Number(p.rate || p.baseprice || 0);
   var img = sanitizeCatalogImage_(p.image || p.photo || '');
+  var variations = parseProductVariations_(p.variations);
   return {
     id: p.id,
     name: p.name,
@@ -3515,6 +3576,7 @@ function toApiProduct_(p) {
     rate: rate,
     unit: p.unit || 'per piece',
     description: p.description || '',
+    fullDescription: p.fulldescription || p.fullDescription || '',
     material: p.material || '',
     size: p.size || '',
     minQuantity: Number(p.minquantity || 1),
@@ -3524,6 +3586,8 @@ function toApiProduct_(p) {
     photo: img,
     active: String(p.status || 'Active').toLowerCase() !== 'inactive',
     status: p.status || 'Active',
+    showOnWebsite: isShowOnWebsite_(p),
+    variations: variations,
   };
 }
 
@@ -3537,6 +3601,12 @@ function normalizeProduct_(body, existing) {
   var imageVal = incomingImage != null
     ? saveProductImageToDrive_(incomingImage, id)
     : (existing.image || existing.photo || '');
+  var variationsRaw = body.variations != null ? body.variations : existing.variations;
+  var variations = parseProductVariations_(variationsRaw);
+  var showWeb = true;
+  if (body.showOnWebsite != null) showWeb = isNotifyOn_(body.showOnWebsite);
+  else if (body.showonwebsite != null) showWeb = isNotifyOn_(body.showonwebsite);
+  else if (existing.showonwebsite != null && existing.showonwebsite !== '') showWeb = isNotifyOn_(existing.showonwebsite);
   return {
     id: id,
     name: body.name || existing.name || '',
@@ -3545,6 +3615,8 @@ function normalizeProduct_(body, existing) {
     rate: Number(rate || 0),
     unit: isService ? 'service' : (body.unit || existing.unit || 'per piece'),
     description: body.description != null ? body.description : (existing.description || ''),
+    fulldescription: body.fullDescription != null ? body.fullDescription
+      : (body.fulldescription != null ? body.fulldescription : (existing.fulldescription || '')),
     material: isService ? '' : (body.material || existing.material || ''),
     size: isService ? '' : (body.size || existing.size || ''),
     minquantity: isService ? 1 : Number(body.minQuantity != null ? body.minQuantity : (existing.minquantity || 1)),
@@ -3552,6 +3624,8 @@ function normalizeProduct_(body, existing) {
     designer: isService ? '' : (body.designer || existing.designer || ''),
     image: imageVal,
     status: body.active === false ? 'Inactive' : (body.status || existing.status || 'Active'),
+    showonwebsite: showWeb,
+    variations: variations,
   };
 }
 
