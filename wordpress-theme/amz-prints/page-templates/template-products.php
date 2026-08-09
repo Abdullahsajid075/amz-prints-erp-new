@@ -34,6 +34,12 @@ $erp_products = function_exists( 'amz_prints_erp_get_products' ) ? amz_prints_er
 		endwhile;
 		?>
 
+		<?php if ( empty( $erp_products ) ) : ?>
+			<p class="form-note products-erp-note reveal" data-reveal>
+				<?php esc_html_e( 'Live ERP catalog unavailable right now. Showing local products if any. Redeploy latest Code.gs (public/products) to sync ERP items.', 'amz-prints' ); ?>
+			</p>
+		<?php endif; ?>
+
 		<div class="product-cards">
 			<?php if ( ! empty( $erp_products ) ) : ?>
 				<?php foreach ( $erp_products as $i => $product ) : ?>

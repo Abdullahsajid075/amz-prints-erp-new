@@ -40,6 +40,13 @@
 				</li>
 				<li><a class="nav-link-main" href="<?php echo esc_url( home_url( '/products/' ) ); ?>">Products</a></li>
 				<li><a class="nav-link-main" href="<?php echo esc_url( home_url( '/nadra-e-services/' ) ); ?>">NADRA</a></li>
+				<li>
+					<?php if ( function_exists( 'amz_prints_customer_is_logged_in' ) && amz_prints_customer_is_logged_in() ) : ?>
+						<a class="nav-link-main" href="<?php echo esc_url( home_url( '/my-account/' ) ); ?>">My Account</a>
+					<?php else : ?>
+						<a class="nav-link-main" href="<?php echo esc_url( home_url( '/customer-login/' ) ); ?>">Login</a>
+					<?php endif; ?>
+				</li>
 				<li class="has-more">
 					<button type="button" class="nav-link-main more-trigger" aria-expanded="false" aria-controls="more-menu">
 						More
@@ -61,9 +68,9 @@
 
 		<div class="site-header__actions">
 			<?php if ( function_exists( 'amz_prints_customer_is_logged_in' ) && amz_prints_customer_is_logged_in() ) : ?>
-				<a class="btn btn--ghost btn--sm" href="<?php echo esc_url( home_url( '/my-account/' ) ); ?>">My Account</a>
+				<a class="btn btn--login btn--sm" href="<?php echo esc_url( home_url( '/my-account/' ) ); ?>">My Account</a>
 			<?php else : ?>
-				<a class="btn btn--ghost btn--sm" href="<?php echo esc_url( home_url( '/customer-login/' ) ); ?>">Login</a>
+				<a class="btn btn--login btn--sm" href="<?php echo esc_url( home_url( '/customer-login/' ) ); ?>">Login</a>
 			<?php endif; ?>
 			<a class="btn btn--primary btn--sm" href="<?php echo esc_url( home_url( '/quote/' ) ); ?>">Get a Quote</a>
 			<button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="site-nav" type="button">
