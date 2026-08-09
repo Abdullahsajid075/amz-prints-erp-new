@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import '@/App.css';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from '@/context/AuthContext';
 import { BrandProvider } from '@/context/BrandContext';
 import { Toaster } from '@/components/ui/sonner';
@@ -55,13 +55,19 @@ function AuthenticatedApp() {
   );
 }
 
-function App() {
+function DocumentTitle() {
+  const { pathname } = useLocation();
   useEffect(() => {
+    if (pathname.startsWith('/story')) return;
     document.title = 'AMAZON ERP';
-  }, []);
+  }, [pathname]);
+  return null;
+}
 
+function App() {
   return (
     <BrowserRouter>
+      <DocumentTitle />
       <Routes>
         {/* Public — no Auth / no Vercel login */}
         <Route path="/story" element={<StoryPage />} />

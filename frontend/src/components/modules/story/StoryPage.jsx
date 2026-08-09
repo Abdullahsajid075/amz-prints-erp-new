@@ -32,9 +32,13 @@ const StoryPage = () => {
   const [heroReady, setHeroReady] = useState(false);
 
   useEffect(() => {
+    const previousTitle = document.title;
     document.title = 'AMZ Prints — Our Story';
     const id = requestAnimationFrame(() => setHeroReady(true));
-    return () => cancelAnimationFrame(id);
+    return () => {
+      cancelAnimationFrame(id);
+      document.title = previousTitle;
+    };
   }, []);
 
   useEffect(() => {
@@ -161,7 +165,7 @@ const StoryPage = () => {
         <p>Orders, production, invoices, and delivery — connected for the team that makes print happen.</p>
         <div className="story-cta-group">
           <a
-            href="/story/amz-prints-story.mp4"
+            href="/story/amz-prints-story-captions.mp4"
             className="story-cta story-cta-primary"
             download="amz-prints-story.mp4"
             data-testid="story-download"
