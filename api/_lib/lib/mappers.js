@@ -53,12 +53,35 @@ function mapOrder(row) {
     deliveryAddress: row.delivery_address || '',
     quotationId: row.quotation_id || '',
     paymentMethod: row.payment_method || '',
+    paymentStatus: row.payment_status || '',
+    paymentHistory: Array.isArray(row.payment_history) ? row.payment_history : [],
+    orderSource: row.order_source || '',
+    subtotal: num(row.subtotal),
+    discountAmount: num(row.discount_amount),
+    deliveryCharges: num(row.delivery_charges),
   };
 }
 
 function mapProduct(row) {
   if (!row) return null;
   const rate = num(row.rate);
+  const images = [];
+  const pushImg = (v) => {
+    const s = String(v || '').trim();
+    if (s && !images.includes(s)) images.push(s);
+  };
+  pushImg(row.image);
+  if (Array.isArray(row.images)) row.images.forEach(pushImg);
+  else if (typeof row.images === 'string' && row.images.trim()) {
+    try {
+      const parsed = JSON.parse(row.images);
+      if (Array.isArray(parsed)) parsed.forEach(pushImg);
+      else String(row.images).split(/[\n|,;]+/).forEach(pushImg);
+    } catch {
+      String(row.images).split(/[\n|,;]+/).forEach(pushImg);
+    }
+  }
+  const image = images[0] || row.image || '';
   return {
     id: row.id,
     name: row.name || '',
@@ -74,8 +97,9 @@ function mapProduct(row) {
     material: row.material || '',
     size: row.size || '',
     minQuantity: num(row.min_quantity),
-    image: row.image || '',
-    photo: row.image || '',
+    image,
+    photo: image,
+    images,
     active: String(row.status || 'Active').toLowerCase() !== 'inactive',
   };
 }

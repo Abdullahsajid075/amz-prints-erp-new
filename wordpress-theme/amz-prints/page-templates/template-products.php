@@ -13,7 +13,7 @@ $accents      = array( 'orange', 'ink', 'forest', 'slate', 'ember', 'steel' );
 $erp_products = function_exists( 'amz_prints_erp_get_products' ) ? amz_prints_erp_get_products() : array();
 ?>
 
-<section class="page-hero">
+<section class="page-hero page-hero--compact">
 	<div class="container">
 		<p class="page-hero__brand"><?php echo esc_html( amz_prints_mod( 'amz_company_name', 'AMZ Prints' ) ); ?></p>
 		<h1><?php the_title(); ?></h1>
@@ -44,18 +44,20 @@ $erp_products = function_exists( 'amz_prints_erp_get_products' ) ? amz_prints_er
 			<?php if ( ! empty( $erp_products ) ) : ?>
 				<?php foreach ( $erp_products as $i => $product ) : ?>
 					<?php
-					$accent   = $accents[ $i % count( $accents ) ];
-					$quote    = add_query_arg( 'service', $product['name'], home_url( '/quote/' ) );
-					$price    = amz_prints_erp_product_price_label( $product );
-					$excerpt  = $product['description'] ? wp_trim_words( $product['description'], 18 ) : ( $product['category'] ? $product['category'] : __( 'Professional print product', 'amz-prints' ) );
-					$tag      = ! empty( $product['productType'] ) ? $product['productType'] : __( 'Print Product', 'amz-prints' );
-					$letter   = mb_substr( $product['name'], 0, 1 );
+					$accent  = $accents[ $i % count( $accents ) ];
+					$purl    = function_exists( 'amz_prints_erp_product_url' ) ? amz_prints_erp_product_url( $product['id'] ) : home_url( '/products/' );
+					$price   = amz_prints_erp_product_price_label( $product );
+					$excerpt = $product['description'] ? wp_trim_words( $product['description'], 18 ) : ( $product['category'] ? $product['category'] : __( 'Professional print product', 'amz-prints' ) );
+					$tag     = ! empty( $product['productType'] ) ? $product['productType'] : __( 'Print Product', 'amz-prints' );
+					$letter  = mb_substr( $product['name'], 0, 1 );
+					$img     = ! empty( $product['image'] ) ? $product['image'] : '';
+					$orderable = (float) ( $product['basePrice'] ?? 0 ) > 0;
 					?>
 					<article class="product-card product-card--<?php echo esc_attr( $accent ); ?> reveal" data-reveal>
-						<a href="<?php echo esc_url( $quote ); ?>" class="product-card__link">
+						<a href="<?php echo esc_url( $purl ); ?>" class="product-card__link">
 							<div class="product-card__media">
-								<?php if ( ! empty( $product['image'] ) ) : ?>
-									<img src="<?php echo esc_url( $product['image'] ); ?>" alt="<?php echo esc_attr( $product['name'] ); ?>" loading="lazy">
+								<?php if ( $img ) : ?>
+									<img src="<?php echo function_exists( 'amz_prints_product_img_src' ) ? amz_prints_product_img_src( $img ) : esc_url( $img ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>" alt="<?php echo esc_attr( $product['name'] ); ?>" loading="lazy">
 								<?php else : ?>
 									<div class="product-card__placeholder" aria-hidden="true">
 										<span class="product-card__letter"><?php echo esc_html( $letter ); ?></span>
@@ -69,10 +71,15 @@ $erp_products = function_exists( 'amz_prints_erp_get_products' ) ? amz_prints_er
 								<p><?php echo esc_html( $excerpt ); ?></p>
 								<div class="product-card__meta">
 									<span class="product-card__price"><?php echo esc_html( $price ); ?></span>
-									<span class="product-card__cta"><?php esc_html_e( 'Get a quote', 'amz-prints' ); ?></span>
+									<span class="product-card__cta"><?php echo $orderable ? esc_html__( 'View & buy', 'amz-prints' ) : esc_html__( 'Get a quote', 'amz-prints' ); ?></span>
 								</div>
 							</div>
 						</a>
+						<?php if ( $orderable ) : ?>
+							<div class="product-card__buy" data-add-cart="<?php echo esc_attr( $product['id'] ); ?>">
+								<button type="button" class="btn btn--primary btn--sm" data-add-to-cart data-product-id="<?php echo esc_attr( $product['id'] ); ?>"><?php esc_html_e( 'Add to cart', 'amz-prints' ); ?></button>
+							</div>
+						<?php endif; ?>
 					</article>
 				<?php endforeach; ?>
 			<?php else : ?>

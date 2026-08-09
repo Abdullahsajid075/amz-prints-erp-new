@@ -183,9 +183,11 @@ function amz_prints_ajax_customer_login() {
 		wp_send_json_error( array( 'message' => __( 'Login failed.', 'amz-prints' ) ), 400 );
 	}
 	amz_prints_customer_set_token( $result['token'] );
+	$redirect = isset( $_POST['redirect'] ) ? esc_url_raw( wp_unslash( $_POST['redirect'] ) ) : '';
+	$redirect = $redirect ? wp_validate_redirect( $redirect, amz_prints_customer_account_url() ) : amz_prints_customer_account_url();
 	wp_send_json_success( array(
 		'customer'  => isset( $result['customer'] ) ? $result['customer'] : array(),
-		'redirect'  => amz_prints_customer_account_url(),
+		'redirect'  => $redirect,
 	) );
 }
 add_action( 'wp_ajax_amz_prints_customer_login', 'amz_prints_ajax_customer_login' );
@@ -234,10 +236,12 @@ function amz_prints_ajax_customer_google() {
 		wp_send_json_error( array( 'message' => __( 'Google verification failed.', 'amz-prints' ) ), 400 );
 	}
 	amz_prints_customer_set_token( $result['token'] );
+	$redirect = isset( $_POST['redirect'] ) ? esc_url_raw( wp_unslash( $_POST['redirect'] ) ) : '';
+	$redirect = $redirect ? wp_validate_redirect( $redirect, amz_prints_customer_account_url() ) : amz_prints_customer_account_url();
 	wp_send_json_success( array(
 		'customer'        => isset( $result['customer'] ) ? $result['customer'] : array(),
 		'passwordUpdated' => ! empty( $result['passwordUpdated'] ),
-		'redirect'        => amz_prints_customer_account_url(),
+		'redirect'        => $redirect,
 	) );
 }
 add_action( 'wp_ajax_amz_prints_customer_google', 'amz_prints_ajax_customer_google' );

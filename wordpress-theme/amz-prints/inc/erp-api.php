@@ -136,7 +136,7 @@ function amz_prints_erp_request( $method, $path, $body = null ) {
  * @return array List of product arrays (empty on failure).
  */
 function amz_prints_erp_get_products( $force_refresh = false ) {
-	$cache_key = 'amz_prints_erp_products_v1';
+	$cache_key = 'amz_prints_erp_products_v2';
 	if ( ! $force_refresh ) {
 		$cached = get_transient( $cache_key );
 		if ( is_array( $cached ) ) {
@@ -179,6 +179,22 @@ function amz_prints_erp_get_products( $force_refresh = false ) {
 			continue;
 		}
 		$price = isset( $row['basePrice'] ) ? (float) $row['basePrice'] : ( isset( $row['rate'] ) ? (float) $row['rate'] : 0 );
+		$images = array();
+		if ( ! empty( $row['images'] ) && is_array( $row['images'] ) ) {
+			foreach ( $row['images'] as $img ) {
+				$img = trim( (string) $img );
+				if ( $img && ! in_array( $img, $images, true ) ) {
+					$images[] = $img;
+				}
+			}
+		}
+		$primary = (string) ( $row['image'] ?? $row['photo'] ?? '' );
+		if ( $primary && ! in_array( $primary, $images, true ) ) {
+			array_unshift( $images, $primary );
+		} elseif ( ! $primary && ! empty( $images ) ) {
+			$primary = $images[0];
+		}
+
 		$products[] = array(
 			'id'           => (string) ( $row['id'] ?? '' ),
 			'name'         => $name,
@@ -190,7 +206,8 @@ function amz_prints_erp_get_products( $force_refresh = false ) {
 			'material'     => (string) ( $row['material'] ?? '' ),
 			'size'         => (string) ( $row['size'] ?? '' ),
 			'minQuantity'  => isset( $row['minQuantity'] ) ? (float) $row['minQuantity'] : 1,
-			'image'        => (string) ( $row['image'] ?? $row['photo'] ?? '' ),
+			'image'        => $primary,
+			'images'       => $images,
 		);
 	}
 

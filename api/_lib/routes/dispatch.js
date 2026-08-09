@@ -73,6 +73,12 @@ function orderFromBody(body = {}, existing = {}) {
     delivery_address: body.deliveryAddress || existing.delivery_address || '',
     quotation_id: body.quotationId || existing.quotation_id || '',
     payment_method: body.paymentMethod || existing.payment_method || '',
+    payment_status: body.paymentStatus || existing.payment_status || '',
+    payment_history: body.paymentHistory || existing.payment_history || [],
+    order_source: body.orderSource || existing.order_source || '',
+    subtotal: num(body.subtotal != null ? body.subtotal : existing.subtotal, 0),
+    discount_amount: num(body.discountAmount != null ? body.discountAmount : existing.discount_amount, 0),
+    delivery_charges: num(body.deliveryCharges != null ? body.deliveryCharges : existing.delivery_charges, 0),
   };
 }
 
@@ -234,19 +240,25 @@ async function dispatch(req, res) {
         const products = (rows || [])
           .map(mapProduct)
           .filter((p) => p && p.active !== false && String(p.status || 'Active').toLowerCase() !== 'inactive')
-          .map((p) => ({
-            id: p.id || '',
-            name: p.name || '',
-            category: p.category || '',
-            productType: p.productType || 'Product',
-            basePrice: Number(p.basePrice || p.rate || 0),
-            unit: p.unit || 'per piece',
-            description: p.description || '',
-            material: p.material || '',
-            size: p.size || '',
-            minQuantity: Number(p.minQuantity || 1),
-            image: p.image || p.photo || '',
-          }));
+          .map((p) => {
+            const images = Array.isArray(p.images) && p.images.length
+              ? p.images
+              : (p.image || p.photo ? [p.image || p.photo] : []);
+            return {
+              id: p.id || '',
+              name: p.name || '',
+              category: p.category || '',
+              productType: p.productType || 'Product',
+              basePrice: Number(p.basePrice || p.rate || 0),
+              unit: p.unit || 'per piece',
+              description: p.description || '',
+              material: p.material || '',
+              size: p.size || '',
+              minQuantity: Number(p.minQuantity || 1),
+              image: images[0] || p.image || p.photo || '',
+              images,
+            };
+          });
         return send(res, products);
       }
       if (method === 'POST' && path === '/public/lead') {
@@ -564,6 +576,150 @@ async function dispatch(req, res) {
               timeline,
               trackCode: api.trackingNumber || api.orderId || api.id,
               companyNote: 'For questions, contact Amazon Printing Services with your Order ID.',
+            });
+          }
+
+          if (method === 'POST' && path === '/public/customer/order') {
+            const customer = await validateCustomerToken(body.token);
+            if (!customer) return sendError(res, 'Please log in to place an order', 401);
+            const accepted = body.policyAccepted === true || body.policyAccepted === 'true' || body.policyAccepted === 1 || body.policyAccepted === '1';
+            if (!accepted) return sendError(res, 'Please accept the Order Processing Policy before placing your order', 400);
+
+            const methodRaw = String(body.paymentMethod || '').trim().toLowerCase();
+            let paymentMethod = '';
+            if (methodRaw === 'cod' || methodRaw.includes('cash')) paymentMethod = 'Cash on Delivery';
+            else if (methodRaw === 'online' || methodRaw.includes('online')) paymentMethod = 'Online Payment';
+            else return sendError(res, 'Select a payment method: Cash on Delivery or Online Payment', 400);
+
+            const { data: catalog } = await supabase.from('products').select('*');
+            const byId = {};
+            (catalog || []).forEach((p) => { if (p?.id) byId[String(p.id)] = p; });
+
+            const rawItems = body.items || body.products || [];
+            if (!Array.isArray(rawItems) || !rawItems.length) return sendError(res, 'Your cart is empty', 400);
+
+            const lineItems = [];
+            let subtotal = 0;
+            for (const item of rawItems) {
+              const pid = String(item.productId || item.id || '').trim();
+              let qty = Math.max(1, Math.floor(Number(item.quantity) || 1));
+              let prod = pid ? byId[pid] : null;
+              if (!prod) {
+                const nameNeedle = String(item.name || '').trim().toLowerCase();
+                prod = (catalog || []).find((p) => nameNeedle && String(p.name || '').trim().toLowerCase() === nameNeedle) || null;
+              }
+              if (!prod) return sendError(res, `Product not found: ${item.name || pid || 'unknown'}`, 404);
+              if (String(prod.status || 'Active').toLowerCase() === 'inactive') {
+                return sendError(res, `Product unavailable: ${prod.name || pid}`, 400);
+              }
+              const rate = Number(prod.rate || 0);
+              if (rate <= 0) {
+                return sendError(res, `Product "${prod.name || ''}" needs a quote — contact AMZ Prints or use Get a Quote.`, 400);
+              }
+              const minQ = Math.max(1, Number(prod.min_quantity || 1));
+              if (qty < minQ) qty = minQ;
+              lineItems.push({
+                productId: String(prod.id || ''),
+                name: String(prod.name || ''),
+                quantity: qty,
+                rate,
+                size: String(item.size || prod.size || ''),
+                material: String(item.material || prod.material || ''),
+                notes: String(item.notes || ''),
+              });
+              subtotal += rate * qty;
+            }
+
+            let discountAmount = Math.max(0, Number(body.discountAmount != null ? body.discountAmount : body.discount || 0));
+            if (discountAmount > subtotal) discountAmount = subtotal;
+            const deliveryCharges = Math.max(0, Number(body.deliveryCharges != null ? body.deliveryCharges : body.delivery || 0));
+            const totalAmount = Math.max(0, subtotal - discountAmount + deliveryCharges);
+            const paymentStatus = paymentMethod === 'Cash on Delivery' ? 'Unpaid' : 'Payment Pending';
+            const nowStamp = `${today()} ${nowTime()}`;
+            const deliveryAddress = String(body.deliveryAddress || body.address || customer.address || '').trim();
+            const remarks = [
+              'Website order',
+              `Payment: ${paymentMethod}`,
+              `Payment status: ${paymentStatus}`,
+              body.customerNote ? `Note: ${String(body.customerNote).trim()}` : '',
+              discountAmount > 0 ? `Discount: ${discountAmount}` : '',
+              deliveryCharges > 0 ? `Delivery: ${deliveryCharges}` : '',
+            ].filter(Boolean).join(' · ');
+
+            const orderId = await nextOrderId();
+            const row = orderFromBody({
+              customerId: customer.id,
+              customerName: customer.name || '',
+              customerPhone: String(body.customerPhone || customer.phone || '').trim(),
+              customerEmail: customer.email || '',
+              customerAddress: deliveryAddress || customer.address || '',
+              deliveryAddress,
+              products: lineItems,
+              totalAmount,
+              advancePayment: 0,
+              balanceAmount: totalAmount,
+              status: 'Order Received',
+              docType: 'Order',
+              paymentMethod,
+              paymentStatus,
+              paymentHistory: [{
+                status: paymentStatus,
+                method: paymentMethod,
+                amount: 0,
+                at: nowStamp,
+                note: paymentMethod === 'Cash on Delivery'
+                  ? 'Order placed under COD terms'
+                  : 'Online payment selected — order created; payment confirmation pending',
+              }],
+              orderSource: 'Website',
+              subtotal,
+              discountAmount,
+              deliveryCharges,
+              remarks,
+              trackingNumber: `TRK-${Math.floor(1000 + Math.random() * 9000)}`,
+              statusHistory: [{
+                status: 'Order Received',
+                at: nowStamp,
+                note: `Created from website checkout (${paymentMethod}) · ${paymentStatus}`,
+              }],
+              orderId,
+            });
+
+            const { error: orderErr } = await supabase.from('orders').insert(row);
+            if (orderErr) return sendError(res, orderErr.message || 'Could not create order', 500);
+
+            try {
+              await supabase.from('payments').insert({
+                id: id('pay'),
+                date: today(),
+                type: 'inflow',
+                category: 'Website Order',
+                ref_id: orderId,
+                customer_name: row.customer_name || '',
+                customer_id: row.customer_id || '',
+                party_phone: row.customer_phone || '',
+                amount: 0,
+                method: paymentMethod,
+                notes: `${paymentStatus} · website checkout`,
+                balance_due: totalAmount,
+                total_amount: totalAmount,
+              });
+            } catch {
+              /* payment log best-effort */
+            }
+
+            const api = mapOrder(row);
+            return send(res, {
+              ok: true,
+              order: { ...api, paymentStatus, subtotal, discountAmount, deliveryCharges },
+              orderId: api.orderId,
+              trackingNumber: api.trackingNumber,
+              paymentMethod,
+              paymentStatus,
+              totalAmount: api.totalAmount,
+              message: paymentMethod === 'Cash on Delivery'
+                ? 'Order placed under Cash on Delivery terms. Processing begins after payment confirmation per policy.'
+                : 'Order placed. Complete online payment as instructed — processing starts after payment confirmation.',
             });
           }
         } catch (err) {

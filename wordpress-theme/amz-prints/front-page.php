@@ -11,11 +11,36 @@ $company  = amz_prints_mod( 'amz_company_name', 'AMZ Prints' );
 $legal    = amz_prints_mod( 'amz_legal_name', 'Amazon Printings (Pvt) Ltd' );
 $headline = amz_prints_mod( 'amz_hero_headline', amz_t( 'hero_headline' ) );
 $sub      = amz_prints_mod( 'amz_hero_sub', amz_t( 'hero_sub' ) );
-$cta1     = amz_t( 'quote' );
-$cta2     = amz_t( 'view_services' );
+$cta1     = amz_prints_mod( 'amz_hero_cta_primary', amz_t( 'quote' ) );
+$cta2     = amz_prints_mod( 'amz_hero_cta_secondary', amz_t( 'view_services' ) );
+$cta1_url = amz_prints_mod( 'amz_hero_cta_primary_url', '/products/' );
+$cta2_url = amz_prints_mod( 'amz_hero_cta_secondary_url', '/services/' );
+$layout   = amz_prints_mod( 'amz_hero_layout', 'mosaic' );
 
-$hero_slides = array();
-foreach ( array( 'amz_hero_image', 'amz_hero_image_2', 'amz_hero_image_3' ) as $key ) {
+$fallback_imgs = array(
+	'https://images.unsplash.com/photo-1562564055-71e051d33c19?auto=format&fit=crop&w=1600&q=80',
+	'https://images.unsplash.com/photo-1626785774573-4b7993143459?auto=format&fit=crop&w=900&q=80',
+	'https://images.unsplash.com/photo-1586075010923-2dd4570fb338?auto=format&fit=crop&w=900&q=80',
+	'https://images.unsplash.com/photo-1503690970856-d1a3c8d8e9e3?auto=format&fit=crop&w=900&q=80',
+	'https://images.unsplash.com/photo-1611532736579-6b16e2b50449?auto=format&fit=crop&w=900&q=80',
+	'https://images.unsplash.com/photo-1452860606245-08befc0ff44b?auto=format&fit=crop&w=900&q=80',
+);
+
+$main_id  = absint( amz_prints_mod( 'amz_hero_image', 0 ) );
+$main_url = $main_id ? wp_get_attachment_image_url( $main_id, 'amz-hero' ) : '';
+if ( ! $main_url ) {
+	$main_url = $fallback_imgs[0];
+}
+
+$support = array();
+foreach ( array( 'amz_hero_support_1', 'amz_hero_support_2', 'amz_hero_support_3', 'amz_hero_support_4', 'amz_hero_support_5' ) as $i => $key ) {
+	$id  = absint( amz_prints_mod( $key, 0 ) );
+	$url = $id ? wp_get_attachment_image_url( $id, 'amz-card' ) : '';
+	$support[] = $url ? $url : $fallback_imgs[ $i + 1 ];
+}
+
+$hero_slides = array( $main_url );
+foreach ( array( 'amz_hero_image_2', 'amz_hero_image_3' ) as $key ) {
 	$id = absint( amz_prints_mod( $key, 0 ) );
 	if ( $id ) {
 		$url = wp_get_attachment_image_url( $id, 'amz-hero' );
@@ -24,23 +49,14 @@ foreach ( array( 'amz_hero_image', 'amz_hero_image_2', 'amz_hero_image_3' ) as $
 		}
 	}
 }
-if ( count( $hero_slides ) < 3 ) {
-	$defaults = array(
-		'https://images.unsplash.com/photo-1562564055-71e051d33c19?auto=format&fit=crop&w=1920&q=80',
-		'https://images.unsplash.com/photo-1626785774573-4b7993143459?auto=format&fit=crop&w=1920&q=80',
-		'https://images.unsplash.com/photo-1586075010923-2dd4570fb338?auto=format&fit=crop&w=1920&q=80',
-	);
-	foreach ( $defaults as $d ) {
-		if ( count( $hero_slides ) >= 3 ) {
-			break;
-		}
-		$hero_slides[] = $d;
-	}
+while ( count( $hero_slides ) < 3 ) {
+	$hero_slides[] = $fallback_imgs[ count( $hero_slides ) % count( $fallback_imgs ) ];
 }
 $hero_slides = array_slice( $hero_slides, 0, 3 );
 $catalog     = array_slice( amz_prints_services_catalog(), 0, 6 );
 ?>
 
+<?php if ( 'slider' === $layout ) : ?>
 <section class="hero hero--slider" data-hero-slider data-hero-interval="3000">
 	<div class="hero__media" aria-hidden="true">
 		<div class="hero__slides">
@@ -49,34 +65,51 @@ $catalog     = array_slice( amz_prints_services_catalog(), 0, 6 );
 			<?php endforeach; ?>
 		</div>
 		<div class="hero__veil"></div>
-		<div class="hero__grain"></div>
-		<div class="hero__ink"></div>
-		<div class="hero__press">
-			<span class="hero__sheet"></span>
-			<span class="hero__sheet hero__sheet--2"></span>
-			<span class="hero__sheet hero__sheet--3"></span>
-			<span class="hero__roller"></span>
-		</div>
 	</div>
-
 	<div class="hero__content container">
 		<p class="hero__brand reveal" data-reveal><?php echo esc_html( $company ); ?></p>
-		<p class="hero__legal reveal" data-reveal style="margin:0 0 0.75rem;font-weight:700;color:var(--amz-primary);font-size:0.95rem;"><?php echo esc_html( $legal ); ?></p>
+		<p class="hero__legal reveal" data-reveal><?php echo esc_html( $legal ); ?></p>
 		<h1 class="hero__title reveal" data-reveal><?php echo esc_html( $headline ); ?></h1>
 		<p class="hero__sub reveal" data-reveal><?php echo esc_html( $sub ); ?></p>
 		<div class="hero__actions reveal" data-reveal>
-			<a class="btn btn--primary btn--lg" href="<?php echo esc_url( home_url( '/quote/' ) ); ?>"><?php echo esc_html( $cta1 ); ?></a>
-			<a class="btn btn--ghost btn--lg" href="<?php echo esc_url( home_url( '/services/' ) ); ?>"><?php echo esc_html( $cta2 ); ?></a>
+			<a class="btn btn--primary btn--lg" href="<?php echo esc_url( home_url( $cta1_url ) ); ?>"><?php echo esc_html( $cta1 ); ?></a>
+			<a class="btn btn--ghost btn--lg" href="<?php echo esc_url( home_url( $cta2_url ) ); ?>"><?php echo esc_html( $cta2 ); ?></a>
 		</div>
 	</div>
-
 	<div class="hero__dots" aria-hidden="true">
 		<?php foreach ( $hero_slides as $i => $url ) : ?>
 			<button type="button" class="hero__dot<?php echo 0 === $i ? ' is-active' : ''; ?>" data-hero-dot="<?php echo esc_attr( $i ); ?>"></button>
 		<?php endforeach; ?>
 	</div>
-	<div class="hero__scroll" aria-hidden="true"><span></span></div>
 </section>
+<?php else : ?>
+<section class="hero hero--mosaic">
+	<div class="container hero-mosaic">
+		<div class="hero-mosaic__copy reveal" data-reveal>
+			<p class="hero__brand"><?php echo esc_html( $company ); ?></p>
+			<p class="hero__legal"><?php echo esc_html( $legal ); ?></p>
+			<h1 class="hero__title"><?php echo esc_html( $headline ); ?></h1>
+			<p class="hero__sub"><?php echo esc_html( $sub ); ?></p>
+			<div class="hero__actions">
+				<a class="btn btn--primary btn--lg" href="<?php echo esc_url( home_url( $cta1_url ) ); ?>"><?php echo esc_html( $cta1 ); ?></a>
+				<a class="btn btn--ghost btn--lg" href="<?php echo esc_url( home_url( $cta2_url ) ); ?>"><?php echo esc_html( $cta2 ); ?></a>
+			</div>
+		</div>
+		<div class="hero-mosaic__visual" data-hero-mosaic>
+			<figure class="hero-mosaic__main reveal" data-reveal>
+				<img src="<?php echo esc_url( $main_url ); ?>" alt="<?php echo esc_attr( $company ); ?>" loading="eager">
+			</figure>
+			<div class="hero-mosaic__side" data-hero-mosaic-track>
+				<?php foreach ( $support as $i => $url ) : ?>
+					<figure class="hero-mosaic__tile reveal" data-reveal style="--i:<?php echo esc_attr( (string) $i ); ?>">
+						<img src="<?php echo esc_url( $url ); ?>" alt="" loading="lazy">
+					</figure>
+				<?php endforeach; ?>
+			</div>
+		</div>
+	</div>
+</section>
+<?php endif; ?>
 
 <section class="quick-actions">
 	<div class="container quick-actions__grid">
@@ -92,9 +125,9 @@ $catalog     = array_slice( amz_prints_services_catalog(), 0, 6 );
 			<span class="quick-action__label"><?php echo esc_html( amz_t( 'nadra' ) ); ?></span>
 			<strong><?php echo esc_html( amz_t( 'nadra' ) ); ?></strong>
 		</a>
-		<a class="quick-action reveal" data-reveal href="<?php echo esc_url( home_url( '/quote/' ) ); ?>">
-			<span class="quick-action__label"><?php echo esc_html( amz_t( 'quote' ) ); ?></span>
-			<strong><?php echo esc_html( amz_t( 'quote' ) ); ?></strong>
+		<a class="quick-action reveal" data-reveal href="<?php echo esc_url( home_url( '/products/' ) ); ?>">
+			<span class="quick-action__label"><?php esc_html_e( 'Shop', 'amz-prints' ); ?></span>
+			<strong><?php esc_html_e( 'Shop products', 'amz-prints' ); ?></strong>
 		</a>
 	</div>
 </section>
@@ -158,15 +191,16 @@ $catalog     = array_slice( amz_prints_services_catalog(), 0, 6 );
 			if ( ! empty( $erp_home_products ) ) :
 				$erp_home_products = array_slice( $erp_home_products, 0, 6 );
 				foreach ( $erp_home_products as $product ) :
-					$quote   = add_query_arg( 'service', $product['name'], home_url( '/quote/' ) );
-					$price   = amz_prints_erp_product_price_label( $product );
+					$purl   = function_exists( 'amz_prints_erp_product_url' ) ? amz_prints_erp_product_url( $product['id'] ) : home_url( '/products/' );
+					$price  = amz_prints_erp_product_price_label( $product );
 					$excerpt = $product['description'] ? wp_trim_words( $product['description'], 14 ) : ( $product['category'] ?: '' );
+					$img     = ! empty( $product['image'] ) ? $product['image'] : '';
 					?>
 					<article class="product-tile reveal" data-reveal>
-						<a href="<?php echo esc_url( $quote ); ?>">
+						<a href="<?php echo esc_url( $purl ); ?>">
 							<div class="product-tile__media">
-								<?php if ( ! empty( $product['image'] ) ) : ?>
-									<img src="<?php echo esc_url( $product['image'] ); ?>" alt="<?php echo esc_attr( $product['name'] ); ?>" loading="lazy">
+								<?php if ( $img ) : ?>
+									<img src="<?php echo function_exists( 'amz_prints_product_img_src' ) ? amz_prints_product_img_src( $img ) : esc_url( $img ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>" alt="<?php echo esc_attr( $product['name'] ); ?>" loading="lazy">
 								<?php else : ?>
 									<div class="product-tile__placeholder" aria-hidden="true"><span><?php echo esc_html( mb_substr( $product['name'], 0, 1 ) ); ?></span></div>
 								<?php endif; ?>
@@ -215,6 +249,9 @@ $catalog     = array_slice( amz_prints_services_catalog(), 0, 6 );
 			endif;
 			?>
 		</div>
+		<div class="section-foot reveal" data-reveal>
+			<a class="text-link" href="<?php echo esc_url( home_url( '/products/' ) ); ?>"><?php esc_html_e( 'Shop all products', 'amz-prints' ); ?></a>
+		</div>
 	</div>
 </section>
 <?php endif; ?>
@@ -256,7 +293,7 @@ $catalog     = array_slice( amz_prints_services_catalog(), 0, 6 );
 			<h2><?php echo esc_html( amz_prints_mod( 'amz_cta_title', 'Ready to print something great?' ) ); ?></h2>
 			<p><?php echo esc_html( amz_prints_mod( 'amz_cta_sub', 'Tell us what you need. We will quote fast.' ) ); ?></p>
 		</div>
-		<a class="btn btn--primary btn--lg" href="<?php echo esc_url( home_url( '/quote/' ) ); ?>"><?php echo esc_html( amz_t( 'quote' ) ); ?></a>
+		<a class="btn btn--primary btn--lg" href="<?php echo esc_url( home_url( '/products/' ) ); ?>"><?php esc_html_e( 'Shop now', 'amz-prints' ); ?></a>
 	</div>
 </section>
 

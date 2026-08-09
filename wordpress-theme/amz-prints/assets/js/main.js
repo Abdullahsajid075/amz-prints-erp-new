@@ -105,6 +105,20 @@
     reveals.forEach(function (el) { el.classList.add('is-visible'); });
   }
 
+  /* Hero mosaic — mobile carousel for supporting images */
+  var mosaicTrack = document.querySelector('[data-hero-mosaic-track]');
+  if (mosaicTrack && window.matchMedia('(max-width: 760px)').matches) {
+    mosaicTrack.classList.add('is-carousel');
+    var tiles = Array.prototype.slice.call(mosaicTrack.querySelectorAll('.hero-mosaic__tile'));
+    var mi = 0;
+    if (tiles.length > 1) {
+      setInterval(function () {
+        mi = (mi + 1) % tiles.length;
+        mosaicTrack.style.transform = 'translateX(' + (-mi * 86) + '%)';
+      }, 3200);
+    }
+  }
+
   /* Hero slider */
   var heroSlider = document.querySelector('[data-hero-slider]');
   if (heroSlider) {

@@ -51,9 +51,11 @@ var DEFAULT_HEADERS = {
     'Id', 'OrderId', 'Date', 'CustomerId', 'CustomerName', 'CustomerPhone',
     'CustomerEmail', 'CustomerAddress', 'Status', 'DeliveryDate', 'Products',
     'TotalAmount', 'AdvancePayment', 'BalanceAmount', 'Remarks', 'AssignedDesigner', 'TokenNo',
-    'DocType', 'TrackingNumber', 'StatusHistory', 'DeliveryAddress', 'QuotationId'
+    'DocType', 'TrackingNumber', 'StatusHistory', 'DeliveryAddress', 'QuotationId',
+    'PaymentMethod', 'PaymentStatus', 'PaymentHistory', 'OrderSource',
+    'Subtotal', 'DiscountAmount', 'DeliveryCharges'
   ],
-  Products: ['Id', 'Name', 'Category', 'Rate', 'Unit', 'Description', 'Status', 'ProductType', 'Designer', 'Stock', 'Material', 'Size', 'MinQuantity', 'Image'],
+  Products: ['Id', 'Name', 'Category', 'Rate', 'Unit', 'Description', 'Status', 'ProductType', 'Designer', 'Stock', 'Material', 'Size', 'MinQuantity', 'Image', 'Images'],
   Invoices: [
     'Id', 'InvoiceNo', 'Date', 'DueDate', 'OrderId', 'CustomerId', 'CustomerName', 'CustomerPhone',
     'CustomerEmail', 'CustomerAddress', 'Items', 'Subtotal', 'TaxRate', 'Tax', 'Discount',
@@ -214,7 +216,10 @@ function normalizeHeader_(header) {
     deliveryaddress: 'deliveryaddress', quotationid: 'quotationid',
     unit: 'unit', description: 'description',
     image: 'image', productimage: 'image', img: 'image', picture: 'photo',
-    photo: 'photo', employeecode: 'employeecode', cnic: 'cnic', designation: 'designation',
+    photo: 'photo', images: 'images', gallery: 'images', productimages: 'images',
+    paymentstatus: 'paymentstatus', paymenthistory: 'paymenthistory', ordersource: 'ordersource',
+    subtotal: 'subtotal', discountamount: 'discountamount', deliverycharges: 'deliverycharges',
+    employeecode: 'employeecode', cnic: 'cnic', designation: 'designation',
     validfrom: 'validfrom', validuntil: 'validuntil', enddate: 'enddate',
     emergencycontact: 'emergencycontact', emergencyphone: 'emergencyphone', employeeid: 'employeeid',
     orderid: 'orderid', date: 'date', time: 'time', deliverydate: 'deliverydate',
@@ -1367,6 +1372,13 @@ function normalizeOrder_(body, existing) {
     statushistory: body.statusHistory != null ? body.statusHistory : (body.statushistory != null ? body.statushistory : (existing.statushistory || [])),
     deliveryaddress: pick('deliveryAddress', 'deliveryaddress', existing.deliveryaddress || '') || '',
     quotationid: pick('quotationId', 'quotationid', existing.quotationid || '') || '',
+    paymentmethod: pick('paymentMethod', 'paymentmethod', existing.paymentmethod || '') || '',
+    paymentstatus: pick('paymentStatus', 'paymentstatus', existing.paymentstatus || '') || '',
+    paymenthistory: body.paymentHistory != null ? body.paymentHistory : (body.paymenthistory != null ? body.paymenthistory : (existing.paymenthistory || [])),
+    ordersource: pick('orderSource', 'ordersource', existing.ordersource || '') || '',
+    subtotal: Number(body.subtotal != null ? body.subtotal : (existing.subtotal || 0)),
+    discountamount: Number(body.discountAmount != null ? body.discountAmount : (body.discountamount != null ? body.discountamount : (existing.discountamount || 0))),
+    deliverycharges: Number(body.deliveryCharges != null ? body.deliveryCharges : (body.deliverycharges != null ? body.deliverycharges : (existing.deliverycharges || 0))),
   };
 }
 
@@ -1408,6 +1420,19 @@ function toApiOrder_(o) {
     statusHistory: statusHistory,
     deliveryAddress: o.deliveryaddress || '',
     quotationId: o.quotationid || '',
+    paymentMethod: o.paymentmethod || '',
+    paymentStatus: o.paymentstatus || '',
+    paymentHistory: (function () {
+      var ph = o.paymenthistory;
+      if (typeof ph === 'string') {
+        try { ph = JSON.parse(ph); } catch (ePh) { ph = []; }
+      }
+      return Array.isArray(ph) ? ph : (ph ? [ph] : []);
+    })(),
+    orderSource: o.ordersource || '',
+    subtotal: Number(o.subtotal || 0),
+    discountAmount: Number(o.discountamount || 0),
+    deliveryCharges: Number(o.deliverycharges || 0),
   };
 }
 
@@ -3118,7 +3143,176 @@ function handlePublicCustomer_(path, method, body) {
     return toPublicTrackOrder_(order);
   }
 
+  // Website e-commerce: logged-in customer places order → ERP Orders + payment record
+  if (method === 'POST' && path === '/public/customer/order') {
+    return createPublicWebsiteOrder_(body);
+  }
+
   throw new Error('Not found');
+}
+
+/**
+ * Create website store order for authenticated customer (no staff token required).
+ * Prices are revalidated against the Products sheet.
+ */
+function createPublicWebsiteOrder_(body) {
+  body = body || {};
+  var customer = validateCustomerToken_(body.token);
+  if (!customer) throw new Error('Please log in to place an order');
+
+  var accepted = body.policyAccepted === true || body.policyAccepted === 'true' || body.policyAccepted === 1 || body.policyAccepted === '1';
+  if (!accepted) throw new Error('Please accept the Order Processing Policy before placing your order');
+
+  var methodRaw = String(body.paymentMethod || '').trim().toLowerCase();
+  var paymentMethod = '';
+  if (methodRaw === 'cod' || methodRaw.indexOf('cash') >= 0) paymentMethod = 'Cash on Delivery';
+  else if (methodRaw === 'online' || methodRaw.indexOf('online') >= 0) paymentMethod = 'Online Payment';
+  else throw new Error('Select a payment method: Cash on Delivery or Online Payment');
+
+  var catalog = getSheetRows_(SHEET_NAMES.PRODUCTS) || [];
+  var byId = {};
+  catalog.forEach(function (p) {
+    if (p && p.id) byId[String(p.id)] = p;
+  });
+
+  var rawItems = body.items || body.products || [];
+  if (!Array.isArray(rawItems) || !rawItems.length) throw new Error('Your cart is empty');
+
+  var lineItems = [];
+  var subtotal = 0;
+  rawItems.forEach(function (item) {
+    item = item || {};
+    var pid = String(item.productId || item.id || '').trim();
+    var qty = Math.max(1, Math.floor(Number(item.quantity) || 1));
+    var prod = pid ? byId[pid] : null;
+    if (!prod) {
+      // Fallback match by name for resilience
+      var nameNeedle = String(item.name || '').trim().toLowerCase();
+      prod = catalog.find(function (p) {
+        return nameNeedle && String(p.name || '').trim().toLowerCase() === nameNeedle;
+      }) || null;
+    }
+    if (!prod) throw new Error('Product not found: ' + (item.name || pid || 'unknown'));
+    if (String(prod.status || 'Active').toLowerCase() === 'inactive') {
+      throw new Error('Product unavailable: ' + (prod.name || pid));
+    }
+    var rate = Number(prod.rate || prod.baseprice || 0);
+    if (rate <= 0) throw new Error('Product "' + (prod.name || '') + '" needs a quote — contact AMZ Prints or use Get a Quote.');
+    var minQ = Math.max(1, Number(prod.minquantity || 1));
+    if (qty < minQ) qty = minQ;
+    lineItems.push({
+      productId: String(prod.id || ''),
+      name: String(prod.name || ''),
+      quantity: qty,
+      rate: rate,
+      size: String(item.size || prod.size || ''),
+      material: String(item.material || prod.material || ''),
+      notes: String(item.notes || ''),
+    });
+    subtotal += rate * qty;
+  });
+
+  var discountAmount = Math.max(0, Number(body.discountAmount != null ? body.discountAmount : body.discount || 0));
+  if (discountAmount > subtotal) discountAmount = subtotal;
+  var deliveryCharges = Math.max(0, Number(body.deliveryCharges != null ? body.deliveryCharges : body.delivery || 0));
+  var totalAmount = Math.max(0, subtotal - discountAmount + deliveryCharges);
+
+  var paymentStatus = paymentMethod === 'Cash on Delivery' ? 'Unpaid' : 'Payment Pending';
+  var nowStamp = nowDate_() + ' ' + nowTime_();
+  var paymentHistory = [{
+    status: paymentStatus,
+    method: paymentMethod,
+    amount: 0,
+    at: nowStamp,
+    note: paymentMethod === 'Cash on Delivery'
+      ? 'Order placed under COD terms'
+      : 'Online payment selected — order created; payment confirmation pending',
+  }];
+
+  var deliveryAddress = String(body.deliveryAddress || body.address || customer.address || '').trim();
+  var remarksParts = [
+    'Website order',
+    'Payment: ' + paymentMethod,
+    'Payment status: ' + paymentStatus,
+  ];
+  if (body.customerNote) remarksParts.push('Note: ' + String(body.customerNote).trim());
+  if (discountAmount > 0) remarksParts.push('Discount: ' + discountAmount);
+  if (deliveryCharges > 0) remarksParts.push('Delivery: ' + deliveryCharges);
+
+  var sheet = getSheet_(SHEET_NAMES.ORDERS);
+  ensureHeaders_(sheet, SHEET_NAMES.ORDERS);
+
+  var orderBody = {
+    customerId: customer.id,
+    customerName: customer.name || '',
+    customerPhone: String(body.customerPhone || customer.phone || '').trim(),
+    customerEmail: customer.email || '',
+    customerAddress: deliveryAddress || customer.address || '',
+    deliveryAddress: deliveryAddress,
+    products: lineItems,
+    subtotal: subtotal,
+    discountAmount: discountAmount,
+    deliveryCharges: deliveryCharges,
+    totalAmount: totalAmount,
+    advancePayment: 0,
+    balanceAmount: totalAmount,
+    status: 'Order Received',
+    docType: 'Order',
+    orderSource: 'Website',
+    paymentMethod: paymentMethod,
+    paymentStatus: paymentStatus,
+    paymentHistory: paymentHistory,
+    remarks: remarksParts.join(' · '),
+    trackingNumber: 'TRK-' + String(Math.floor(1000 + Math.random() * 9000)),
+    statusHistory: [{
+      status: 'Order Received',
+      at: nowStamp,
+      note: 'Created from website checkout (' + paymentMethod + ')',
+    }],
+  };
+
+  var record = normalizeOrder_(orderBody);
+  if (!record.orderid) record.orderid = nextOrderId_();
+  appendObject_(sheet, SHEET_NAMES.ORDERS, record);
+  invalidateSheetCache_(SHEET_NAMES.ORDERS);
+
+  // Payment history row (amount 0 = pending / COD unpaid record)
+  try {
+    var paySheet = getSheet_(SHEET_NAMES.PAYMENTS);
+    ensureHeaders_(paySheet, SHEET_NAMES.PAYMENTS);
+    appendObject_(paySheet, SHEET_NAMES.PAYMENTS, {
+      id: 'pay_' + Date.now(),
+      date: nowDate_(),
+      type: 'inflow',
+      category: 'Website Order',
+      refid: record.orderid || record.id,
+      customername: record.customername || '',
+      customerid: record.customerid || '',
+      partyphone: record.customerphone || '',
+      amount: 0,
+      method: paymentMethod,
+      notes: paymentStatus + ' · website checkout',
+      balancedue: totalAmount,
+      totalamount: totalAmount,
+    });
+    invalidateSheetCache_(SHEET_NAMES.PAYMENTS);
+  } catch (ePay) {
+    // Order is primary; payment log is best-effort
+  }
+
+  var api = toApiOrder_(record);
+  return {
+    ok: true,
+    order: api,
+    orderId: api.orderId,
+    trackingNumber: api.trackingNumber,
+    paymentMethod: api.paymentMethod,
+    paymentStatus: api.paymentStatus,
+    totalAmount: api.totalAmount,
+    message: paymentMethod === 'Cash on Delivery'
+      ? 'Order placed under Cash on Delivery terms. Processing begins after payment confirmation per policy.'
+      : 'Order placed. Complete online payment as instructed — processing starts after payment confirmation.',
+  };
 }
 
 /** Public website catalog — active products only, safe fields. */
@@ -3143,6 +3337,7 @@ function listPublicProducts_() {
         size: p.size || '',
         minQuantity: Number(p.minQuantity || 1),
         image: p.image || p.photo || '',
+        images: Array.isArray(p.images) ? p.images : (p.image ? [p.image] : []),
       };
     });
 }
@@ -3434,9 +3629,33 @@ function sanitizeCatalogImage_(img) {
   return s.length <= 2000 ? s : '';
 }
 
+function parseProductImages_(p) {
+  var out = [];
+  function pushImg(v) {
+    var s = sanitizeCatalogImage_(v);
+    if (s && out.indexOf(s) === -1) out.push(s);
+  }
+  var primary = p.image || p.photo || '';
+  pushImg(primary);
+  var raw = p.images;
+  if (typeof raw === 'string' && raw.trim()) {
+    var parsed = null;
+    try { parsed = JSON.parse(raw); } catch (eImg) { parsed = null; }
+    if (Array.isArray(parsed)) {
+      parsed.forEach(pushImg);
+    } else {
+      String(raw).split(/[\n|,;]+/).forEach(pushImg);
+    }
+  } else if (Array.isArray(raw)) {
+    raw.forEach(pushImg);
+  }
+  return out;
+}
+
 function toApiProduct_(p) {
   var rate = Number(p.rate || p.baseprice || 0);
-  var img = sanitizeCatalogImage_(p.image || p.photo || '');
+  var images = parseProductImages_(p);
+  var img = images[0] || '';
   return {
     id: p.id,
     name: p.name,
@@ -3453,6 +3672,7 @@ function toApiProduct_(p) {
     designer: p.designer || '',
     image: img,
     photo: img,
+    images: images,
     active: String(p.status || 'Active').toLowerCase() !== 'inactive',
     status: p.status || 'Active',
   };

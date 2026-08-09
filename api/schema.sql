@@ -126,6 +126,15 @@ create table if not exists orders (
   payment_method text default '',
   created_at timestamptz default now()
 );
+
+-- Optional website-commerce columns (safe to re-run)
+alter table orders add column if not exists payment_status text default '';
+alter table orders add column if not exists payment_history jsonb default '[]'::jsonb;
+alter table orders add column if not exists order_source text default '';
+alter table orders add column if not exists subtotal numeric default 0;
+alter table orders add column if not exists discount_amount numeric default 0;
+alter table orders add column if not exists delivery_charges numeric default 0;
+
 create index if not exists orders_doc_type_idx on orders (doc_type);
 create index if not exists orders_order_id_idx on orders (order_id);
 create index if not exists orders_tracking_idx on orders (tracking_number);

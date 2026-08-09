@@ -76,17 +76,20 @@
 
   function finishGoogle(newPassword) {
     var out = document.getElementById('amz-customer-google-msg');
+    var redirectField = document.querySelector('[name="redirect"]');
+    var redirect = (redirectField && redirectField.value) || '';
     msg(out, 'Verifying with your customer account…', false);
     post('amz_prints_customer_google', {
       id_token: pendingGoogleCredential,
-      new_password: newPassword || ''
+      new_password: newPassword || '',
+      redirect: redirect
     }).then(function (res) {
       if (!res || !res.success) {
         msg(out, (res && res.data && res.data.message) || 'Google login failed', true);
         return;
       }
       msg(out, res.data && res.data.passwordUpdated ? 'Password saved. Redirecting…' : 'Signed in. Redirecting…', false);
-      window.location.href = (res.data && res.data.redirect) || cfg.accountUrl;
+      window.location.href = redirect || (res.data && res.data.redirect) || cfg.accountUrl;
     }).catch(function () {
       msg(out, 'Network error. Try again.', true);
     });
