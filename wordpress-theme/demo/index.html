@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AMZ Prints — Demo Preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/main.css">
+  <style>
+    .demo-banner {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 300;
+      background: #1A1A1A; color: #fff; font-size: 0.85rem;
+      padding: 0.65rem 1rem; display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap;
+      border-top: 2px solid #F26522;
+    }
+    .demo-banner a { color: #F26522; font-weight: 600; }
+    body { padding-bottom: 48px; }
+  </style>
+</head>
+<body class="amz-home">
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header" id="site-header">
+    <div class="site-header__inner">
+      <div class="site-brand">
+        <a class="site-brand__text" href="index.html"><span class="site-brand__name">AMZ Prints</span></a>
+      </div>
+      <nav class="site-nav" id="site-nav" aria-label="Primary">
+        <ul class="site-nav__list">
+          <li><a href="index.html">Home</a></li>
+          <li><a href="services.html">Services</a></li>
+          <li><a href="products.html">Products</a></li>
+          <li><a href="how-we-work.html">How We Work</a></li>
+          <li><a href="nadra.html">NADRA</a></li>
+          <li><a href="track-order.html">Track Order</a></li>
+        </ul>
+      </nav>
+      <div class="site-header__actions">
+        <a class="header-track" href="track-order.html">Track Order</a>
+        <a class="btn btn--primary btn--sm" href="quote.html">Get a Quote</a>
+        <button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="site-nav" type="button">
+          <span class="nav-toggle__bar"></span>
+          <span class="nav-toggle__bar"></span>
+          <span class="nav-toggle__bar"></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="site-main">
+    <section class="hero">
+      <div class="hero__media" aria-hidden="true">
+        <div class="hero__grain"></div>
+        <div class="hero__ink"></div>
+        <div class="hero__press">
+          <span class="hero__sheet"></span>
+          <span class="hero__sheet hero__sheet--2"></span>
+          <span class="hero__sheet hero__sheet--3"></span>
+          <span class="hero__roller"></span>
+        </div>
+      </div>
+      <div class="hero__content container">
+        <p class="hero__brand reveal" data-reveal>AMZ Prints</p>
+        <h1 class="hero__title reveal" data-reveal>Print that moves brands forward.</h1>
+        <p class="hero__sub reveal" data-reveal>Offset, digital, large format, and packaging — crafted with color precision and on-time delivery.</p>
+        <div class="hero__actions reveal" data-reveal>
+          <a class="btn btn--primary btn--lg" href="quote.html">Get a Quote</a>
+          <a class="btn btn--ghost btn--lg" href="services.html">View Services</a>
+        </div>
+      </div>
+      <div class="hero__scroll" aria-hidden="true"><span></span></div>
+    </section>
+
+    <section class="quick-actions">
+      <div class="container quick-actions__grid">
+        <a class="quick-action reveal" data-reveal href="track-order.html"><span class="quick-action__label">Live status</span><strong>Track Order</strong></a>
+        <a class="quick-action reveal" data-reveal href="how-we-work.html"><span class="quick-action__label">Our process</span><strong>How We Work</strong></a>
+        <a class="quick-action quick-action--nadra reveal" data-reveal href="nadra.html"><span class="quick-action__label">Authorized partner</span><strong>NADRA E-Services</strong></a>
+        <a class="quick-action reveal" data-reveal href="quote.html"><span class="quick-action__label">Fast pricing</span><strong>Get a Quote</strong></a>
+      </div>
+    </section>
+
+    <section class="section section--services" id="services">
+      <div class="container">
+        <header class="section-head reveal" data-reveal>
+          <h2>What we print</h2>
+          <p>End-to-end print production for brands that refuse to look ordinary.</p>
+        </header>
+        <div class="service-grid">
+          <article class="service-item reveal" data-reveal>
+            <a href="services.html" class="service-item__link">
+              <span class="service-item__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></span>
+              <h3>Offset Printing</h3>
+              <p>High-volume commercial printing with crisp color accuracy for brochures and catalogs.</p>
+            </a>
+          </article>
+          <article class="service-item reveal" data-reveal>
+            <a href="services.html" class="service-item__link">
+              <span class="service-item__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
+              <h3>Digital Printing</h3>
+              <p>Fast turnaround short runs with vibrant quality for flyers and business cards.</p>
+            </a>
+          </article>
+          <article class="service-item reveal" data-reveal>
+            <a href="services.html" class="service-item__link">
+              <span class="service-item__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg></span>
+              <h3>Large Format</h3>
+              <p>Banners, vinyl, foam boards, and outdoor signage that command attention.</p>
+            </a>
+          </article>
+          <article class="service-item reveal" data-reveal>
+            <a href="services.html" class="service-item__link">
+              <span class="service-item__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M16.5 9.4 7.55 4.24"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" y1="22" x2="12" y2="12"/></svg></span>
+              <h3>Packaging & Boxes</h3>
+              <p>Custom packaging that protects your product and elevates your brand.</p>
+            </a>
+          </article>
+          <article class="service-item reveal" data-reveal>
+            <a href="services.html" class="service-item__link">
+              <span class="service-item__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></span>
+              <h3>Branding & Design</h3>
+              <p>From logo systems to full campaign kits — design that prints beautifully.</p>
+            </a>
+          </article>
+          <article class="service-item reveal" data-reveal>
+            <a href="services.html" class="service-item__link">
+              <span class="service-item__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span>
+              <h3>Vehicle Branding</h3>
+              <p>Wraps and fleet graphics that turn every drive into a moving billboard.</p>
+            </a>
+          </article>
+        </div>
+        <div class="section-foot reveal" data-reveal>
+          <a class="text-link" href="services.html">Explore all services</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--about-strip">
+      <div class="container about-strip reveal" data-reveal>
+        <div class="about-strip__copy">
+          <h2>AMZ Prints</h2>
+          <p>AMZ Prints is a full-service print house built for speed, color fidelity, and finishes that feel premium.</p>
+          <a class="btn btn--primary" href="about.html">Our story</a>
+        </div>
+        <div class="about-strip__visual" aria-hidden="true">
+          <div class="ink-swatch ink-swatch--1"></div>
+          <div class="ink-swatch ink-swatch--2"></div>
+          <div class="ink-swatch ink-swatch--3"></div>
+          <div class="ink-swatch ink-swatch--4"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--products" id="products">
+      <div class="container">
+        <header class="section-head reveal" data-reveal>
+          <h2>Popular products</h2>
+          <p>Ready to order — customize finishes, quantities, and turnaround.</p>
+        </header>
+        <div class="product-grid">
+          <article class="product-tile reveal" data-reveal>
+            <a href="products.html">
+              <div class="product-tile__media"><div class="product-tile__placeholder"><span>B</span></div></div>
+              <div class="product-tile__body">
+                <h3>Business Cards</h3>
+                <p>Premium stocks, spot UV, foil, and die-cuts.</p>
+                <span class="product-tile__price">From $25</span>
+              </div>
+            </a>
+          </article>
+          <article class="product-tile reveal" data-reveal>
+            <a href="products.html">
+              <div class="product-tile__media"><div class="product-tile__placeholder"><span>F</span></div></div>
+              <div class="product-tile__body">
+                <h3>Flyers & Brochures</h3>
+                <p>Eye-catching marketing print in any fold.</p>
+                <span class="product-tile__price">From $40</span>
+              </div>
+            </a>
+          </article>
+          <article class="product-tile reveal" data-reveal>
+            <a href="products.html">
+              <div class="product-tile__media"><div class="product-tile__placeholder"><span>B</span></div></div>
+              <div class="product-tile__body">
+                <h3>Banners & Signage</h3>
+                <p>Indoor and outdoor banners engineered for color.</p>
+                <span class="product-tile__price">From $60</span>
+              </div>
+            </a>
+          </article>
+          <article class="product-tile reveal" data-reveal>
+            <a href="products.html">
+              <div class="product-tile__media"><div class="product-tile__placeholder"><span>S</span></div></div>
+              <div class="product-tile__body">
+                <h3>Stickers & Labels</h3>
+                <p>Custom die-cut stickers and product labels.</p>
+                <span class="product-tile__price">From $20</span>
+              </div>
+            </a>
+          </article>
+          <article class="product-tile reveal" data-reveal>
+            <a href="products.html">
+              <div class="product-tile__media"><div class="product-tile__placeholder"><span>L</span></div></div>
+              <div class="product-tile__body">
+                <h3>Letterheads</h3>
+                <p>Complete branded stationery sets.</p>
+                <span class="product-tile__price">From $35</span>
+              </div>
+            </a>
+          </article>
+          <article class="product-tile reveal" data-reveal>
+            <a href="products.html">
+              <div class="product-tile__media"><div class="product-tile__placeholder"><span>A</span></div></div>
+              <div class="product-tile__body">
+                <h3>Custom Apparel</h3>
+                <p>Screen print and DTG for teams and merch.</p>
+                <span class="product-tile__price">From $15</span>
+              </div>
+            </a>
+          </article>
+        </div>
+        <div class="section-foot reveal" data-reveal>
+          <a class="text-link" href="products.html">Browse all products</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--process">
+      <div class="container">
+        <header class="section-head reveal" data-reveal>
+          <h2>How it works</h2>
+          <p>A clear path from brief to finished print.</p>
+        </header>
+        <ol class="process-rail">
+          <li class="reveal" data-reveal>
+            <span class="process-rail__num">01</span>
+            <h3>Brief</h3>
+            <p>Share your specs, files, or idea — we’ll clarify options and finishes.</p>
+          </li>
+          <li class="reveal" data-reveal>
+            <span class="process-rail__num">02</span>
+            <h3>Proof</h3>
+            <p>Approve a digital or hard proof so color and layout are locked in.</p>
+          </li>
+          <li class="reveal" data-reveal>
+            <span class="process-rail__num">03</span>
+            <h3>Print</h3>
+            <p>Production runs with QC checks at every stage of the press.</p>
+          </li>
+          <li class="reveal" data-reveal>
+            <span class="process-rail__num">04</span>
+            <h3>Deliver</h3>
+            <p>Pickup or delivery — on schedule, packed and ready to use.</p>
+          </li>
+        </ol>
+        <div class="section-foot reveal" data-reveal>
+          <a class="text-link" href="how-we-work.html">See full working mechanism</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--trust">
+      <div class="container">
+        <header class="section-head reveal" data-reveal>
+          <h2>Why brands choose us</h2>
+          <p>Service, tracking, and quality — built into every job.</p>
+        </header>
+        <div class="trust-grid">
+          <article class="trust-card reveal" data-reveal><span class="trust-card__num">01</span><h3>Customer service desk</h3><p>Walk-in, call, or WhatsApp — clear answers on pricing and timelines.</p></article>
+          <article class="trust-card reveal" data-reveal><span class="trust-card__num">02</span><h3>Live project tracking</h3><p>Follow your order from received to ready with a unique Order ID.</p></article>
+          <article class="trust-card reveal" data-reveal><span class="trust-card__num">03</span><h3>Proof before press</h3><p>Approve artwork so color and layout are locked before production.</p></article>
+          <article class="trust-card reveal" data-reveal><span class="trust-card__num">04</span><h3>On-time delivery</h3><p>Pickup or delivery — packed, labeled, and ready when promised.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--nadra-home">
+      <div class="container nadra-home reveal" data-reveal>
+        <div class="nadra-home__seal" aria-hidden="true">
+          <div class="nadra-seal"><span class="nadra-seal__ring"></span><span class="nadra-seal__core">NADRA</span><span class="nadra-seal__sub">Authorized Partner</span></div>
+        </div>
+        <div class="nadra-home__copy">
+          <p class="page-hero__kicker">Authorized Partner</p>
+          <h2>NADRA E-Services</h2>
+          <p>Official NADRA e-services facilitation — trusted, authorized, and customer-friendly.</p>
+          <div class="hero__actions" style="margin-top:1.25rem">
+            <a class="btn btn--nadra" href="nadra.html">View NADRA Services</a>
+            <a class="btn btn--nadra-ghost" href="nadra.html#certifications">Certifications</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--track-home">
+      <div class="container track-home reveal" data-reveal>
+        <div>
+          <h2>Track your order</h2>
+          <p>Enter your Order ID to see if your job is in design, printing, finishing, or ready for pickup.</p>
+        </div>
+        <form class="track-home__form" action="track-order.html" method="get">
+          <input type="text" name="order_id" placeholder="Order ID e.g. AMZ-1042" required>
+          <button type="submit" class="btn btn--primary">Track</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="section section--cta">
+      <div class="container cta-band reveal" data-reveal>
+        <div class="cta-band__copy">
+          <h2>Ready to print something great?</h2>
+          <p>Tell us what you need. We’ll quote fast and keep you in the loop.</p>
+        </div>
+        <a class="btn btn--primary btn--lg" href="quote.html">Get a Quote</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="site-footer__glow" aria-hidden="true"></div>
+    <div class="container site-footer__grid">
+      <div class="site-footer__brand">
+        <a class="site-brand__text" href="index.html"><span class="site-brand__name">AMZ Prints</span></a>
+        <p class="site-footer__tagline">Professional Printing & Advertising Services</p>
+      </div>
+      <div class="site-footer__col">
+        <h4>Explore</h4>
+        <ul class="footer-menu">
+          <li><a href="services.html">Services</a></li>
+          <li><a href="products.html">Products</a></li>
+          <li><a href="gallery.html">Gallery</a></li>
+          <li><a href="about.html">About</a></li>
+        </ul>
+      </div>
+      <div class="site-footer__col">
+        <h4>Contact</h4>
+        <ul class="footer-contact">
+          <li><a href="tel:+15551234567">+1 (555) 123-4567</a></li>
+          <li><a href="mailto:hello@amzprints.com">hello@amzprints.com</a></li>
+          <li>123 Print Avenue, Suite 100</li>
+          <li>Mon–Sat · 9am – 6pm</li>
+        </ul>
+      </div>
+      <div class="site-footer__col site-footer__cta-col">
+        <h4>Start a project</h4>
+        <p>Get pricing in hours, not days.</p>
+        <a class="btn btn--primary" href="quote.html">Request a Quote</a>
+      </div>
+    </div>
+    <div class="site-footer__bottom">
+      <div class="container"><p>© 2026 AMZ Prints. All rights reserved. · Demo preview</p></div>
+    </div>
+  </footer>
+
+  <div class="demo-banner">
+    <span>Demo preview</span>
+    <a href="how-we-work.html">How We Work</a>
+    <a href="nadra.html">NADRA</a>
+    <a href="track-order.html">Track Order</a>
+    <a href="products.html">Products</a>
+    <a href="quote.html">Quote</a>
+  </div>
+
+  <script src="assets/js/main.js"></script>
+</body>
+</html>
