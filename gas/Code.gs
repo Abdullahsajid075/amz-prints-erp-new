@@ -1201,10 +1201,32 @@ function buildOrderEmailHtml_(orderApi, company, bodyText) {
     + '</div></div>';
 }
 
+function isMailAuthError_(msg) {
+  var s = String(msg || '').toLowerCase();
+  return s.indexOf('permission') >= 0
+    || s.indexOf('authorization') >= 0
+    || s.indexOf('required permissions') >= 0
+    || s.indexOf('access not granted') >= 0
+    || s.indexOf('oauth') >= 0
+    || s.indexOf('not been authorized') >= 0;
+}
+
+/** Short user-facing mail error (never dump Google OAuth scope URLs into ERP toasts). */
+function friendlyMailError_(err) {
+  var raw = String(err && err.message ? err.message : (err || ''));
+  if (isMailAuthError_(raw)) {
+    return 'Email not authorized. Open Apps Script as ' + NOTIFY_FROM_EMAIL_
+      + ' → Review permissions / Run a function → Allow Mail → Deploy → New version.';
+  }
+  if (raw.length > 140) return raw.slice(0, 140) + '…';
+  return raw || 'Email send failed';
+}
+
 /**
  * Send email as Amazon Printing.
  * From address = Google account that deployed/runs this web app (must be amazonprinting@gmail.com).
  * Reply-To always amazonprinting@gmail.com (or company email).
+ * Prefers MailApp (script.send_mail). GmailApp is only a non-auth fallback.
  */
 function sendMailSafe_(to, subject, htmlBody, textBody) {
   to = String(to || '').trim();
@@ -1228,36 +1250,38 @@ function sendMailSafe_(to, subject, htmlBody, textBody) {
     return { ok: true, to: to, replyTo: replyTo, via: 'mailapp', fromHint: NOTIFY_FROM_EMAIL_ };
   } catch (err) {
     mailAppError = String(err && err.message ? err.message : err);
+    // Auth/scope problems — do not fall through to GmailApp (longer scary OAuth error)
+    if (isMailAuthError_(mailAppError)) {
+      return {
+        ok: false,
+        reason: 'auth',
+        error: friendlyMailError_(err),
+        hint: 'Authorize Mail as ' + NOTIFY_FROM_EMAIL_ + ', then Deploy → New version',
+      };
+    }
   }
 
+  // Non-auth MailApp failure (quota / transient) — optional GmailApp retry
   try {
     var opts = {
       htmlBody: htmlBody || '',
       name: fromName,
       replyTo: replyTo,
-      from: NOTIFY_FROM_EMAIL_,
     };
-    try {
-      GmailApp.sendEmail(to, subject || 'Notification', plain, opts);
-      return { ok: true, to: to, from: NOTIFY_FROM_EMAIL_, replyTo: replyTo, via: 'gmail' };
-    } catch (fromErr) {
-      // Alias may be missing — send without explicit from (still as script user)
-      delete opts.from;
-      GmailApp.sendEmail(to, subject || 'Notification', plain, opts);
-      return {
-        ok: true,
-        to: to,
-        replyTo: replyTo,
-        via: 'gmail',
-        note: 'Deploy Apps Script as ' + NOTIFY_FROM_EMAIL_ + ' so the From address matches',
-      };
-    }
+    GmailApp.sendEmail(to, subject || 'Notification', plain, opts);
+    return {
+      ok: true,
+      to: to,
+      replyTo: replyTo,
+      via: 'gmail',
+      note: 'Deploy Apps Script as ' + NOTIFY_FROM_EMAIL_ + ' so the From address matches',
+    };
   } catch (err2) {
     return {
       ok: false,
-      error: String(err2 && err2.message ? err2.message : err2),
-      mailAppError: mailAppError,
-      hint: 'Update appsscript.json mail scopes, authorize as ' + NOTIFY_FROM_EMAIL_ + ', then Deploy → New version',
+      reason: isMailAuthError_(err2) || isMailAuthError_(mailAppError) ? 'auth' : 'send_failed',
+      error: friendlyMailError_(err2) || friendlyMailError_(mailAppError),
+      hint: 'Authorize Mail as ' + NOTIFY_FROM_EMAIL_ + ' (appsscript.json mail scopes), then Deploy → New version',
     };
   }
 }

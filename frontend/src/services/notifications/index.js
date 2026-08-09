@@ -244,6 +244,15 @@ export async function notifyOrderEvent({
   if (whatsappResult) results.whatsapp = whatsappResult;
   if (emailSkipped) results.email = emailSkipped;
 
+  const rawEmailErr = results.email?.ok === false
+    ? (results.email.error || results.email.reason || '')
+    : '';
+  const emailError = rawEmailErr
+    ? (/permission|authorization|required permissions|oauth/i.test(rawEmailErr)
+      ? 'Email not authorized. Open Apps Script as amazonprinting@gmail.com → Allow Mail → Deploy → New version.'
+      : (rawEmailErr.length > 160 ? `${rawEmailErr.slice(0, 160)}…` : rawEmailErr))
+    : null;
+
   return {
     ok: true,
     results,
@@ -251,7 +260,7 @@ export async function notifyOrderEvent({
     status,
     whatsappOpened: !!whatsappResult?.ok,
     emailSent: !!(results.email?.ok),
-    emailError: results.email?.ok === false ? (results.email.error || results.email.reason) : null,
+    emailError,
   };
 }
 

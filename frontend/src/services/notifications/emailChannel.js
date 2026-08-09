@@ -33,10 +33,15 @@ const emailChannel = {
       }));
       const data = res.data || {};
       if (data.ok === false || data.error) {
+        const raw = String(data.error || data.hint || data.reason || 'Email send failed');
+        const error = /permission|authorization|required permissions|oauth/i.test(raw)
+          ? `Email not authorized. Open Apps Script as ${FROM_HINT} → Allow Mail → Deploy → New version.`
+          : (raw.length > 160 ? `${raw.slice(0, 160)}…` : raw);
         return {
           ok: false,
-          error: data.error || data.hint || data.reason || 'Email send failed',
-          ...(data),
+          error,
+          reason: data.reason,
+          hint: data.hint,
         };
       }
       // Hostinger stub returns "queued" without sending — surface clearly
@@ -45,9 +50,12 @@ const emailChannel = {
       }
       return { ok: true, from: FROM_HINT, ...(data) };
     } catch (err) {
+      const raw = String(err?.response?.data?.message || err?.message || 'Email request failed');
       return {
         ok: false,
-        error: err?.response?.data?.message || err?.message || 'Email request failed',
+        error: /permission|authorization|required permissions|oauth/i.test(raw)
+          ? `Email not authorized. Open Apps Script as ${FROM_HINT} → Allow Mail → Deploy → New version.`
+          : (raw.length > 160 ? `${raw.slice(0, 160)}…` : raw),
       };
     }
   },
