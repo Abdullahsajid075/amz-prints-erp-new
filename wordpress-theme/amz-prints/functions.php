@@ -9,7 +9,21 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AMZ_PRINTS_VERSION', '2.4.0' );
+define( 'AMZ_PRINTS_VERSION', '2.4.1' );
+
+/**
+ * Avoid long Hostinger CDN HTML cache hiding theme updates.
+ */
+function amz_prints_nocache_html_headers() {
+	if ( is_admin() ) {
+		return;
+	}
+	// HTML pages should revalidate quickly after theme publishes.
+	header( 'Cache-Control: public, max-age=60, must-revalidate', true );
+	header( 'CDN-Cache-Control: no-store', true );
+	header( 'Cloudflare-CDN-Cache-Control: no-store', true );
+}
+add_action( 'template_redirect', 'amz_prints_nocache_html_headers', 0 );
 define( 'AMZ_PRINTS_DIR', get_template_directory() );
 define( 'AMZ_PRINTS_URI', get_template_directory_uri() );
 
