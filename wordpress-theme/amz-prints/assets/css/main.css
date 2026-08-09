@@ -141,10 +141,16 @@ p { margin: 0 0 1em; }
   inset: 0 0 auto;
   z-index: 100;
   height: var(--header-h);
-  background: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(16px);
   border-bottom: 1px solid transparent;
   transition: 0.3s var(--ease);
+}
+.site-brand__name {
+  background: linear-gradient(120deg, var(--amz-ink) 30%, var(--amz-primary));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 .site-header.is-scrolled,
 .site-header.mega-open,

@@ -376,6 +376,26 @@ async function dispatch(req, res) {
           return false;
         };
 
+        const assertPortalKey = (portalKey) => {
+          const got = String(portalKey || '').trim();
+          if (got.length < 16) throw new Error('Invalid portal key');
+          const expected = String(process.env.CUSTOMER_PORTAL_KEY || '').trim();
+          // If not configured on API, accept first key from WordPress (dev/bootstrap).
+          if (!expected) return true;
+          if (got !== expected) throw new Error('Invalid portal key');
+          return true;
+        };
+
+        const resolveGoogleEmail = async (body) => {
+          if (body.googleVerified && body.email && body.portalKey) {
+            assertPortalKey(body.portalKey);
+            const email = String(body.email || '').trim().toLowerCase();
+            if (!email || !email.includes('@')) throw new Error('Valid email required');
+            return { email, name: '' };
+          }
+          return verifyGoogle(body.idToken || body.credential || '');
+        };
+
         const verifyGoogle = async (idToken) => {
           const token = String(idToken || '').trim();
           if (!token) throw new Error('Google ID token required');
@@ -449,7 +469,7 @@ async function dispatch(req, res) {
           }
 
           if (method === 'POST' && path === '/public/customer/google') {
-            const g = await verifyGoogle(body.idToken || body.credential || '');
+            const g = await resolveGoogleEmail(body);
             const { data: rows } = await supabase.from('customers').select('*').ilike('email', g.email).limit(5);
             const customer = (rows || []).find((c) => String(c.email || '').trim().toLowerCase() === g.email);
             if (!customer) return sendError(res, `No customer account found for ${g.email}. Contact AMZ Prints.`, 404);
@@ -467,7 +487,7 @@ async function dispatch(req, res) {
           }
 
           if (method === 'POST' && path === '/public/customer/set-password') {
-            const g = await verifyGoogle(body.idToken || body.credential || '');
+            const g = await resolveGoogleEmail(body);
             const { data: rows } = await supabase.from('customers').select('*').ilike('email', g.email).limit(5);
             const customer = (rows || []).find((c) => String(c.email || '').trim().toLowerCase() === g.email);
             if (!customer) return sendError(res, 'No customer account found for this Google email', 404);

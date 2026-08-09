@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AMZ_PRINTS_VERSION', '2.4.2' );
+define( 'AMZ_PRINTS_VERSION', '2.4.3' );
 
 /**
  * Avoid long Hostinger CDN HTML cache hiding theme updates.

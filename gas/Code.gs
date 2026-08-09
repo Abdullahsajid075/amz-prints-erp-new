@@ -2877,7 +2877,14 @@ function verifyGoogleIdToken_(idToken) {
   var token = String(idToken || '').trim();
   if (!token) throw new Error('Google ID token required');
   var url = 'https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(token);
-  var res = UrlFetchApp.fetch(url, { muteHttpExceptions: true, followRedirects: true });
+  var res;
+  try {
+    res = UrlFetchApp.fetch(url, { muteHttpExceptions: true, followRedirects: true });
+  } catch (err) {
+    throw new Error(
+      'Apps Script missing external_request permission. Prefer WordPress Google verify + portal key, or re-authorize the script (Run → Review permissions) and redeploy.'
+    );
+  }
   if (res.getResponseCode() !== 200) throw new Error('Google verification failed');
   var data = JSON.parse(res.getContentText() || '{}');
   var email = String(data.email || '').trim().toLowerCase();
@@ -2889,6 +2896,36 @@ function verifyGoogleIdToken_(idToken) {
     sub: String(data.sub || ''),
     aud: String(data.aud || ''),
   };
+}
+
+/** Shared secret between WordPress theme and Apps Script (no UrlFetchApp needed). */
+function assertOrBootstrapPortalKey_(portalKey) {
+  var got = String(portalKey || '').trim();
+  if (got.length < 16) throw new Error('Invalid portal key');
+  var props = PropertiesService.getScriptProperties();
+  var expected = String(props.getProperty('CUSTOMER_PORTAL_KEY') || '').trim();
+  if (!expected) {
+    props.setProperty('CUSTOMER_PORTAL_KEY', got);
+    return true;
+  }
+  if (got !== expected) throw new Error('Invalid portal key');
+  return true;
+}
+
+/**
+ * Resolve customer email for Google portal login.
+ * Preferred: WordPress already verified Google token and sends email + portalKey.
+ */
+function resolveGooglePortalEmail_(body) {
+  body = body || {};
+  if (body.googleVerified && body.email && body.portalKey) {
+    assertOrBootstrapPortalKey_(body.portalKey);
+    var email = String(body.email || '').trim().toLowerCase();
+    if (!email || email.indexOf('@') < 0) throw new Error('Valid email required');
+    return email;
+  }
+  var g = verifyGoogleIdToken_(body.idToken || body.credential || '');
+  return g.email;
 }
 
 function customerOwnsOrder_(customer, order) {
@@ -3007,9 +3044,9 @@ function handlePublicCustomer_(path, method, body) {
   }
 
   if (method === 'POST' && path === '/public/customer/google') {
-    var g = verifyGoogleIdToken_(body.idToken || body.credential || '');
-    var cust = findCustomerByEmail_(g.email);
-    if (!cust) throw new Error('No customer account found for ' + g.email + '. Contact AMZ Prints.');
+    var gEmail = resolveGooglePortalEmail_(body);
+    var cust = findCustomerByEmail_(gEmail);
+    if (!cust) throw new Error('No customer account found for ' + gEmail + '. Contact AMZ Prints.');
     // Optional password set/reset after Google verification
     var newPass = String(body.newPassword || body.password || '').trim();
     if (newPass) {
@@ -3027,8 +3064,8 @@ function handlePublicCustomer_(path, method, body) {
   }
 
   if (method === 'POST' && path === '/public/customer/set-password') {
-    var g2 = verifyGoogleIdToken_(body.idToken || body.credential || '');
-    var cust2 = findCustomerByEmail_(g2.email);
+    var gEmail2 = resolveGooglePortalEmail_(body);
+    var cust2 = findCustomerByEmail_(gEmail2);
     if (!cust2) throw new Error('No customer account found for this Google email');
     var pass2 = String(body.password || body.newPassword || '').trim();
     if (pass2.length < 6) throw new Error('Password must be at least 6 characters');

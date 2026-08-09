@@ -368,6 +368,17 @@ function amz_prints_customize_register( $wp_customize ) {
 		'type'        => 'text',
 	) );
 
+	$wp_customize->add_setting( 'amz_customer_portal_key', array(
+		'default'           => '',
+		'sanitize_callback' => 'sanitize_text_field',
+	) );
+	$wp_customize->add_control( 'amz_customer_portal_key', array(
+		'label'       => __( 'Customer Portal Key', 'amz-prints' ),
+		'description' => __( 'Secret shared with Apps Script so Google login works without UrlFetchApp. Auto-created on first Google login; keep it private. Optional: paste the same value into Apps Script → Project Settings → Script properties as CUSTOMER_PORTAL_KEY.', 'amz-prints' ),
+		'section'     => 'amz_customer_portal',
+		'type'        => 'text',
+	) );
+
 	/* ── Social ── */
 	$wp_customize->add_section( 'amz_social', array(
 		'title'    => __( 'Social Links', 'amz-prints' ),
