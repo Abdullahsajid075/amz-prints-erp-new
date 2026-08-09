@@ -40,7 +40,7 @@ var DEFAULT_CRM_STAGES = [
 
 var DEFAULT_HEADERS = {
   Users: ['Username', 'Password', 'Name', 'Role', 'Status', 'Permissions', 'EmployeeId'],
-  Customers: ['Id', 'Name', 'Phone', 'Email', 'Address', 'City', 'Notes', 'InCrm', 'Stage', 'StageUpdatedAt', 'NotifyWhatsApp', 'NotifyEmail'],
+  Customers: ['Id', 'Name', 'Phone', 'Email', 'Address', 'City', 'Notes', 'InCrm', 'Stage', 'StageUpdatedAt', 'NotifyWhatsApp', 'NotifyEmail', 'PortalPassword'],
   CrmNotes: ['Id', 'CustomerId', 'Note', 'CreatedAt', 'CreatedBy'],
   Employees: [
     'Id', 'EmployeeCode', 'Name', 'Phone', 'Email', 'Cnic', 'Role', 'Designation', 'Department',
@@ -711,7 +711,7 @@ function isInCrm_(value) {
 function normalizeCustomer_(body) {
   var stageRaw = body.stage != null ? body.stage : body.crmStage;
   var hasInCrm = body.inCrm != null || body.incrm != null;
-  return {
+  var out = {
     id: body.id || '',
     name: body.name || body.customerName || body.customername || '',
     phone: String(body.phone || body.customerPhone || body.customerphone || '').trim(),
@@ -725,6 +725,14 @@ function normalizeCustomer_(body) {
     notifywhatsapp: body.notifyWhatsApp != null ? body.notifyWhatsApp : (body.notifywhatsapp != null ? body.notifywhatsapp : true),
     notifyemail: body.notifyEmail != null ? body.notifyEmail : (body.notifyemail != null ? body.notifyemail : true),
   };
+  // Portal password only when explicitly provided (never wipe accidentally)
+  if (body.portalPassword != null || body.portalpassword != null || body.password != null) {
+    var pp = body.portalPassword != null ? body.portalPassword : (body.portalpassword != null ? body.portalpassword : body.password);
+    if (pp !== undefined && pp !== null && String(pp) !== '') {
+      out.portalpassword = String(pp);
+    }
+  }
+  return out;
 }
 
 function toApiCustomer_(c) {
@@ -2805,6 +2813,274 @@ function handlePublic_(path, method, body) {
     var empCode = decodeURIComponent(path.replace('/public/employee/', '')).trim();
     return toPublicEmployeeVerify_(empCode);
   }
+
+  // ── Customer portal (read-only website account) ──
+  if (path.indexOf('/public/customer/') === 0) {
+    return handlePublicCustomer_(path, method, body);
+  }
+
+  throw new Error('Not found');
+}
+
+/* ===================== CUSTOMER PORTAL (public, read-only) ===================== */
+
+function findCustomerByEmail_(email) {
+  var needle = String(email || '').trim().toLowerCase();
+  if (!needle) return null;
+  var sheet = getOrCreateSheet_(SHEET_NAMES.CUSTOMERS);
+  ensureHeaders_(sheet, SHEET_NAMES.CUSTOMERS);
+  var rows = getSheetRows_(SHEET_NAMES.CUSTOMERS) || [];
+  return rows.find(function (c) {
+    return String(c.email || '').trim().toLowerCase() === needle;
+  }) || null;
+}
+
+function issueCustomerToken_(customer) {
+  return Utilities.base64EncodeWebSafe(JSON.stringify({
+    type: 'customer',
+    id: String(customer.id || ''),
+    email: String(customer.email || '').trim().toLowerCase(),
+    exp: Date.now() + 7 * 24 * 60 * 60 * 1000,
+  }));
+}
+
+function validateCustomerToken_(token) {
+  if (!token) return null;
+  try {
+    var payload = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(token)).getDataAsString());
+    if (payload.type !== 'customer') return null;
+    if (payload.exp && Date.now() > payload.exp) return null;
+    var customer = getSheetRows_(SHEET_NAMES.CUSTOMERS).find(function (c) {
+      return String(c.id) === String(payload.id);
+    });
+    if (!customer) return null;
+    var email = String(customer.email || '').trim().toLowerCase();
+    if (!email || email !== String(payload.email || '').toLowerCase()) return null;
+    return customer;
+  } catch (err) {
+    return null;
+  }
+}
+
+function sanitizePortalCustomer_(c) {
+  return {
+    id: c.id || '',
+    name: c.name || '',
+    email: c.email || '',
+    phone: c.phone || '',
+    city: c.city || '',
+    hasPassword: !!String(c.portalpassword || '').trim(),
+  };
+}
+
+function verifyGoogleIdToken_(idToken) {
+  var token = String(idToken || '').trim();
+  if (!token) throw new Error('Google ID token required');
+  var url = 'https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(token);
+  var res = UrlFetchApp.fetch(url, { muteHttpExceptions: true, followRedirects: true });
+  if (res.getResponseCode() !== 200) throw new Error('Google verification failed');
+  var data = JSON.parse(res.getContentText() || '{}');
+  var email = String(data.email || '').trim().toLowerCase();
+  var verified = data.email_verified === true || data.email_verified === 'true';
+  if (!email || !verified) throw new Error('Google email not verified');
+  return {
+    email: email,
+    name: String(data.name || ''),
+    sub: String(data.sub || ''),
+    aud: String(data.aud || ''),
+  };
+}
+
+function customerOwnsOrder_(customer, order) {
+  if (!customer || !order) return false;
+  var cid = String(customer.id || '');
+  var cphone = String(customer.phone || '').trim();
+  var cemail = String(customer.email || '').trim().toLowerCase();
+  if (cid && String(order.customerid || '') === cid) return true;
+  if (cphone && String(order.customerphone || '').trim() === cphone) return true;
+  if (cemail && String(order.customeremail || '').trim().toLowerCase() === cemail) return true;
+  return false;
+}
+
+function customerOwnsInvoice_(customer, inv) {
+  if (!customer || !inv) return false;
+  var cid = String(customer.id || '');
+  var cphone = String(customer.phone || '').trim();
+  var cemail = String(customer.email || '').trim().toLowerCase();
+  if (cid && String(inv.customerid || '') === cid) return true;
+  if (cphone && String(inv.customerphone || '').trim() === cphone) return true;
+  if (cemail && String(inv.customeremail || '').trim().toLowerCase() === cemail) return true;
+  return false;
+}
+
+function listCustomerOrders_(customer) {
+  var orders = getSheetRows_(SHEET_NAMES.ORDERS) || [];
+  return orders
+    .filter(function (o) {
+      if (String(o.doctype || 'Order').toLowerCase() === 'quotation') return false;
+      return customerOwnsOrder_(customer, o);
+    })
+    .map(function (o) {
+      var api = toApiOrder_(o);
+      return {
+        id: api.id || '',
+        orderId: api.orderId || '',
+        trackingNumber: api.trackingNumber || '',
+        date: api.date || '',
+        status: api.status || '',
+        deliveryDate: api.deliveryDate || '',
+        items: (api.products || []).map(function (p) { return p.name || ''; }).filter(Boolean),
+        totalAmount: Number(api.totalAmount || 0),
+        balanceAmount: Number(api.balanceAmount || 0),
+      };
+    })
+    .sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
+}
+
+function listCustomerInvoices_(customer) {
+  var invoices = getSheetRows_(SHEET_NAMES.INVOICES) || [];
+  var erpBase = 'https://erp.amzprints.com';
+  return invoices
+    .filter(function (inv) { return customerOwnsInvoice_(customer, inv); })
+    .map(function (inv) {
+      var api = toApiInvoice_(inv);
+      var token = api.shareToken || '';
+      return {
+        id: api.id || '',
+        invoiceNumber: api.invoiceNumber || api.invoiceNo || '',
+        date: api.date || '',
+        dueDate: api.dueDate || '',
+        status: api.status || '',
+        totalAmount: Number(api.totalAmount != null ? api.totalAmount : api.total || 0),
+        paidAmount: Number(api.paidAmount != null ? api.paidAmount : api.paid || 0),
+        discount: Number(api.discount || 0),
+        shareToken: token,
+        pdfUrl: token ? (erpBase + '/invoice/' + encodeURIComponent(token)) : '',
+        viewOnly: true,
+      };
+    })
+    .sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
+}
+
+function listCustomerDiscounts_(customer) {
+  var invoices = listCustomerInvoices_(customer);
+  var rows = invoices
+    .filter(function (inv) { return Number(inv.discount || 0) > 0; })
+    .map(function (inv) {
+      return {
+        invoiceNumber: inv.invoiceNumber,
+        date: inv.date,
+        discount: inv.discount,
+        totalAmount: inv.totalAmount,
+        status: inv.status,
+        pdfUrl: inv.pdfUrl,
+      };
+    });
+  var totalDiscount = rows.reduce(function (s, r) { return s + Number(r.discount || 0); }, 0);
+  return {
+    totalDiscount: totalDiscount,
+    count: rows.length,
+    items: rows,
+    note: 'Discounts already applied on your invoices (view only).',
+  };
+}
+
+function handlePublicCustomer_(path, method, body) {
+  body = body || {};
+  var token = String((body && body.token) || '').trim();
+
+  if (method === 'POST' && path === '/public/customer/login') {
+    var email = String(body.email || '').trim().toLowerCase();
+    var password = String(body.password || '');
+    if (!email || !password) throw new Error('Email and password required');
+    var customer = findCustomerByEmail_(email);
+    if (!customer) throw new Error('No customer account found for this email');
+    var stored = String(customer.portalpassword || '').trim();
+    if (!stored) {
+      throw new Error('Password not set. Use Google verification to set/reset your password.');
+    }
+    if (stored !== password) throw new Error('Invalid email or password');
+    return {
+      token: issueCustomerToken_(customer),
+      customer: sanitizePortalCustomer_(customer),
+    };
+  }
+
+  if (method === 'POST' && path === '/public/customer/google') {
+    var g = verifyGoogleIdToken_(body.idToken || body.credential || '');
+    var cust = findCustomerByEmail_(g.email);
+    if (!cust) throw new Error('No customer account found for ' + g.email + '. Contact AMZ Prints.');
+    // Optional password set/reset after Google verification
+    var newPass = String(body.newPassword || body.password || '').trim();
+    if (newPass) {
+      if (newPass.length < 6) throw new Error('Password must be at least 6 characters');
+      var sheet = getSheet_(SHEET_NAMES.CUSTOMERS);
+      updateObjectProps_(sheet, SHEET_NAMES.CUSTOMERS, cust._row, { portalpassword: newPass });
+      invalidateSheetCache_(SHEET_NAMES.CUSTOMERS);
+      cust.portalpassword = newPass;
+    }
+    return {
+      token: issueCustomerToken_(cust),
+      customer: sanitizePortalCustomer_(cust),
+      passwordUpdated: !!newPass,
+    };
+  }
+
+  if (method === 'POST' && path === '/public/customer/set-password') {
+    var g2 = verifyGoogleIdToken_(body.idToken || body.credential || '');
+    var cust2 = findCustomerByEmail_(g2.email);
+    if (!cust2) throw new Error('No customer account found for this Google email');
+    var pass2 = String(body.password || body.newPassword || '').trim();
+    if (pass2.length < 6) throw new Error('Password must be at least 6 characters');
+    updateObjectProps_(getSheet_(SHEET_NAMES.CUSTOMERS), SHEET_NAMES.CUSTOMERS, cust2._row, { portalpassword: pass2 });
+    invalidateSheetCache_(SHEET_NAMES.CUSTOMERS);
+    return {
+      ok: true,
+      token: issueCustomerToken_(cust2),
+      customer: sanitizePortalCustomer_(Object.assign({}, cust2, { portalpassword: pass2 })),
+    };
+  }
+
+  // Authenticated read-only routes (token in body or will be passed via query by WP)
+  // For GET, token may arrive in body empty — handleRequest passes e.parameter into body? Check getPath
+  // WordPress will POST token in JSON for simplicity on portal bootstrap, and use query for GET.
+
+  if (method === 'GET' && path === '/public/customer/me') {
+    // token from path query is not in body — parse from global? We need parameter.
+    throw new Error('Use POST /public/customer/session with token');
+  }
+
+  if (method === 'POST' && path === '/public/customer/session') {
+    var sess = validateCustomerToken_(token || body.token);
+    if (!sess) throw new Error('Unauthorized');
+    return {
+      customer: sanitizePortalCustomer_(sess),
+      orders: listCustomerOrders_(sess),
+      invoices: listCustomerInvoices_(sess),
+      discounts: listCustomerDiscounts_(sess),
+      readOnly: true,
+    };
+  }
+
+  if (method === 'POST' && path === '/public/customer/track') {
+    var sess2 = validateCustomerToken_(token || body.token);
+    if (!sess2) throw new Error('Unauthorized');
+    var code = String(body.code || body.orderId || body.trackingNumber || '').trim();
+    if (!code) throw new Error('Order ID / Tracking Number required');
+    var needle = code.toLowerCase();
+    var orders = getSheetRows_(SHEET_NAMES.ORDERS) || [];
+    var order = orders.find(function (o) {
+      if (String(o.doctype || 'Order').toLowerCase() === 'quotation') return false;
+      if (!customerOwnsOrder_(sess2, o)) return false;
+      var keys = [o.trackingnumber, o.orderid, o.id, o.tokenno]
+        .map(function (v) { return String(v || '').trim().toLowerCase(); })
+        .filter(Boolean);
+      return keys.indexOf(needle) !== -1;
+    });
+    if (!order) throw new Error('Order not found on your account');
+    return toPublicTrackOrder_(order);
+  }
+
   throw new Error('Not found');
 }
 

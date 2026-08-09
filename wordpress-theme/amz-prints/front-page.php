@@ -243,11 +243,10 @@ $catalog     = array_slice( amz_prints_services_catalog(), 0, 6 );
 			<h2><?php echo esc_html( amz_t( 'track_order' ) ); ?></h2>
 			<p>Enter your Order ID to see live design, printing, and delivery status.</p>
 		</div>
-		<form class="track-home__form" method="get" action="<?php echo esc_url( home_url( '/track-order/' ) ); ?>">
-			<input type="hidden" name="amz_track" value="1">
-			<input type="text" name="order_id" placeholder="ORD-2026-001 or TRK-4821" required autocomplete="off">
-			<button type="submit" class="btn btn--primary"><?php echo esc_html( amz_t( 'track_order' ) ); ?></button>
-		</form>
+		<div class="track-home__form">
+			<p class="form-note" style="margin:0;">Customer login required to track your orders.</p>
+			<a class="btn btn--primary" href="<?php echo esc_url( home_url( '/customer-login/?redirect=' . rawurlencode( home_url( '/my-account/#track' ) ) ) ); ?>"><?php echo esc_html( amz_t( 'track_order' ) ); ?></a>
+		</div>
 	</div>
 </section>
 

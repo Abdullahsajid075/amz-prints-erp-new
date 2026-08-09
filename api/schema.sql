@@ -31,8 +31,10 @@ create table if not exists customers (
   stage_updated_at text default '',
   notify_whatsapp boolean default true,
   notify_email boolean default true,
+  portal_password text default '',
   created_at timestamptz default now()
 );
+alter table customers add column if not exists portal_password text;
 create index if not exists customers_phone_idx on customers (phone);
 create index if not exists customers_in_crm_idx on customers (in_crm);
 

@@ -322,6 +322,237 @@ async function dispatch(req, res) {
 
         return send(res, { ok: true, customerId, stage: 'lead', inCrm: true });
       }
+
+      // Customer portal (read-only website account)
+      if (path.startsWith('/public/customer/')) {
+        const issueCustomerToken = (cust) => Buffer.from(JSON.stringify({
+          type: 'customer',
+          id: String(cust.id || ''),
+          email: String(cust.email || '').trim().toLowerCase(),
+          exp: Date.now() + 7 * 24 * 60 * 60 * 1000,
+        })).toString('base64url');
+
+        const validateCustomerToken = async (raw) => {
+          if (!raw) return null;
+          try {
+            const payload = JSON.parse(Buffer.from(String(raw), 'base64url').toString('utf8'));
+            if (payload.type !== 'customer') return null;
+            if (payload.exp && Date.now() > payload.exp) return null;
+            const { data } = await supabase.from('customers').select('*').eq('id', payload.id).maybeSingle();
+            if (!data) return null;
+            if (String(data.email || '').trim().toLowerCase() !== String(payload.email || '').toLowerCase()) return null;
+            return data;
+          } catch {
+            return null;
+          }
+        };
+
+        const sanitizePortalCustomer = (c) => ({
+          id: c.id || '',
+          name: c.name || '',
+          email: c.email || '',
+          phone: c.phone || '',
+          city: c.city || '',
+          hasPassword: !!String(c.portal_password || '').trim(),
+        });
+
+        const ownsOrder = (customer, o) => {
+          const cid = String(customer.id || '');
+          const phone = String(customer.phone || '').trim();
+          const email = String(customer.email || '').trim().toLowerCase();
+          if (cid && String(o.customer_id || '') === cid) return true;
+          if (phone && String(o.customer_phone || '').trim() === phone) return true;
+          if (email && String(o.customer_email || '').trim().toLowerCase() === email) return true;
+          return false;
+        };
+
+        const ownsInvoice = (customer, inv) => {
+          const cid = String(customer.id || '');
+          const phone = String(customer.phone || '').trim();
+          const email = String(customer.email || '').trim().toLowerCase();
+          if (cid && String(inv.customer_id || '') === cid) return true;
+          if (phone && String(inv.customer_phone || '').trim() === phone) return true;
+          if (email && String(inv.customer_email || '').trim().toLowerCase() === email) return true;
+          return false;
+        };
+
+        const verifyGoogle = async (idToken) => {
+          const token = String(idToken || '').trim();
+          if (!token) throw new Error('Google ID token required');
+          const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(token)}`);
+          if (!res.ok) throw new Error('Google verification failed');
+          const data = await res.json();
+          const email = String(data.email || '').trim().toLowerCase();
+          const verified = data.email_verified === true || data.email_verified === 'true';
+          if (!email || !verified) throw new Error('Google email not verified');
+          return { email, name: String(data.name || '') };
+        };
+
+        const listOrders = async (customer) => {
+          const { data: orders } = await supabase.from('orders').select('*');
+          return (orders || [])
+            .filter((o) => String(o.doc_type || 'Order').toLowerCase() !== 'quotation' && ownsOrder(customer, o))
+            .map((o) => {
+              const api = mapOrder(o);
+              return {
+                id: api.id || '',
+                orderId: api.orderId || '',
+                trackingNumber: api.trackingNumber || '',
+                date: api.date || '',
+                status: api.status || '',
+                deliveryDate: api.deliveryDate || '',
+                items: (api.products || []).map((p) => p.name || '').filter(Boolean),
+                totalAmount: Number(api.totalAmount || 0),
+                balanceAmount: Number(api.balanceAmount || 0),
+              };
+            })
+            .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+        };
+
+        const listInvoices = async (customer) => {
+          const { data: invoices } = await supabase.from('invoices').select('*');
+          const erpBase = 'https://erp.amzprints.com';
+          return (invoices || [])
+            .filter((inv) => ownsInvoice(customer, inv))
+            .map((inv) => {
+              const api = mapInvoice(inv);
+              const share = api.shareToken || '';
+              return {
+                id: api.id || '',
+                invoiceNumber: api.invoiceNumber || api.invoiceNo || '',
+                date: api.date || '',
+                dueDate: api.dueDate || '',
+                status: api.status || '',
+                totalAmount: Number(api.totalAmount != null ? api.totalAmount : api.total || 0),
+                paidAmount: Number(api.paidAmount != null ? api.paidAmount : api.paid || 0),
+                discount: Number(api.discount || 0),
+                shareToken: share,
+                pdfUrl: share ? `${erpBase}/invoice/${encodeURIComponent(share)}` : '',
+                viewOnly: true,
+              };
+            })
+            .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+        };
+
+        try {
+          if (method === 'POST' && path === '/public/customer/login') {
+            const email = String(body.email || '').trim().toLowerCase();
+            const password = String(body.password || '');
+            if (!email || !password) return sendError(res, 'Email and password required', 400);
+            const { data: rows } = await supabase.from('customers').select('*').ilike('email', email).limit(5);
+            const customer = (rows || []).find((c) => String(c.email || '').trim().toLowerCase() === email);
+            if (!customer) return sendError(res, 'No customer account found for this email', 404);
+            const stored = String(customer.portal_password || '').trim();
+            if (!stored) return sendError(res, 'Password not set. Use Google verification to set/reset your password.', 400);
+            if (stored !== password) return sendError(res, 'Invalid email or password', 401);
+            return send(res, { token: issueCustomerToken(customer), customer: sanitizePortalCustomer(customer) });
+          }
+
+          if (method === 'POST' && path === '/public/customer/google') {
+            const g = await verifyGoogle(body.idToken || body.credential || '');
+            const { data: rows } = await supabase.from('customers').select('*').ilike('email', g.email).limit(5);
+            const customer = (rows || []).find((c) => String(c.email || '').trim().toLowerCase() === g.email);
+            if (!customer) return sendError(res, `No customer account found for ${g.email}. Contact AMZ Prints.`, 404);
+            const newPass = String(body.newPassword || body.password || '').trim();
+            if (newPass) {
+              if (newPass.length < 6) return sendError(res, 'Password must be at least 6 characters', 400);
+              await supabase.from('customers').update({ portal_password: newPass }).eq('id', customer.id);
+              customer.portal_password = newPass;
+            }
+            return send(res, {
+              token: issueCustomerToken(customer),
+              customer: sanitizePortalCustomer(customer),
+              passwordUpdated: !!newPass,
+            });
+          }
+
+          if (method === 'POST' && path === '/public/customer/set-password') {
+            const g = await verifyGoogle(body.idToken || body.credential || '');
+            const { data: rows } = await supabase.from('customers').select('*').ilike('email', g.email).limit(5);
+            const customer = (rows || []).find((c) => String(c.email || '').trim().toLowerCase() === g.email);
+            if (!customer) return sendError(res, 'No customer account found for this Google email', 404);
+            const pass = String(body.password || body.newPassword || '').trim();
+            if (pass.length < 6) return sendError(res, 'Password must be at least 6 characters', 400);
+            await supabase.from('customers').update({ portal_password: pass }).eq('id', customer.id);
+            customer.portal_password = pass;
+            return send(res, {
+              ok: true,
+              token: issueCustomerToken(customer),
+              customer: sanitizePortalCustomer(customer),
+            });
+          }
+
+          if (method === 'POST' && path === '/public/customer/session') {
+            const customer = await validateCustomerToken(body.token);
+            if (!customer) return sendError(res, 'Unauthorized', 401);
+            const [orders, invoices] = await Promise.all([listOrders(customer), listInvoices(customer)]);
+            const discountItems = invoices.filter((inv) => Number(inv.discount || 0) > 0);
+            const totalDiscount = discountItems.reduce((s, r) => s + Number(r.discount || 0), 0);
+            return send(res, {
+              customer: sanitizePortalCustomer(customer),
+              orders,
+              invoices,
+              discounts: {
+                totalDiscount,
+                count: discountItems.length,
+                items: discountItems.map((inv) => ({
+                  invoiceNumber: inv.invoiceNumber,
+                  date: inv.date,
+                  discount: inv.discount,
+                  totalAmount: inv.totalAmount,
+                  status: inv.status,
+                  pdfUrl: inv.pdfUrl,
+                })),
+                note: 'Discounts already applied on your invoices (view only).',
+              },
+              readOnly: true,
+            });
+          }
+
+          if (method === 'POST' && path === '/public/customer/track') {
+            const customer = await validateCustomerToken(body.token);
+            if (!customer) return sendError(res, 'Unauthorized', 401);
+            const code = String(body.code || body.orderId || body.trackingNumber || '').trim().toLowerCase();
+            if (!code) return sendError(res, 'Order ID / Tracking Number required', 400);
+            const { data: orders } = await supabase.from('orders').select('*');
+            const order = (orders || []).find((o) => {
+              if (String(o.doc_type || 'Order').toLowerCase() === 'quotation') return false;
+              if (!ownsOrder(customer, o)) return false;
+              const keys = [o.tracking_number, o.order_id, o.id, o.token_no]
+                .map((v) => String(v || '').trim().toLowerCase())
+                .filter(Boolean);
+              return keys.includes(code);
+            });
+            if (!order) return sendError(res, 'Order not found on your account', 404);
+            const api = mapOrder(order);
+            const pipeline = ['Order Received', 'Designing', 'Proof Approval', 'Printing', 'Finishing', 'Packing', 'Ready', 'Delivered'];
+            const status = String(api.status || '');
+            const cancelled = status.toLowerCase() === 'cancelled';
+            let idx = cancelled ? -1 : pipeline.indexOf(status);
+            const timeline = pipeline.map((s, i) => ({
+              status: s,
+              done: !cancelled && idx >= 0 && i <= idx,
+              current: !cancelled && s === status,
+            }));
+            return send(res, {
+              orderId: api.orderId,
+              trackingNumber: api.trackingNumber || api.orderId,
+              status: api.status,
+              cancelled,
+              customerName: api.customerName,
+              products: (api.products || []).map((p) => ({ name: p.name || '' })).filter((p) => p.name),
+              timeline,
+              trackCode: api.trackingNumber || api.orderId || api.id,
+              companyNote: 'For questions, contact Amazon Printing Services with your Order ID.',
+            });
+          }
+        } catch (err) {
+          return sendError(res, err.message || 'Customer portal error', 400);
+        }
+
+        return sendError(res, 'Not found', 404);
+      }
+
       return sendError(res, 'Not found', 404);
     }
 

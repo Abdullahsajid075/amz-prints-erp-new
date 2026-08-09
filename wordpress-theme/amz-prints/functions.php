@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AMZ_PRINTS_VERSION', '2.2.0' );
+define( 'AMZ_PRINTS_VERSION', '2.3.0' );
 define( 'AMZ_PRINTS_DIR', get_template_directory() );
 define( 'AMZ_PRINTS_URI', get_template_directory_uri() );
 
@@ -20,6 +20,7 @@ require_once AMZ_PRINTS_DIR . '/inc/i18n.php';
 require_once AMZ_PRINTS_DIR . '/inc/services-catalog.php';
 require_once AMZ_PRINTS_DIR . '/inc/track-order.php';
 require_once AMZ_PRINTS_DIR . '/inc/erp-api.php';
+require_once AMZ_PRINTS_DIR . '/inc/customer-portal.php';
 
 /**
  * Theme setup
@@ -170,6 +171,8 @@ function amz_prints_default_pages() {
 		'how-we-work'      => array( 'title' => 'How We Work', 'template' => 'page-templates/template-how-we-work.php' ),
 		'nadra-e-services' => array( 'title' => 'NADRA E-Services', 'template' => 'page-templates/template-nadra.php' ),
 		'track-order'      => array( 'title' => 'Track Order', 'template' => 'page-templates/template-track-order.php' ),
+		'customer-login'   => array( 'title' => 'Customer Login', 'template' => 'page-templates/template-customer-login.php' ),
+		'my-account'       => array( 'title' => 'My Account', 'template' => 'page-templates/template-my-account.php' ),
 		'gallery'          => array( 'title' => 'Gallery', 'template' => 'page-templates/template-gallery.php' ),
 		'quote'            => array( 'title' => 'Get a Quote', 'template' => 'page-templates/template-quote.php' ),
 		'contact'          => array( 'title' => 'Contact', 'template' => 'page-templates/template-contact.php' ),
@@ -259,12 +262,12 @@ add_action( 'after_switch_theme', 'amz_prints_after_switch' );
  * Create missing pages on upgrade (fixes Services 404 without re-activating theme)
  */
 function amz_prints_maybe_upgrade_pages() {
-	if ( get_option( 'amz_prints_pages_ver' ) === '1.3.0' ) {
+	if ( get_option( 'amz_prints_pages_ver' ) === '2.3.0' ) {
 		return;
 	}
 	amz_prints_ensure_pages();
 	flush_rewrite_rules( false );
-	update_option( 'amz_prints_pages_ver', '1.3.0' );
+	update_option( 'amz_prints_pages_ver', '2.3.0' );
 }
 add_action( 'init', 'amz_prints_maybe_upgrade_pages', 20 );
 

@@ -49,6 +49,7 @@
 						<li><a href="<?php echo esc_url( home_url( '/pricing/' ) ); ?>">Pricing</a></li>
 						<li><a href="<?php echo esc_url( home_url( '/how-we-work/' ) ); ?>">How We Work</a></li>
 						<li><a href="<?php echo esc_url( home_url( '/track-order/' ) ); ?>">Track Order</a></li>
+						<li><a href="<?php echo esc_url( home_url( '/my-account/' ) ); ?>">My Account</a></li>
 						<li><a href="<?php echo esc_url( home_url( '/gallery/' ) ); ?>">Gallery</a></li>
 						<li><a href="<?php echo esc_url( home_url( '/about/' ) ); ?>">About</a></li>
 						<li><a href="<?php echo esc_url( home_url( '/contact/' ) ); ?>">Contact</a></li>
@@ -59,6 +60,11 @@
 		</nav>
 
 		<div class="site-header__actions">
+			<?php if ( function_exists( 'amz_prints_customer_is_logged_in' ) && amz_prints_customer_is_logged_in() ) : ?>
+				<a class="btn btn--ghost btn--sm" href="<?php echo esc_url( home_url( '/my-account/' ) ); ?>">My Account</a>
+			<?php else : ?>
+				<a class="btn btn--ghost btn--sm" href="<?php echo esc_url( home_url( '/customer-login/' ) ); ?>">Login</a>
+			<?php endif; ?>
 			<a class="btn btn--primary btn--sm" href="<?php echo esc_url( home_url( '/quote/' ) ); ?>">Get a Quote</a>
 			<button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="site-nav" type="button">
 				<span class="nav-toggle__bar"></span>

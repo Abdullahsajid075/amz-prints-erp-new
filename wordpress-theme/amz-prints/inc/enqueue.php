@@ -15,6 +15,12 @@ function amz_prints_enqueue_assets() {
 	wp_enqueue_style( 'amz-prints-fonts', $fonts, array(), null );
 	wp_enqueue_style( 'amz-prints-main', AMZ_PRINTS_URI . '/assets/css/main.css', array( 'amz-prints-fonts' ), AMZ_PRINTS_VERSION );
 	wp_enqueue_script( 'amz-prints-main', AMZ_PRINTS_URI . '/assets/js/main.js', array(), AMZ_PRINTS_VERSION, true );
+	wp_enqueue_script( 'amz-prints-customer', AMZ_PRINTS_URI . '/assets/js/customer-portal.js', array(), AMZ_PRINTS_VERSION, true );
+
+	$google_client = trim( (string) amz_prints_mod( 'amz_google_client_id', '' ) );
+	if ( $google_client && ( is_page_template( 'page-templates/template-customer-login.php' ) || is_page( 'customer-login' ) ) ) {
+		wp_enqueue_script( 'google-gsi', 'https://accounts.google.com/gsi/client', array(), null, true );
+	}
 
 	$wa = preg_replace( '/\D+/', '', amz_prints_mod( 'amz_whatsapp', amz_prints_mod( 'amz_phone', '' ) ) );
 	$wa_flow = amz_prints_mod( 'amz_wa_flow_url', '' );
@@ -39,6 +45,15 @@ function amz_prints_enqueue_assets() {
 			'services' => home_url( '/services/' ),
 			'whatsapp' => $wa,
 		),
+	) );
+
+	wp_localize_script( 'amz-prints-customer', 'amzCustomer', array(
+		'ajaxUrl'       => admin_url( 'admin-ajax.php' ),
+		'nonce'         => wp_create_nonce( 'amz_prints_customer' ),
+		'googleClientId'=> $google_client,
+		'accountUrl'    => home_url( '/my-account/' ),
+		'loginUrl'      => home_url( '/customer-login/' ),
+		'loggedIn'      => function_exists( 'amz_prints_customer_is_logged_in' ) ? amz_prints_customer_is_logged_in() : false,
 	) );
 }
 add_action( 'wp_enqueue_scripts', 'amz_prints_enqueue_assets' );

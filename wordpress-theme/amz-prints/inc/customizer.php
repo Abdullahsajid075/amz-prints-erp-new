@@ -350,6 +350,24 @@ function amz_prints_customize_register( $wp_customize ) {
 		'type'        => 'url',
 	) );
 
+	/* ── Customer Portal ── */
+	$wp_customize->add_section( 'amz_customer_portal', array(
+		'title'       => __( 'Customer Portal', 'amz-prints' ),
+		'description' => __( 'Google Sign-In Client ID for customer password reset / verification. Create an OAuth Client ID (Web) in Google Cloud Console.', 'amz-prints' ),
+		'priority'    => 37.7,
+	) );
+
+	$wp_customize->add_setting( 'amz_google_client_id', array(
+		'default'           => '',
+		'sanitize_callback' => 'sanitize_text_field',
+	) );
+	$wp_customize->add_control( 'amz_google_client_id', array(
+		'label'       => __( 'Google OAuth Client ID', 'amz-prints' ),
+		'description' => __( 'Used on Customer Login for Google verification / password reset. Authorized JS origin: your website domain.', 'amz-prints' ),
+		'section'     => 'amz_customer_portal',
+		'type'        => 'text',
+	) );
+
 	/* ── Social ── */
 	$wp_customize->add_section( 'amz_social', array(
 		'title'    => __( 'Social Links', 'amz-prints' ),
