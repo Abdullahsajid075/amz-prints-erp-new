@@ -1,6 +1,6 @@
 <?php
 /**
- * Minimal product card (ERP product array).
+ * Minimal product card (ERP product array) — opens detail popup on click.
  *
  * Expects $args['product'] array.
  *
@@ -12,7 +12,6 @@ if ( ! $product || empty( $product['name'] ) ) {
 	return;
 }
 
-$purl     = function_exists( 'amz_prints_erp_product_url' ) ? amz_prints_erp_product_url( $product['id'] ) : home_url( '/products/' );
 $price_n  = (float) ( $product['basePrice'] ?? 0 );
 $price    = $price_n > 0
 	? ( function_exists( 'amz_prints_money' ) ? amz_prints_money( $price_n ) : ( 'Rs. ' . number_format_i18n( $price_n, 0 ) ) )
@@ -25,9 +24,10 @@ $category = sanitize_title( (string) ( $product['category'] ?? 'general' ) );
 if ( ! $category ) {
 	$category = 'general';
 }
+$pid = (string) ( $product['id'] ?? '' );
 ?>
-<article class="shop-card" data-category="<?php echo esc_attr( $category ); ?>">
-	<a class="shop-card__link" href="<?php echo esc_url( $purl ); ?>">
+<article class="shop-card" data-category="<?php echo esc_attr( $category ); ?>" data-product-id="<?php echo esc_attr( $pid ); ?>">
+	<button type="button" class="shop-card__link" data-open-product="<?php echo esc_attr( $pid ); ?>" aria-haspopup="dialog">
 		<div class="shop-card__media">
 			<?php if ( $img ) : ?>
 				<img src="<?php echo function_exists( 'amz_prints_product_img_src' ) ? amz_prints_product_img_src( $img ) : esc_url( $img ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>" alt="<?php echo esc_attr( $product['name'] ); ?>" loading="lazy">
@@ -41,5 +41,5 @@ if ( ! $category ) {
 			<span class="shop-card__rule" aria-hidden="true"></span>
 			<span class="shop-card__price"><?php echo esc_html( $price ); ?></span>
 		</div>
-	</a>
+	</button>
 </article>

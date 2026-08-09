@@ -32,12 +32,14 @@ function amz_prints_register_post_types() {
 			'add_new_item'  => __( 'Add New Product', 'amz-prints' ),
 			'edit_item'     => __( 'Edit Product', 'amz-prints' ),
 		),
-		'public'       => true,
-		'has_archive'  => true,
-		'rewrite'      => array( 'slug' => 'product' ),
-		'menu_icon'    => 'dashicons-products',
-		'supports'     => array( 'title', 'editor', 'thumbnail', 'excerpt', 'page-attributes' ),
-		'show_in_rest' => true,
+		'public'             => true,
+		'publicly_queryable' => false,
+		'has_archive'        => false,
+		// Avoid /product/ clash with website ERP product modals.
+		'rewrite'            => array( 'slug' => 'demo-product' ),
+		'menu_icon'          => 'dashicons-products',
+		'supports'           => array( 'title', 'editor', 'thumbnail', 'excerpt', 'page-attributes' ),
+		'show_in_rest'       => true,
 	) );
 }
 add_action( 'init', 'amz_prints_register_post_types' );

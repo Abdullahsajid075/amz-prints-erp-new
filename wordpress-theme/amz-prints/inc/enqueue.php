@@ -58,13 +58,34 @@ function amz_prints_enqueue_assets() {
 		'loggedIn'      => function_exists( 'amz_prints_customer_is_logged_in' ) ? amz_prints_customer_is_logged_in() : false,
 	) );
 
+	$catalog = array();
+	if ( function_exists( 'amz_prints_erp_get_products' ) ) {
+		foreach ( amz_prints_erp_get_products() as $p ) {
+			$catalog[] = array(
+				'id'          => (string) ( $p['id'] ?? '' ),
+				'name'        => (string) ( $p['name'] ?? '' ),
+				'category'    => (string) ( $p['category'] ?? '' ),
+				'description' => (string) ( $p['description'] ?? '' ),
+				'basePrice'   => (float) ( $p['basePrice'] ?? 0 ),
+				'unit'        => (string) ( $p['unit'] ?? '' ),
+				'material'    => (string) ( $p['material'] ?? '' ),
+				'size'        => (string) ( $p['size'] ?? '' ),
+				'minQuantity' => max( 1, (int) ( $p['minQuantity'] ?? 1 ) ),
+				'image'       => (string) ( $p['image'] ?? '' ),
+				'images'      => ! empty( $p['images'] ) && is_array( $p['images'] ) ? array_values( $p['images'] ) : array(),
+			);
+		}
+	}
+
 	wp_localize_script( 'amz-prints-commerce', 'amzCommerce', array(
-		'ajaxUrl'   => admin_url( 'admin-ajax.php' ),
-		'nonce'     => wp_create_nonce( 'amz_prints_commerce' ),
-		'cartUrl'   => home_url( '/cart/' ),
+		'ajaxUrl'    => admin_url( 'admin-ajax.php' ),
+		'nonce'      => wp_create_nonce( 'amz_prints_commerce' ),
+		'cartUrl'    => home_url( '/cart/' ),
 		'checkoutUrl'=> home_url( '/checkout/' ),
-		'cartCount' => function_exists( 'amz_prints_cart_count' ) ? amz_prints_cart_count() : 0,
-		'loggedIn'  => function_exists( 'amz_prints_customer_is_logged_in' ) ? amz_prints_customer_is_logged_in() : false,
+		'quoteUrl'   => home_url( '/quote/' ),
+		'cartCount'  => function_exists( 'amz_prints_cart_count' ) ? amz_prints_cart_count() : 0,
+		'loggedIn'   => function_exists( 'amz_prints_customer_is_logged_in' ) ? amz_prints_customer_is_logged_in() : false,
+		'products'   => $catalog,
 	) );
 }
 add_action( 'wp_enqueue_scripts', 'amz_prints_enqueue_assets' );

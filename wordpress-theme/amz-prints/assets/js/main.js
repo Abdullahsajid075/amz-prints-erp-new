@@ -145,7 +145,7 @@
     function perPage() {
       if (window.innerWidth <= 560) return 1;
       if (window.innerWidth <= 900) return 2;
-      return 4;
+      return 3;
     }
 
     function maxPage() {

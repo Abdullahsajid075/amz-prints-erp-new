@@ -66,6 +66,7 @@ $legal = amz_prints_mod( 'amz_legal_name', 'Amazon Printings (Pvt) Ltd' );
 
 <?php get_template_part( 'template-parts/float', 'tools' ); ?>
 <?php get_template_part( 'template-parts/promo', 'popup' ); ?>
+<?php get_template_part( 'template-parts/product', 'modal' ); ?>
 
 <?php wp_footer(); ?>
 </body>

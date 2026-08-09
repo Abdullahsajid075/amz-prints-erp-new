@@ -64,8 +64,154 @@
   // Header badge bootstrap
   updateBadge(cfg.cartCount || 0);
 
-  // Product listing / detail add to cart
+  var products = Array.isArray(cfg.products) ? cfg.products : [];
+  var activeProduct = null;
+  var modal = document.querySelector('[data-product-modal]');
+
+  function findProduct(id) {
+    id = String(id || '');
+    for (var i = 0; i < products.length; i++) {
+      if (String(products[i].id) === id) return products[i];
+    }
+    return null;
+  }
+
+  function moneyLabel(product) {
+    var price = Number(product.basePrice || 0);
+    if (price <= 0) return 'Get a quote';
+    var label = money(price);
+    return product.unit ? (label + ' / ' + product.unit) : label;
+  }
+
+  function setModalImage(src, name) {
+    var img = modal.querySelector('[data-pm-image]');
+    var ph = modal.querySelector('[data-pm-placeholder]');
+    var letter = modal.querySelector('[data-pm-letter]');
+    if (src) {
+      img.src = src;
+      img.alt = name || '';
+      img.hidden = false;
+      if (ph) ph.hidden = true;
+    } else {
+      img.removeAttribute('src');
+      img.hidden = true;
+      if (ph) ph.hidden = false;
+      if (letter) letter.textContent = (name || '?').charAt(0);
+    }
+  }
+
+  function openProductModal(product) {
+    if (!modal || !product) return;
+    activeProduct = product;
+    var images = Array.isArray(product.images) && product.images.length
+      ? product.images
+      : (product.image ? [product.image] : []);
+    modal.querySelector('[data-pm-title]').textContent = product.name || '';
+    modal.querySelector('[data-pm-category]').textContent = product.category || '';
+    modal.querySelector('[data-pm-price]').textContent = moneyLabel(product);
+    modal.querySelector('[data-pm-desc]').textContent = product.description || product.category || '';
+    modal.querySelector('[data-pm-material]').textContent = product.material || '';
+    modal.querySelector('[data-pm-size]').textContent = product.size || '';
+    modal.querySelector('[data-pm-unit]').textContent = product.unit || '';
+    modal.querySelector('[data-pm-min]').textContent = String(product.minQuantity || 1);
+    modal.querySelector('[data-pm-row="material"]').hidden = !product.material;
+    modal.querySelector('[data-pm-row="size"]').hidden = !product.size;
+    modal.querySelector('[data-pm-row="unit"]').hidden = !product.unit;
+
+    setModalImage(images[0] || '', product.name);
+    var thumbs = modal.querySelector('[data-pm-thumbs]');
+    thumbs.innerHTML = '';
+    if (images.length > 1) {
+      images.forEach(function (src, idx) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'product-modal__thumb' + (idx === 0 ? ' is-active' : '');
+        b.innerHTML = '<img alt="">';
+        b.querySelector('img').src = src;
+        b.addEventListener('click', function () {
+          setModalImage(src, product.name);
+          thumbs.querySelectorAll('.product-modal__thumb').forEach(function (t) {
+            t.classList.toggle('is-active', t === b);
+          });
+        });
+        thumbs.appendChild(b);
+      });
+    }
+
+    var minQ = Math.max(1, parseInt(product.minQuantity, 10) || 1);
+    var qtyInput = modal.querySelector('[data-pm-qty-input]');
+    qtyInput.min = String(minQ);
+    qtyInput.value = String(minQ);
+
+    var orderable = Number(product.basePrice || 0) > 0;
+    modal.querySelector('[data-pm-actions]').hidden = !orderable;
+    modal.querySelector('[data-pm-quote]').hidden = orderable;
+    var qLink = modal.querySelector('[data-pm-quote-link]');
+    if (qLink) {
+      var base = cfg.quoteUrl || '/quote/';
+      qLink.href = base + (base.indexOf('?') >= 0 ? '&' : '?') + 'service=' + encodeURIComponent(product.name || '');
+    }
+    var fb = modal.querySelector('[data-pm-feedback]');
+    if (fb) { fb.hidden = true; fb.textContent = ''; }
+
+    modal.classList.add('is-open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('product-modal-open');
+  }
+
+  function closeProductModal() {
+    if (!modal) return;
+    modal.classList.remove('is-open');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('product-modal-open');
+    activeProduct = null;
+  }
+
+  if (modal) {
+    modal.querySelectorAll('[data-product-modal-close]').forEach(function (el) {
+      el.addEventListener('click', closeProductModal);
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && modal.classList.contains('is-open')) closeProductModal();
+    });
+    modal.addEventListener('click', function (e) {
+      var step = e.target.closest('[data-pm-qty]');
+      if (step) {
+        var input = modal.querySelector('[data-pm-qty-input]');
+        var min = parseInt(input.min || '1', 10) || 1;
+        input.value = String(Math.max(min, (parseInt(input.value, 10) || min) + parseInt(step.getAttribute('data-pm-qty'), 10)));
+        return;
+      }
+      var add = e.target.closest('[data-pm-add-cart]');
+      if (add && activeProduct) {
+        var qty = Math.max(1, parseInt(modal.querySelector('[data-pm-qty-input]').value, 10) || 1);
+        add.disabled = true;
+        cartUpdate(activeProduct.id, qty, 'add')
+          .then(function () {
+            var fb = modal.querySelector('[data-pm-feedback]');
+            if (fb) { fb.hidden = false; fb.textContent = 'Added to cart'; }
+            add.textContent = 'Added';
+            setTimeout(function () { add.textContent = 'Add to cart'; }, 1200);
+          })
+          .catch(function (err) {
+            var fb = modal.querySelector('[data-pm-feedback]');
+            if (fb) { fb.hidden = false; fb.textContent = err.message || 'Could not add to cart'; }
+          })
+          .finally(function () { add.disabled = false; });
+      }
+    });
+  }
+
+  // Product listing / detail add to cart + open detail popup
   document.addEventListener('click', function (e) {
+    var openBtn = e.target.closest('[data-open-product]');
+    if (openBtn) {
+      e.preventDefault();
+      var product = findProduct(openBtn.getAttribute('data-open-product'));
+      if (product) openProductModal(product);
+      return;
+    }
+
     var addBtn = e.target.closest('[data-add-to-cart]');
     if (addBtn) {
       var wrap = addBtn.closest('[data-add-cart]');
