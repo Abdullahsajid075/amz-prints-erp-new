@@ -685,7 +685,20 @@ async function dispatch(req, res) {
               orderId,
             });
 
-            const { error: orderErr } = await supabase.from('orders').insert(row);
+            let { error: orderErr } = await supabase.from('orders').insert(row);
+            if (orderErr) {
+              // Retry without optional commerce columns if schema not migrated yet
+              const fallback = { ...row };
+              delete fallback.payment_status;
+              delete fallback.payment_history;
+              delete fallback.order_source;
+              delete fallback.subtotal;
+              delete fallback.discount_amount;
+              delete fallback.delivery_charges;
+              const retry = await supabase.from('orders').insert(fallback);
+              orderErr = retry.error;
+              if (!orderErr) Object.assign(row, fallback);
+            }
             if (orderErr) return sendError(res, orderErr.message || 'Could not create order', 500);
 
             try {
