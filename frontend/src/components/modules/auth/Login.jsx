@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -154,6 +155,16 @@ const Login = () => {
             >
               {loginLoading ? 'Signing in...' : 'Sign In'}
             </Button>
+            <p className="text-center text-sm text-muted-foreground pt-1">
+              <Link
+                to="/story"
+                className="underline-offset-4 hover:underline"
+                style={{ color: primary }}
+                data-testid="login-story-link"
+              >
+                Watch our story
+              </Link>
+            </p>
           </form>
         </CardContent>
       </Card>

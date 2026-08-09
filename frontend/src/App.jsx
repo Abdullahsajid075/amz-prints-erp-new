@@ -36,6 +36,7 @@ import Accounts from '@/components/modules/accounts/Accounts';
 import POS from '@/components/modules/pos/POS';
 import PrintingCostCalculator from '@/components/modules/calculator/PrintingCostCalculator';
 import PublicOrderTracking from '@/components/modules/tracking/PublicOrderTracking';
+import StoryPage from '@/components/modules/story/StoryPage';
 
 /**
  * App shell (Brand + Auth) only mounts for protected routes.
@@ -63,6 +64,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         {/* Public — no Auth / no Vercel login */}
+        <Route path="/story" element={<StoryPage />} />
         <Route path="/login" element={<Login />} />
         <Route
           path="/invoice/:shareToken"
