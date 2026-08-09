@@ -1,14 +1,38 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Navigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
+import { canAccessModule, canAccessPath } from '@/utils/permissions';
 
 /**
  * @param {object} props
  * @param {React.ReactNode} props.children
- * @param {boolean} [props.requireVendors] — Admin / Accounts / Manager only
+ * @param {boolean} [props.requireVendors] — Vendors module / admin accounts roles
+ * @param {string} [props.module] — required app module key
+ * @param {string} [props.path] — pathname to resolve module from (optional)
  */
-const ProtectedRoute = ({ children, requireVendors = false }) => {
-  const { isAuthenticated, loading, canAccessVendors } = useAuth();
+const ProtectedRoute = ({ children, requireVendors = false, module, path }) => {
+  const { isAuthenticated, loading, user, canAccessVendors } = useAuth();
+  const deniedToastFor = useRef('');
+
+  const moduleDenied = Boolean(
+    module && isAuthenticated && !loading && !canAccessModule(user, module)
+  );
+  const pathDenied = Boolean(
+    path && isAuthenticated && !loading && !canAccessPath(user, path)
+  );
+  const vendorsDenied = Boolean(
+    requireVendors && isAuthenticated && !loading && !canAccessVendors
+  );
+  const denied = moduleDenied || pathDenied || vendorsDenied;
+
+  useEffect(() => {
+    if (!denied) return;
+    const key = module || path || (requireVendors ? 'vendors' : 'denied');
+    if (deniedToastFor.current === key) return;
+    deniedToastFor.current = key;
+    toast.error('Permission not granted');
+  }, [denied, module, path, requireVendors]);
 
   if (loading) {
     return (
@@ -25,7 +49,7 @@ const ProtectedRoute = ({ children, requireVendors = false }) => {
     return <Navigate to="/login" replace />;
   }
 
-  if (requireVendors && !canAccessVendors) {
+  if (denied) {
     return <Navigate to="/dashboard" replace />;
   }
 

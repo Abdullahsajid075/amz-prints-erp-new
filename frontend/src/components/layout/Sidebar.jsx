@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import {
@@ -12,41 +12,41 @@ import { useBrand } from '@/context/BrandContext';
 import { useAuth } from '@/context/AuthContext';
 
 const menuItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', testId: 'nav-dashboard' },
-  { icon: Quote, label: 'Quotation', path: '/quotations', testId: 'nav-quotations' },
-  { icon: ShoppingCart, label: 'Orders', path: '/orders', testId: 'nav-orders' },
-  { icon: Ticket, label: 'Token Booking', path: '/tokens', testId: 'nav-tokens' },
-  { icon: FileText, label: 'Invoices', path: '/invoices', testId: 'nav-invoices' },
-  { icon: Users, label: 'Customers', path: '/customers', testId: 'nav-customers' },
-  { icon: Kanban, label: 'CRM', path: '/crm', testId: 'nav-crm' },
-  { icon: ShoppingBag, label: 'Purchases', path: '/purchases', testId: 'nav-purchases' },
-  { icon: Warehouse, label: 'Warehouse', path: '/warehouse', testId: 'nav-warehouse',
+  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', module: 'dashboard', testId: 'nav-dashboard' },
+  { icon: Quote, label: 'Quotation', path: '/quotations', module: 'quotations', testId: 'nav-quotations' },
+  { icon: ShoppingCart, label: 'Orders', path: '/orders', module: 'orders', testId: 'nav-orders' },
+  { icon: Ticket, label: 'Token Booking', path: '/tokens', module: 'tokens', testId: 'nav-tokens' },
+  { icon: FileText, label: 'Invoices', path: '/invoices', module: 'invoices', testId: 'nav-invoices' },
+  { icon: Users, label: 'Customers', path: '/customers', module: 'customers', testId: 'nav-customers' },
+  { icon: Kanban, label: 'CRM', path: '/crm', module: 'crm', testId: 'nav-crm' },
+  { icon: ShoppingBag, label: 'Purchases', path: '/purchases', module: 'purchases', testId: 'nav-purchases' },
+  { icon: Warehouse, label: 'Warehouse', path: '/warehouse', module: 'warehouse', testId: 'nav-warehouse',
     children: [
-      { label: 'Products', path: '/warehouse/products' },
-      { label: 'Inventory', path: '/warehouse/inventory' },
+      { label: 'Products', path: '/warehouse/products', module: 'warehouse' },
+      { label: 'Inventory', path: '/warehouse/inventory', module: 'warehouse' },
     ]
   },
-  { icon: Store, label: 'POS', path: '/pos', testId: 'nav-pos',
+  { icon: Store, label: 'POS', path: '/pos', module: 'pos', testId: 'nav-pos',
     children: [
-      { label: 'Counter', path: '/pos' },
-      { label: 'POS Statement', path: '/pos/statement' },
+      { label: 'Counter', path: '/pos', module: 'pos' },
+      { label: 'POS Statement', path: '/pos/statement', module: 'pos' },
     ]
   },
-  { icon: UsersRound, label: 'HR', path: '/hr', testId: 'nav-hr',
+  { icon: UsersRound, label: 'HR', path: '/hr', module: 'hr', testId: 'nav-hr',
     children: [
-      { label: 'Employees', path: '/hr/employees' },
+      { label: 'Employees', path: '/hr/employees', module: 'hr' },
     ]
   },
-  { icon: Calculator, label: 'Cost Calculator', path: '/calculator', testId: 'nav-calculator' },
-  { icon: CreditCard, label: 'Accounts', path: '/accounts', testId: 'nav-accounts',
+  { icon: Calculator, label: 'Cost Calculator', path: '/calculator', module: 'calculator', testId: 'nav-calculator' },
+  { icon: CreditCard, label: 'Accounts', path: '/accounts', module: 'accounts', testId: 'nav-accounts',
     children: [
-      { label: 'Payments', path: '/accounts/payments' },
-      { label: 'Expenses', path: '/accounts/expenses' },
-      { label: 'Vendors', path: '/accounts/vendors', requireVendors: true },
+      { label: 'Payments', path: '/accounts/payments', module: 'accounts' },
+      { label: 'Expenses', path: '/accounts/expenses', module: 'accounts' },
+      { label: 'Vendors', path: '/accounts/vendors', module: 'vendors' },
     ]
   },
-  { icon: BarChart3, label: 'Reports', path: '/reports', testId: 'nav-reports' },
-  { icon: Settings, label: 'Settings', path: '/settings', testId: 'nav-settings' },
+  { icon: BarChart3, label: 'Reports', path: '/reports', module: 'reports', testId: 'nav-reports' },
+  { icon: Settings, label: 'Settings', path: '/settings', module: 'settings', testId: 'nav-settings' },
 ];
 
 const pathMatches = (base, pathname) => {
@@ -57,15 +57,22 @@ const pathMatches = (base, pathname) => {
 
 const Sidebar = ({ isOpen, closeSidebar }) => {
   const { company, primary } = useBrand();
-  const { canAccessVendors } = useAuth();
+  const { canAccessModule } = useAuth();
   const location = useLocation();
   const [openGroup, setOpenGroup] = useState('');
 
-  const visibleMenu = menuItems.map((item) => {
-    if (!item.children) return item;
-    const children = item.children.filter((c) => !c.requireVendors || canAccessVendors);
-    return { ...item, children };
-  });
+  const visibleMenu = useMemo(() => {
+    return menuItems
+      .map((item) => {
+        if (!item.children) {
+          return canAccessModule(item.module) ? item : null;
+        }
+        const children = item.children.filter((c) => canAccessModule(c.module || item.module));
+        if (!children.length) return null;
+        return { ...item, children };
+      })
+      .filter(Boolean);
+  }, [canAccessModule]);
 
   // Auto-expand the group that matches the current route
   useEffect(() => {
@@ -76,7 +83,7 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
       )
     );
     setOpenGroup(active ? active.path : '');
-  }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [location.pathname, visibleMenu]);
 
   const toggleGroup = (path) => {
     setOpenGroup((prev) => (prev === path ? '' : path));

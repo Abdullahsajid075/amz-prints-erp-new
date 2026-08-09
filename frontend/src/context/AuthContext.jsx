@@ -3,6 +3,7 @@ import { authAPI } from '../services/api';
 import { tokenStorage } from '../services/tokenStorage';
 import { setUnauthorizedHandler } from '../services/gasClient';
 import { canAccessVendors, canManageVendors } from '@/utils/vendorPayables';
+import { canAccessModule, canAccessPath, hasFullAccess } from '@/utils/permissions';
 
 const AuthContext = createContext(null);
 
@@ -116,6 +117,9 @@ export const AuthProvider = ({ children }) => {
     clearSession();
   }, [clearSession]);
 
+  const checkModule = useCallback((moduleKey) => canAccessModule(user, moduleKey), [user]);
+  const checkPath = useCallback((pathname) => canAccessPath(user, pathname), [user]);
+
   const value = useMemo(
     () => ({
       user,
@@ -124,10 +128,13 @@ export const AuthProvider = ({ children }) => {
       login,
       logout,
       displayName: getUserDisplayName(user),
-      canAccessVendors: canAccessVendors(user),
-      canManageVendors: canManageVendors(user),
+      hasFullAccess: hasFullAccess(user),
+      canAccessModule: checkModule,
+      canAccessPath: checkPath,
+      canAccessVendors: canAccessVendors(user) || canAccessModule(user, 'vendors'),
+      canManageVendors: canManageVendors(user) || hasFullAccess(user),
     }),
-    [user, loading, isAuthenticated, login, logout]
+    [user, loading, isAuthenticated, login, logout, checkModule, checkPath]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

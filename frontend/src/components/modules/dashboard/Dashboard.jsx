@@ -27,13 +27,13 @@ const PIPELINE = [
 ];
 
 const QUICK_ACTIONS = [
-  { label: 'New Order', path: '/orders/new', icon: Plus, tint: '#F26522' },
-  { label: 'Token Booking', path: '/tokens', icon: Ticket, tint: '#0EA5E9' },
-  { label: 'POS Sale', path: '/pos', icon: Store, tint: '#10B981' },
-  { label: 'Quotation', path: '/quotations/new', icon: FileText, tint: '#8B5CF6' },
-  { label: 'Invoice', path: '/invoices/new', icon: FileSpreadsheet, tint: '#F59E0B' },
-  { label: 'Customer', path: '/customers', icon: Users, tint: '#64748B' },
-  { label: 'Cost Calc', path: '/calculator', icon: Calculator, tint: '#0D9488' },
+  { label: 'New Order', path: '/orders/new', module: 'orders', icon: Plus, tint: '#F26522' },
+  { label: 'Token Booking', path: '/tokens', module: 'tokens', icon: Ticket, tint: '#0EA5E9' },
+  { label: 'POS Sale', path: '/pos', module: 'pos', icon: Store, tint: '#10B981' },
+  { label: 'Quotation', path: '/quotations/new', module: 'quotations', icon: FileText, tint: '#8B5CF6' },
+  { label: 'Invoice', path: '/invoices/new', module: 'invoices', icon: FileSpreadsheet, tint: '#F59E0B' },
+  { label: 'Customer', path: '/customers', module: 'customers', icon: Users, tint: '#64748B' },
+  { label: 'Cost Calc', path: '/calculator', module: 'calculator', icon: Calculator, tint: '#0D9488' },
 ];
 
 function greetingForHour(h) {
@@ -117,9 +117,19 @@ const Panel = ({ title, subtitle, action, children, className = '', testId }) =>
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, canAccessModule } = useAuth();
   const { company, primary } = useBrand();
   const brand = primary || '#F26522';
+
+  const quickActions = useMemo(
+    () => QUICK_ACTIONS.filter((a) => canAccessModule(a.module)),
+    [canAccessModule]
+  );
+
+  const goIfAllowed = useCallback((path, moduleKey) => {
+    if (!canAccessModule(moduleKey)) return;
+    navigate(path);
+  }, [canAccessModule, navigate]);
 
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
   const [loading, setLoading] = useState(true);
@@ -372,37 +382,36 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Quick actions */}
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Quick actions</h2>
-          <p className="text-xs text-gray-400">Most-used workflows</p>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {QUICK_ACTIONS.map((a) => {
-            const Icon = a.icon;
-            return (
-              <button
-                key={a.path}
-                type="button"
-                onClick={() => navigate(a.path)}
-                className="group rounded-2xl border border-gray-100 bg-white p-4 text-left hover:shadow-md hover:border-orange-200 transition-all"
-              >
-                <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 group-hover:scale-105 transition-transform"
-                  style={{ backgroundColor: a.tint }}
+      {/* Quick actions — single row */}
+      {quickActions.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Quick actions</h2>
+          </div>
+          <div className="flex flex-nowrap items-stretch gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+            {quickActions.map((a) => {
+              const Icon = a.icon;
+              return (
+                <button
+                  key={a.path}
+                  type="button"
+                  onClick={() => navigate(a.path)}
+                  className="group inline-flex items-center gap-2.5 shrink-0 rounded-xl border border-gray-100 bg-white px-3 py-2.5 text-left hover:shadow-sm hover:border-orange-200 transition-all"
                 >
-                  <Icon className="h-5 w-5 text-white" />
-                </div>
-                <p className="text-sm font-semibold text-gray-800">{a.label}</p>
-                <p className="text-[11px] text-gray-400 mt-0.5 inline-flex items-center gap-1">
-                  Open <ArrowRight className="h-3 w-3" />
-                </p>
-              </button>
-            );
-          })}
-        </div>
-      </section>
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                    style={{ backgroundColor: a.tint }}
+                  >
+                    <Icon className="h-4 w-4 text-white" />
+                  </div>
+                  <span className="text-sm font-semibold text-gray-800 whitespace-nowrap">{a.label}</span>
+                  <ArrowRight className="h-3.5 w-3.5 text-gray-300 group-hover:text-orange-400 shrink-0" />
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Documents + health */}
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -412,7 +421,7 @@ const Dashboard = () => {
           value={stats.totalQuotations || 0}
           icon={FileText}
           tint="#8B5CF6"
-          onClick={() => navigate('/quotations')}
+          onClick={canAccessModule('quotations') ? () => goIfAllowed('/quotations', 'quotations') : undefined}
         />
         <MetricTile
           testId="stat-total-orders"
@@ -421,7 +430,7 @@ const Dashboard = () => {
           sub={`${stats.pendingOrders || 0} in pipeline`}
           icon={ShoppingCart}
           tint={brand}
-          onClick={() => navigate('/orders')}
+          onClick={canAccessModule('orders') ? () => goIfAllowed('/orders', 'orders') : undefined}
         />
         <MetricTile
           testId="stat-total-invoices"
@@ -429,7 +438,7 @@ const Dashboard = () => {
           value={stats.totalInvoices || 0}
           icon={FileSpreadsheet}
           tint="#0EA5E9"
-          onClick={() => navigate('/invoices')}
+          onClick={canAccessModule('invoices') ? () => goIfAllowed('/invoices', 'invoices') : undefined}
         />
         <MetricTile
           testId="stat-customers"
@@ -437,7 +446,7 @@ const Dashboard = () => {
           value={stats.activeCustomers || 0}
           icon={Users}
           tint="#64748B"
-          onClick={() => navigate('/customers')}
+          onClick={canAccessModule('customers') ? () => goIfAllowed('/customers', 'customers') : undefined}
         />
       </section>
 

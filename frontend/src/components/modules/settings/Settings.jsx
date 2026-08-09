@@ -20,6 +20,7 @@ import {
 import { Save, Building2, FileText, Palette, Users, ShoppingCart, Package, UserCog, CreditCard, Bell, Shield, Database, Trash2, Plus, X, Edit, MessageCircle, Mail, Kanban, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { DEFAULT_CRM_STAGES } from '@/utils/crmStages';
+import { getAssignableModules, hasFullAccess, normalizePermissions } from '@/utils/permissions';
 
 const defaultSettings = {
   company: { name: 'Amazon Printing Services', tagline: 'Professional Printing & Advertising Services', address: 'King Road, Mandi Bahauddin', phone: '', email: 'amazonprinting@gmail.com', website: 'amzprints.com', taxId: '', authorizedSignatory: 'Authorized Person', logo: '', stamp: '', signature: '' },
@@ -57,6 +58,7 @@ const defaultSettings = {
 };
 
 const emptyUser = { username: '', password: '', name: '', role: 'Sales', status: 'Active', permissions: [], employeeId: '' };
+const ASSIGNABLE_MODULES = getAssignableModules();
 
 const readFileAsDataURL = (file) =>
   new Promise((resolve, reject) => {
@@ -303,9 +305,31 @@ const Settings = () => {
       name: u.name || '',
       role: u.role || 'Sales',
       status: u.status || 'Active',
-      permissions: u.permissions || [],
+      permissions: normalizePermissions(u.permissions),
       employeeId: u.employeeId || '',
     });
+  };
+
+  const toggleUserModule = (moduleKey) => {
+    const key = String(moduleKey).toLowerCase();
+    setUserForm((prev) => {
+      const current = normalizePermissions(prev.permissions);
+      const next = current.includes(key)
+        ? current.filter((m) => m !== key)
+        : [...current, key];
+      return { ...prev, permissions: next };
+    });
+  };
+
+  const selectAllModules = () => {
+    setUserForm((prev) => ({
+      ...prev,
+      permissions: ASSIGNABLE_MODULES.map((m) => m.key),
+    }));
+  };
+
+  const clearAllModules = () => {
+    setUserForm((prev) => ({ ...prev, permissions: [] }));
   };
 
   const grantLoginFromEmployee = (emp) => {
@@ -753,6 +777,48 @@ const Settings = () => {
                     </Select>
                   </div>
                 </div>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <Label className="text-sm font-semibold">Allowed modules</Label>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Only checked modules appear in the menu. Restricted URLs show &quot;Permission not granted&quot;.
+                        Admin / Super Admin always have full access.
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button type="button" variant="outline" size="sm" onClick={selectAllModules}>Select all</Button>
+                      <Button type="button" variant="outline" size="sm" onClick={clearAllModules}>Clear</Button>
+                    </div>
+                  </div>
+                  {hasFullAccess(userForm) ? (
+                    <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded px-2 py-1.5">
+                      This role has full access to every module (module checkboxes are optional for non-admin roles).
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                      {ASSIGNABLE_MODULES.map((mod) => {
+                        const checked = normalizePermissions(userForm.permissions).includes(mod.key);
+                        return (
+                          <label
+                            key={mod.key}
+                            className={`flex items-center gap-2 rounded-md border px-2.5 py-2 text-sm cursor-pointer bg-white ${
+                              checked ? 'border-orange-300 ring-1 ring-orange-200' : 'border-gray-200'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              className="rounded border-gray-300"
+                              checked={checked}
+                              onChange={() => toggleUserModule(mod.key)}
+                            />
+                            <span>{mod.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
                 <div className="flex gap-2">
                   <Button onClick={saveUser} className="text-white" style={{ backgroundColor: primary || '#F26522' }}>
                     <Save className="h-4 w-4 mr-2" />{editingUserId ? 'Update User' : 'Add User'}
@@ -772,25 +838,33 @@ const Settings = () => {
                           <th className="text-left p-2">Username</th>
                           <th className="text-left p-2">Name</th>
                           <th className="text-left p-2">Role</th>
+                          <th className="text-left p-2">Modules</th>
                           <th className="text-left p-2">Status</th>
                           <th className="text-right p-2">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {sheetUsers.map((u) => (
+                        {sheetUsers.map((u) => {
+                          const perms = normalizePermissions(u.permissions);
+                          const modulesLabel = hasFullAccess(u)
+                            ? 'All'
+                            : (perms.length ? `${perms.length} selected` : 'Dashboard only');
+                          return (
                           <tr key={u.id || u.username} className="border-b">
                             <td className="p-2 font-medium">{u.username}</td>
                             <td className="p-2">{u.name}</td>
                             <td className="p-2"><Badge variant="outline">{u.role}</Badge></td>
+                            <td className="p-2 text-xs text-gray-600">{modulesLabel}</td>
                             <td className="p-2">{u.status}</td>
                             <td className="p-2 text-right">
                               <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => editUser(u)}><Edit className="h-4 w-4" /></Button>
                               <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => deleteUser(u)}><Trash2 className="h-4 w-4 text-red-600" /></Button>
                             </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                         {!sheetUsers.length && (
-                          <tr><td colSpan={5} className="p-4 text-center text-gray-500">No users loaded — check GAS /users endpoint</td></tr>
+                          <tr><td colSpan={6} className="p-4 text-center text-gray-500">No users loaded — check GAS /users endpoint</td></tr>
                         )}
                       </tbody>
                     </table>

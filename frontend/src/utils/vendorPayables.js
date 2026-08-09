@@ -44,21 +44,27 @@ export function aggregateVendorPurchases(purchases = []) {
   return byVendor;
 }
 
-/** Roles allowed to manage vendors / see payables detail */
+/** Roles / modules allowed to manage vendors / see payables detail */
 export function canAccessVendors(user) {
   if (!user) return false;
   const role = String(user.role || '').trim().toLowerCase();
-  if (!role) return false;
-  if (['admin', 'administrator', 'owner', 'accounts', 'account', 'accountant', 'manager', 'finance'].includes(role)) {
+  if (['super admin', 'admin', 'administrator', 'owner'].includes(role)) {
     return true;
   }
-  const perms = Array.isArray(user.permissions) ? user.permissions : [];
-  return perms.some((p) => /vendor|accounts|purchase|payable/i.test(String(p)));
+  const perms = Array.isArray(user.permissions)
+    ? user.permissions.map((p) => String(p || '').trim().toLowerCase())
+    : [];
+  if (perms.includes('vendors') || perms.includes('accounts')) return true;
+  if (perms.some((p) => /vendor|payable/i.test(String(p)))) return true;
+  // Legacy role fallback only when no module list is assigned yet
+  if (!perms.length && ['accounts', 'account', 'accountant', 'manager', 'finance'].includes(role)) {
+    return true;
+  }
+  return false;
 }
 
 export function canManageVendors(user) {
   if (!canAccessVendors(user)) return false;
   const role = String(user.role || '').trim().toLowerCase();
-  // Staff with only view permission cannot delete/edit — Admin/Accounts/Owner can
-  return ['admin', 'administrator', 'owner', 'accounts', 'account', 'accountant', 'manager', 'finance'].includes(role);
+  return ['super admin', 'admin', 'administrator', 'owner', 'accounts', 'account', 'accountant', 'manager', 'finance'].includes(role);
 }

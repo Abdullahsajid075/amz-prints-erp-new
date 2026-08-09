@@ -1,5 +1,22 @@
 const { supabase } = require('../db');
 
+function normalizePermissions(raw) {
+  if (Array.isArray(raw)) {
+    return raw.map((p) => String(p || '').trim().toLowerCase()).filter(Boolean);
+  }
+  if (typeof raw === 'string' && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.map((p) => String(p || '').trim().toLowerCase()).filter(Boolean);
+      }
+    } catch {
+      return raw.split(/[,|]/).map((p) => p.trim().toLowerCase()).filter(Boolean);
+    }
+  }
+  return [];
+}
+
 function sanitizeUser(user) {
   if (!user) return null;
   const username = String(user.username || user.email || user.id || '').trim();
@@ -9,6 +26,7 @@ function sanitizeUser(user) {
     name: String(user.name || '').trim(),
     email: String(user.email || username || '').trim(),
     role: String(user.role || 'Admin').trim(),
+    permissions: normalizePermissions(user.permissions),
   };
 }
 

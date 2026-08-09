@@ -545,6 +545,7 @@ function sanitizeUser_(user) {
     name: name,
     email: String(user.email || username || '').trim(),
     role: String(user.role || 'Admin').trim(),
+    permissions: parsePermissions_(user.permissions),
   };
 }
 

@@ -1,17 +1,20 @@
 export const MODULES = {
   DASHBOARD: 'dashboard',
+  QUOTATIONS: 'quotations',
   ORDERS: 'orders',
-  CUSTOMERS: 'customers',
-  PRODUCTS: 'products',
-  DESIGNERS: 'designers',
-  PRODUCTION: 'production',
-  INVENTORY: 'inventory',
+  TOKENS: 'tokens',
   INVOICES: 'invoices',
-  PAYMENTS: 'payments',
-  EXPENSES: 'expenses',
-  EMPLOYEES: 'employees',
+  CUSTOMERS: 'customers',
+  CRM: 'crm',
+  PURCHASES: 'purchases',
+  WAREHOUSE: 'warehouse',
+  POS: 'pos',
+  HR: 'hr',
+  CALCULATOR: 'calculator',
+  ACCOUNTS: 'accounts',
+  VENDORS: 'vendors',
   REPORTS: 'reports',
-  SETTINGS: 'settings'
+  SETTINGS: 'settings',
 };
 
 export const ORDER_STATUS = {
