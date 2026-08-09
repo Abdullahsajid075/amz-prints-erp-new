@@ -63,7 +63,7 @@ get_header();
 					the_content();
 				} else {
 					?>
-					<form class="amz-form" id="amz-wa-contact-form" data-wa-form>
+					<form class="amz-form" id="amz-wa-contact-form" data-wa-form data-lead-source="website-contact">
 						<label>
 							<span>Name</span>
 							<input type="text" name="name" required>
@@ -81,7 +81,7 @@ get_header();
 							<textarea name="message" rows="5" required></textarea>
 						</label>
 						<button type="submit" class="btn btn--primary btn--lg">Send on WhatsApp</button>
-						<p class="form-note">Opens WhatsApp with your full message and REQUIRED INFO header.</p>
+						<p class="form-note">Saved as a CRM Lead in ERP, then opens WhatsApp with REQUIRED INFO header.</p>
 					</form>
 					<?php
 				}

@@ -229,6 +229,99 @@ async function dispatch(req, res) {
           companyNote: 'Verified employment record — Amazon Printing / AMZ Prints.',
         });
       }
+      if (method === 'GET' && path === '/public/products') {
+        const { data: rows } = await supabase.from('products').select('*');
+        const products = (rows || [])
+          .map(mapProduct)
+          .filter((p) => p && p.active !== false && String(p.status || 'Active').toLowerCase() !== 'inactive')
+          .map((p) => ({
+            id: p.id || '',
+            name: p.name || '',
+            category: p.category || '',
+            productType: p.productType || 'Product',
+            basePrice: Number(p.basePrice || p.rate || 0),
+            unit: p.unit || 'per piece',
+            description: p.description || '',
+            material: p.material || '',
+            size: p.size || '',
+            minQuantity: Number(p.minQuantity || 1),
+            image: p.image || p.photo || '',
+          }));
+        return send(res, products);
+      }
+      if (method === 'POST' && path === '/public/lead') {
+        const name = String(body.name || body.customerName || '').trim();
+        const phone = String(body.phone || body.customerPhone || '').trim();
+        const email = String(body.email || body.customerEmail || '').trim();
+        const company = String(body.company || '').trim();
+        const product = String(body.product || body.service || '').trim();
+        const quantity = String(body.quantity || '').trim();
+        const neededBy = String(body.neededBy || body.needed_by || '').trim();
+        const details = String(body.details || body.message || body.notes || '').trim();
+        const source = String(body.source || 'website').trim() || 'website';
+        if (!name) return sendError(res, 'Name is required', 400);
+        if (!phone && !email) return sendError(res, 'Phone or email is required', 400);
+
+        const noteLines = [
+          `Website inquiry (${source})`,
+          company ? `Company: ${company}` : '',
+          product ? `Product/Service: ${product}` : '',
+          quantity ? `Quantity: ${quantity}` : '',
+          neededBy ? `Needed by: ${neededBy}` : '',
+          details ? `Details: ${details}` : '',
+        ].filter(Boolean);
+        const noteText = noteLines.join('\n');
+
+        let existing = null;
+        if (phone) {
+          const { data } = await supabase.from('customers').select('*').eq('phone', phone).limit(1);
+          existing = data && data[0];
+        }
+        let customerId = existing?.id;
+        if (existing) {
+          const updates = {
+            name: name || existing.name,
+            phone: phone || existing.phone,
+            email: email || existing.email,
+            address: company ? `Company: ${company}` : (existing.address || ''),
+            notes: noteText || existing.notes,
+            in_crm: true,
+            stage: 'lead',
+            stage_updated_at: new Date().toISOString(),
+          };
+          await supabase.from('customers').update(updates).eq('id', existing.id);
+        } else {
+          customerId = id('cust');
+          await supabase.from('customers').insert({
+            id: customerId,
+            name,
+            phone,
+            email,
+            address: company ? `Company: ${company}` : '',
+            city: '',
+            notes: noteText,
+            in_crm: true,
+            stage: 'lead',
+            stage_updated_at: new Date().toISOString(),
+            notify_whatsapp: true,
+            notify_email: true,
+          });
+        }
+
+        try {
+          await supabase.from('crm_notes').insert({
+            id: id('note'),
+            customer_id: customerId,
+            note: noteText,
+            created_at: new Date().toISOString(),
+            created_by: 'website',
+          });
+        } catch {
+          /* note optional */
+        }
+
+        return send(res, { ok: true, customerId, stage: 'lead', inCrm: true });
+      }
       return sendError(res, 'Not found', 404);
     }
 

@@ -154,36 +154,64 @@ $catalog     = array_slice( amz_prints_services_catalog(), 0, 6 );
 		</header>
 		<div class="product-grid">
 			<?php
-			$products = new WP_Query( array(
-				'post_type'      => 'amz_product',
-				'posts_per_page' => 6,
-				'orderby'        => 'menu_order',
-				'order'          => 'ASC',
-			) );
-			if ( $products->have_posts() ) :
-				while ( $products->have_posts() ) :
-					$products->the_post();
-					$price = get_post_meta( get_the_ID(), '_amz_price_label', true );
+			$erp_home_products = function_exists( 'amz_prints_erp_get_products' ) ? amz_prints_erp_get_products() : array();
+			if ( ! empty( $erp_home_products ) ) :
+				$erp_home_products = array_slice( $erp_home_products, 0, 6 );
+				foreach ( $erp_home_products as $product ) :
+					$quote   = add_query_arg( 'service', $product['name'], home_url( '/quote/' ) );
+					$price   = amz_prints_erp_product_price_label( $product );
+					$excerpt = $product['description'] ? wp_trim_words( $product['description'], 14 ) : ( $product['category'] ?: '' );
 					?>
 					<article class="product-tile reveal" data-reveal>
-						<a href="<?php the_permalink(); ?>">
+						<a href="<?php echo esc_url( $quote ); ?>">
 							<div class="product-tile__media">
-								<?php if ( has_post_thumbnail() ) : ?>
-									<?php the_post_thumbnail( 'amz-product' ); ?>
+								<?php if ( ! empty( $product['image'] ) ) : ?>
+									<img src="<?php echo esc_url( $product['image'] ); ?>" alt="<?php echo esc_attr( $product['name'] ); ?>" loading="lazy">
 								<?php else : ?>
-									<div class="product-tile__placeholder" aria-hidden="true"><span><?php echo esc_html( mb_substr( get_the_title(), 0, 1 ) ); ?></span></div>
+									<div class="product-tile__placeholder" aria-hidden="true"><span><?php echo esc_html( mb_substr( $product['name'], 0, 1 ) ); ?></span></div>
 								<?php endif; ?>
 							</div>
 							<div class="product-tile__body">
-								<h3><?php the_title(); ?></h3>
-								<p><?php echo esc_html( wp_trim_words( get_the_excerpt() ?: get_the_content(), 14 ) ); ?></p>
-								<?php if ( $price ) : ?><span class="product-tile__price"><?php echo esc_html( $price ); ?></span><?php endif; ?>
+								<h3><?php echo esc_html( $product['name'] ); ?></h3>
+								<?php if ( $excerpt ) : ?><p><?php echo esc_html( $excerpt ); ?></p><?php endif; ?>
+								<span class="product-tile__price"><?php echo esc_html( $price ); ?></span>
 							</div>
 						</a>
 					</article>
 					<?php
-				endwhile;
-				wp_reset_postdata();
+				endforeach;
+			else :
+				$products = new WP_Query( array(
+					'post_type'      => 'amz_product',
+					'posts_per_page' => 6,
+					'orderby'        => 'menu_order',
+					'order'          => 'ASC',
+				) );
+				if ( $products->have_posts() ) :
+					while ( $products->have_posts() ) :
+						$products->the_post();
+						$price = get_post_meta( get_the_ID(), '_amz_price_label', true );
+						?>
+						<article class="product-tile reveal" data-reveal>
+							<a href="<?php the_permalink(); ?>">
+								<div class="product-tile__media">
+									<?php if ( has_post_thumbnail() ) : ?>
+										<?php the_post_thumbnail( 'amz-product' ); ?>
+									<?php else : ?>
+										<div class="product-tile__placeholder" aria-hidden="true"><span><?php echo esc_html( mb_substr( get_the_title(), 0, 1 ) ); ?></span></div>
+									<?php endif; ?>
+								</div>
+								<div class="product-tile__body">
+									<h3><?php the_title(); ?></h3>
+									<p><?php echo esc_html( wp_trim_words( get_the_excerpt() ?: get_the_content(), 14 ) ); ?></p>
+									<?php if ( $price ) : ?><span class="product-tile__price"><?php echo esc_html( $price ); ?></span><?php endif; ?>
+								</div>
+							</a>
+						</article>
+						<?php
+					endwhile;
+					wp_reset_postdata();
+				endif;
 			endif;
 			?>
 		</div>

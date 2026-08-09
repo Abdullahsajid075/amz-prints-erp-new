@@ -173,10 +173,52 @@
     window.open(url, '_blank', 'noopener');
   }
 
+  function submitLeadThenWhatsApp(form) {
+    var fd = new FormData(form);
+    var source = form.getAttribute('data-lead-source') || 'website-quote';
+    var btn = form.querySelector('[type="submit"]');
+    var waText = buildWaMessage(form);
+
+    function finishWa() {
+      if (btn) {
+        btn.disabled = false;
+      }
+      openWhatsApp(waText);
+    }
+
+    if (!cfg.ajaxUrl || !cfg.leadNonce) {
+      finishWa();
+      return;
+    }
+
+    if (btn) {
+      btn.disabled = true;
+    }
+
+    var body = new FormData();
+    body.append('action', 'amz_prints_submit_lead');
+    body.append('nonce', cfg.leadNonce);
+    body.append('source', source);
+    body.append('name', fd.get('name') || '');
+    body.append('company', fd.get('company') || '');
+    body.append('email', fd.get('email') || '');
+    body.append('phone', fd.get('phone') || '');
+    body.append('product', fd.get('product') || fd.get('service') || '');
+    body.append('quantity', fd.get('quantity') || '');
+    body.append('needed_by', fd.get('needed_by') || '');
+    body.append('details', fd.get('details') || fd.get('message') || '');
+    body.append('message', fd.get('message') || fd.get('details') || '');
+
+    // CRM first; WhatsApp always opens even if CRM fails.
+    fetch(cfg.ajaxUrl, { method: 'POST', body: body, credentials: 'same-origin' })
+      .catch(function () { /* ignore */ })
+      .then(function () { finishWa(); });
+  }
+
   document.querySelectorAll('[data-wa-form]').forEach(function (form) {
     form.addEventListener('submit', function (e) {
       e.preventDefault();
-      openWhatsApp(buildWaMessage(form));
+      submitLeadThenWhatsApp(form);
     });
   });
 

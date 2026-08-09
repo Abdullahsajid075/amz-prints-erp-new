@@ -21,18 +21,19 @@ function amz_prints_enqueue_assets() {
 	$wa_msg  = amz_prints_mod( 'amz_wa_message', 'Hello Amazon Printings, I need help with a printing service.' );
 
 	wp_localize_script( 'amz-prints-main', 'amzPrints', array(
-		'ajaxUrl' => admin_url( 'admin-ajax.php' ),
-		'nonce'   => wp_create_nonce( 'amz_ai_chat' ),
-		'homeUrl' => home_url( '/' ),
-		'lang'    => 'en',
-		'wa'      => array(
+		'ajaxUrl'   => admin_url( 'admin-ajax.php' ),
+		'nonce'     => wp_create_nonce( 'amz_ai_chat' ),
+		'leadNonce' => wp_create_nonce( 'amz_prints_lead' ),
+		'homeUrl'   => home_url( '/' ),
+		'lang'      => 'en',
+		'wa'        => array(
 			'number'      => $wa,
 			'flowUrl'     => $wa_flow,
 			'message'     => $wa_msg,
 			'headerImage' => AMZ_PRINTS_URI . '/assets/images/required-info.png',
 			'href'        => $wa_flow ? $wa_flow : ( $wa ? 'https://wa.me/' . $wa . '?text=' . rawurlencode( $wa_msg ) : '' ),
 		),
-		'chat'    => array(
+		'chat'      => array(
 			'quote'    => home_url( '/quote/' ),
 			'track'    => home_url( '/track-order/' ),
 			'services' => home_url( '/services/' ),

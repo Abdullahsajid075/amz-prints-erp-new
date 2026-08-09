@@ -7,15 +7,42 @@
 
 get_header();
 
-$prefill = isset( $_GET['service'] ) ? sanitize_text_field( wp_unslash( $_GET['service'] ) ) : '';
-$wa_img  = AMZ_PRINTS_URI . '/assets/images/required-info.png';
+$prefill      = isset( $_GET['service'] ) ? sanitize_text_field( wp_unslash( $_GET['service'] ) ) : '';
+$wa_img       = AMZ_PRINTS_URI . '/assets/images/required-info.png';
+$erp_products = function_exists( 'amz_prints_erp_get_products' ) ? amz_prints_erp_get_products() : array();
+$static_opts  = array(
+	'Website Development',
+	'Social Media Management',
+	'Business Cards',
+	'Flyers & Brochures',
+	'Banners & Signage',
+	'Packaging',
+	'Vehicle Branding',
+	'NADRA E-Services',
+	'Other',
+);
+$product_names = array();
+foreach ( $erp_products as $p ) {
+	if ( ! empty( $p['name'] ) ) {
+		$product_names[] = $p['name'];
+	}
+}
+if ( empty( $product_names ) ) {
+	$product_names = $static_opts;
+} else {
+	foreach ( array( 'NADRA E-Services', 'Website Development', 'Social Media Management', 'Other' ) as $extra ) {
+		if ( ! in_array( $extra, $product_names, true ) ) {
+			$product_names[] = $extra;
+		}
+	}
+}
 ?>
 
 <section class="page-hero page-hero--light">
 	<div class="container">
 		<p class="page-hero__brand">Amazon Printings (Pvt) Ltd</p>
 		<h1><?php the_title(); ?></h1>
-		<p class="page-hero__lead">Share your project details — we send your request to WhatsApp instantly.</p>
+		<p class="page-hero__lead">Share your project details — we save your request in CRM and open WhatsApp instantly.</p>
 	</div>
 </section>
 
@@ -29,12 +56,12 @@ $wa_img  = AMZ_PRINTS_URI . '/assets/images/required-info.png';
 				<li>Needed delivery date</li>
 				<li>Artwork status (ready / need design)</li>
 			</ul>
-			<p class="quote-aside__note">Submit form → opens WhatsApp with full details.</p>
+			<p class="quote-aside__note">Submit → CRM Lead in ERP + WhatsApp with full details.</p>
 			<img class="required-info-preview" src="<?php echo esc_url( $wa_img ); ?>" width="100" height="20" alt="REQUIRED INFO">
 		</div>
 
 		<div class="quote-form-wrap reveal" data-reveal>
-			<form class="amz-form" id="amz-wa-quote-form" data-wa-form>
+			<form class="amz-form" id="amz-wa-quote-form" data-wa-form data-lead-source="website-quote">
 				<img src="<?php echo esc_url( $wa_img ); ?>" width="100" height="20" alt="REQUIRED INFO" class="required-info-preview" hidden>
 				<div class="form-row">
 					<label>
@@ -60,15 +87,12 @@ $wa_img  = AMZ_PRINTS_URI . '/assets/images/required-info.png';
 					<span>Product / Service</span>
 					<select name="product" required>
 						<option value="">Select…</option>
-						<option <?php selected( $prefill, 'Website Development' ); ?>>Website Development</option>
-						<option <?php selected( $prefill, 'Social Media Management' ); ?>>Social Media Management</option>
-						<option <?php selected( $prefill, 'Business Cards' ); ?>>Business Cards</option>
-						<option <?php selected( $prefill, 'Flyers & Brochures' ); ?>>Flyers & Brochures</option>
-						<option <?php selected( $prefill, 'Banners & Signage' ); ?>>Banners & Signage</option>
-						<option <?php selected( $prefill, 'Packaging' ); ?>>Packaging</option>
-						<option <?php selected( $prefill, 'Vehicle Branding' ); ?>>Vehicle Branding</option>
-						<option <?php selected( $prefill, 'NADRA E-Services' ); ?>>NADRA E-Services</option>
-						<option <?php echo $prefill && ! in_array( $prefill, array( 'Website Development', 'Social Media Management', 'Business Cards', 'Flyers & Brochures', 'Banners & Signage', 'Packaging', 'Vehicle Branding', 'NADRA E-Services' ), true ) ? 'selected' : ''; ?>><?php echo $prefill ? esc_html( $prefill ) : 'Other'; ?></option>
+						<?php foreach ( $product_names as $opt ) : ?>
+							<option value="<?php echo esc_attr( $opt ); ?>" <?php selected( $prefill, $opt ); ?>><?php echo esc_html( $opt ); ?></option>
+						<?php endforeach; ?>
+						<?php if ( $prefill && ! in_array( $prefill, $product_names, true ) ) : ?>
+							<option value="<?php echo esc_attr( $prefill ); ?>" selected><?php echo esc_html( $prefill ); ?></option>
+						<?php endif; ?>
 					</select>
 				</label>
 				<div class="form-row">
@@ -86,7 +110,7 @@ $wa_img  = AMZ_PRINTS_URI . '/assets/images/required-info.png';
 					<textarea name="details" rows="5" required placeholder="Size, colors, finishes, delivery…"></textarea>
 				</label>
 				<button type="submit" class="btn btn--primary btn--lg">Send on WhatsApp</button>
-				<p class="form-note">Your full form is converted into a WhatsApp message with REQUIRED INFO header.</p>
+				<p class="form-note">Saved as a CRM Lead in ERP, then opens WhatsApp with REQUIRED INFO header.</p>
 			</form>
 		</div>
 	</div>

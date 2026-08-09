@@ -2753,7 +2753,8 @@ function getReports_(params) {
   return { period: (params && params.period) || 'month', summary: stats };
 }
 
-function handlePublic_(path, method) {
+function handlePublic_(path, method, body) {
+  body = body || {};
   if (method === 'GET' && path === '/public/branding') {
     var settings = getSettings_();
     var company = settings.company || {};
@@ -2772,6 +2773,12 @@ function handlePublic_(path, method) {
       companyStamp: company.stamp || '',
       companySignature: company.signature || '',
     };
+  }
+  if (method === 'GET' && path === '/public/products') {
+    return listPublicProducts_();
+  }
+  if (method === 'POST' && path === '/public/lead') {
+    return createPublicLead_(body);
   }
   if (method === 'GET' && path.indexOf('/public/invoice/') === 0) {
     var token = path.replace('/public/invoice/', '');
@@ -2799,6 +2806,88 @@ function handlePublic_(path, method) {
     return toPublicEmployeeVerify_(empCode);
   }
   throw new Error('Not found');
+}
+
+/** Public website catalog — active products only, safe fields. */
+function listPublicProducts_() {
+  getOrCreateSheet_(SHEET_NAMES.PRODUCTS);
+  var rows = getSheetRows_(SHEET_NAMES.PRODUCTS) || [];
+  return rows
+    .map(toApiProduct_)
+    .filter(function (p) {
+      return p && p.active !== false && String(p.status || 'Active').toLowerCase() !== 'inactive';
+    })
+    .map(function (p) {
+      return {
+        id: p.id || '',
+        name: p.name || '',
+        category: p.category || '',
+        productType: p.productType || 'Product',
+        basePrice: Number(p.basePrice || p.rate || 0),
+        unit: p.unit || 'per piece',
+        description: p.description || '',
+        material: p.material || '',
+        size: p.size || '',
+        minQuantity: Number(p.minQuantity || 1),
+        image: p.image || p.photo || '',
+      };
+    });
+}
+
+/**
+ * Website Quote / Contact → CRM Lead.
+ * Creates/updates customer with inCrm=true, stage=lead, and stores query as CRM note.
+ */
+function createPublicLead_(body) {
+  body = body || {};
+  var name = String(body.name || body.customerName || '').trim();
+  var phone = String(body.phone || body.customerPhone || '').trim();
+  var email = String(body.email || body.customerEmail || '').trim();
+  var company = String(body.company || '').trim();
+  var product = String(body.product || body.service || '').trim();
+  var quantity = String(body.quantity || '').trim();
+  var neededBy = String(body.neededBy || body.needed_by || '').trim();
+  var details = String(body.details || body.message || body.notes || '').trim();
+  var source = String(body.source || 'website').trim() || 'website';
+
+  if (!name) throw new Error('Name is required');
+  if (!phone && !email) throw new Error('Phone or email is required');
+
+  var noteLines = [
+    'Website inquiry (' + source + ')',
+    company ? ('Company: ' + company) : '',
+    product ? ('Product/Service: ' + product) : '',
+    quantity ? ('Quantity: ' + quantity) : '',
+    neededBy ? ('Needed by: ' + neededBy) : '',
+    details ? ('Details: ' + details) : '',
+  ].filter(Boolean);
+  var noteText = noteLines.join('\n');
+
+  var customer = upsertCustomer_({
+    name: name,
+    phone: phone,
+    email: email,
+    address: company ? ('Company: ' + company) : '',
+    notes: noteText,
+    inCrm: true,
+    stage: 'lead',
+  });
+
+  try {
+    addCrmNote_(customer.id, {
+      note: noteText,
+      createdBy: 'website',
+    });
+  } catch (e) {
+    // Notes sheet optional — customer lead still saved
+  }
+
+  return {
+    ok: true,
+    customerId: customer.id || '',
+    stage: 'lead',
+    inCrm: true,
+  };
 }
 
 /** Public employee / experience-letter verification (no sensitive fields). */

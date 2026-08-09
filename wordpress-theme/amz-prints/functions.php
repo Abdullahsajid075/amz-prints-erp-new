@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AMZ_PRINTS_VERSION', '2.0.1' );
+define( 'AMZ_PRINTS_VERSION', '2.1.0' );
 define( 'AMZ_PRINTS_DIR', get_template_directory() );
 define( 'AMZ_PRINTS_URI', get_template_directory_uri() );
 
@@ -19,6 +19,7 @@ require_once AMZ_PRINTS_DIR . '/inc/post-types.php';
 require_once AMZ_PRINTS_DIR . '/inc/i18n.php';
 require_once AMZ_PRINTS_DIR . '/inc/services-catalog.php';
 require_once AMZ_PRINTS_DIR . '/inc/track-order.php';
+require_once AMZ_PRINTS_DIR . '/inc/erp-api.php';
 
 /**
  * Theme setup
