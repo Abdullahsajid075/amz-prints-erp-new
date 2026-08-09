@@ -40,7 +40,10 @@ var DEFAULT_CRM_STAGES = [
 
 var DEFAULT_HEADERS = {
   Users: ['Username', 'Password', 'Name', 'Role', 'Status', 'Permissions', 'EmployeeId'],
-  Customers: ['Id', 'Name', 'Phone', 'Email', 'Address', 'City', 'Notes', 'InCrm', 'Stage', 'StageUpdatedAt', 'NotifyWhatsApp', 'NotifyEmail'],
+  Customers: [
+    'Id', 'Name', 'Phone', 'Email', 'Address', 'City', 'Notes',
+    'InCrm', 'Stage', 'StageUpdatedAt', 'NotifyWhatsApp', 'NotifyEmail', 'PortalPassword'
+  ],
   CrmNotes: ['Id', 'CustomerId', 'Note', 'CreatedAt', 'CreatedBy'],
   Employees: [
     'Id', 'EmployeeCode', 'Name', 'Phone', 'Email', 'Cnic', 'Role', 'Designation', 'Department',
@@ -51,7 +54,8 @@ var DEFAULT_HEADERS = {
     'Id', 'OrderId', 'Date', 'CustomerId', 'CustomerName', 'CustomerPhone',
     'CustomerEmail', 'CustomerAddress', 'Status', 'DeliveryDate', 'Products',
     'TotalAmount', 'AdvancePayment', 'BalanceAmount', 'Remarks', 'AssignedDesigner', 'TokenNo',
-    'DocType', 'TrackingNumber', 'StatusHistory', 'DeliveryAddress', 'QuotationId'
+    'DocType', 'TrackingNumber', 'StatusHistory', 'DeliveryAddress', 'QuotationId',
+    'PaymentMethod', 'PaymentStatus', 'Discount', 'DeliveryCharges', 'OrderSource', 'PaymentHistory'
   ],
   Products: ['Id', 'Name', 'Category', 'Rate', 'Unit', 'Description', 'Status', 'ProductType', 'Designer', 'Stock', 'Material', 'Size', 'MinQuantity', 'Image'],
   Invoices: [
@@ -1438,6 +1442,12 @@ function normalizeOrder_(body, existing) {
     statushistory: body.statusHistory != null ? body.statusHistory : (body.statushistory != null ? body.statushistory : (existing.statushistory || [])),
     deliveryaddress: pick('deliveryAddress', 'deliveryaddress', existing.deliveryaddress || '') || '',
     quotationid: pick('quotationId', 'quotationid', existing.quotationid || '') || '',
+    paymentmethod: pick('paymentMethod', 'paymentmethod', existing.paymentmethod || '') || '',
+    paymentstatus: pick('paymentStatus', 'paymentstatus', existing.paymentstatus || '') || '',
+    discount: Number(body.discount != null ? body.discount : (body.Discount != null ? body.Discount : (existing.discount || 0))),
+    deliverycharges: Number(body.deliveryCharges != null ? body.deliveryCharges : (body.deliverycharges != null ? body.deliverycharges : (existing.deliverycharges || 0))),
+    ordersource: pick('orderSource', 'ordersource', existing.ordersource || '') || '',
+    paymenthistory: body.paymentHistory != null ? body.paymentHistory : (body.paymenthistory != null ? body.paymenthistory : (existing.paymenthistory || [])),
   };
 }
 
@@ -1479,6 +1489,18 @@ function toApiOrder_(o) {
     statusHistory: statusHistory,
     deliveryAddress: o.deliveryaddress || '',
     quotationId: o.quotationid || '',
+    paymentMethod: o.paymentmethod || '',
+    paymentStatus: o.paymentstatus || '',
+    discount: Number(o.discount || 0),
+    deliveryCharges: Number(o.deliverycharges || 0),
+    orderSource: o.ordersource || '',
+    paymentHistory: (function () {
+      var ph = o.paymenthistory;
+      if (typeof ph === 'string') {
+        try { ph = JSON.parse(ph); } catch (ePh) { ph = []; }
+      }
+      return Array.isArray(ph) ? ph : (ph ? [ph] : []);
+    })(),
   };
 }
 
@@ -2867,7 +2889,204 @@ function getReports_(params) {
   return { period: (params && params.period) || 'month', summary: stats };
 }
 
-function handlePublic_(path, method) {
+function hashPortalPassword_(password, salt) {
+  var raw = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    String(salt || '') + '|' + String(password || ''),
+    Utilities.Charset.UTF_8
+  );
+  return raw.map(function (b) {
+    var v = (b < 0 ? b + 256 : b).toString(16);
+    return v.length === 1 ? '0' + v : v;
+  }).join('');
+}
+
+function issueCustomerPortalToken_(customer) {
+  var token = Utilities.base64EncodeWebSafe(JSON.stringify({
+    typ: 'customer',
+    id: String(customer.id || ''),
+    exp: Date.now() + 7 * 24 * 60 * 60 * 1000,
+  }));
+  return token;
+}
+
+function validateCustomerPortalToken_(token) {
+  if (!token) return null;
+  try {
+    var payload = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(token)).getDataAsString());
+    if (payload.typ !== 'customer') return null;
+    if (payload.exp && Date.now() > payload.exp) return null;
+    var customers = getSheetRows_(SHEET_NAMES.CUSTOMERS);
+    var match = customers.find(function (c) { return String(c.id) === String(payload.id); });
+    return match || null;
+  } catch (err) {
+    return null;
+  }
+}
+
+function sanitizePortalCustomer_(c) {
+  return {
+    id: c.id,
+    name: c.name || '',
+    phone: c.phone || '',
+    email: c.email || '',
+    address: c.address || '',
+    city: c.city || '',
+  };
+}
+
+function toPublicProduct_(p) {
+  var api = toApiProduct_(p);
+  if (!api.active) return null;
+  var images = [];
+  if (api.image) images.push(api.image);
+  var extra = p.images || p.gallery;
+  if (typeof extra === 'string') {
+    try { extra = JSON.parse(extra); } catch (eImg) { extra = []; }
+  }
+  if (Array.isArray(extra)) {
+    extra.forEach(function (img) {
+      var s = sanitizeCatalogImage_(img);
+      if (s && images.indexOf(s) === -1) images.push(s);
+    });
+  }
+  api.images = images;
+  return api;
+}
+
+function handlePublicWebsiteOrder_(body, customer) {
+  body = body || {};
+  if (!customer) throw new Error('Login required to place an order');
+  if (!body.acceptPolicy && body.policyAccepted !== true) {
+    throw new Error('Please accept the Order Processing Policy before placing the order');
+  }
+
+  var paymentMethodRaw = String(body.paymentMethod || body.payment_method || 'Cash on Delivery').trim();
+  var isCod = /cod|cash\s*on\s*delivery/i.test(paymentMethodRaw);
+  var paymentMethod = isCod ? 'Cash on Delivery' : 'Online Payment';
+  var paymentStatus = isCod ? 'Unpaid' : 'Payment Pending';
+
+  var catalog = getSheetRows_(SHEET_NAMES.PRODUCTS);
+  var linesIn = Array.isArray(body.products) ? body.products : (Array.isArray(body.items) ? body.items : []);
+  if (!linesIn.length) throw new Error('Cart is empty');
+
+  var products = [];
+  var subtotal = 0;
+  linesIn.forEach(function (line) {
+    line = line || {};
+    var pid = String(line.productId || line.id || '').trim();
+    var qty = Math.max(1, Number(line.quantity) || 1);
+    var match = pid ? catalog.find(function (p) { return String(p.id) === pid; }) : null;
+    if (!match && line.name) {
+      match = catalog.find(function (p) {
+        return String(p.name || '').trim().toLowerCase() === String(line.name).trim().toLowerCase();
+      });
+    }
+    if (!match) throw new Error('Product not found: ' + (line.name || pid || 'unknown'));
+    if (String(match.status || 'Active').toLowerCase() === 'inactive') {
+      throw new Error('Product unavailable: ' + (match.name || pid));
+    }
+    var rate = Number(match.rate || match.baseprice || 0);
+    var minQ = Number(match.minquantity || 1) || 1;
+    if (qty < minQ) qty = minQ;
+    products.push({
+      productId: match.id,
+      name: match.name,
+      quantity: qty,
+      rate: rate,
+      size: match.size || '',
+      material: match.material || '',
+      notes: line.notes || '',
+    });
+    subtotal += qty * rate;
+  });
+
+  var discount = Math.max(0, Number(body.discount) || 0);
+  var deliveryCharges = Math.max(0, Number(body.deliveryCharges != null ? body.deliveryCharges : body.delivery_charges) || 0);
+  if (discount > subtotal) discount = subtotal;
+  var totalAmount = Math.max(0, subtotal - discount + deliveryCharges);
+
+  var paymentHistory = [{
+    at: new Date().toISOString(),
+    status: paymentStatus,
+    method: paymentMethod,
+    amount: 0,
+    note: isCod
+      ? 'Order placed under Cash on Delivery terms'
+      : 'Online payment selected — order created; processing starts after payment confirmation',
+  }];
+
+  var orderBody = {
+    customerId: customer.id,
+    customerName: customer.name || body.customerName || '',
+    customerPhone: customer.phone || body.customerPhone || '',
+    customerEmail: customer.email || body.customerEmail || '',
+    customerAddress: body.customerAddress || customer.address || '',
+    deliveryAddress: body.deliveryAddress || body.customerAddress || customer.address || '',
+    products: products,
+    totalAmount: totalAmount,
+    advancePayment: 0,
+    balanceAmount: totalAmount,
+    discount: discount,
+    deliveryCharges: deliveryCharges,
+    paymentMethod: paymentMethod,
+    paymentStatus: paymentStatus,
+    orderSource: 'website',
+    paymentHistory: paymentHistory,
+    status: 'Order Received',
+    docType: 'Order',
+    remarks: [
+      'Website order',
+      paymentMethod,
+      'Payment: ' + paymentStatus,
+      body.notes ? String(body.notes) : '',
+    ].filter(Boolean).join(' · '),
+    trackingNumber: 'TRK-' + String(Math.floor(1000 + Math.random() * 9000)),
+    statusHistory: [{ status: 'Order Received', at: new Date().toISOString(), by: 'website' }],
+  };
+
+  var sheet = getSheet_(SHEET_NAMES.ORDERS);
+  ensureHeaders_(sheet, SHEET_NAMES.ORDERS);
+  var record = normalizeOrder_(orderBody);
+  appendObject_(sheet, SHEET_NAMES.ORDERS, record);
+  invalidateSheetCache_(SHEET_NAMES.ORDERS);
+
+  // Payment history stub in Payments sheet (amount 0 until confirmed)
+  try {
+    var paySheet = getSheet_(SHEET_NAMES.PAYMENTS);
+    ensureHeaders_(paySheet, SHEET_NAMES.PAYMENTS);
+    appendObject_(paySheet, SHEET_NAMES.PAYMENTS, {
+      id: 'pay_web_' + Date.now(),
+      date: nowDate_(),
+      type: 'inflow',
+      category: isCod ? 'COD Order' : 'Online Order',
+      refid: record.orderid,
+      customername: record.customername,
+      customerid: record.customerid,
+      partyphone: record.customerphone,
+      partyemail: record.customeremail,
+      amount: 0,
+      method: paymentMethod,
+      notes: 'Website order ' + record.orderid + ' · status ' + paymentStatus,
+      balancedue: totalAmount,
+      totalamount: totalAmount,
+    });
+    invalidateSheetCache_(SHEET_NAMES.PAYMENTS);
+  } catch (payErr) { /* non-blocking */ }
+
+  var api = toApiOrder_(record);
+  api.subtotal = subtotal;
+  return api;
+}
+
+function handlePublic_(path, method, body) {
+  body = body || {};
+  var authHeader = '';
+  try {
+    // token may arrive as body.token for public customer calls
+    authHeader = String(body.token || body.customerToken || '').trim();
+  } catch (eTok) { authHeader = ''; }
+
   if (method === 'GET' && path === '/public/branding') {
     var settings = getSettings_();
     var company = settings.company || {};
@@ -2887,6 +3106,144 @@ function handlePublic_(path, method) {
       companySignature: company.signature || '',
     };
   }
+
+  if (method === 'GET' && path === '/public/products') {
+    ensureHeaders_(getSheet_(SHEET_NAMES.PRODUCTS), SHEET_NAMES.PRODUCTS);
+    var products = getSheetRows_(SHEET_NAMES.PRODUCTS)
+      .map(toPublicProduct_)
+      .filter(function (p) { return !!p; });
+    return { products: products };
+  }
+
+  if (method === 'GET' && path.indexOf('/public/products/') === 0) {
+    var productId = decodeURIComponent(path.replace('/public/products/', '')).trim();
+    var productRows = getSheetRows_(SHEET_NAMES.PRODUCTS);
+    var productRow = productRows.find(function (p) { return String(p.id) === productId; });
+    if (!productRow) throw new Error('Product not found');
+    var pub = toPublicProduct_(productRow);
+    if (!pub) throw new Error('Product not available');
+    return pub;
+  }
+
+  if (method === 'POST' && path === '/public/lead') {
+    var lead = upsertCustomer_({
+      name: body.name,
+      phone: body.phone,
+      email: body.email,
+      address: body.address || '',
+      notes: [body.product || body.service || '', body.quantity || '', body.details || body.message || '']
+        .filter(Boolean).join(' | '),
+      inCrm: true,
+      stage: 'lead',
+      source: body.source || 'website',
+    });
+    try {
+      addCrmNote_(lead.id, {
+        note: 'Website lead: ' + (body.details || body.message || body.product || 'Inquiry'),
+        createdBy: 'website',
+      });
+    } catch (noteErr) { /* ignore */ }
+    return { ok: true, customerId: lead.id, stage: lead.stage || 'lead' };
+  }
+
+  if (method === 'POST' && path === '/public/customer/register') {
+    var regName = String(body.name || '').trim();
+    var regPhone = String(body.phone || '').trim();
+    var regEmail = String(body.email || '').trim().toLowerCase();
+    var regPass = String(body.password || '');
+    if (!regName || !regPhone) throw new Error('Name and phone are required');
+    if (!isValidEmail_(regEmail)) throw new Error('Valid email is required');
+    if (regPass.length < 6) throw new Error('Password must be at least 6 characters');
+
+    var sheetC = getSheet_(SHEET_NAMES.CUSTOMERS);
+    ensureHeaders_(sheetC, SHEET_NAMES.CUSTOMERS);
+    var existingPhone = findCustomerByPhone_(regPhone);
+    var existingEmail = getSheetRows_(SHEET_NAMES.CUSTOMERS).find(function (c) {
+      return String(c.email || '').trim().toLowerCase() === regEmail;
+    });
+    if (existingEmail && existingEmail.portalpassword) {
+      throw new Error('An account with this email already exists — please login');
+    }
+    var salt = Utilities.getUuid();
+    var hash = hashPortalPassword_(regPass, salt);
+    var portalPass = salt + ':' + hash;
+    var customer;
+    if (existingPhone) {
+      updateObjectProps_(sheetC, SHEET_NAMES.CUSTOMERS, existingPhone._row, {
+        name: regName || existingPhone.name,
+        email: regEmail || existingPhone.email,
+        address: body.address || existingPhone.address || '',
+        portalpassword: portalPass,
+        notifyemail: true,
+        notifywhatsapp: true,
+      });
+      invalidateSheetCache_(SHEET_NAMES.CUSTOMERS);
+      customer = Object.assign({}, existingPhone, {
+        name: regName || existingPhone.name,
+        email: regEmail || existingPhone.email,
+        address: body.address || existingPhone.address || '',
+        portalpassword: portalPass,
+      });
+    } else {
+      customer = {
+        id: 'cust_' + Date.now(),
+        name: regName,
+        phone: regPhone,
+        email: regEmail,
+        address: body.address || '',
+        city: body.city || '',
+        notes: 'Website portal account',
+        incrm: false,
+        stage: '',
+        notifywhatsapp: true,
+        notifyemail: true,
+        portalpassword: portalPass,
+      };
+      appendObject_(sheetC, SHEET_NAMES.CUSTOMERS, customer);
+      invalidateSheetCache_(SHEET_NAMES.CUSTOMERS);
+    }
+    var tokenReg = issueCustomerPortalToken_(customer);
+    return { ok: true, token: tokenReg, customer: sanitizePortalCustomer_(customer) };
+  }
+
+  if (method === 'POST' && path === '/public/customer/login') {
+    var loginId = String(body.email || body.phone || body.username || '').trim().toLowerCase();
+    var loginPass = String(body.password || '');
+    if (!loginId || !loginPass) throw new Error('Email/phone and password are required');
+    var custRows = getSheetRows_(SHEET_NAMES.CUSTOMERS);
+    var loginCust = custRows.find(function (c) {
+      var email = String(c.email || '').trim().toLowerCase();
+      var phone = String(c.phone || '').replace(/\D/g, '');
+      var needlePhone = loginId.replace(/\D/g, '');
+      return (email && email === loginId)
+        || (phone && needlePhone && (phone === needlePhone || phone.slice(-10) === needlePhone.slice(-10)));
+    });
+    if (!loginCust || !loginCust.portalpassword) throw new Error('Invalid login or account not registered online');
+    var parts = String(loginCust.portalpassword).split(':');
+    if (parts.length !== 2) throw new Error('Invalid login — reset password via shop staff');
+    if (hashPortalPassword_(loginPass, parts[0]) !== parts[1]) throw new Error('Invalid email/phone or password');
+    return {
+      ok: true,
+      token: issueCustomerPortalToken_(loginCust),
+      customer: sanitizePortalCustomer_(loginCust),
+    };
+  }
+
+  if ((method === 'GET' || method === 'POST') && path === '/public/customer/me') {
+    var meTok = authHeader || String(body.token || '').trim();
+    var me = validateCustomerPortalToken_(meTok);
+    if (!me) throw new Error('Unauthorized');
+    return { ok: true, customer: sanitizePortalCustomer_(me) };
+  }
+
+  if (method === 'POST' && (path === '/public/orders' || path === '/public/checkout')) {
+    var orderTok = authHeader || String(body.token || body.customerToken || '').trim();
+    var orderCust = validateCustomerPortalToken_(orderTok);
+    if (!orderCust) throw new Error('Login required to place an order');
+    var createdOrder = handlePublicWebsiteOrder_(body, orderCust);
+    return { ok: true, order: createdOrder };
+  }
+
   if (method === 'GET' && path.indexOf('/public/invoice/') === 0) {
     var token = path.replace('/public/invoice/', '');
     var invoices = getSheetRows_(SHEET_NAMES.INVOICES);

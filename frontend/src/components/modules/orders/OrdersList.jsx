@@ -505,6 +505,13 @@ const OrdersList = () => {
                   <div><p className="text-xs text-white/80 mb-1">Advance</p><p className="text-xl font-bold text-white">{formatCurrency(viewOrder.advancePayment || 0)}</p></div>
                   <div><p className="text-xs text-white/80 mb-1">Balance</p><p className="text-xl font-bold text-white">{formatCurrency((viewOrder.totalAmount || 0) - (viewOrder.advancePayment || 0))}</p></div>
                 </div>
+                {(viewOrder.paymentMethod || viewOrder.paymentStatus || viewOrder.orderSource) && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3 pt-3 border-t border-white/20 text-white/95 text-sm">
+                    {viewOrder.orderSource ? <p>Source: <strong>{viewOrder.orderSource}</strong></p> : null}
+                    {viewOrder.paymentMethod ? <p>Method: <strong>{viewOrder.paymentMethod}</strong></p> : null}
+                    {viewOrder.paymentStatus ? <p>Status: <strong>{viewOrder.paymentStatus}</strong></p> : null}
+                  </div>
+                )}
               </div>
             </div>
           )}
