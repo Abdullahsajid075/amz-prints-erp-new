@@ -11,29 +11,39 @@ import { useBrand } from '@/context/BrandContext';
 import { formatCurrency } from '@/utils/helpers';
 import { openPrintWindow, moneyPKR, printOnLoadScript } from '@/utils/printHelpers';
 import {
-  PAPER_SHEET_PRESETS,
-  PAPER_TYPES,
+  PAPER_CATEGORIES,
+  PAPER_QUALITIES,
   PRINT_METHODS,
   COLOUR_OPTIONS,
   SIDE_OPTIONS,
   FINISHING_PROCESSES,
   COMPOSING_SIZE_CHARTS,
+  REAM_SHEETS,
   defaultFullForm,
-  applySheetPreset,
   applyComposingSize,
+  applyPaperSelection,
+  applyColourPlateCost,
   calculateFullCost,
   loadSavedCostings,
   saveCosting,
   deleteCosting,
   formatArea,
+  loadReamRates,
+  saveReamRates,
+  resetReamRates,
+  loadColourPlateCosts,
+  saveColourPlateCosts,
+  resetColourPlateCosts,
+  sizesForCategory,
+  gsmsForSelection,
 } from '@/utils/printingCostEngine';
 import {
   Calculator, Printer, Save, Trash2, RotateCcw,
-  LayoutGrid, Layers, Scissors, Wallet, Gauge, Ruler,
+  LayoutGrid, Layers, Scissors, Wallet, Gauge, Ruler, Table2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-function NumField({ label, value, onChange, min = 0, step = 1, className = '' }) {
+function NumField({ label, value, onChange, min = 0, step = 1, className = '', disabled = false }) {
   return (
     <div className={className}>
       <Label className="text-xs">{label}</Label>
@@ -42,6 +52,7 @@ function NumField({ label, value, onChange, min = 0, step = 1, className = '' })
         min={min}
         step={step}
         value={value}
+        disabled={disabled}
         onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
         className="h-9"
       />
@@ -81,6 +92,7 @@ function buildCostingPrintHtml({ title, company, form, result, mode }) {
     ['Mode', mode],
     ['Product / Job', `${form.productName || ''} ${form.jobName || ''}`.trim() || '—'],
     ['Quantity', form.quantity],
+    ['Paper', `${form.paperType || form.paperCategory} · ${form.paperSizeId} · ${form.paperGsm} GSM · ${form.paperQuality}`],
     ['Sheet', `${form.sheetWidth} × ${form.sheetHeight} ${form.sheetUnit || form.unit}`],
     ['Piece', `${form.printWidth || form.pieceWidth || form.finishedWidth} × ${form.printHeight || form.pieceHeight || form.finishedHeight} ${form.unit}`],
     ['Pieces / Sheet', result.piecesPerSheet],
@@ -88,11 +100,10 @@ function buildCostingPrintHtml({ title, company, form, result, mode }) {
     ['Required Sheets', result.requiredSheets],
     ['Wastage Sheets', result.wastageSheets],
     ['Final Sheets', result.finalSheets],
-    ['Utilization', `${result.utilizationPct.toFixed(1)}%`],
-    ['Paper Cost', `Rs ${moneyPKR(result.paperCost)}`],
-    ['Plates', result.platesRequired],
-    ['Plate Cost', `Rs ${moneyPKR(result.plateCost)}`],
-    ['Printing Cost', `Rs ${moneyPKR(result.printingCost)}`],
+    ['Ream rate (500)', `Rs ${moneyPKR(result.reamRate500)}`],
+    ['Paper Cost', `Rs ${moneyPKR(result.paperCost)}  (${result.finalSheets}/500 × rate)`],
+    ['Plates / Tracing', `Rs ${moneyPKR(result.plateCost)}`],
+    ['Extra press / sheet', `Rs ${moneyPKR(result.printingCost)}`],
     ['Finishing', `Rs ${moneyPKR(result.finishingCost)}`],
     ['Labour + Pack + Misc', `Rs ${moneyPKR(result.labourCost + result.packingCost + result.deliveryCost + result.miscCost)}`],
     ['TOTAL PRODUCTION COST', `Rs ${moneyPKR(result.totalProductionCost)}`],
@@ -127,7 +138,9 @@ const PrintingCostCalculator = () => {
   const { company, primary } = useBrand();
   const accent = primary || '#F26522';
   const [tab, setTab] = useState('full');
-  const [full, setFull] = useState(defaultFullForm);
+  const [rates, setRates] = useState(() => loadReamRates());
+  const [plateCosts, setPlateCosts] = useState(() => loadColourPlateCosts());
+  const [full, setFull] = useState(() => defaultFullForm(loadReamRates(), loadColourPlateCosts()));
   const [saved, setSaved] = useState([]);
 
   useEffect(() => {
@@ -136,16 +149,37 @@ const PrintingCostCalculator = () => {
 
   const fullResult = useMemo(() => calculateFullCost(full), [full]);
 
+  const sizeOptions = useMemo(
+    () => sizesForCategory(rates, full.paperCategory || 'paper_sheet'),
+    [rates, full.paperCategory]
+  );
+  const gsmOptions = useMemo(
+    () => gsmsForSelection(rates, full.paperCategory || 'paper_sheet', full.paperSizeId),
+    [rates, full.paperCategory, full.paperSizeId]
+  );
+
   const setFullField = useCallback((key, value) => {
     setFull((prev) => ({ ...prev, [key]: value }));
   }, []);
 
-  const onFullSheetPreset = (id) => {
-    setFull((prev) => applySheetPreset(prev, id));
+  const updatePaper = useCallback((patch) => {
+    setFull((prev) => applyPaperSelection(prev, rates, patch));
+  }, [rates]);
+
+  const onColourChange = (colourId) => {
+    setFull((prev) => applyColourPlateCost(prev, plateCosts, colourId));
   };
 
   const applyComposingRow = (chart, row, useComposing) => {
-    setFull((prev) => applyComposingSize(prev, chart, row, useComposing));
+    setFull((prev) => {
+      const next = applyComposingSize(prev, chart, row, useComposing);
+      return applyPaperSelection(next, rates, {
+        paperSizeId: chart.id === '17x24' ? '22x25' : chart.id,
+        paperCategory: chart.paperTypeHint === 'NCR' || chart.paperTypeHint === 'Carbonless'
+          ? 'carbonless'
+          : (chart.paperTypeHint === 'Ivory Card' ? 'every_card' : (chart.id === '25x30' || chart.id === '22x28' ? 'box_board' : 'paper_sheet')),
+      });
+    });
     setTab('full');
     toast.success(`${row.size} applied (${useComposing ? 'Composing' : 'Original'})`);
   };
@@ -168,6 +202,25 @@ const PrintingCostCalculator = () => {
         [id]: { ...prev.finishing[id], ...patch },
       },
     }));
+  };
+
+  const handleSaveRates = () => {
+    saveReamRates(rates);
+    saveColourPlateCosts(plateCosts);
+    setFull((prev) => {
+      const withPaper = applyPaperSelection(prev, rates, {});
+      return applyColourPlateCost(withPaper, plateCosts, withPaper.colour);
+    });
+    toast.success('Paper & plate rates saved on this browser');
+  };
+
+  const handleResetRates = () => {
+    const nextRates = resetReamRates();
+    const nextPlates = resetColourPlateCosts();
+    setRates(nextRates);
+    setPlateCosts(nextPlates);
+    setFull(defaultFullForm(nextRates, nextPlates));
+    toast.message('Rates restored to default price list');
   };
 
   const handleSave = () => {
@@ -204,10 +257,9 @@ const PrintingCostCalculator = () => {
 
   const loadEntry = (entry) => {
     if (entry.mode === 'simple' && entry.form) {
-      // migrate old simple saves into full form fields
       const f = entry.form;
-      setFull({
-        ...defaultFullForm(),
+      setFull(applyPaperSelection({
+        ...defaultFullForm(rates, plateCosts),
         jobName: f.jobName || '',
         quantity: f.quantity,
         unit: f.unit || 'inch',
@@ -219,20 +271,41 @@ const PrintingCostCalculator = () => {
         sheetWidth: f.sheetWidth,
         sheetHeight: f.sheetHeight,
         sheetUnit: f.sheetUnit || 'inch',
+        reamRate500: f.reamRate500 || ((Number(f.paperCostPerSheet) || 0) * REAM_SHEETS),
         paperCostPerSheet: f.paperCostPerSheet,
         wastagePct: f.wastagePct,
-        machineCostPerSheet: f.printCostPerSheet ?? f.machineCostPerSheet,
+        machineCostPerSheet: f.printCostPerSheet ?? f.machineCostPerSheet ?? 0,
         sides: f.sides,
         colour: f.colour,
-        platePrice: f.platePrice,
+        colourPlateCost: f.colourPlateCost,
         labourCost: f.labourPackMisc ?? f.labourCost ?? 0,
-      });
+      }, rates, {}));
     } else {
-      setFull({ ...defaultFullForm(), ...entry.form, finishing: { ...defaultFullForm().finishing, ...(entry.form?.finishing || {}) } });
+      const merged = {
+        ...defaultFullForm(rates, plateCosts),
+        ...entry.form,
+        finishing: { ...defaultFullForm(rates, plateCosts).finishing, ...(entry.form?.finishing || {}) },
+      };
+      setFull(applyColourPlateCost(applyPaperSelection(merged, rates, {
+        paperCategory: merged.paperCategory,
+        paperSizeId: merged.paperSizeId || merged.sheetPreset,
+        paperGsm: merged.paperGsm,
+        paperQuality: merged.paperQuality,
+      }), plateCosts, merged.colour));
     }
     setTab('full');
     toast.message('Loaded into calculator');
   };
+
+  const ratesByCategory = useMemo(() => {
+    const map = {};
+    PAPER_CATEGORIES.forEach((c) => { map[c.id] = []; });
+    rates.forEach((r) => {
+      if (!map[r.category]) map[r.category] = [];
+      map[r.category].push(r);
+    });
+    return map;
+  }, [rates]);
 
   return (
     <div className="space-y-4 pb-10" data-testid="printing-cost-calculator">
@@ -245,16 +318,19 @@ const PrintingCostCalculator = () => {
             </div>
             <div>
               <h1 className="text-2xl font-bold" style={{ color: '#2E2E2E' }}>Printing Cost Calculator</h1>
-              <p className="text-sm text-gray-600">Internal production costing — before quotation</p>
+              <p className="text-sm text-gray-600">
+                Paper = sheets÷500 × ream rate · Plates/tracing fixed by colour · extras manual
+              </p>
             </div>
           </div>
-          <Badge variant="outline" className="w-fit">Live calc · auto sheet nest</Badge>
+          <Badge variant="outline" className="w-fit">Live calc · auto ream price</Badge>
         </div>
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="grid w-full grid-cols-3 max-w-xl">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 max-w-3xl">
           <TabsTrigger value="full">Costing</TabsTrigger>
+          <TabsTrigger value="rates">Paper Rates</TabsTrigger>
           <TabsTrigger value="composing">Composing Sizes</TabsTrigger>
           <TabsTrigger value="saved">Saved ({saved.length})</TabsTrigger>
         </TabsList>
@@ -302,42 +378,80 @@ const PrintingCostCalculator = () => {
                 <CardContent className="pt-0 space-y-3">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     <div>
-                      <Label className="text-xs">Paper Type</Label>
-                      <Select value={full.paperType} onValueChange={(v) => setFullField('paperType', v)}>
+                      <Label className="text-xs">Type of Paper</Label>
+                      <Select value={full.paperCategory} onValueChange={(v) => updatePaper({ paperCategory: v })}>
                         <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          {PAPER_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                          {PAPER_CATEGORIES.map((t) => <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
                     <div>
-                      <Label className="text-xs">Paper Sheet Size</Label>
-                      <Select value={full.sheetPreset} onValueChange={onFullSheetPreset}>
+                      <Label className="text-xs">Sheet Size</Label>
+                      <Select value={full.paperSizeId} onValueChange={(v) => updatePaper({ paperSizeId: v })}>
                         <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          {PAPER_SHEET_PRESETS.map((p) => <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>)}
+                          {sizeOptions.map((p) => <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
-                    <NumField label="Paper Cost / Sheet" value={full.paperCostPerSheet} onChange={(v) => setFullField('paperCostPerSheet', v)} step={0.01} />
-                    <NumField label={`Sheet Width (${full.sheetUnit})`} value={full.sheetWidth} onChange={(v) => { setFullField('sheetWidth', v); setFullField('sheetPreset', 'custom'); }} step={0.01} />
-                    <NumField label={`Sheet Height (${full.sheetUnit})`} value={full.sheetHeight} onChange={(v) => { setFullField('sheetHeight', v); setFullField('sheetPreset', 'custom'); }} step={0.01} />
+                    <div>
+                      <Label className="text-xs">GSM / Gram</Label>
+                      <Select value={String(full.paperGsm)} onValueChange={(v) => updatePaper({ paperGsm: v })}>
+                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {gsmOptions.map((g) => <SelectItem key={g} value={g}>{g === 'R' ? 'R' : `${g} GSM`}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Quality</Label>
+                      <Select value={full.paperQuality} onValueChange={(v) => updatePaper({ paperQuality: v })}>
+                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {PAPER_QUALITIES.map((q) => <SelectItem key={q.id} value={q.id}>{q.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <NumField
+                      label="Price of Rim (500 sheets)"
+                      value={full.reamRate500}
+                      onChange={(v) => {
+                        setFull((prev) => ({
+                          ...prev,
+                          reamRate500: v,
+                          paperCostPerSheet: v / REAM_SHEETS,
+                        }));
+                      }}
+                      step={1}
+                    />
                     <NumField label="Wastage %" value={full.wastagePct} onChange={(v) => setFullField('wastagePct', v)} step={0.5} />
                     <NumField label={`Print Width (${full.unit})`} value={full.printWidth} onChange={(v) => setFullField('printWidth', v)} step={0.01} />
                     <NumField label={`Print Height (${full.unit})`} value={full.printHeight} onChange={(v) => setFullField('printHeight', v)} step={0.01} />
                     <NumField label={`Grip / Margin (${full.sheetUnit})`} value={full.margin} onChange={(v) => setFullField('margin', v)} step={0.01} />
                   </div>
-                  <div className="rounded-xl bg-[#FFF9F5] border border-orange-100 p-3 text-sm grid grid-cols-2 md:grid-cols-4 gap-2">
-                    <div><p className="text-[10px] uppercase text-gray-500">Layout</p><p className="font-semibold capitalize">{fullResult.orientation} · {fullResult.cols}×{fullResult.rows}</p></div>
-                    <div><p className="text-[10px] uppercase text-gray-500">Pieces / Sheet</p><p className="font-semibold">{fullResult.piecesPerSheet}</p></div>
-                    <div><p className="text-[10px] uppercase text-gray-500">Used Area</p><p className="font-semibold">{formatArea(fullResult.usedAreaMm2, full.unit)}</p></div>
-                    <div><p className="text-[10px] uppercase text-gray-500">Wasted Area</p><p className="font-semibold text-rose-600">{formatArea(fullResult.wasteAreaMm2, full.unit)}</p></div>
+                  <div className="rounded-xl bg-[#FFF9F5] border border-orange-100 p-3 text-sm space-y-2">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      <div><p className="text-[10px] uppercase text-gray-500">Layout</p><p className="font-semibold capitalize">{fullResult.orientation} · {fullResult.cols}×{fullResult.rows}</p></div>
+                      <div><p className="text-[10px] uppercase text-gray-500">Pieces / Sheet</p><p className="font-semibold">{fullResult.piecesPerSheet}</p></div>
+                      <div><p className="text-[10px] uppercase text-gray-500">Used Area</p><p className="font-semibold">{formatArea(fullResult.usedAreaMm2, full.unit)}</p></div>
+                      <div><p className="text-[10px] uppercase text-gray-500">Wasted Area</p><p className="font-semibold text-rose-600">{formatArea(fullResult.wasteAreaMm2, full.unit)}</p></div>
+                    </div>
+                    <p className="text-xs text-gray-700 border-t border-orange-100 pt-2">
+                      Paper formula:{' '}
+                      <strong>{fullResult.finalSheets}</strong> sheets ÷ {REAM_SHEETS} ×{' '}
+                      <strong>{formatCurrency(full.reamRate500 || 0)}</strong>
+                      {' '}= <strong style={{ color: accent }}>{formatCurrency(fullResult.paperCost)}</strong>
+                      {!(Number(full.reamRate500) > 0) && (
+                        <span className="text-rose-600 ml-2">No rate for this selection — edit Paper Rates or enter rim price.</span>
+                      )}
+                    </p>
                   </div>
                 </CardContent>
               </Card>
 
               <Card className="border-orange-100/80 shadow-sm rounded-2xl">
-                <CardHeader className="py-3"><CardTitle className="text-base">Printing</CardTitle></CardHeader>
+                <CardHeader className="py-3"><CardTitle className="text-base">Printing (plates & tracing)</CardTitle></CardHeader>
                 <CardContent className="pt-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   <div>
                     <Label className="text-xs">Printing Method</Label>
@@ -350,10 +464,14 @@ const PrintingCostCalculator = () => {
                   </div>
                   <div>
                     <Label className="text-xs">Colour</Label>
-                    <Select value={full.colour} onValueChange={(v) => setFullField('colour', v)}>
+                    <Select value={full.colour} onValueChange={onColourChange}>
                       <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {COLOUR_OPTIONS.map((c) => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
+                        {COLOUR_OPTIONS.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.label} — Rs {plateCosts[c.id] ?? c.defaultPlateCost}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -366,11 +484,22 @@ const PrintingCostCalculator = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <NumField label="Machine Cost / Sheet" value={full.machineCostPerSheet} onChange={(v) => setFullField('machineCostPerSheet', v)} step={0.01} />
-                  <NumField label="Plate Price (each)" value={full.platePrice} onChange={(v) => setFullField('platePrice', v)} step={1} />
+                  <NumField
+                    label="Plates + Tracing (fixed)"
+                    value={full.colourPlateCost}
+                    onChange={(v) => setFullField('colourPlateCost', v)}
+                    step={1}
+                  />
+                  <NumField
+                    label="Extra machine / sheet (optional)"
+                    value={full.machineCostPerSheet}
+                    onChange={(v) => setFullField('machineCostPerSheet', v)}
+                    step={0.01}
+                  />
                   <div className="rounded-lg bg-gray-50 border p-2.5">
-                    <p className="text-[10px] uppercase text-gray-500">Plates required</p>
+                    <p className="text-[10px] uppercase text-gray-500">Plate colours</p>
                     <p className="font-bold text-lg">{fullResult.platesRequired}</p>
+                    <p className="text-[11px] text-gray-500">Fixed cost (not × plates)</p>
                   </div>
                 </CardContent>
               </Card>
@@ -378,44 +507,47 @@ const PrintingCostCalculator = () => {
               <Card className="border-orange-100/80 shadow-sm rounded-2xl">
                 <CardHeader className="py-3 flex flex-row items-center gap-2 space-y-0">
                   <Scissors className="h-4 w-4" style={{ color: accent }} />
-                  <CardTitle className="text-base">Optional Processes</CardTitle>
+                  <CardTitle className="text-base">Other services (manual)</CardTitle>
                 </CardHeader>
-                <CardContent className="pt-0 grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {FINISHING_PROCESSES.map((proc) => {
-                    const row = full.finishing[proc.id];
-                    return (
-                      <div key={proc.id} className={`rounded-xl border p-2.5 ${row.enabled ? 'border-orange-200 bg-orange-50/40' : 'border-gray-100 bg-white'}`}>
-                        <div className="flex items-center gap-2 mb-2">
-                          <Checkbox
-                            checked={row.enabled}
-                            onCheckedChange={(c) => toggleFinishing(proc.id, Boolean(c))}
-                            id={`fin-${proc.id}`}
-                          />
-                          <Label htmlFor={`fin-${proc.id}`} className="text-sm font-medium cursor-pointer">{proc.label}</Label>
-                        </div>
-                        {row.enabled && (
-                          <div className="grid grid-cols-2 gap-2 pl-6">
-                            <Select value={row.mode} onValueChange={(v) => setFinishing(proc.id, { mode: v })}>
-                              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="fixed">Fixed Cost</SelectItem>
-                                <SelectItem value="perPiece">Per Piece</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <Input
-                              type="number"
-                              min={0}
-                              step={0.01}
-                              className="h-8"
-                              value={row.amount}
-                              onChange={(e) => setFinishing(proc.id, { amount: parseFloat(e.target.value) || 0 })}
-                              placeholder="Amount"
+                <CardContent className="pt-0">
+                  <p className="text-xs text-gray-500 mb-3">Add creasing, perforation, binding, etc. with your own amount.</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {FINISHING_PROCESSES.map((proc) => {
+                      const row = full.finishing[proc.id];
+                      return (
+                        <div key={proc.id} className={`rounded-xl border p-2.5 ${row.enabled ? 'border-orange-200 bg-orange-50/40' : 'border-gray-100 bg-white'}`}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <Checkbox
+                              checked={row.enabled}
+                              onCheckedChange={(c) => toggleFinishing(proc.id, Boolean(c))}
+                              id={`fin-${proc.id}`}
                             />
+                            <Label htmlFor={`fin-${proc.id}`} className="text-sm font-medium cursor-pointer">{proc.label}</Label>
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                          {row.enabled && (
+                            <div className="grid grid-cols-2 gap-2 pl-6">
+                              <Select value={row.mode} onValueChange={(v) => setFinishing(proc.id, { mode: v })}>
+                                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="fixed">Fixed Cost</SelectItem>
+                                  <SelectItem value="perPiece">Per Piece</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <Input
+                                type="number"
+                                min={0}
+                                step={0.01}
+                                className="h-8"
+                                value={row.amount}
+                                onChange={(e) => setFinishing(proc.id, { amount: parseFloat(e.target.value) || 0 })}
+                                placeholder="Amount"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </CardContent>
               </Card>
 
@@ -436,10 +568,10 @@ const PrintingCostCalculator = () => {
                 <CardHeader className="py-3"><CardTitle className="text-base">Final Cost</CardTitle></CardHeader>
                 <CardContent className="pt-0 space-y-2 text-sm">
                   {[
-                    ['Paper Cost', fullResult.paperCost],
-                    ['Plate Cost', fullResult.plateCost],
-                    ['Printing Cost', fullResult.printingCost],
-                    ['Finishing Cost', fullResult.finishingCost],
+                    ['Paper (ream formula)', fullResult.paperCost],
+                    ['Plates + Tracing', fullResult.plateCost],
+                    ['Extra press run', fullResult.printingCost],
+                    ['Other services', fullResult.finishingCost],
                     ['Labour', fullResult.labourCost],
                     ['Packing', fullResult.packingCost],
                     ['Delivery', fullResult.deliveryCost],
@@ -458,6 +590,7 @@ const PrintingCostCalculator = () => {
                     </p>
                     <p className="text-xs text-gray-500 mt-1">
                       Sheets: {fullResult.requiredSheets} + wastage {fullResult.wastageSheets} = {fullResult.finalSheets}
+                      {' · '}Reams: {fullResult.reamsUsed.toFixed(2)}
                     </p>
                   </div>
                   <div className="flex flex-col gap-2 pt-2">
@@ -467,7 +600,7 @@ const PrintingCostCalculator = () => {
                     <Button variant="outline" onClick={handlePrint}>
                       <Printer className="h-4 w-4 mr-2" />Print / Export PDF
                     </Button>
-                    <Button variant="ghost" onClick={() => setFull(defaultFullForm())}>
+                    <Button variant="ghost" onClick={() => setFull(defaultFullForm(rates, plateCosts))}>
                       <RotateCcw className="h-4 w-4 mr-2" />Reset
                     </Button>
                   </div>
@@ -475,6 +608,92 @@ const PrintingCostCalculator = () => {
               </Card>
             </div>
           </div>
+        </TabsContent>
+
+        {/* ================= RATES ================= */}
+        <TabsContent value="rates" className="space-y-4 mt-4">
+          <Card className="border-orange-100/80 shadow-sm rounded-2xl">
+            <CardHeader className="py-3 flex flex-row items-start justify-between gap-3 space-y-0">
+              <div className="flex items-start gap-2">
+                <Table2 className="h-4 w-4 mt-0.5" style={{ color: accent }} />
+                <div>
+                  <CardTitle className="text-base">Paper rates (per 500 sheets)</CardTitle>
+                  <p className="text-xs text-gray-500 font-normal mt-0.5">
+                    Edit rates for future updates. Saved on this browser. Costing auto-fills from type + size + GSM + quality.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <Button variant="outline" size="sm" onClick={handleResetRates}>Reset defaults</Button>
+                <Button size="sm" className="text-white" style={{ backgroundColor: accent }} onClick={handleSaveRates}>
+                  <Save className="h-4 w-4 mr-1" />Save rates
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-xl border border-orange-100 bg-[#FFF9F5] p-3">
+                {[
+                  { key: 1, label: 'Single colour plates + tracing' },
+                  { key: 2, label: '2 colour plates + tracing' },
+                  { key: 4, label: '4 colour plates + tracing' },
+                ].map((row) => (
+                  <div key={row.key}>
+                    <Label className="text-xs">{row.label}</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      className="h-9 mt-1"
+                      value={plateCosts[row.key]}
+                      onChange={(e) => setPlateCosts((prev) => ({
+                        ...prev,
+                        [row.key]: parseFloat(e.target.value) || 0,
+                      }))}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {PAPER_CATEGORIES.map((cat) => (
+                <div key={cat.id} className="rounded-xl border border-gray-100 overflow-hidden">
+                  <div className="px-3 py-2 bg-gray-50 border-b font-semibold text-sm">{cat.label}</div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b text-[11px] uppercase tracking-wide text-gray-500">
+                          <th className="text-left py-2 px-3">Size</th>
+                          <th className="text-left py-2 px-3">GSM</th>
+                          <th className="text-left py-2 px-3">Quality</th>
+                          <th className="text-right py-2 px-3">Rate / 500 sheets</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(ratesByCategory[cat.id] || []).map((row) => (
+                          <tr key={row.id} className="border-b border-gray-50">
+                            <td className="py-2 px-3">{row.sizeLabel}</td>
+                            <td className="py-2 px-3">{row.gsm}</td>
+                            <td className="py-2 px-3 capitalize">{row.quality}</td>
+                            <td className="py-2 px-3 text-right">
+                              <Input
+                                type="number"
+                                min={0}
+                                step={1}
+                                className="h-8 w-32 ml-auto text-right"
+                                value={row.rate500}
+                                onChange={(e) => {
+                                  const val = parseFloat(e.target.value) || 0;
+                                  setRates((prev) => prev.map((r) => (r.id === row.id ? { ...r, rate500: val } : r)));
+                                }}
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* ================= COMPOSING SIZES ================= */}
