@@ -113,7 +113,11 @@ function amz_prints_ajax_customer_login() {
 		'password' => $password,
 	) );
 	if ( is_wp_error( $result ) ) {
-		wp_send_json_error( array( 'message' => $result->get_error_message() ), 400 );
+		$err = $result->get_error_message();
+		if ( 'Not found' === $err || false !== stripos( $err, 'not found' ) ) {
+			$err = __( 'ERP customer login API not found. Redeploy latest Code.gs in Apps Script (Deploy → Manage deployments → New version).', 'amz-prints' );
+		}
+		wp_send_json_error( array( 'message' => $err ), 400 );
 	}
 	if ( empty( $result['token'] ) ) {
 		wp_send_json_error( array( 'message' => __( 'Login failed.', 'amz-prints' ) ), 400 );
@@ -142,7 +146,11 @@ function amz_prints_ajax_customer_google() {
 
 	$result = amz_prints_customer_api( '/public/customer/google', $body );
 	if ( is_wp_error( $result ) ) {
-		wp_send_json_error( array( 'message' => $result->get_error_message() ), 400 );
+		$err = $result->get_error_message();
+		if ( 'Not found' === $err || false !== stripos( $err, 'not found' ) ) {
+			$err = __( 'ERP customer login API not found. Redeploy latest Code.gs (New version) in Apps Script, then try again. Also ensure this Gmail exists on an ERP Customer record.', 'amz-prints' );
+		}
+		wp_send_json_error( array( 'message' => $err ), 400 );
 	}
 	if ( empty( $result['token'] ) ) {
 		wp_send_json_error( array( 'message' => __( 'Google verification failed.', 'amz-prints' ) ), 400 );
