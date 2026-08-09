@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AMZ_PRINTS_VERSION', '2.4.1' );
+define( 'AMZ_PRINTS_VERSION', '2.4.2' );
 
 /**
  * Avoid long Hostinger CDN HTML cache hiding theme updates.
@@ -19,11 +19,31 @@ function amz_prints_nocache_html_headers() {
 		return;
 	}
 	// HTML pages should revalidate quickly after theme publishes.
-	header( 'Cache-Control: public, max-age=60, must-revalidate', true );
+	header( 'Cache-Control: no-cache, no-store, must-revalidate, max-age=0', true );
+	header( 'Pragma: no-cache', true );
+	header( 'Expires: 0', true );
 	header( 'CDN-Cache-Control: no-store', true );
 	header( 'Cloudflare-CDN-Cache-Control: no-store', true );
 }
 add_action( 'template_redirect', 'amz_prints_nocache_html_headers', 0 );
+
+/**
+ * Admin reminder: Customizer can show new theme while CDN serves old homepage.
+ */
+function amz_prints_admin_cache_notice() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		return;
+	}
+	$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+	if ( ! $screen || ! in_array( $screen->id, array( 'themes', 'dashboard', 'toplevel_page_hostinger' ), true ) ) {
+		// Show on Themes + Dashboard.
+		if ( ! $screen || ( 'themes' !== $screen->id && 'dashboard' !== $screen->id ) ) {
+			return;
+		}
+	}
+	echo '<div class="notice notice-warning"><p><strong>AMZ Prints:</strong> If Login shows in Customizer but not on the live homepage, purge <em>Hostinger Cache / CDN</em> (hPanel → Cache → Clear All). Test with <code>/?v=1</code> — that bypasses stale CDN HTML.</p></div>';
+}
+add_action( 'admin_notices', 'amz_prints_admin_cache_notice' );
 define( 'AMZ_PRINTS_DIR', get_template_directory() );
 define( 'AMZ_PRINTS_URI', get_template_directory_uri() );
 
