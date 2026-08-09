@@ -106,8 +106,15 @@ const CounterScreen = () => {
   const callToken = async (token) => {
     setLoading(true);
     try {
-      await tokensAPI.call(token.tokenNo || token.id);
+      const res = await tokensAPI.call(token.tokenNo || token.id);
       toast.success(`Calling ${token.tokenNo}`);
+      const gasEmail = res?.data?._notifications?.email;
+      if (gasEmail?.ok) toast.success(`Call email sent to ${token.customerEmail || gasEmail.to}`);
+      else if (gasEmail?.ok === false && gasEmail.reason !== 'missing_email' && gasEmail.error) {
+        toast.error(gasEmail.error);
+      } else if (!token.customerEmail && gasEmail?.reason === 'missing_email') {
+        toast.message('No customer email on token — email skipped');
+      }
       await loadTokens();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to call token');

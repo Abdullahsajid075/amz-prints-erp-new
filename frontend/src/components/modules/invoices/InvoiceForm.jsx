@@ -365,12 +365,14 @@ const InvoiceForm = () => {
             payment: {
               party: payload.customerName,
               partyPhone: payload.customerPhone,
+              partyEmail: payload.customerEmail,
               amount: receivedDelta,
               method: 'Invoice payment',
               reference: payload.invoiceNumber,
               type: 'inflow',
               balanceDue: balance,
             },
+            sendEmail: true,
           });
           toast.message('Payment receipt printed + WhatsApp');
         }

@@ -36,6 +36,9 @@ function truthy(v, fallback = true) {
   return true;
 }
 
+/** ERP outbound mailbox — Apps Script must be deployed as this Google account. */
+export const NOTIFY_FROM_EMAIL = 'amazonprinting@gmail.com';
+
 function mergeNotificationSettings(raw = {}) {
   return {
     whatsappEnabled: truthy(raw.whatsappEnabled, true),
@@ -44,11 +47,17 @@ function mergeNotificationSettings(raw = {}) {
     emailInvoice: truthy(raw.emailInvoice, true),
     emailReady: truthy(raw.emailReady, true),
     emailDelivered: truthy(raw.emailDelivered, true),
+    emailPayment: truthy(raw.emailPayment, true),
+    emailToken: truthy(raw.emailToken, true),
     smsEnabled: truthy(raw.smsEnabled, false),
     autoOpenWhatsApp: truthy(raw.autoOpenWhatsApp, true),
     whatsappTemplates: { ...DEFAULT_WHATSAPP_TEMPLATES, ...(raw.whatsappTemplates || {}) },
     emailSubjects: { ...DEFAULT_EMAIL_SUBJECTS, ...(raw.emailSubjects || {}) },
   };
+}
+
+export function isValidNotifyEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
 }
 
 async function loadNotificationSettings() {
@@ -82,7 +91,12 @@ function shouldSendEmail(notifications, event, status) {
   if (event === 'quotation') return true;
   if (event === 'created') return notifications.emailNewOrder;
   if (event === 'invoice' || event === 'invoice_generated') return notifications.emailInvoice;
-  if (event === 'payment_received' || event === 'payment_sent') return false;
+  if (event === 'payment_received' || event === 'payment_sent' || event === 'payment') {
+    return notifications.emailPayment !== false;
+  }
+  if (event === 'token_booked' || event === 'token_called' || event === 'token') {
+    return notifications.emailToken !== false;
+  }
   if (event === 'status') {
     if (status === 'Ready') return notifications.emailReady !== false && notifications.emailOrderStatus;
     if (status === 'Delivered') return notifications.emailDelivered !== false && notifications.emailOrderStatus;
@@ -187,30 +201,40 @@ export async function notifyOrderEvent({
     try { pendingWindow.close(); } catch { /* ignore */ }
   }
 
-  const emailTo = order?.customerEmail || customer?.email || invoice?.customerEmail || payment?.partyEmail;
-  if (
-    sendEmail
-    && emailTo
-    && customerAllows(customer, 'email')
-    && shouldSendEmail(notifications, event, status)
-  ) {
-    const subjectKey = event === 'created'
-      ? 'created'
-      : (event === 'invoice' || event === 'invoice_generated')
-        ? 'invoice_generated'
-        : event === 'quotation'
-          ? 'quotation'
-          : (status === 'Ready' || status === 'Delivered' || status === 'Order Received' ? status : 'status');
-    const subjectTpl = notifications.emailSubjects[subjectKey]
-      || DEFAULT_EMAIL_SUBJECTS[subjectKey]
-      || DEFAULT_EMAIL_SUBJECTS.status;
-    payloadBase.subject = fillTemplate(subjectTpl, vars);
-    payloadBase.to = emailTo;
-    payloadBase.message = fillTemplate(
-      resolveWhatsAppTemplate(notifications.whatsappTemplates, event, status),
-      vars
-    );
-    channelIds.push('email');
+  const emailTo = order?.customerEmail
+    || customer?.email
+    || invoice?.customerEmail
+    || payment?.partyEmail
+    || payment?.email
+    || '';
+  let emailSkipped = null;
+  if (sendEmail && customerAllows(customer, 'email') && shouldSendEmail(notifications, event, status)) {
+    if (!isValidNotifyEmail(emailTo)) {
+      emailSkipped = { ok: false, reason: 'missing_email', error: 'Customer email is required for email notifications' };
+    } else {
+      const subjectKey = event === 'created'
+        ? 'created'
+        : (event === 'invoice' || event === 'invoice_generated')
+          ? 'invoice_generated'
+          : event === 'quotation'
+            ? 'quotation'
+            : (event === 'payment_received' || event === 'payment_sent'
+              ? event
+              : (event === 'token_booked' || event === 'token_called'
+                ? event
+                : (status === 'Ready' || status === 'Delivered' || status === 'Order Received' ? status : 'status')));
+      const subjectTpl = notifications.emailSubjects[subjectKey]
+        || DEFAULT_EMAIL_SUBJECTS[subjectKey]
+        || DEFAULT_EMAIL_SUBJECTS.status;
+      payloadBase.subject = fillTemplate(subjectTpl, vars);
+      payloadBase.to = String(emailTo).trim();
+      payloadBase.message = fillTemplate(
+        resolveWhatsAppTemplate(notifications.whatsappTemplates, event, status),
+        vars
+      );
+      payloadBase.replyTo = NOTIFY_FROM_EMAIL;
+      channelIds.push('email');
+    }
   }
 
   const results = await sendViaChannels(
@@ -218,8 +242,17 @@ export async function notifyOrderEvent({
     payloadBase
   );
   if (whatsappResult) results.whatsapp = whatsappResult;
+  if (emailSkipped) results.email = emailSkipped;
 
-  return { ok: true, results, event, status, whatsappOpened: !!whatsappResult?.ok };
+  return {
+    ok: true,
+    results,
+    event,
+    status,
+    whatsappOpened: !!whatsappResult?.ok,
+    emailSent: !!(results.email?.ok),
+    emailError: results.email?.ok === false ? (results.email.error || results.email.reason) : null,
+  };
 }
 
 /** Notify + helpers for Cash In / Cash Out. */
@@ -243,11 +276,33 @@ export async function notifyPaymentEvent(payment, options = {}) {
     order: {
       customerName: payment?.party || payment?.customerName,
       customerPhone: payment?.partyPhone || payment?.phone,
+      customerEmail: payment?.partyEmail || payment?.email || payment?.customerEmail || '',
       totalAmount: total || received,
       balanceAmount: balance,
     },
     openWhatsApp: options.openWhatsApp !== false,
     pendingWindow: options.pendingWindow || null,
+    sendEmail: options.sendEmail !== false,
+  });
+}
+
+/** Token booked / called email (+ optional WhatsApp). */
+export async function notifyTokenEvent(token, options = {}) {
+  const event = options.event || 'token_booked';
+  const tokenNo = token?.tokenNo || token?.tokenno || '';
+  return notifyOrderEvent({
+    event,
+    order: {
+      customerName: token?.customerName,
+      customerPhone: token?.customerPhone,
+      customerEmail: token?.customerEmail || token?.email || '',
+      orderId: tokenNo,
+      status: token?.status || (event === 'token_called' ? 'Called' : 'Waiting'),
+      totalAmount: 0,
+    },
+    openWhatsApp: options.openWhatsApp === true,
+    pendingWindow: options.pendingWindow || null,
+    sendEmail: options.sendEmail !== false,
   });
 }
 

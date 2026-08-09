@@ -60,7 +60,7 @@ function normalizePayment(p = {}) {
     customerId: p.customerId || p.customerid || '',
     party: p.party || p.customerName || p.customername || '',
     partyPhone: p.partyPhone || p.partyphone || p.phone || '',
-    partyEmail: p.partyEmail || p.email || '',
+    partyEmail: p.partyEmail || p.partyemail || p.email || p.customerEmail || '',
     partyAddress: p.partyAddress || p.address || '',
     reference: p.reference || p.refId || p.refid || '',
     amount: Number(p.amount) || 0,
@@ -321,24 +321,23 @@ const Payments = () => {
     }
 
     const phone = payment.partyPhone || payment.phone;
+    const notify = await notifyPaymentEvent({
+      ...payment,
+      amount: payment.amount,
+      balanceDue: payment.balanceDue,
+      partyEmail: payment.partyEmail || payment.email || '',
+    }, {
+      openWhatsApp: !!phone,
+      pendingWindow,
+      sendEmail: true,
+    });
+    if (notify?.emailSent) toast.success(`Email sent to ${payment.partyEmail || payment.email}`);
+    else if (notify?.emailError) toast.error(notify.emailError);
     if (phone) {
-      const notify = await notifyPaymentEvent({
-        ...payment,
-        amount: payment.amount,
-        balanceDue: payment.balanceDue,
-      }, {
-        openWhatsApp: true,
-        pendingWindow,
-      });
       if (notify?.whatsappOpened) toast.message('WhatsApp opened — tap Send');
-      else toast.error('WhatsApp did not open — check phone / Settings → Notifications (templates On)');
-    } else {
-      if (pendingWindow && !pendingWindow.closed) {
-        try { pendingWindow.close(); } catch { /* ignore */ }
-      }
-      if (String(payment.type || '').toLowerCase() !== 'outflow') {
-        toast.message('Payment recorded (no phone — WhatsApp skipped)');
-      }
+      else toast.error('WhatsApp did not open — check phone / Settings → Notifications');
+    } else if (pendingWindow && !pendingWindow.closed) {
+      try { pendingWindow.close(); } catch { /* ignore */ }
     }
   };
 
@@ -349,6 +348,7 @@ const Payments = () => {
         customerId: formData.customerId,
         customerName: formData.party,
         customerPhone: formData.partyPhone,
+        customerEmail: formData.partyEmail,
       })) return;
     } else if (!formData.party?.trim()) {
       toast.error('Party / person is required');
@@ -387,6 +387,8 @@ const Payments = () => {
         customerName: formData.party,
         partyPhone: formData.partyPhone || '',
         phone: formData.partyPhone || '',
+        partyEmail: formData.partyEmail || '',
+        email: formData.partyEmail || '',
         reference: ref,
         refId: ref,
         amount: Number(formData.amount) || 0,

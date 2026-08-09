@@ -374,6 +374,7 @@ const OrderForm = () => {
             : orderData.products,
           customerName: server.customerName || orderData.customerName,
           customerPhone: server.customerPhone || orderData.customerPhone,
+          customerEmail: server.customerEmail || orderData.customerEmail,
           customerAddress: server.customerAddress || orderData.customerAddress,
           assignedDesigner: server.assignedDesigner || orderData.assignedDesigner,
           remarks: server.remarks != null ? server.remarks : orderData.remarks,
@@ -386,15 +387,24 @@ const OrderForm = () => {
         }
         const statusChanged = String(prevStatus) !== String(data.status || orderData.status);
         if (statusChanged) {
-          await notifyOrderEvent({ event: 'status', order: data, sendEmail: false });
+          // Email already sent by Apps Script on update; frontend opens WhatsApp only
+          const notify = await notifyOrderEvent({ event: 'status', order: data, sendEmail: false });
           toast.message('WhatsApp opened — tap Send (status update)');
+          const gasEmail = server?._notifications?.email;
+          if (gasEmail?.ok === false) {
+            toast.error(gasEmail.error || 'Status email failed — authorize Mail in Apps Script');
+          } else if (gasEmail?.ok) {
+            toast.success(`Email sent to ${data.customerEmail}`);
+          }
+          if (notify?.emailError) toast.error(notify.emailError);
         } else if (receivedDelta > 0) {
-          await notifyOrderEvent({
+          const notify = await notifyOrderEvent({
             event: 'payment_received',
             order: data,
             payment: {
               party: data.customerName,
               partyPhone: data.customerPhone,
+              partyEmail: data.customerEmail,
               amount: receivedDelta,
               method: 'Cash / Advance',
               reference: data.orderId || orderId,
@@ -402,9 +412,11 @@ const OrderForm = () => {
               balanceDue: data.balanceAmount,
               totalAmount: data.totalAmount,
             },
-            sendEmail: false,
+            sendEmail: true,
           });
           toast.message('Payment slip + WhatsApp — tap Send');
+          if (notify?.emailSent) toast.success(`Payment email sent to ${data.customerEmail}`);
+          else if (notify?.emailError) toast.error(notify.emailError);
         }
       } else {
         const created = await ordersAPI.create(orderData);
@@ -424,14 +436,15 @@ const OrderForm = () => {
         if (nextAdvance > 0) {
           printOrderPaymentReceipt(data, nextAdvance);
         }
-        // Single WhatsApp: prefer Settings templates via notifyOrderEvent (skip GAS hint = no double open)
+        // Single WhatsApp via frontend (skip GAS WhatsApp hint). Order-created email comes from Apps Script.
         if (nextAdvance > 0) {
-          await notifyOrderEvent({
+          const notify = await notifyOrderEvent({
             event: 'payment_received',
             order: data,
             payment: {
               party: data.customerName,
               partyPhone: data.customerPhone,
+              partyEmail: data.customerEmail,
               amount: nextAdvance,
               method: 'Cash / Advance',
               reference: data.orderId || data.id,
@@ -439,12 +452,20 @@ const OrderForm = () => {
               balanceDue: data.balanceAmount,
               totalAmount: data.totalAmount,
             },
-            sendEmail: false,
+            sendEmail: true,
           });
           toast.message('Payment slip + WhatsApp — tap Send');
+          if (notify?.emailSent) toast.success(`Payment email sent to ${data.customerEmail}`);
+          else if (notify?.emailError) toast.error(notify.emailError);
         } else {
           await notifyOrderEvent({ event: 'created', order: data, sendEmail: false });
           toast.message('WhatsApp opened — tap Send to notify customer');
+          const gasEmail = created.data?._notifications?.email;
+          if (gasEmail?.ok === false) {
+            toast.error(gasEmail.error || 'Order email failed — authorize Mail in Apps Script as amazonprinting@gmail.com');
+          } else if (gasEmail?.ok) {
+            toast.success(`Order email sent to ${data.customerEmail}`);
+          }
         }
       }
       navigate('/orders');

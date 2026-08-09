@@ -211,6 +211,22 @@ Thank you for your partnership with *Amazon Printing Services*.
 
 📍 King Road, Mandi Bahauddin
 🌐 amzprints.com`,
+
+  token_booked: `Dear *{CustomerName}*,
+
+Your token *{OrderNo}* has been booked at Amazon Printing Services.
+
+Please wait for your token to be called.
+
+${FOOTER}`,
+
+  token_called: `Dear *{CustomerName}*,
+
+Your token *{OrderNo}* is now being called.
+
+Please proceed to the counter.
+
+${FOOTER}`,
 };
 
 export const DEFAULT_EMAIL_SUBJECTS = {
@@ -223,8 +239,10 @@ export const DEFAULT_EMAIL_SUBJECTS = {
   invoice: 'Invoice {invoice_number} | Amazon Printing Services',
   invoice_generated: 'Invoice {invoice_number} | Amazon Printing Services',
   payment_reminder: 'Payment Reminder — {invoice_number}',
-  payment_received: 'Payment Received — {payment_amount}',
-  payment_sent: 'Payment Sent — {payment_amount}',
+  payment_received: 'Payment Received — {payment_amount} | Amazon Printing Services',
+  payment_sent: 'Payment Sent — {payment_amount} | Amazon Printing Services',
+  token_booked: 'Token Booked — {OrderNo} | Amazon Printing Services',
+  token_called: 'Token Called — {OrderNo} | Amazon Printing Services',
 };
 
 export function fillTemplate(template, vars = {}) {
@@ -329,6 +347,12 @@ export function resolveWhatsAppTemplate(templates, event, status) {
   }
   if (event === 'payment_sent') {
     return t.payment_sent || DEFAULT_WHATSAPP_TEMPLATES.payment_sent;
+  }
+  if (event === 'token_booked') {
+    return t.token_booked || DEFAULT_WHATSAPP_TEMPLATES.token_booked;
+  }
+  if (event === 'token_called') {
+    return t.token_called || DEFAULT_WHATSAPP_TEMPLATES.token_called;
   }
   // Prefer Settings templates (including Ready); fall back to defaults
   if (status && t[status]) return t[status];

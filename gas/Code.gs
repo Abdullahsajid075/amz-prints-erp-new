@@ -65,10 +65,13 @@ var DEFAULT_HEADERS = {
     'VendorInvoiceNumber', 'ExpectedDeliveryDate', 'ActualDeliveryDate', 'LinkedOrderId', 'Notes'
   ],
   Expenses: ['Id', 'Date', 'Category', 'Amount', 'Description', 'PaymentMethod'],
-  Payments: ['Id', 'Date', 'Type', 'Category', 'RefId', 'CustomerName', 'CustomerId', 'PartyPhone', 'Amount', 'Method', 'Notes', 'BalanceDue', 'TotalAmount'],
+  Payments: [
+    'Id', 'Date', 'Type', 'Category', 'RefId', 'CustomerName', 'CustomerId',
+    'PartyPhone', 'PartyEmail', 'Amount', 'Method', 'Notes', 'BalanceDue', 'TotalAmount'
+  ],
   Counters: [
     'RecordType', 'CounterName', 'AccessHolder', 'Prefix', 'LastNumber', 'Status',
-    'TokenNo', 'Date', 'Time', 'CustomerId', 'CustomerName', 'CustomerPhone',
+    'TokenNo', 'Date', 'Time', 'CustomerId', 'CustomerName', 'CustomerPhone', 'CustomerEmail',
     'Service', 'ServiceNote', 'TokenStatus', 'CalledAt', 'OrderId', 'Notes'
   ],
   Settings: ['Key', 'Value'],
@@ -414,6 +417,8 @@ function valueForHeader_(obj, rawHeader) {
     customername: ['customername', 'name', 'party'],
     customerphone: ['customerphone', 'phone', 'mobile', 'partyphone'],
     partyphone: ['partyphone', 'phone', 'customerphone', 'mobile'],
+    partyemail: ['partyemail', 'email', 'customeremail'],
+    customeremail: ['customeremail', 'email', 'partyemail'],
     refid: ['refid', 'reference'],
     tokenstatus: ['tokenstatus'],
     status: ['status'],
@@ -1047,6 +1052,10 @@ function handleCustomers_(path, method, body) {
 
 /* ===================== NOTIFICATIONS (Email + WhatsApp hints) ===================== */
 
+/** All ERP emails should appear from this mailbox (deploy Apps Script as this Google account). */
+var NOTIFY_FROM_EMAIL_ = 'amazonprinting@gmail.com';
+var NOTIFY_FROM_NAME_ = 'Amazon Printing Services';
+
 function getNotificationSettings_() {
   var settings = getSettings_() || {};
   var n = settings.notifications;
@@ -1061,6 +1070,8 @@ function getNotificationSettings_() {
     emailInvoice: isNotifyOn_(n.emailInvoice != null ? n.emailInvoice : true),
     emailReady: isNotifyOn_(n.emailReady != null ? n.emailReady : true),
     emailDelivered: isNotifyOn_(n.emailDelivered != null ? n.emailDelivered : true),
+    emailPayment: isNotifyOn_(n.emailPayment != null ? n.emailPayment : true),
+    emailToken: isNotifyOn_(n.emailToken != null ? n.emailToken : true),
     whatsappTemplates: (n.whatsappTemplates && typeof n.whatsappTemplates === 'object') ? n.whatsappTemplates : {},
     emailSubjects: (n.emailSubjects && typeof n.emailSubjects === 'object') ? n.emailSubjects : {},
   };
@@ -1074,7 +1085,14 @@ function getCompanyForNotify_() {
   }
   if (!company || typeof company !== 'object') company = {};
   if (settings.companyLogo && !company.logo) company.logo = settings.companyLogo;
+  if (!company.name) company.name = NOTIFY_FROM_NAME_;
+  if (!String(company.email || '').trim()) company.email = NOTIFY_FROM_EMAIL_;
   return company;
+}
+
+function isValidEmail_(value) {
+  var s = String(value || '').trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 }
 
 function findCustomerPrefs_(orderApi) {
@@ -1175,27 +1193,64 @@ function buildOrderEmailHtml_(orderApi, company, bodyText) {
     + '</div></div>';
 }
 
+/**
+ * Send email as Amazon Printing.
+ * From address = Google account that deployed/runs this web app (must be amazonprinting@gmail.com).
+ * Reply-To always amazonprinting@gmail.com (or company email).
+ */
 function sendMailSafe_(to, subject, htmlBody, textBody) {
-  if (!to) return { ok: false, reason: 'missing_email' };
+  to = String(to || '').trim();
+  if (!isValidEmail_(to)) return { ok: false, reason: 'missing_email', error: 'Valid customer email is required' };
+
+  var company = getCompanyForNotify_();
+  var fromName = company.name || NOTIFY_FROM_NAME_;
+  var replyTo = isValidEmail_(company.email) ? String(company.email).trim() : NOTIFY_FROM_EMAIL_;
+  var plain = textBody || String(htmlBody || '').replace(/<[^>]+>/g, ' ');
+  var mailAppError = '';
+
   try {
     MailApp.sendEmail({
-      to: String(to).trim(),
+      to: to,
       subject: subject || 'Notification',
       htmlBody: htmlBody || '',
-      body: textBody || String(htmlBody || '').replace(/<[^>]+>/g, ' '),
-      name: (getCompanyForNotify_().name || 'AMZ Prints'),
+      body: plain,
+      name: fromName,
+      replyTo: replyTo,
     });
-    return { ok: true, to: to };
+    return { ok: true, to: to, replyTo: replyTo, via: 'mailapp', fromHint: NOTIFY_FROM_EMAIL_ };
   } catch (err) {
+    mailAppError = String(err && err.message ? err.message : err);
+  }
+
+  try {
+    var opts = {
+      htmlBody: htmlBody || '',
+      name: fromName,
+      replyTo: replyTo,
+      from: NOTIFY_FROM_EMAIL_,
+    };
     try {
-      GmailApp.sendEmail(String(to).trim(), subject || 'Notification', textBody || '', {
-        htmlBody: htmlBody || '',
-        name: (getCompanyForNotify_().name || 'AMZ Prints'),
-      });
-      return { ok: true, to: to, via: 'gmail' };
-    } catch (err2) {
-      return { ok: false, error: String(err2 && err2.message ? err2.message : err2) };
+      GmailApp.sendEmail(to, subject || 'Notification', plain, opts);
+      return { ok: true, to: to, from: NOTIFY_FROM_EMAIL_, replyTo: replyTo, via: 'gmail' };
+    } catch (fromErr) {
+      // Alias may be missing — send without explicit from (still as script user)
+      delete opts.from;
+      GmailApp.sendEmail(to, subject || 'Notification', plain, opts);
+      return {
+        ok: true,
+        to: to,
+        replyTo: replyTo,
+        via: 'gmail',
+        note: 'Deploy Apps Script as ' + NOTIFY_FROM_EMAIL_ + ' so the From address matches',
+      };
     }
+  } catch (err2) {
+    return {
+      ok: false,
+      error: String(err2 && err2.message ? err2.message : err2),
+      mailAppError: mailAppError,
+      hint: 'Update appsscript.json mail scopes, authorize as ' + NOTIFY_FROM_EMAIL_ + ', then Deploy → New version',
+    };
   }
 }
 
@@ -1229,21 +1284,39 @@ function dispatchOrderNotifications_(orderApi, event, extras) {
   var wantEmail = false;
   if (event === 'created') wantEmail = notif.emailNewOrder;
   else if (event === 'invoice') wantEmail = notif.emailInvoice;
+  else if (event === 'payment_received' || event === 'payment_sent' || event === 'payment') wantEmail = notif.emailPayment;
+  else if (event === 'token_booked' || event === 'token_called' || event === 'token') wantEmail = notif.emailToken;
   else if (status === 'Ready') wantEmail = notif.emailReady && notif.emailOrderStatus;
   else if (status === 'Delivered') wantEmail = notif.emailDelivered && notif.emailOrderStatus;
   else wantEmail = notif.emailOrderStatus;
 
   var emailTo = orderApi.customerEmail || prefs.email || extras.email;
   if (wantEmail && prefs.notifyEmail && emailTo) {
-    var subjects = notif.emailSubjects || {};
-    var subjectKey = event === 'created' ? 'created' : (event === 'invoice' ? 'invoice' : (status === 'Ready' || status === 'Delivered' ? status : 'status'));
-    var subjectTpl = subjects[subjectKey]
-      || (subjectKey === 'created' ? 'Order Confirmed — {Order Number} | {Company Name}'
-        : subjectKey === 'invoice' ? 'Invoice {Invoice Number} | {Company Name}'
-          : 'Order Update — {Order Number} is now {Status}');
-    var subject = fillNotifyTemplate_(subjectTpl, vars);
-    var html = buildOrderEmailHtml_(orderApi, company, text);
-    out.email = sendMailSafe_(emailTo, subject, html, text);
+    if (!isValidEmail_(emailTo)) {
+      out.email = { ok: false, reason: 'missing_email', error: 'Valid customer email is required' };
+    } else {
+      var subjects = notif.emailSubjects || {};
+      var subjectKey = event === 'created' ? 'created'
+        : (event === 'invoice' ? 'invoice'
+          : (event === 'payment_received' ? 'payment_received'
+            : (event === 'payment_sent' ? 'payment_sent'
+              : (event === 'token_booked' ? 'token_booked'
+                : (event === 'token_called' ? 'token_called'
+                  : (status === 'Ready' || status === 'Delivered' ? status : 'status'))))));
+      var subjectTpl = subjects[subjectKey]
+        || (subjectKey === 'created' ? 'Order Confirmed — {Order Number} | {Company Name}'
+          : subjectKey === 'invoice' ? 'Invoice {Invoice Number} | {Company Name}'
+            : subjectKey === 'payment_received' ? 'Payment Received | {Company Name}'
+              : subjectKey === 'payment_sent' ? 'Payment Sent | {Company Name}'
+                : subjectKey === 'token_booked' ? 'Token Booked — {Order Number} | {Company Name}'
+                  : subjectKey === 'token_called' ? 'Token Called — {Order Number} | {Company Name}'
+                    : 'Order Update — {Order Number} is now {Status}');
+      var subject = fillNotifyTemplate_(subjectTpl, vars);
+      var html = buildOrderEmailHtml_(orderApi, company, text);
+      out.email = sendMailSafe_(emailTo, subject, html, text);
+    }
+  } else if (wantEmail && prefs.notifyEmail && !emailTo) {
+    out.email = { ok: false, reason: 'missing_email', error: 'Customer email is required for email notifications' };
   }
 
   return out;
@@ -1264,16 +1337,18 @@ function handleNotifications_(path, method, body) {
     var channel = String(body.channel || 'email').toLowerCase();
     if (channel === 'email') {
       var company = getCompanyForNotify_();
-      var to = body.to || company.email;
-      if (!to) throw new Error('Provide a test email address (or set company email in Settings)');
+      var to = body.to || company.email || NOTIFY_FROM_EMAIL_;
+      if (!isValidEmail_(to)) throw new Error('Provide a valid test email address (or set company email in Settings)');
       var html = buildOrderEmailHtml_({
         customerName: 'Test Customer',
         orderId: 'ORD-TEST',
         trackingNumber: 'TRK-TEST',
         status: 'Order Received',
         totalAmount: 0,
-      }, company, 'This is a test notification from AMZ Prints ERP.\n\nIf you received this, email notifications are working.');
-      return sendMailSafe_(to, 'Test Notification | ' + (company.name || 'AMZ Prints'), html, 'Test notification from AMZ Prints ERP');
+      }, company, 'This is a test notification from Amazon Printing Services.\n\nSent via Apps Script as ' + NOTIFY_FROM_EMAIL_ + '.\n\nIf you received this, email notifications are working.');
+      var testResult = sendMailSafe_(to, 'Test Notification | ' + (company.name || NOTIFY_FROM_NAME_), html, 'Test notification from Amazon Printing Services');
+      testResult.fromAccountHint = NOTIFY_FROM_EMAIL_;
+      return testResult;
     }
     if (channel === 'whatsapp') {
       return {
@@ -1293,7 +1368,11 @@ function handleNotifications_(path, method, body) {
     var company2 = getCompanyForNotify_();
     var text = body.text || body.message || '';
     var html2 = body.html || buildOrderEmailHtml_(order, company2, text);
-    return sendMailSafe_(body.to || order.customerEmail, body.subject || 'Notification', html2, text);
+    var toAddr = body.to || order.customerEmail || (body.invoice && body.invoice.customerEmail) || '';
+    if (!isValidEmail_(toAddr)) {
+      return { ok: false, reason: 'missing_email', error: 'Customer email is required for email notifications' };
+    }
+    return sendMailSafe_(toAddr, body.subject || 'Notification', html2, text);
   }
 
   throw new Error('Not found');
@@ -2145,6 +2224,7 @@ function toApiToken_(t) {
     customerId: t.customerid,
     customerName: t.customername,
     customerPhone: t.customerphone,
+    customerEmail: t.customeremail || '',
     service: t.service,
     serviceNote: t.servicenote || '',
     status: t.tokenstatus || t.status || 'Waiting',
@@ -2152,6 +2232,26 @@ function toApiToken_(t) {
     orderId: t.orderid || '',
     notes: t.notes || '',
   };
+}
+
+function notifyTokenEmail_(tokenApi, event) {
+  var notif = getNotificationSettings_();
+  if (!notif.emailToken) return { ok: false, reason: 'disabled' };
+  var emailTo = tokenApi.customerEmail || '';
+  if (!isValidEmail_(emailTo)) return { ok: false, reason: 'missing_email' };
+  var company = getCompanyForNotify_();
+  var tokenNo = tokenApi.tokenNo || tokenApi.tokenno || '';
+  var text = event === 'token_called'
+    ? ('Dear ' + (tokenApi.customerName || 'Customer') + ',\n\nYour token *' + tokenNo + '* is now being called at ' + (tokenApi.counterName || 'the counter') + '.\n\nPlease proceed to the counter.\n\n' + (company.name || NOTIFY_FROM_NAME_))
+    : ('Dear ' + (tokenApi.customerName || 'Customer') + ',\n\nYour token *' + tokenNo + '* has been booked.\n\nCounter: ' + (tokenApi.counterName || '') + '\nService: ' + (tokenApi.service || '') + '\n\nPlease wait for your token to be called.\n\n' + (company.name || NOTIFY_FROM_NAME_));
+  var subject = (event === 'token_called' ? 'Token Called — ' : 'Token Booked — ') + tokenNo + ' | ' + (company.name || NOTIFY_FROM_NAME_);
+  var html = buildOrderEmailHtml_({
+    customerName: tokenApi.customerName,
+    orderId: tokenNo,
+    status: tokenApi.status || (event === 'token_called' ? 'Called' : 'Waiting'),
+    totalAmount: 0,
+  }, company, text);
+  return sendMailSafe_(emailTo, subject, html, text.replace(/\*/g, ''));
 }
 
 function resolveCounterForService_(serviceName, explicitCounter) {
@@ -2239,6 +2339,7 @@ function handleTokens_(path, method, body, params) {
 
     var customerName = String(body.customerName || body.name || '').trim();
     var customerPhone = String(body.customerPhone || body.phone || '').trim();
+    var customerEmail = String(body.customerEmail || body.email || '').trim();
     if (!customerName || !customerPhone) {
       throw new Error('Customer name and phone are required');
     }
@@ -2248,12 +2349,12 @@ function handleTokens_(path, method, body, params) {
       customer = upsertCustomer_({
         name: customerName,
         phone: customerPhone,
-        email: body.email,
+        email: customerEmail,
         address: body.address,
       });
     } catch (custErr) {
       // Don't block token booking if Customers sheet has a temporary issue
-      customer = { id: 'cust_temp_' + Date.now(), name: customerName, phone: customerPhone };
+      customer = { id: 'cust_temp_' + Date.now(), name: customerName, phone: customerPhone, email: customerEmail };
     }
 
     // Re-read counter row after possible cache changes
@@ -2274,6 +2375,7 @@ function handleTokens_(path, method, body, params) {
       customerid: customer.id || '',
       customername: customer.name || customerName,
       customerphone: customer.phone || customerPhone,
+      customeremail: customer.email || customerEmail || '',
       service: serviceName,
       servicenote: body.serviceNote || body.servicenote || '',
       tokenstatus: 'Waiting',
@@ -2286,7 +2388,13 @@ function handleTokens_(path, method, body, params) {
     // Return clean date (without Sheets apostrophe) to the client
     token.date = today;
     invalidateSheetCache_(SHEET_NAMES.COUNTERS);
-    return toApiToken_(token);
+    var apiToken = toApiToken_(token);
+    try {
+      apiToken._notifications = { email: notifyTokenEmail_(apiToken, 'token_booked') };
+    } catch (tokMailErr) {
+      apiToken._notifications = { email: { ok: false, error: String(tokMailErr) } };
+    }
+    return apiToken;
   }
 
   // /tokens/:id/...
@@ -2304,7 +2412,13 @@ function handleTokens_(path, method, body, params) {
     });
     tokenRow.tokenstatus = 'Called';
     tokenRow.calledat = nowTime_();
-    return toApiToken_(tokenRow);
+    var calledApi = toApiToken_(tokenRow);
+    try {
+      calledApi._notifications = { email: notifyTokenEmail_(calledApi, 'token_called') };
+    } catch (callMailErr) {
+      calledApi._notifications = { email: { ok: false, error: String(callMailErr) } };
+    }
+    return calledApi;
   }
 
   if (path.indexOf('/complete') !== -1 && method === 'POST') {

@@ -22,7 +22,7 @@ import { toast } from 'sonner';
 import { DEFAULT_CRM_STAGES } from '@/utils/crmStages';
 
 const defaultSettings = {
-  company: { name: 'AMZ Prints', tagline: 'Professional Printing & Advertising Services', address: '', phone: '', email: '', website: '', taxId: '', authorizedSignatory: 'Authorized Person', logo: '', stamp: '', signature: '' },
+  company: { name: 'Amazon Printing Services', tagline: 'Professional Printing & Advertising Services', address: 'King Road, Mandi Bahauddin', phone: '', email: 'amazonprinting@gmail.com', website: 'amzprints.com', taxId: '', authorizedSignatory: 'Authorized Person', logo: '', stamp: '', signature: '' },
   invoice: { prefix: 'INV-', taxRate: 0, terms: 'Payment due within 30 days.', showQR: true, showStamp: true, showSignature: true, template: 'classic' },
   theme: { primary: '#F26522', secondary: '#2E2E2E', accent: '#10B981' },
   orders: { autoNumber: true, orderPrefix: 'ORD-', defaultStatus: 'Order Received', requireDeliveryDate: true },
@@ -45,6 +45,8 @@ const defaultSettings = {
     emailInvoice: true,
     emailReady: true,
     emailDelivered: true,
+    emailPayment: true,
+    emailToken: true,
     smsEnabled: false,
     whatsappEnabled: true,
     autoOpenWhatsApp: true,
@@ -833,6 +835,9 @@ const Settings = () => {
               <CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5" />Channels</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-md px-3 py-2">
+                All emails send from <strong>amazonprinting@gmail.com</strong>. Deploy Apps Script while logged into that Gmail account, add mail OAuth scopes, authorize once, then Deploy → New version.
+              </p>
               {[
                 { k: 'whatsappEnabled', l: 'WhatsApp notifications (opens Desktop / Mobile app)' },
                 { k: 'autoOpenWhatsApp', l: 'Auto-open WhatsApp on order create / status change' },
@@ -841,6 +846,8 @@ const Settings = () => {
                 { k: 'emailReady', l: 'Email when Ready for collection' },
                 { k: 'emailDelivered', l: 'Email when Delivered' },
                 { k: 'emailInvoice', l: 'Email when invoice generated' },
+                { k: 'emailPayment', l: 'Email on payment (Cash In / Cash Out)' },
+                { k: 'emailToken', l: 'Email on token booked / called' },
                 { k: 'smsEnabled', l: 'SMS notifications (future — reserved)' },
               ].map((o) => (
                 <div key={o.k} className="flex items-center justify-between gap-4">
@@ -899,7 +906,7 @@ const Settings = () => {
               <CardTitle className="flex items-center gap-2"><Mail className="h-5 w-5" />Email subjects</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {['quotation', 'created', 'status', 'Ready', 'Delivered', 'invoice'].map((key) => {
+              {['quotation', 'created', 'status', 'Ready', 'Delivered', 'invoice', 'payment_received', 'payment_sent', 'token_booked', 'token_called'].map((key) => {
                 const subjects = {
                   ...DEFAULT_EMAIL_SUBJECTS,
                   ...(settings.notifications.emailSubjects || {}),
@@ -928,21 +935,21 @@ const Settings = () => {
                 variant="outline"
                 onClick={async () => {
                   try {
-                    const to = settings.company.email;
+                    const to = settings.company.email || 'amazonprinting@gmail.com';
                     if (!to) { toast.error('Set company email first'); return; }
                     const res = await sendTestEmail(to);
                     const data = res?.data || res;
                     if (data?.ok === false || data?.error) {
-                      toast.error(data.error || data.reason || 'Email failed — authorize Gmail in Apps Script (Run any mail function once)');
+                      toast.error(data.error || data.hint || data.reason || 'Email failed — authorize as amazonprinting@gmail.com in Apps Script');
                       return;
                     }
                     if (data?.message && /queued/i.test(String(data.message))) {
                       toast.error('Backend did not send mail (API stub). Point REACT_APP_GAS_API_URL to Apps Script web app.');
                       return;
                     }
-                    toast.success(`Test email sent to ${to} — check inbox/spam`);
+                    toast.success(`Test email sent to ${to} (from amazonprinting@gmail.com) — check inbox/spam`);
                   } catch (err) {
-                    toast.error(err?.response?.data?.message || 'Test email failed — check Apps Script Gmail / MailApp permissions');
+                    toast.error(err?.response?.data?.message || 'Test email failed — redeploy Code.gs + appsscript.json and authorize Mail');
                   }
                 }}
               >

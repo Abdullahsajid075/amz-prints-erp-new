@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { tokensAPI, customersAPI, debugAPI } from '@/services/api';
+import { notifyTokenEvent } from '@/services/notifications';
 import { toast } from 'sonner';
 import {
   Ticket, Printer, MessageCircle, Monitor, Search, Plus, XCircle,
@@ -86,6 +87,7 @@ function printToken(token) {
 const emptyForm = {
   customerName: '',
   customerPhone: '',
+  customerEmail: '',
   counterName: '',
   service: '',
   serviceNote: '',
@@ -206,6 +208,7 @@ const TokenBooking = () => {
           ...prev,
           customerName: match.name || prev.customerName,
           customerPhone: match.phone || prev.customerPhone,
+          customerEmail: match.email || prev.customerEmail,
         }));
         toast.success('Existing customer found');
       } else {
@@ -222,6 +225,10 @@ const TokenBooking = () => {
     e.preventDefault();
     if (!form.customerName.trim() || !form.customerPhone.trim()) {
       toast.error('Customer name and phone are required');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(form.customerEmail || '').trim())) {
+      toast.error('Customer email is required for email notifications');
       return;
     }
     if (!form.service) {
@@ -241,6 +248,8 @@ const TokenBooking = () => {
       const res = await tokensAPI.create({
         customerName: form.customerName.trim(),
         customerPhone: form.customerPhone.trim(),
+        customerEmail: form.customerEmail.trim(),
+        email: form.customerEmail.trim(),
         counterName,
         service: form.service,
         serviceNote: form.serviceNote,
@@ -257,9 +266,23 @@ const TokenBooking = () => {
           },
         };
       }
-      const normalized = { ...token, tokenNo };
+      const normalized = {
+        ...token,
+        tokenNo,
+        customerEmail: token.customerEmail || form.customerEmail.trim(),
+      };
       setLastToken(normalized);
       toast.success(`Token ${tokenNo} → ${token.counterName || counterName}`);
+      const gasEmail = token?._notifications?.email;
+      if (gasEmail?.ok) toast.success(`Token email sent to ${normalized.customerEmail}`);
+      else if (gasEmail?.ok === false && gasEmail.reason !== 'missing_email') {
+        // Fallback: frontend email path
+        const notify = await notifyTokenEvent(normalized, { event: 'token_booked', openWhatsApp: false });
+        if (notify?.emailSent) toast.success(`Token email sent to ${normalized.customerEmail}`);
+        else if (notify?.emailError || gasEmail?.error) {
+          toast.error(notify?.emailError || gasEmail.error || 'Token email failed');
+        }
+      }
       setForm((prev) => ({
         ...emptyForm,
         service: prev.service,
@@ -400,6 +423,16 @@ const TokenBooking = () => {
                     onChange={(e) => setForm({ ...form, customerName: e.target.value })}
                     placeholder="Customer name"
                     data-testid="token-customer-name"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <Label>Customer Email * (notifications from amazonprinting@gmail.com)</Label>
+                  <Input
+                    type="email"
+                    value={form.customerEmail}
+                    onChange={(e) => setForm({ ...form, customerEmail: e.target.value })}
+                    placeholder="customer@email.com"
+                    data-testid="token-customer-email"
                   />
                 </div>
               </div>
