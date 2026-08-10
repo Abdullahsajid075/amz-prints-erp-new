@@ -51,6 +51,7 @@ const emptyProduct = {
   description: '',
   fullDescription: '',
   basePrice: 0,
+  salePrice: '',
   unit: 'per piece',
   material: '',
   size: '',
@@ -60,6 +61,7 @@ const emptyProduct = {
   image: '',
   active: true,
   showOnWebsite: true,
+  showOnTop: false,
   variations: [],
 };
 
@@ -161,6 +163,7 @@ const Products = () => {
       ...emptyProduct,
       ...product,
       basePrice: product.basePrice ?? product.rate ?? 0,
+      salePrice: product.salePrice > 0 ? product.salePrice : '',
       productType: product.productType || 'Product',
       description: product.description || '',
       fullDescription: product.fullDescription || '',
@@ -168,6 +171,7 @@ const Products = () => {
       stock: Number(product.stock ?? 0) || 0,
       image: productImageSrc(product),
       showOnWebsite: product.showOnWebsite !== false,
+      showOnTop: !!product.showOnTop,
       variations,
     });
     setDialogOpen(true);
@@ -242,6 +246,7 @@ const Products = () => {
           sku: String(v.sku || '').trim(),
         }))
         .filter((v) => v.name);
+      const salePrice = Number(formData.salePrice) > 0 ? Number(formData.salePrice) : 0;
       const payload = service
         ? {
             name: formData.name,
@@ -251,6 +256,7 @@ const Products = () => {
             fullDescription: formData.fullDescription || '',
             basePrice: Number(formData.basePrice) || 0,
             rate: Number(formData.basePrice) || 0,
+            salePrice,
             unit: 'service',
             material: '',
             size: '',
@@ -261,6 +267,7 @@ const Products = () => {
             active: formData.active !== false,
             status: formData.active === false ? 'Inactive' : 'Active',
             showOnWebsite: formData.showOnWebsite !== false,
+            showOnTop: !!formData.showOnTop,
             variations,
           }
         : {
@@ -271,6 +278,7 @@ const Products = () => {
             fullDescription: formData.fullDescription || '',
             basePrice: Number(formData.basePrice) || 0,
             rate: Number(formData.basePrice) || 0,
+            salePrice,
             unit: formData.unit || 'per piece',
             material: formData.material || '',
             size: formData.size || '',
@@ -281,6 +289,7 @@ const Products = () => {
             active: formData.active !== false,
             status: formData.active === false ? 'Inactive' : 'Active',
             showOnWebsite: formData.showOnWebsite !== false,
+            showOnTop: !!formData.showOnTop,
             variations,
           };
       if (editingProduct) {
@@ -424,14 +433,28 @@ const Products = () => {
                           Hidden
                         </Badge>
                       )}
+                      {product.showOnTop ? (
+                        <Badge className="absolute bottom-1.5 left-1.5 text-[10px] px-1.5 py-0 h-5 bg-orange-600 text-white border-0">
+                          Top
+                        </Badge>
+                      ) : null}
                     </div>
                     <div className="p-3 space-y-1.5">
                       <p className="text-sm font-semibold leading-snug line-clamp-2 min-h-[2.5rem]" style={{ color: '#2E2E2E' }}>
                         {product.name}
                       </p>
-                      <p className="text-base font-bold" style={{ color: '#F26522' }}>
-                        {formatCurrency(product.basePrice ?? product.rate ?? 0)}
-                      </p>
+                      {Number(product.salePrice) > 0 ? (
+                        <p className="text-base font-bold" style={{ color: '#F26522' }}>
+                          <span className="text-gray-400 text-xs font-medium line-through mr-1.5">
+                            {formatCurrency(product.basePrice ?? product.rate ?? 0)}
+                          </span>
+                          {formatCurrency(product.salePrice)}
+                        </p>
+                      ) : (
+                        <p className="text-base font-bold" style={{ color: '#F26522' }}>
+                          {formatCurrency(product.basePrice ?? product.rate ?? 0)}
+                        </p>
+                      )}
                       {!service && (
                         <button
                           type="button"
@@ -587,6 +610,19 @@ const Products = () => {
               />
             </div>
 
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-orange-100 bg-[#FFF9F5] px-3 py-2.5">
+              <div>
+                <Label htmlFor="show-on-top" className="text-sm font-semibold">Show on top of website products</Label>
+                <p className="text-[11px] text-gray-500 mt-0.5">Pinned to the top of the Products page listing</p>
+              </div>
+              <Switch
+                id="show-on-top"
+                checked={!!formData.showOnTop}
+                onCheckedChange={(v) => setFormData({ ...formData, showOnTop: !!v })}
+                data-testid="product-show-top-switch"
+              />
+            </div>
+
             <div>
               <Label htmlFor="name">{isService ? 'Service name *' : 'Product name *'}</Label>
               <Input
@@ -636,6 +672,20 @@ const Products = () => {
                     data-testid="product-price-input"
                   />
                 </div>
+                <div>
+                  <Label htmlFor="salePrice">Sale price (Rs)</Label>
+                  <Input
+                    id="salePrice"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="Optional — leave blank for no sale"
+                    value={formData.salePrice}
+                    onChange={(e) => setFormData({ ...formData, salePrice: e.target.value })}
+                    data-testid="product-sale-price-input"
+                  />
+                  <p className="text-[11px] text-gray-500 mt-1">Website shows old price struck through + this sale price.</p>
+                </div>
               </>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -670,7 +720,7 @@ const Products = () => {
                   </Select>
                 </div>
                 <div>
-                  <Label>Base price (Rs) *</Label>
+                  <Label>Base / regular price (Rs) *</Label>
                   <Input
                     type="number"
                     min="0"
@@ -680,6 +730,19 @@ const Products = () => {
                     required
                     data-testid="product-price-input"
                   />
+                </div>
+                <div>
+                  <Label>Sale price (Rs)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="Optional"
+                    value={formData.salePrice}
+                    onChange={(e) => setFormData({ ...formData, salePrice: e.target.value })}
+                    data-testid="product-sale-price-input"
+                  />
+                  <p className="text-[11px] text-gray-500 mt-1">Shown as current price; regular price gets strikethrough.</p>
                 </div>
                 <div>
                   <Label>Unit</Label>

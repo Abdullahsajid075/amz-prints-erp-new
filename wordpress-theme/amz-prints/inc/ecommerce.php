@@ -63,6 +63,7 @@ function amz_prints_erp_get_product( $id ) {
 		return null;
 	}
 	$price  = isset( $data['basePrice'] ) ? (float) $data['basePrice'] : ( isset( $data['rate'] ) ? (float) $data['rate'] : 0 );
+	$sale   = isset( $data['salePrice'] ) ? (float) $data['salePrice'] : 0;
 	$images = array();
 	if ( ! empty( $data['images'] ) && is_array( $data['images'] ) ) {
 		$images = array_values( array_filter( array_map( 'strval', $data['images'] ) ) );
@@ -91,6 +92,8 @@ function amz_prints_erp_get_product( $id ) {
 		'category'        => (string) ( $data['category'] ?? '' ),
 		'productType'     => (string) ( $data['productType'] ?? 'Product' ),
 		'basePrice'       => $price,
+		'salePrice'       => $sale > 0 ? $sale : 0,
+		'effectivePrice'  => $sale > 0 ? $sale : $price,
 		'unit'            => (string) ( $data['unit'] ?? 'per piece' ),
 		'description'     => (string) ( $data['description'] ?? '' ),
 		'fullDescription' => (string) ( $data['fullDescription'] ?? '' ),
@@ -100,6 +103,7 @@ function amz_prints_erp_get_product( $id ) {
 		'image'           => $primary ?: ( $images[0] ?? '' ),
 		'images'          => $images,
 		'variations'      => $variations,
+		'showOnTop'       => ! empty( $data['showOnTop'] ),
 	);
 }
 

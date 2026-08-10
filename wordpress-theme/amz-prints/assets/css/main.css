@@ -702,6 +702,39 @@ body:not(.amz-home) .site-header {
 .product-card__body { padding: 1.2rem 1.25rem 1.4rem; }
 .product-tile__price,
 .product-card__price { font-weight: 800; color: var(--amz-primary); }
+.product-price { display: inline-flex; align-items: baseline; gap: 0.45rem; flex-wrap: wrap; }
+.product-price__old {
+  color: #9ca3af;
+  font-weight: 600;
+  font-size: 0.88em;
+  text-decoration: line-through;
+}
+.product-price__sale {
+  color: var(--amz-primary, #f26522);
+  font-weight: 800;
+  text-decoration: none;
+}
+.product-card__sale-badge {
+  position: absolute;
+  top: 0.65rem;
+  left: 0.65rem;
+  z-index: 2;
+  background: #dc2626;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.22rem 0.45rem;
+  border-radius: 999px;
+}
+.product-card--top {
+  box-shadow: 0 10px 28px rgba(242, 101, 34, 0.14);
+}
+.product-card--top .product-card__tag {
+  background: #f26522;
+  color: #fff;
+}
 .product-card__tag {
   position: absolute;
   top: 0.8rem;

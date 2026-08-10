@@ -38,15 +38,22 @@ $erp_products = function_exists( 'amz_prints_erp_get_products' ) ? amz_prints_er
 			<?php if ( ! empty( $erp_products ) ) : ?>
 				<?php foreach ( $erp_products as $i => $product ) : ?>
 					<?php
-					$accent  = $accents[ $i % count( $accents ) ];
-					$purl    = amz_prints_product_url( $product );
-					$price   = amz_prints_erp_product_price_label( $product );
-					$excerpt = $product['description'] ? wp_trim_words( $product['description'], 18 ) : ( $product['category'] ? $product['category'] : __( 'Professional print product', 'amz-prints' ) );
-					$tag     = ! empty( $product['productType'] ) ? $product['productType'] : __( 'Print Product', 'amz-prints' );
-					$letter  = mb_substr( $product['name'], 0, 1 );
-					$img     = ! empty( $product['image'] ) ? amz_prints_product_image_src( $product['image'] ) : '';
+					$accent   = $accents[ $i % count( $accents ) ];
+					$purl     = amz_prints_product_url( $product );
+					$price_html = function_exists( 'amz_prints_erp_product_price_html' )
+						? amz_prints_erp_product_price_html( $product )
+						: esc_html( amz_prints_erp_product_price_label( $product ) );
+					$effective = function_exists( 'amz_prints_erp_product_effective_price' )
+						? amz_prints_erp_product_effective_price( $product )
+						: (float) ( $product['basePrice'] ?? 0 );
+					$excerpt  = $product['description'] ? wp_trim_words( $product['description'], 18 ) : ( $product['category'] ? $product['category'] : __( 'Professional print product', 'amz-prints' ) );
+					$tag      = ! empty( $product['showOnTop'] )
+						? __( 'Featured', 'amz-prints' )
+						: ( ! empty( $product['productType'] ) ? $product['productType'] : __( 'Print Product', 'amz-prints' ) );
+					$letter   = mb_substr( $product['name'], 0, 1 );
+					$img      = ! empty( $product['image'] ) ? amz_prints_product_image_src( $product['image'] ) : '';
 					?>
-					<article class="product-card product-card--<?php echo esc_attr( $accent ); ?> reveal" data-reveal>
+					<article class="product-card product-card--<?php echo esc_attr( $accent ); ?><?php echo ! empty( $product['showOnTop'] ) ? ' product-card--top' : ''; ?> reveal" data-reveal>
 						<a href="<?php echo esc_url( $purl ); ?>" class="product-card__link">
 							<div class="product-card__media">
 								<?php if ( $img ) : ?>
@@ -58,12 +65,15 @@ $erp_products = function_exists( 'amz_prints_erp_get_products' ) ? amz_prints_er
 									</div>
 								<?php endif; ?>
 								<span class="product-card__tag"><?php echo esc_html( $tag ); ?></span>
+								<?php if ( ! empty( $product['salePrice'] ) && (float) $product['salePrice'] > 0 ) : ?>
+									<span class="product-card__sale-badge"><?php esc_html_e( 'Sale', 'amz-prints' ); ?></span>
+								<?php endif; ?>
 							</div>
 							<div class="product-card__body">
 								<h3><?php echo esc_html( $product['name'] ); ?></h3>
 								<p><?php echo esc_html( $excerpt ); ?></p>
 								<div class="product-card__meta">
-									<span class="product-card__price"><?php echo esc_html( $price ); ?></span>
+									<span class="product-card__price"><?php echo $price_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
 									<span class="product-card__cta"><?php esc_html_e( 'View / Buy', 'amz-prints' ); ?></span>
 								</div>
 								<div class="product-card__actions" onclick="event.preventDefault();">
@@ -74,7 +84,8 @@ $erp_products = function_exists( 'amz_prints_erp_get_products' ) ? amz_prints_er
 										data-label="<?php esc_attr_e( 'Add to cart', 'amz-prints' ); ?>"
 										data-id="<?php echo esc_attr( $product['id'] ); ?>"
 										data-name="<?php echo esc_attr( $product['name'] ); ?>"
-										data-price="<?php echo esc_attr( $product['basePrice'] ); ?>"
+										data-price="<?php echo esc_attr( $effective ); ?>"
+										data-selected-price="<?php echo esc_attr( $effective ); ?>"
 										data-image="<?php echo esc_attr( $img ); ?>"
 										data-unit="<?php echo esc_attr( $product['unit'] ); ?>"
 										data-min="<?php echo esc_attr( $product['minQuantity'] ?: 1 ); ?>"

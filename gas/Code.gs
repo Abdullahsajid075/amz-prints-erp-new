@@ -58,8 +58,8 @@ var DEFAULT_HEADERS = {
     'PaymentMethod', 'PaymentStatus', 'Discount', 'DeliveryCharges', 'OrderSource', 'PaymentHistory'
   ],
   Products: [
-    'Id', 'Name', 'Category', 'Rate', 'Unit', 'Description', 'FullDescription', 'Status', 'ProductType',
-    'Designer', 'Stock', 'Material', 'Size', 'MinQuantity', 'Image', 'ShowOnWebsite', 'Variations'
+    'Id', 'Name', 'Category', 'Rate', 'SalePrice', 'Unit', 'Description', 'FullDescription', 'Status', 'ProductType',
+    'Designer', 'Stock', 'Material', 'Size', 'MinQuantity', 'Image', 'ShowOnWebsite', 'ShowOnTop', 'Variations'
   ],
   Invoices: [
     'Id', 'InvoiceNo', 'Date', 'DueDate', 'OrderId', 'CustomerId', 'CustomerName', 'CustomerPhone',
@@ -3000,6 +3000,23 @@ function isShowOnWebsite_(p) {
   return isNotifyOn_(p.showonwebsite);
 }
 
+function isShowOnTop_(p) {
+  if (!p) return false;
+  if (p.showontop === undefined || p.showontop === null || p.showontop === '') return false;
+  return isNotifyOn_(p.showontop);
+}
+
+function productSalePrice_(p) {
+  var sale = Number(p.saleprice != null ? p.saleprice : (p.salePrice != null ? p.salePrice : 0));
+  return sale > 0 ? sale : 0;
+}
+
+function productEffectivePrice_(p) {
+  var regular = Number(p.rate || p.baseprice || 0);
+  var sale = productSalePrice_(p);
+  return sale > 0 ? sale : regular;
+}
+
 function toPublicProduct_(p) {
   var api = toApiProduct_(p);
   if (!api.active) return null;
@@ -3055,7 +3072,7 @@ function handlePublicWebsiteOrder_(body, customer) {
     if (!isShowOnWebsite_(match)) {
       throw new Error('Product not available on website: ' + (match.name || pid));
     }
-    var rate = Number(match.rate || match.baseprice || 0);
+    var rate = productEffectivePrice_(match);
     var lineName = match.name;
     var variations = parseProductVariations_(match.variations);
     var variationId = String(line.variationId || line.variation_id || '').trim();
@@ -3197,6 +3214,12 @@ function handlePublic_(path, method, body) {
     var products = getSheetRows_(SHEET_NAMES.PRODUCTS)
       .map(toPublicProduct_)
       .filter(function (p) { return !!p; });
+    products.sort(function (a, b) {
+      var at = a.showOnTop ? 1 : 0;
+      var bt = b.showOnTop ? 1 : 0;
+      if (bt !== at) return bt - at;
+      return String(a.name || '').localeCompare(String(b.name || ''));
+    });
     return { products: products };
   }
 
@@ -3590,6 +3613,7 @@ function sanitizeCatalogImage_(img) {
 
 function toApiProduct_(p) {
   var rate = Number(p.rate || p.baseprice || 0);
+  var salePrice = productSalePrice_(p);
   var img = sanitizeCatalogImage_(p.image || p.photo || '');
   var variations = parseProductVariations_(p.variations);
   return {
@@ -3599,6 +3623,8 @@ function toApiProduct_(p) {
     productType: p.producttype || (String(p.category || '').toLowerCase().indexOf('service') >= 0 ? 'Service' : 'Product'),
     basePrice: rate,
     rate: rate,
+    salePrice: salePrice,
+    effectivePrice: salePrice > 0 ? salePrice : rate,
     unit: p.unit || 'per piece',
     description: p.description || '',
     fullDescription: p.fulldescription || p.fullDescription || '',
@@ -3612,6 +3638,7 @@ function toApiProduct_(p) {
     active: String(p.status || 'Active').toLowerCase() !== 'inactive',
     status: p.status || 'Active',
     showOnWebsite: isShowOnWebsite_(p),
+    showOnTop: isShowOnTop_(p),
     variations: variations,
   };
 }
@@ -3619,6 +3646,9 @@ function toApiProduct_(p) {
 function normalizeProduct_(body, existing) {
   existing = existing || {};
   var rate = body.basePrice != null ? body.basePrice : (body.rate != null ? body.rate : (existing.rate || 0));
+  var saleRaw = body.salePrice != null ? body.salePrice
+    : (body.saleprice != null ? body.saleprice : (existing.saleprice != null ? existing.saleprice : 0));
+  var salePrice = Number(saleRaw) > 0 ? Number(saleRaw) : 0;
   var ptype = body.productType || body.producttype || existing.producttype || 'Product';
   var isService = String(ptype).toLowerCase() === 'service';
   var id = body.id || existing.id || ('product_' + Date.now());
@@ -3632,12 +3662,17 @@ function normalizeProduct_(body, existing) {
   if (body.showOnWebsite != null) showWeb = isNotifyOn_(body.showOnWebsite);
   else if (body.showonwebsite != null) showWeb = isNotifyOn_(body.showonwebsite);
   else if (existing.showonwebsite != null && existing.showonwebsite !== '') showWeb = isNotifyOn_(existing.showonwebsite);
+  var showTop = false;
+  if (body.showOnTop != null) showTop = isNotifyOn_(body.showOnTop);
+  else if (body.showontop != null) showTop = isNotifyOn_(body.showontop);
+  else if (existing.showontop != null && existing.showontop !== '') showTop = isNotifyOn_(existing.showontop);
   return {
     id: id,
     name: body.name || existing.name || '',
     category: isService ? (body.category || existing.category || 'Services') : (body.category || existing.category || ''),
     producttype: ptype,
     rate: Number(rate || 0),
+    saleprice: salePrice,
     unit: isService ? 'service' : (body.unit || existing.unit || 'per piece'),
     description: body.description != null ? body.description : (existing.description || ''),
     fulldescription: body.fullDescription != null ? body.fullDescription
@@ -3650,6 +3685,7 @@ function normalizeProduct_(body, existing) {
     image: imageVal,
     status: body.active === false ? 'Inactive' : (body.status || existing.status || 'Active'),
     showonwebsite: showWeb,
+    showontop: showTop,
     variations: variations,
   };
 }

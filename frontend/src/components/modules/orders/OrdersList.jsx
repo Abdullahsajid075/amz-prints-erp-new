@@ -12,7 +12,7 @@ import { ORDER_STATUS } from '@/utils/constants';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
 import { openWhatsAppChat, fillTemplate, buildTemplateVars, resolveWhatsAppTemplate } from '@/services/notifications';
-import { Plus, Search, Eye, Edit, Copy, Trash2, User, Phone, Mail, MapPin, Calendar, Package, FileText, X, Printer, Receipt, Truck, Link2, Bell, StickyNote } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Copy, Trash2, User, Phone, Mail, MapPin, Calendar, Package, FileText, X, Printer, Receipt, Truck, Link2, Bell, StickyNote, Wallet } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
 
@@ -38,6 +38,11 @@ function orderDisplayTotal(order) {
 function trackingLinkFor(order) {
   const code = order?.trackingNumber || order?.orderId || order?.id || '';
   return `${window.location.origin}/track/${encodeURIComponent(String(code).trim())}`;
+}
+
+/** True when any advance has been recorded on the order. */
+function hasAdvanceReceived(order) {
+  return Number(order?.advancePayment || 0) > 0;
 }
 
 const OrdersList = () => {
@@ -169,20 +174,43 @@ const OrdersList = () => {
 
   const sendOrderReminder = async (order, type) => {
     try {
+      if (type === 'advance' && hasAdvanceReceived(order)) {
+        toast.message('Advance payment already received — reminder not needed');
+        return;
+      }
       const full = order.customerPhone ? order : (await ordersAPI.getById(order.id)).data;
       if (!full.customerPhone) {
         toast.error('Customer phone not available');
         return;
       }
+      if (type === 'advance' && hasAdvanceReceived(full)) {
+        toast.message('Advance payment already received — reminder not needed');
+        return;
+      }
       const name = full.customerName || 'Customer';
       const oid = full.orderId || full.id || '';
       const companyName = company?.name || 'Amazon Printing Services';
-      const msg = type === 'approval'
-        ? `Dear ${name},\n\n*Reminder — Waiting for approval*\n\nWe are waiting for your approval on order *${oid}*.\nPlease review the proof / details and confirm so we can proceed.\n\nThank you.\n${companyName}`
-        : `Dear ${name},\n\n*Reminder — Required documents / data*\n\nRequired documents or data are still pending for order *${oid}*.\nPlease share the required files or information at your earliest.\n\nThank you.\n${companyName}`;
+      const total = orderDisplayTotal(full);
+      const advance = Number(full.advancePayment || 0);
+      const balance = Math.max(0, total - advance);
+      let msg = '';
+      if (type === 'approval') {
+        msg = `Dear ${name},\n\n*Reminder — Waiting for approval*\n\nWe are waiting for your approval on order *${oid}*.\nPlease review the proof / details and confirm so we can proceed.\n\nThank you.\n${companyName}`;
+      } else if (type === 'documents') {
+        msg = `Dear ${name},\n\n*Reminder — Required documents / data*\n\nRequired documents or data are still pending for order *${oid}*.\nPlease share the required files or information at your earliest.\n\nThank you.\n${companyName}`;
+      } else if (type === 'advance') {
+        msg = `Dear ${name},\n\n*Soft reminder — Advance payment*\n\nYour order *${oid}* is still not continuing because the advance payment has not been received yet.\n\nPlease pay the advance payment to proceed with your order.`
+          + (total > 0 ? `\n\nOrder total: ${formatCurrency(total)}\nBalance due: ${formatCurrency(balance)}` : '')
+          + `\n\nThank you.\n${companyName}`;
+      } else {
+        toast.error('Unknown reminder type');
+        return;
+      }
       const result = openWhatsAppChat(full.customerPhone, msg);
       if (!result.ok) toast.error('Could not open WhatsApp');
-      else toast.message(type === 'approval' ? 'Approval reminder opened — tap Send' : 'Documents reminder opened — tap Send');
+      else if (type === 'approval') toast.message('Approval reminder opened — tap Send');
+      else if (type === 'documents') toast.message('Documents reminder opened — tap Send');
+      else toast.message('Advance payment reminder opened — tap Send');
     } catch (err) {
       console.error(err);
       toast.error('Failed to open reminder');
@@ -366,12 +394,12 @@ const OrdersList = () => {
           <Edit className="h-3.5 w-3.5" />
         </Button>
       </div>
-      <div className="flex gap-1 mt-1.5">
+      <div className="flex gap-1 mt-1.5 flex-wrap">
         <Button
           type="button"
           size="sm"
           variant="outline"
-          className="flex-1 h-7 text-[10px] px-1.5 text-amber-800 border-amber-200 hover:bg-amber-50"
+          className="flex-1 min-w-[30%] h-7 text-[10px] px-1.5 text-amber-800 border-amber-200 hover:bg-amber-50"
           title="WhatsApp: Waiting for approval"
           onClick={() => sendOrderReminder(order, 'approval')}
           data-testid={`reminder-approval-${order.id}`}
@@ -382,12 +410,29 @@ const OrdersList = () => {
           type="button"
           size="sm"
           variant="outline"
-          className="flex-1 h-7 text-[10px] px-1.5 text-sky-800 border-sky-200 hover:bg-sky-50"
+          className="flex-1 min-w-[30%] h-7 text-[10px] px-1.5 text-sky-800 border-sky-200 hover:bg-sky-50"
           title="WhatsApp: Required documents or data"
           onClick={() => sendOrderReminder(order, 'documents')}
           data-testid={`reminder-docs-${order.id}`}
         >
           <FileText className="h-3 w-3 mr-1 shrink-0" />Docs / Data
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={hasAdvanceReceived(order)}
+          className={`flex-1 min-w-[30%] h-7 text-[10px] px-1.5 ${
+            hasAdvanceReceived(order)
+              ? 'text-gray-400 border-gray-200 opacity-60 cursor-not-allowed'
+              : 'text-emerald-800 border-emerald-200 hover:bg-emerald-50'
+          }`}
+          title={hasAdvanceReceived(order) ? 'Advance already received' : 'WhatsApp: Soft reminder for advance payment'}
+          onClick={() => sendOrderReminder(order, 'advance')}
+          data-testid={`reminder-advance-${order.id}`}
+        >
+          <Wallet className="h-3 w-3 mr-1 shrink-0" />
+          {hasAdvanceReceived(order) ? 'Advance paid' : 'Advance'}
         </Button>
       </div>
     </div>
@@ -483,6 +528,16 @@ const OrdersList = () => {
                           <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600" onClick={() => handleWhatsApp(order)} title="WhatsApp"><WhatsAppIcon className="h-4 w-4" /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8 text-amber-700" onClick={() => sendOrderReminder(order, 'approval')} title="Waiting for approval"><Bell className="h-4 w-4" /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8 text-sky-700" onClick={() => sendOrderReminder(order, 'documents')} title="Required documents / data"><FileText className="h-4 w-4" /></Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className={`h-8 w-8 ${hasAdvanceReceived(order) ? 'text-gray-300' : 'text-emerald-700'}`}
+                            disabled={hasAdvanceReceived(order)}
+                            onClick={() => sendOrderReminder(order, 'advance')}
+                            title={hasAdvanceReceived(order) ? 'Advance already received' : 'Advance payment reminder'}
+                          >
+                            <Wallet className="h-4 w-4" />
+                          </Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => copyTrackingLink(order)} title="Copy tracking link"><Link2 className="h-4 w-4" style={{ color: '#F26522' }} /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handlePrint(order)} title="Print"><Printer className="h-4 w-4" /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleDuplicate(order.id)} title="Duplicate"><Copy className="h-4 w-4" /></Button>
@@ -625,6 +680,16 @@ const OrdersList = () => {
                 </Button>
                 <Button variant="outline" className="text-sky-800 border-sky-200" onClick={() => sendOrderReminder(viewOrder, 'documents')}>
                   <FileText className="h-4 w-4 mr-1" />Docs reminder
+                </Button>
+                <Button
+                  variant="outline"
+                  className={hasAdvanceReceived(viewOrder) ? 'text-gray-400 border-gray-200' : 'text-emerald-800 border-emerald-200'}
+                  disabled={hasAdvanceReceived(viewOrder)}
+                  onClick={() => sendOrderReminder(viewOrder, 'advance')}
+                  title={hasAdvanceReceived(viewOrder) ? 'Advance already received' : 'Soft reminder for advance payment'}
+                >
+                  <Wallet className="h-4 w-4 mr-1" />
+                  {hasAdvanceReceived(viewOrder) ? 'Advance paid' : 'Advance reminder'}
                 </Button>
                 <Button variant="outline" className="text-green-700" onClick={() => handleWhatsApp(viewOrder)}><WhatsAppIcon className="h-4 w-4 mr-1" />WhatsApp</Button>
                 <Button variant="outline" onClick={() => handleGenerateInvoice(viewOrder)}><Receipt className="h-4 w-4 mr-1" style={{ color: '#F26522' }} />Invoice</Button>

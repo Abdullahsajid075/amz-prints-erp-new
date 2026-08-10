@@ -149,12 +149,14 @@ $catalog     = array_slice( amz_prints_services_catalog(), 0, 6 );
 			if ( ! empty( $erp_home_products ) ) :
 				$erp_home_products = array_slice( $erp_home_products, 0, 6 );
 				foreach ( $erp_home_products as $product ) :
-					$purl    = amz_prints_product_url( $product );
-					$price   = amz_prints_erp_product_price_label( $product );
-					$excerpt = $product['description'] ? wp_trim_words( $product['description'], 14 ) : ( $product['category'] ?: '' );
-					$img     = ! empty( $product['image'] ) ? amz_prints_product_image_src( $product['image'] ) : '';
+					$purl      = amz_prints_product_url( $product );
+					$price_html = function_exists( 'amz_prints_erp_product_price_html' )
+						? amz_prints_erp_product_price_html( $product )
+						: esc_html( amz_prints_erp_product_price_label( $product ) );
+					$excerpt   = $product['description'] ? wp_trim_words( $product['description'], 14 ) : ( $product['category'] ?: '' );
+					$img       = ! empty( $product['image'] ) ? amz_prints_product_image_src( $product['image'] ) : '';
 					?>
-					<article class="product-tile reveal" data-reveal>
+					<article class="product-tile reveal<?php echo ! empty( $product['showOnTop'] ) ? ' product-tile--top' : ''; ?>" data-reveal>
 						<a href="<?php echo esc_url( $purl ); ?>">
 							<div class="product-tile__media">
 								<?php if ( $img ) : ?>
@@ -166,7 +168,7 @@ $catalog     = array_slice( amz_prints_services_catalog(), 0, 6 );
 							<div class="product-tile__body">
 								<h3><?php echo esc_html( $product['name'] ); ?></h3>
 								<?php if ( $excerpt ) : ?><p><?php echo esc_html( $excerpt ); ?></p><?php endif; ?>
-								<span class="product-tile__price"><?php echo esc_html( $price ); ?></span>
+								<span class="product-tile__price"><?php echo $price_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
 							</div>
 						</a>
 					</article>

@@ -136,7 +136,7 @@ function amz_prints_erp_request( $method, $path, $body = null ) {
  * @return array List of product arrays (empty on failure).
  */
 function amz_prints_erp_get_products( $force_refresh = false ) {
-	$cache_key = 'amz_prints_erp_products_v1';
+	$cache_key = 'amz_prints_erp_products_v2';
 	if ( ! $force_refresh ) {
 		$cached = get_transient( $cache_key );
 		if ( is_array( $cached ) ) {
@@ -179,6 +179,7 @@ function amz_prints_erp_get_products( $force_refresh = false ) {
 			continue;
 		}
 		$price = isset( $row['basePrice'] ) ? (float) $row['basePrice'] : ( isset( $row['rate'] ) ? (float) $row['rate'] : 0 );
+		$sale  = isset( $row['salePrice'] ) ? (float) $row['salePrice'] : 0;
 		$primary = (string) ( $row['image'] ?? $row['photo'] ?? '' );
 		$images  = array();
 		if ( ! empty( $row['images'] ) && is_array( $row['images'] ) ) {
@@ -207,6 +208,8 @@ function amz_prints_erp_get_products( $force_refresh = false ) {
 			'category'        => (string) ( $row['category'] ?? '' ),
 			'productType'     => (string) ( $row['productType'] ?? 'Product' ),
 			'basePrice'       => $price,
+			'salePrice'       => $sale > 0 ? $sale : 0,
+			'effectivePrice'  => $sale > 0 ? $sale : $price,
 			'unit'            => (string) ( $row['unit'] ?? 'per piece' ),
 			'description'     => (string) ( $row['description'] ?? '' ),
 			'fullDescription' => (string) ( $row['fullDescription'] ?? '' ),
@@ -217,27 +220,85 @@ function amz_prints_erp_get_products( $force_refresh = false ) {
 			'images'          => $images,
 			'variations'      => $variations,
 			'showOnWebsite'   => ! empty( $row['showOnWebsite'] ) || ! array_key_exists( 'showOnWebsite', $row ),
+			'showOnTop'       => ! empty( $row['showOnTop'] ),
 		);
 	}
+
+	usort(
+		$products,
+		static function ( $a, $b ) {
+			$at = ! empty( $a['showOnTop'] ) ? 1 : 0;
+			$bt = ! empty( $b['showOnTop'] ) ? 1 : 0;
+			if ( $at !== $bt ) {
+				return $bt - $at;
+			}
+			return strcasecmp( (string) $a['name'], (string) $b['name'] );
+		}
+	);
 
 	set_transient( $cache_key, $products, 5 * MINUTE_IN_SECONDS );
 	return $products;
 }
 
 /**
- * Format ERP price for display.
+ * Effective storefront price (sale if set, else regular).
+ *
+ * @param array $product Product row.
+ * @return float
+ */
+function amz_prints_erp_product_effective_price( $product ) {
+	$regular = isset( $product['basePrice'] ) ? (float) $product['basePrice'] : 0;
+	$sale    = isset( $product['salePrice'] ) ? (float) $product['salePrice'] : 0;
+	if ( $sale > 0 ) {
+		return $sale;
+	}
+	if ( isset( $product['effectivePrice'] ) ) {
+		return (float) $product['effectivePrice'];
+	}
+	return $regular;
+}
+
+/**
+ * Format ERP price for display (plain text).
  *
  * @param array $product Product row.
  * @return string
  */
 function amz_prints_erp_product_price_label( $product ) {
-	$price = isset( $product['basePrice'] ) ? (float) $product['basePrice'] : 0;
-	$unit  = ! empty( $product['unit'] ) ? $product['unit'] : '';
+	$regular = isset( $product['basePrice'] ) ? (float) $product['basePrice'] : 0;
+	$sale    = isset( $product['salePrice'] ) ? (float) $product['salePrice'] : 0;
+	$unit    = ! empty( $product['unit'] ) ? $product['unit'] : '';
+	$price   = $sale > 0 ? $sale : $regular;
 	if ( $price <= 0 ) {
 		return __( 'Get a quote', 'amz-prints' );
 	}
-	$formatted = 'From Rs. ' . number_format_i18n( $price, $price == floor( $price ) ? 0 : 2 );
+	$formatted = 'Rs. ' . number_format_i18n( $price, $price == floor( $price ) ? 0 : 2 );
 	return $unit ? ( $formatted . ' / ' . $unit ) : $formatted;
+}
+
+/**
+ * HTML price block with optional strikethrough regular price.
+ *
+ * @param array $product Product row.
+ * @return string Safe HTML.
+ */
+function amz_prints_erp_product_price_html( $product ) {
+	$regular = isset( $product['basePrice'] ) ? (float) $product['basePrice'] : 0;
+	$sale    = isset( $product['salePrice'] ) ? (float) $product['salePrice'] : 0;
+	$unit    = ! empty( $product['unit'] ) ? ' / ' . $product['unit'] : '';
+	if ( $sale <= 0 && $regular <= 0 ) {
+		return esc_html__( 'Get a quote', 'amz-prints' );
+	}
+	if ( $sale > 0 ) {
+		$old = 'Rs. ' . number_format_i18n( $regular, $regular == floor( $regular ) ? 0 : 2 );
+		$now = 'Rs. ' . number_format_i18n( $sale, $sale == floor( $sale ) ? 0 : 2 ) . esc_html( $unit );
+		return '<span class="product-price product-price--sale">'
+			. '<del class="product-price__old">' . esc_html( $old ) . '</del> '
+			. '<ins class="product-price__sale">' . esc_html( $now ) . '</ins>'
+			. '</span>';
+	}
+	$now = 'Rs. ' . number_format_i18n( $regular, $regular == floor( $regular ) ? 0 : 2 ) . esc_html( $unit );
+	return '<span class="product-price">' . esc_html( $now ) . '</span>';
 }
 
 /**
