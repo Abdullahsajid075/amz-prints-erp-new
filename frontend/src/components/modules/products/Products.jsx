@@ -184,9 +184,14 @@ const Products = () => {
     if (!file) return;
     setImageBusy(true);
     try {
-      const dataUrl = await compressImageFile(file, { maxEdge: 240, maxChars: 40000, quality: 0.58 });
+      // HD compress (up to ~1400px, high quality WebP/JPEG) within Sheets cell limit
+      const dataUrl = await compressImageFile(file, {
+        maxEdge: 1400,
+        maxChars: 48000,
+        quality: 0.92,
+      });
       setFormData((prev) => ({ ...prev, image: dataUrl }));
-      toast.success('Photo ready');
+      toast.success('HD photo ready');
     } catch (err) {
       toast.error(err.message || 'Photo failed');
     } finally {

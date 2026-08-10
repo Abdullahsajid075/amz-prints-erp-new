@@ -3464,7 +3464,8 @@ function toPublicTrackOrder_(o) {
  * No Google Drive / DriveApp — works when Workspace blocks Drive OAuth.
  * Sheets cell limit ~50k chars; frontend compresses before upload.
  */
-var MAX_SHEET_IMAGE_CHARS_ = 45000;
+// Google Sheets cell max is 50,000 chars — keep a small safety margin
+var MAX_SHEET_IMAGE_CHARS_ = 49000;
 
 /** Optional helper — Drive is NOT required. Safe to ignore. */
 function authorizeDriveAccess() {
@@ -3702,7 +3703,7 @@ function handleProducts_(path, method, body) {
       appendObject_(sheet, SHEET_NAMES.PRODUCTS, created);
       var apiCreated = toApiProduct_(created);
       if ((body && (body.image || body.photo)) && !apiCreated.image) {
-        throw new Error('Photo was not stored. Use a smaller image (compressed under ~45KB).');
+        throw new Error('Photo was not stored. Use a clearer photo (under Sheets cell limit).');
       }
       return apiCreated;
     }
@@ -3719,7 +3720,7 @@ function handleProducts_(path, method, body) {
     updateObjectProps_(sheet, SHEET_NAMES.PRODUCTS, rows[index]._row, updated);
     var apiUpdated = toApiProduct_(updated);
     if ((body && (body.image || body.photo)) && !apiUpdated.image) {
-      throw new Error('Photo was not stored. Use a smaller image (compressed under ~45KB).');
+      throw new Error('Photo was not stored. Use a clearer photo (under Sheets cell limit).');
     }
     return apiUpdated;
   }

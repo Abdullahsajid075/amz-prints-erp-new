@@ -1,17 +1,32 @@
 /** Compress image for catalog only — never attach to order/invoice lines. */
 
-const DEFAULT_MAX_EDGE = 280;
-const DEFAULT_JPEG_QUALITY = 0.62;
-const DEFAULT_MAX_CHARS = 42000;
+/** Longest side in px — sharp enough for ERP + website product views. */
+const DEFAULT_MAX_EDGE = 1400;
+/** Prefer high quality; size loop will step down only if over Sheets limit. */
+const DEFAULT_JPEG_QUALITY = 0.92;
+/** Google Sheets cell max is 50k; stay slightly under for safety. */
+const DEFAULT_MAX_CHARS = 48000;
+
+function supportsWebpDataUrl_() {
+  try {
+    const c = document.createElement('canvas');
+    c.width = 1;
+    c.height = 1;
+    return c.toDataURL('image/webp').startsWith('data:image/webp');
+  } catch {
+    return false;
+  }
+}
 
 /**
  * @param {File} file
- * @param {{ maxEdge?: number, maxChars?: number, quality?: number }} [opts]
+ * @param {{ maxEdge?: number, maxChars?: number, quality?: number, preferWebp?: boolean }} [opts]
  */
 export function compressImageFile(file, opts = {}) {
   const MAX_EDGE = opts.maxEdge || DEFAULT_MAX_EDGE;
-  const JPEG_QUALITY = opts.quality || DEFAULT_JPEG_QUALITY;
+  const START_QUALITY = opts.quality || DEFAULT_JPEG_QUALITY;
   const MAX_DATA_URL_CHARS = opts.maxChars || DEFAULT_MAX_CHARS;
+  const preferWebp = opts.preferWebp !== false && supportsWebpDataUrl_();
 
   return new Promise((resolve, reject) => {
     if (!file || !file.type?.startsWith('image/')) {
@@ -29,30 +44,58 @@ export function compressImageFile(file, opts = {}) {
         width = Math.max(1, Math.round(width * scale));
         height = Math.max(1, Math.round(height * scale));
 
-        const tryEncode = (w, h, quality) => {
+        const tryEncode = (w, h, quality, mime) => {
           const canvas = document.createElement('canvas');
           canvas.width = w;
           canvas.height = h;
           const ctx = canvas.getContext('2d');
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, w, h);
+          // High-quality downsample (default is often blurry)
+          ctx.imageSmoothingEnabled = true;
+          if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
+          if (mime === 'image/jpeg') {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, w, h);
+          } else {
+            ctx.clearRect(0, 0, w, h);
+          }
           ctx.drawImage(img, 0, 0, w, h);
-          return canvas.toDataURL('image/jpeg', quality);
+          return canvas.toDataURL(mime, quality);
         };
 
         try {
-          let dataUrl = tryEncode(width, height, JPEG_QUALITY);
-          let q = JPEG_QUALITY;
+          const mimePrimary = preferWebp ? 'image/webp' : 'image/jpeg';
+          const mimeFallback = 'image/jpeg';
+
+          let mime = mimePrimary;
+          let q = START_QUALITY;
           let w = width;
           let h = height;
-          while (dataUrl.length > MAX_DATA_URL_CHARS && (q > 0.35 || w > 100)) {
-            if (q > 0.35) q = Math.max(0.35, q - 0.08);
-            else {
-              w = Math.max(100, Math.round(w * 0.75));
-              h = Math.max(100, Math.round(h * 0.75));
+          let dataUrl = tryEncode(w, h, q, mime);
+
+          // Prefer keeping resolution; ease quality first, then mild shrink
+          let steps = 0;
+          while (dataUrl.length > MAX_DATA_URL_CHARS && steps < 28) {
+            steps += 1;
+            if (q > 0.72) {
+              q = Math.max(0.72, +(q - 0.03).toFixed(2));
+            } else if (q > 0.58) {
+              q = Math.max(0.58, +(q - 0.04).toFixed(2));
+            } else if (w > 720 || h > 720) {
+              w = Math.max(720, Math.round(w * 0.9));
+              h = Math.max(720, Math.round(h * 0.9));
+            } else if (mime === 'image/webp') {
+              // WebP still too big — try JPEG at same size
+              mime = mimeFallback;
+              q = Math.min(START_QUALITY, 0.88);
+            } else if (w > 480 || h > 480) {
+              w = Math.max(480, Math.round(w * 0.88));
+              h = Math.max(480, Math.round(h * 0.88));
+            } else {
+              break;
             }
-            dataUrl = tryEncode(w, h, q);
+            dataUrl = tryEncode(w, h, q, mime);
           }
+
           if (dataUrl.length > MAX_DATA_URL_CHARS) {
             reject(new Error('Image still too large — pick a smaller photo'));
             return;
