@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ordersAPI, customersAPI, designersAPI, tokensAPI, productsAPI } from '@/services/api';
 import { notifyOrderEvent, printPaymentSlip } from '@/services/notifications';
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
+import ProductPicker from '@/components/shared/ProductPicker';
 import { ORDER_STATUS } from '@/utils/constants';
 import { formatCurrency } from '@/utils/helpers';
 import { catalogFieldsForOrderLine } from '@/utils/productImage';
@@ -235,7 +236,19 @@ const OrderForm = () => {
     });
   };
 
-  const pickProduct = (index, productId) => {
+  const pickProduct = (index, productOrId) => {
+    if (!productOrId) {
+      setFormData((prev) => {
+        const products = prev.products.map((line, i) => (
+          i === index
+            ? { ...emptyProduct(), _key: line._key }
+            : line
+        ));
+        return { ...prev, products };
+      });
+      return;
+    }
+    const productId = typeof productOrId === 'object' ? productOrId.id : productOrId;
     const p = catalog.find((x) => String(x.id) === String(productId));
     if (!p) return;
     const fields = catalogFieldsForOrderLine(p);
@@ -639,20 +652,16 @@ const OrderForm = () => {
                 {service ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div className="sm:col-span-2">
-                      <Label className="text-xs">Service * (catalog)</Label>
-                      <Select value={catalogValueFor(product)} onValueChange={(v) => pickProduct(index, v)} required>
-                        <SelectTrigger className="bg-white h-9" data-testid={`product-select-${index}`}>
-                          <SelectValue placeholder="Select service from catalog" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {catalog.map((p) => (
-                            <SelectItem key={p.id} value={String(p.id)}>
-                              {String(p.productType || '').toLowerCase() === 'service' ? 'Svc · ' : ''}
-                              {p.name} · {formatCurrency(p.rate || p.basePrice)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <ProductPicker
+                        catalog={catalog}
+                        value={catalogValueFor(product) || ''}
+                        selectedName={product.name}
+                        onSelect={(p) => pickProduct(index, p)}
+                        label="Service * (type to search)"
+                        placeholder="Type any word to find service…"
+                        testId={`product-select-${index}`}
+                        required
+                      />
                     </div>
                     <div className="sm:col-span-2">
                       <Label className="text-xs">Description *</Label>
@@ -692,20 +701,16 @@ const OrderForm = () => {
                 ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
                   <div className="col-span-2 sm:col-span-3">
-                    <Label className="text-xs">Product * (catalog se select)</Label>
-                    <Select value={catalogValueFor(product)} onValueChange={(v) => pickProduct(index, v)} required>
-                      <SelectTrigger className="bg-white h-9" data-testid={`product-select-${index}`}>
-                        <SelectValue placeholder="Select product from catalog" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {catalog.map((p) => (
-                          <SelectItem key={p.id} value={String(p.id)}>
-                            {String(p.productType || '').toLowerCase() === 'service' ? 'Svc · ' : ''}
-                            {p.name} · {formatCurrency(p.rate || p.basePrice)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <ProductPicker
+                      catalog={catalog}
+                      value={catalogValueFor(product) || ''}
+                      selectedName={product.name}
+                      onSelect={(p) => pickProduct(index, p)}
+                      label="Product * (type to search)"
+                      placeholder="Type any word to find product…"
+                      testId={`product-select-${index}`}
+                      required
+                    />
                     {!lineHasCatalogProduct(product) && (
                       <p className="text-[11px] text-red-600 mt-1">Product select karna lazmi hai</p>
                     )}

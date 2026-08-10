@@ -17,7 +17,8 @@ import {
   sendTestEmail,
   openWhatsAppChat,
 } from '@/services/notifications';
-import { Save, Building2, FileText, Palette, Users, ShoppingCart, Package, UserCog, CreditCard, Bell, Shield, Database, Trash2, Plus, X, Edit, MessageCircle, Mail, Kanban, KeyRound } from 'lucide-react';
+import { Save, Building2, FileText, Palette, Users, ShoppingCart, Package, UserCog, CreditCard, Bell, Shield, Database, Trash2, Plus, X, Edit, Mail, Kanban, KeyRound } from 'lucide-react';
+import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
 import { DEFAULT_CRM_STAGES } from '@/utils/crmStages';
 import { getAssignableModules, hasFullAccess, normalizePermissions } from '@/utils/permissions';
@@ -937,7 +938,7 @@ const Settings = () => {
 
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><MessageCircle className="h-5 w-5" />WhatsApp message templates</CardTitle>
+              <CardTitle className="flex items-center gap-2"><WhatsAppIcon className="h-5 w-5 text-green-600" />WhatsApp message templates</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-xs text-gray-500">
@@ -1039,7 +1040,7 @@ const Settings = () => {
                   toast.message('WhatsApp opened — tap Send');
                 }}
               >
-                <MessageCircle className="h-4 w-4 mr-2" />Test WhatsApp app
+                <WhatsAppIcon className="h-4 w-4 mr-2" />Test WhatsApp app
               </Button>
             </CardContent>
           </Card>

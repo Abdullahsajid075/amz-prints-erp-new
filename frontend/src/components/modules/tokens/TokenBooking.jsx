@@ -10,9 +10,10 @@ import { tokensAPI, customersAPI, debugAPI } from '@/services/api';
 import { notifyTokenEvent } from '@/services/notifications';
 import { toast } from 'sonner';
 import {
-  Ticket, Printer, MessageCircle, Monitor, Search, Plus, XCircle,
+  Ticket, Printer, Monitor, Search, Plus, XCircle,
   Loader2, RefreshCw,
 } from 'lucide-react';
+import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 
 const DEFAULT_SERVICES = [
   { name: 'Designing', counter: 'Table 01' },
@@ -526,8 +527,8 @@ const TokenBooking = () => {
                     <Printer className="h-4 w-4 mr-2" />
                     Print Token (POS)
                   </Button>
-                  <Button variant="outline" onClick={() => sendWhatsApp(lastToken)} data-testid="token-whatsapp">
-                    <MessageCircle className="h-4 w-4 mr-2" />
+                  <Button variant="outline" className="text-green-700 border-green-200 hover:bg-green-50" onClick={() => sendWhatsApp(lastToken)} data-testid="token-whatsapp">
+                    <WhatsAppIcon className="h-4 w-4 mr-2" />
                     Send WhatsApp
                   </Button>
                   <Button variant="outline" onClick={() => markProgress(lastToken)} data-testid="token-booking-progress">
@@ -624,8 +625,8 @@ const TokenBooking = () => {
                           <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => printToken(t)} title="Print">
                             <Printer className="h-3.5 w-3.5" />
                           </Button>
-                          <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => sendWhatsApp(t)} title="WhatsApp">
-                            <MessageCircle className="h-3.5 w-3.5" />
+                          <Button size="sm" variant="ghost" className="h-8 px-2 text-green-600" onClick={() => sendWhatsApp(t)} title="WhatsApp">
+                            <WhatsAppIcon className="h-3.5 w-3.5" />
                           </Button>
                           <Button
                             size="sm"

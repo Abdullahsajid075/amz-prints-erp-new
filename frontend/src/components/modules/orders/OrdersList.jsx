@@ -12,7 +12,8 @@ import { ORDER_STATUS } from '@/utils/constants';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
 import { openWhatsAppChat, fillTemplate, buildTemplateVars, resolveWhatsAppTemplate } from '@/services/notifications';
-import { Plus, Search, Eye, Edit, Copy, Trash2, User, Phone, Mail, MapPin, Calendar, Package, FileText, X, Printer, MessageCircle, Receipt, Truck, Link2 } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Copy, Trash2, User, Phone, Mail, MapPin, Calendar, Package, FileText, X, Printer, Receipt, Truck, Link2, Bell, StickyNote } from 'lucide-react';
+import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
 
 const ORDER_SORT_OPTS = [
@@ -52,16 +53,31 @@ const OrdersList = () => {
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
-      const params = {};
-      if (filters.search) params.search = filters.search;
-      if (filters.status) params.status = filters.status;
-      const response = await ordersAPI.getAll(params);
+      const response = await ordersAPI.getAll();
       // POS sales have a separate statement — keep Orders list for booking jobs only
-      const list = (response.data || []).filter((o) => {
+      let list = (response.data || []).filter((o) => {
         const dt = String(o.docType || o.doctype || 'Order').toLowerCase();
         if (dt === 'pos') return false;
         return !/pos\s*sale/i.test(String(o.remarks || ''));
       });
+      if (filters.status) {
+        list = list.filter((o) => String(o.status || '') === String(filters.status));
+      }
+      if (filters.search) {
+        const q = String(filters.search).trim().toLowerCase();
+        const qDigits = q.replace(/\D/g, '');
+        list = list.filter((o) => {
+          const blob = [
+            o.orderId, o.id, o.customerName, o.customerPhone, o.customerEmail,
+            o.trackingNumber, o.status, o.remarks,
+          ].map((x) => String(x || '').toLowerCase()).join(' ');
+          if (blob.includes(q)) return true;
+          const words = q.split(/\s+/).filter(Boolean);
+          if (words.length > 1 && words.every((w) => blob.includes(w))) return true;
+          if (qDigits.length >= 3 && String(o.customerPhone || '').replace(/\D/g, '').includes(qDigits)) return true;
+          return false;
+        });
+      }
       setOrders(list);
     } catch (error) {
       console.error('Error fetching orders:', error);
@@ -71,8 +87,12 @@ const OrdersList = () => {
     }
   }, [filters.search, filters.status]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { fetchOrders(); }, []);
+  // Active filters — status applies immediately; search debounced while typing
+  useEffect(() => {
+    const delay = filters.search ? 350 : 0;
+    const t = setTimeout(() => { fetchOrders(); }, delay);
+    return () => clearTimeout(t);
+  }, [fetchOrders, filters.search, filters.status]);
 
   useEffect(() => {
     settingsAPI.get().then(res => setCompany(res.data?.company || {})).catch(() => {});
@@ -145,6 +165,28 @@ const OrdersList = () => {
       if (!result.ok) toast.error('Could not open WhatsApp');
       else toast.message('WhatsApp opened — tap Send');
     } catch (err) { console.error(err); toast.error('Failed to open WhatsApp'); }
+  };
+
+  const sendOrderReminder = async (order, type) => {
+    try {
+      const full = order.customerPhone ? order : (await ordersAPI.getById(order.id)).data;
+      if (!full.customerPhone) {
+        toast.error('Customer phone not available');
+        return;
+      }
+      const name = full.customerName || 'Customer';
+      const oid = full.orderId || full.id || '';
+      const companyName = company?.name || 'Amazon Printing Services';
+      const msg = type === 'approval'
+        ? `Dear ${name},\n\n*Reminder — Waiting for approval*\n\nWe are waiting for your approval on order *${oid}*.\nPlease review the proof / details and confirm so we can proceed.\n\nThank you.\n${companyName}`
+        : `Dear ${name},\n\n*Reminder — Required documents / data*\n\nRequired documents or data are still pending for order *${oid}*.\nPlease share the required files or information at your earliest.\n\nThank you.\n${companyName}`;
+      const result = openWhatsAppChat(full.customerPhone, msg);
+      if (!result.ok) toast.error('Could not open WhatsApp');
+      else toast.message(type === 'approval' ? 'Approval reminder opened — tap Send' : 'Documents reminder opened — tap Send');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to open reminder');
+    }
   };
 
   const copyTrackingLink = (order) => {
@@ -312,7 +354,7 @@ const OrdersList = () => {
           <Receipt className="h-3.5 w-3.5" style={{ color: '#F26522' }} />
         </Button>
         <Button size="icon" variant="outline" className="h-8 w-8 text-green-600 hover:bg-green-50" title="WhatsApp" onClick={() => handleWhatsApp(order)} data-testid={`whatsapp-order-${order.id}`}>
-          <MessageCircle className="h-3.5 w-3.5" />
+          <WhatsAppIcon className="h-3.5 w-3.5" />
         </Button>
         <Button size="icon" variant="outline" className="h-8 w-8" title="Copy tracking link" onClick={() => copyTrackingLink(order)} data-testid={`track-link-${order.id}`}>
           <Link2 className="h-3.5 w-3.5" style={{ color: '#F26522' }} />
@@ -322,6 +364,30 @@ const OrdersList = () => {
         </Button>
         <Button size="icon" variant="ghost" className="h-8 w-8" title="Edit" onClick={() => navigate(`/orders/${order.id}/edit`)} data-testid={`edit-order-${order.id}`}>
           <Edit className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+      <div className="flex gap-1 mt-1.5">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="flex-1 h-7 text-[10px] px-1.5 text-amber-800 border-amber-200 hover:bg-amber-50"
+          title="WhatsApp: Waiting for approval"
+          onClick={() => sendOrderReminder(order, 'approval')}
+          data-testid={`reminder-approval-${order.id}`}
+        >
+          <Bell className="h-3 w-3 mr-1 shrink-0" />Approval
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="flex-1 h-7 text-[10px] px-1.5 text-sky-800 border-sky-200 hover:bg-sky-50"
+          title="WhatsApp: Required documents or data"
+          onClick={() => sendOrderReminder(order, 'documents')}
+          data-testid={`reminder-docs-${order.id}`}
+        >
+          <FileText className="h-3 w-3 mr-1 shrink-0" />Docs / Data
         </Button>
       </div>
     </div>
@@ -346,7 +412,7 @@ const OrdersList = () => {
               <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
               <Input placeholder="Search by order ID or customer..." value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && fetchOrders()} className="pl-10" data-testid="search-input" />
             </div>
-            <Select value={filters.status} onValueChange={(v) => setFilters({ ...filters, status: v === 'all' ? undefined : v })}>
+            <Select value={filters.status || 'all'} onValueChange={(v) => setFilters({ ...filters, status: v === 'all' ? undefined : v })}>
               <SelectTrigger data-testid="status-filter"><SelectValue placeholder="All Status" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
@@ -414,7 +480,9 @@ const OrdersList = () => {
                         <div className="flex items-center gap-1 justify-end">
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleView(order.id)} title="View"><Eye className="h-4 w-4" /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleGenerateInvoice(order)} title="Invoice"><Receipt className="h-4 w-4" style={{ color: '#F26522' }} /></Button>
-                          <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600" onClick={() => handleWhatsApp(order)} title="WhatsApp"><MessageCircle className="h-4 w-4" /></Button>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600" onClick={() => handleWhatsApp(order)} title="WhatsApp"><WhatsAppIcon className="h-4 w-4" /></Button>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-amber-700" onClick={() => sendOrderReminder(order, 'approval')} title="Waiting for approval"><Bell className="h-4 w-4" /></Button>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-sky-700" onClick={() => sendOrderReminder(order, 'documents')} title="Required documents / data"><FileText className="h-4 w-4" /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => copyTrackingLink(order)} title="Copy tracking link"><Link2 className="h-4 w-4" style={{ color: '#F26522' }} /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handlePrint(order)} title="Print"><Printer className="h-4 w-4" /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleDuplicate(order.id)} title="Duplicate"><Copy className="h-4 w-4" /></Button>
@@ -473,6 +541,15 @@ const OrdersList = () => {
                 </div>
               </div>
 
+              {(viewOrder.remarks || viewOrder.notes) && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                  <h4 className="text-sm font-semibold uppercase tracking-wider mb-2 flex items-center gap-2 text-amber-900">
+                    <StickyNote className="h-4 w-4" />Order Notes / Remarks
+                  </h4>
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap">{viewOrder.remarks || viewOrder.notes}</p>
+                </div>
+              )}
+
               {viewOrder.products?.length > 0 && (
                 <div className="bg-white border border-gray-200 rounded-lg p-4">
                   <h4 className="text-sm font-semibold uppercase tracking-wider mb-3 flex items-center gap-2 text-gray-700">
@@ -483,10 +560,16 @@ const OrdersList = () => {
                       <div key={product.id || `${product.name}-${product.quantity}-${product.rate}`} className="flex items-start justify-between p-3 bg-gray-50 rounded-lg">
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold truncate" style={{ color: '#1F2937' }}>{product.name}</p>
-                          <div className="flex gap-4 mt-1 text-xs text-gray-600">
+                          <div className="flex flex-wrap gap-4 mt-1 text-xs text-gray-600">
                             {product.size && <span>Size: {product.size}</span>}
                             {product.material && <span>Material: {product.material}</span>}
                           </div>
+                          {(product.notes || product.description) && (
+                            <p className="mt-2 text-xs text-gray-700 bg-white border border-gray-100 rounded px-2 py-1.5 whitespace-pre-wrap">
+                              <span className="font-semibold text-gray-500">Note: </span>
+                              {product.notes || product.description}
+                            </p>
+                          )}
                         </div>
                         <div className="text-right shrink-0 ml-3">
                           <p className="text-sm text-gray-600">{product.quantity} × {formatCurrency(product.rate)}</p>
@@ -495,6 +578,12 @@ const OrdersList = () => {
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {!viewOrder.remarks && !viewOrder.notes && !(viewOrder.products || []).some((p) => p.notes || p.description) && (
+                <div className="rounded-lg border border-dashed border-gray-200 p-3 text-sm text-gray-500">
+                  No order notes on this job.
                 </div>
               )}
 
@@ -531,7 +620,13 @@ const OrdersList = () => {
                     <Truck className="h-4 w-4 mr-1" />Delivery Slip
                   </Button>
                 )}
-                <Button variant="outline" className="text-green-700" onClick={() => handleWhatsApp(viewOrder)}><MessageCircle className="h-4 w-4 mr-1" />WhatsApp</Button>
+                <Button variant="outline" className="text-amber-800 border-amber-200" onClick={() => sendOrderReminder(viewOrder, 'approval')}>
+                  <Bell className="h-4 w-4 mr-1" />Approval reminder
+                </Button>
+                <Button variant="outline" className="text-sky-800 border-sky-200" onClick={() => sendOrderReminder(viewOrder, 'documents')}>
+                  <FileText className="h-4 w-4 mr-1" />Docs reminder
+                </Button>
+                <Button variant="outline" className="text-green-700" onClick={() => handleWhatsApp(viewOrder)}><WhatsAppIcon className="h-4 w-4 mr-1" />WhatsApp</Button>
                 <Button variant="outline" onClick={() => handleGenerateInvoice(viewOrder)}><Receipt className="h-4 w-4 mr-1" style={{ color: '#F26522' }} />Invoice</Button>
                 <Button style={{ backgroundColor: '#F26522' }} className="text-white" onClick={() => { setViewOpen(false); navigate(`/orders/${viewOrder.id}/edit`); }} data-testid="edit-from-dialog-button">
                   <Edit className="h-4 w-4 mr-1" />Edit

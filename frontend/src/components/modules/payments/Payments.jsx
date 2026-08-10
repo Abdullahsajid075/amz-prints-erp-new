@@ -15,7 +15,8 @@ import { formatCurrency, formatDate } from '@/utils/helpers';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
 import { useBrand } from '@/context/BrandContext';
-import { Plus, Search, Edit, Trash2, CreditCard, TrendingUp, TrendingDown, Wallet, Building, Save, X, ArrowDownLeft, ArrowUpRight, Printer, MessageCircle } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, CreditCard, TrendingUp, TrendingDown, Wallet, Building, Save, X, ArrowDownLeft, ArrowUpRight, Printer } from 'lucide-react';
+import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
 
 const PAYMENT_SORT_OPTS = [
@@ -565,7 +566,7 @@ const Payments = () => {
                                 <Printer className="h-4 w-4" />
                               </Button>
                               <Button size="icon" variant="ghost" className="text-green-600" title="WhatsApp" onClick={() => resendWhatsApp(p)}>
-                                <MessageCircle className="h-4 w-4" />
+                                <WhatsAppIcon className="h-4 w-4" />
                               </Button>
                               <Button size="icon" variant="ghost" onClick={() => openEdit(p)} data-testid={`edit-payment-${p.id}`}><Edit className="h-4 w-4" /></Button>
                               <Button size="icon" variant="ghost" onClick={() => handleDelete(p.id)} data-testid={`delete-payment-${p.id}`}><Trash2 className="h-4 w-4 text-red-600" /></Button>

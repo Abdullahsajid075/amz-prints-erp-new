@@ -7,7 +7,8 @@ import { invoicesAPI } from '@/services/api';
 import { notifyOrderEvent } from '@/services/notifications';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 import { useBrand } from '@/context/BrandContext';
-import { ArrowLeft, Printer, MessageCircle, Copy, Download, CheckCircle2, Edit, Bell } from 'lucide-react';
+import { ArrowLeft, Printer, Copy, Download, CheckCircle2, Edit } from 'lucide-react';
+import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
 
 const InvoiceView = ({ isPublic = false }) => {
@@ -149,12 +150,12 @@ const InvoiceView = ({ isPublic = false }) => {
               Copy Link
             </Button>
             <Button variant="outline" onClick={shareOnWhatsApp} className="text-green-700" data-testid="whatsapp-share-button">
-              <MessageCircle className="h-4 w-4 mr-2" />
+              <WhatsAppIcon className="h-4 w-4 mr-2" />
               WhatsApp
             </Button>
             {balance > 0 && (
               <Button variant="outline" onClick={sendReminder} className="text-amber-700 border-amber-300" data-testid="remind-invoice-button">
-                <Bell className="h-4 w-4 mr-2" />
+                <WhatsAppIcon className="h-4 w-4 mr-2" />
                 Reminder
               </Button>
             )}

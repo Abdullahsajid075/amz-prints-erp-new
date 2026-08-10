@@ -9,7 +9,8 @@ import { notifyOrderEvent } from '@/services/notifications';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
-import { Plus, Search, Eye, Edit, FileText, MessageCircle, Copy as CopyIcon, Bell } from 'lucide-react';
+import { Plus, Search, Eye, Edit, FileText, Copy as CopyIcon } from 'lucide-react';
+import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
 
 const INVOICE_SORT_OPTS = [
@@ -274,7 +275,7 @@ const Invoices = () => {
                       <CopyIcon className="h-3 w-3" />
                     </Button>
                     <Button size="icon" variant="outline" className="h-7 w-7 text-green-600 hover:bg-green-50" onClick={() => shareOnWhatsApp(invoice)} title="WhatsApp" data-testid={`whatsapp-invoice-${invoice.id}`}>
-                      <MessageCircle className="h-3 w-3" />
+                      <WhatsAppIcon className="h-3 w-3" />
                     </Button>
                     {invoiceBalance(invoice) > 0 && (
                       <Button
@@ -285,7 +286,7 @@ const Invoices = () => {
                         title="Payment reminder"
                         data-testid={`remind-invoice-${invoice.id}`}
                       >
-                        <Bell className="h-3 w-3 mr-1" />Remind
+                        <WhatsAppIcon className="h-3 w-3 mr-1" />Remind
                       </Button>
                     )}
                   </div>

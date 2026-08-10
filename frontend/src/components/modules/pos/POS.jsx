@@ -4,12 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { productsAPI, ordersAPI, invoicesAPI, customersAPI } from '@/services/api';
-import { applyServerNotificationHint } from '@/services/notifications';
+import { applyServerNotificationHint, openWhatsAppChat } from '@/services/notifications';
 import { formatCurrency } from '@/utils/helpers';
 import { customerMatchesQuery } from '@/utils/customerSearch';
+import { productMatchesQuery } from '@/utils/productSearch';
 import { barcodeBlock, openPrintWindow, printOnLoadScript, POS_MAJOR_SERVICES } from '@/utils/printHelpers';
 import { useBrand } from '@/context/BrandContext';
 import { Search, Plus, Minus, Trash2, Printer, ShoppingCart, FileSpreadsheet, PackagePlus, UserPlus, Package, Wrench } from 'lucide-react';
+import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 
@@ -36,6 +38,8 @@ const POS = () => {
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [discountType, setDiscountType] = useState('amount'); // amount | percent
   const [discountValue, setDiscountValue] = useState('');
+  const [receivedAmount, setReceivedAmount] = useState('');
+  const [waPhone, setWaPhone] = useState('');
   const [checkingOut, setCheckingOut] = useState(false);
   const [lastSale, setLastSale] = useState(null);
 
@@ -93,13 +97,13 @@ const POS = () => {
   }, [customerOptions, customerQuery]);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = search.trim();
     return products.filter((p) => {
       const service = isServiceItem(p);
       if (filter === 'product' && service) return false;
       if (filter === 'service' && !service) return false;
       if (!q) return true;
-      return String(p.name || '').toLowerCase().includes(q);
+      return productMatchesQuery(p, q);
     });
   }, [products, filter, search]);
 
@@ -147,6 +151,15 @@ const POS = () => {
   }, [discountType, discountValue, subtotal]);
 
   const payable = Math.max(0, subtotal - discountAmount);
+  const receivedNum = Number(receivedAmount);
+  const cashReceived = Number.isFinite(receivedNum) && String(receivedAmount).trim() !== ''
+    ? Math.max(0, receivedNum)
+    : payable;
+  const changeBack = Math.max(0, cashReceived - payable);
+
+  useEffect(() => {
+    setWaPhone(String(selectedCustomer?.phone || ''));
+  }, [selectedCustomer?.id, selectedCustomer?.phone]);
 
   const addToCart = (product) => {
     const rate = Number(product.rate || product.basePrice || 0);
@@ -194,6 +207,7 @@ const POS = () => {
     setCart([]);
     setDiscountValue('');
     setDiscountType('amount');
+    setReceivedAmount('');
     toast.message('Cart cleared');
   };
 
@@ -250,7 +264,8 @@ const POS = () => {
            <div class="total" style="font-size:11px;font-weight:600"><span>DISCOUNT</span><span>-${formatCurrency(sale.discount)}</span></div>`
         : ''}
       <div class="total"><span>TOTAL</span><span>${formatCurrency(sale.totalAmount)}</span></div>
-      <div class="total" style="font-size:11px;margin-top:2px"><span>PAID</span><span>${formatCurrency(sale.totalAmount)}</span></div>
+      <div class="total" style="font-size:11px;margin-top:2px"><span>RECEIVED</span><span>${formatCurrency(sale.receivedAmount != null ? sale.receivedAmount : sale.totalAmount)}</span></div>
+      <div class="total" style="font-size:11px;margin-top:2px"><span>CHANGE</span><span>${formatCurrency(sale.changeBack != null ? sale.changeBack : 0)}</span></div>
       <hr />
       <div style="font-size:9px;font-weight:800;letter-spacing:0.06em">OUR MAJOR SERVICES</div>
       <ol class="services">${services}</ol>
@@ -260,6 +275,40 @@ const POS = () => {
       </body></html>`;
     const res = openPrintWindow(html, { width: 360, height: 740 });
     if (!res.ok) toast.error('Allow popups to print receipt');
+  };
+
+  const buildPosWhatsAppReceipt = (sale) => {
+    const companyName = company?.name || 'Amazon Printing Services';
+    const lines = (sale.products || [])
+      .map((p) => `• ${p.name} × ${p.quantity} = ${formatCurrency(p.quantity * p.rate)}`)
+      .join('\n');
+    return (
+      `*${companyName} — POS Receipt*\n`
+      + `Sale: *${sale.orderId || sale.id}*\n`
+      + `Customer: ${sale.customerName || 'Walk-in'}\n`
+      + `${lines}\n`
+      + (Number(sale.discount) > 0 ? `Discount: -${formatCurrency(sale.discount)}\n` : '')
+      + `Total: *${formatCurrency(sale.totalAmount)}*\n`
+      + `Received: ${formatCurrency(sale.receivedAmount != null ? sale.receivedAmount : sale.totalAmount)}\n`
+      + `Change: ${formatCurrency(sale.changeBack != null ? sale.changeBack : 0)}\n`
+      + `Pay: ${sale.paymentMethod || 'Cash'}\n`
+      + `\nThank you!`
+    );
+  };
+
+  const sendPosWhatsApp = (sale, phoneOverride) => {
+    const phone = String(phoneOverride || sale?.customerPhone || waPhone || '').trim();
+    if (!phone) {
+      toast.error('Enter WhatsApp number');
+      return;
+    }
+    if (!sale) {
+      toast.error('Complete a sale first');
+      return;
+    }
+    const result = openWhatsAppChat(phone, buildPosWhatsAppReceipt({ ...sale, customerPhone: phone }));
+    if (!result.ok) toast.error('Could not open WhatsApp');
+    else toast.message('WhatsApp receipt opened — tap Send');
   };
 
   const checkout = async () => {
@@ -277,19 +326,20 @@ const POS = () => {
         material,
       }));
       const cust = selectedCustomer || WALK_IN;
+      const phoneForSale = String(waPhone || cust.phone || '').trim();
       const discNote = discountAmount > 0
         ? ` · Disc ${discountType === 'percent' ? `${Number(discountValue) || 0}%` : ''} Rs ${discountAmount} (sub ${subtotal})`
         : '';
       const payload = {
         customerId: cust.id || WALK_IN.id,
         customerName: cust.name || 'Walk-in',
-        customerPhone: cust.phone || '',
+        customerPhone: phoneForSale,
         products: productsPayload,
         totalAmount: payable,
         advancePayment: payable,
         balanceAmount: 0,
         status: 'Delivered',
-        remarks: `POS Sale · ${paymentMethod}${discNote}`,
+        remarks: `POS Sale · ${paymentMethod}${discNote} · Recv ${cashReceived} · Change ${changeBack}`,
         docType: 'POS',
         paymentMethod,
       };
@@ -297,7 +347,7 @@ const POS = () => {
       const sale = {
         ...payload,
         customerName: created.data?.customerName || payload.customerName,
-        customerPhone: created.data?.customerPhone || payload.customerPhone,
+        customerPhone: phoneForSale || created.data?.customerPhone || payload.customerPhone,
         orderId: created.data?.orderId || created.data?.id,
         id: created.data?.id,
         date: new Date().toLocaleString(),
@@ -306,6 +356,8 @@ const POS = () => {
         discount: discountAmount,
         discountType,
         discountValue: Number(discountValue) || 0,
+        receivedAmount: cashReceived,
+        changeBack,
       };
       setLastSale(sale);
       toast.success(`Sale ${sale.orderId} completed`);
@@ -316,6 +368,7 @@ const POS = () => {
       setCustomerId(WALK_IN.id);
       setDiscountValue('');
       setDiscountType('amount');
+      setReceivedAmount('');
       printReceipt(sale);
     } catch (err) {
       console.error(err);
@@ -343,6 +396,14 @@ const POS = () => {
             <>
               <Button variant="outline" onClick={() => printReceipt(lastSale)} data-testid="pos-reprint">
                 <Printer className="h-4 w-4 mr-2" />Reprint POS slip
+              </Button>
+              <Button
+                variant="outline"
+                className="text-green-700 border-green-200 hover:bg-green-50"
+                onClick={() => sendPosWhatsApp(lastSale, waPhone || lastSale.customerPhone)}
+                data-testid="pos-whatsapp-last"
+              >
+                <WhatsAppIcon className="h-4 w-4 mr-2" />Send WhatsApp
               </Button>
               <Button
                 variant="outline"
@@ -630,6 +691,41 @@ const POS = () => {
                 <span className="font-semibold">Total due</span>
                 <span className="text-2xl font-bold" style={{ color: primary || '#F26522' }}>{formatCurrency(payable)}</span>
               </div>
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <div>
+                  <Label className="text-xs">Received amount</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder={String(payable || 0)}
+                    value={receivedAmount}
+                    onChange={(e) => setReceivedAmount(e.target.value)}
+                    className="h-9"
+                    data-testid="pos-received-amount"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Change back</Label>
+                  <Input
+                    className="h-9 bg-emerald-50 font-semibold text-emerald-800"
+                    value={formatCurrency(changeBack)}
+                    disabled
+                    data-testid="pos-change-back"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs">WhatsApp number</Label>
+                <Input
+                  className="h-9"
+                  placeholder="03XXXXXXXXX"
+                  value={waPhone}
+                  onChange={(e) => setWaPhone(e.target.value)}
+                  data-testid="pos-wa-phone"
+                />
+                <p className="text-[11px] text-gray-500 mt-1">Edit manually if needed, then send receipt.</p>
+              </div>
             </div>
             <Button
               className="w-full text-white"
@@ -639,6 +735,19 @@ const POS = () => {
               data-testid="pos-checkout"
             >
               {checkingOut ? 'Processing…' : 'Checkout & Print'}
+            </Button>
+            <Button
+              type="button"
+              className="w-full bg-[#25D366] hover:bg-[#1ebe57] text-white"
+              disabled={!lastSale && !cart.length}
+              onClick={() => {
+                if (lastSale) sendPosWhatsApp(lastSale, waPhone);
+                else toast.message('Complete checkout first, then send WhatsApp receipt');
+              }}
+              data-testid="pos-whatsapp-send"
+            >
+              <WhatsAppIcon className="h-4 w-4 mr-2" />
+              Send WhatsApp receipt
             </Button>
           </CardContent>
         </Card>
