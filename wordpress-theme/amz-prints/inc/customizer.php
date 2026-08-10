@@ -225,7 +225,7 @@ function amz_prints_customize_register( $wp_customize ) {
 		) );
 	}
 
-	foreach ( array( 'amz_show_services', 'amz_show_products', 'amz_show_process', 'amz_show_cta' ) as $toggle ) {
+	foreach ( array( 'amz_show_services', 'amz_show_products', 'amz_show_process', 'amz_show_cta', 'amz_show_clients', 'amz_show_projects' ) as $toggle ) {
 		$wp_customize->add_setting( $toggle, array(
 			'default'           => true,
 			'sanitize_callback' => function( $v ) { return (bool) $v; },
@@ -236,6 +236,64 @@ function amz_prints_customize_register( $wp_customize ) {
 			'type'    => 'checkbox',
 		) );
 	}
+
+	$wp_customize->add_setting( 'amz_clients_title', array(
+		'default'           => 'Our Clients',
+		'sanitize_callback' => 'sanitize_text_field',
+	) );
+	$wp_customize->add_control( 'amz_clients_title', array(
+		'label'   => __( 'Clients section title', 'amz-prints' ),
+		'section' => 'amz_sections',
+		'type'    => 'text',
+	) );
+	$wp_customize->add_setting( 'amz_clients_sub', array(
+		'default'           => 'Brands that trust AMZ Prints for color-true production and on-time delivery.',
+		'sanitize_callback' => 'sanitize_text_field',
+	) );
+	$wp_customize->add_control( 'amz_clients_sub', array(
+		'label'   => __( 'Clients section subtitle', 'amz-prints' ),
+		'section' => 'amz_sections',
+		'type'    => 'textarea',
+	) );
+	$wp_customize->add_setting( 'amz_clients_list', array(
+		'default'           => "Honda Atlas\nPepsiCo\nEngro\nJazz\nUnilever\nNestlé\nTelenor\nPackages Ltd",
+		'sanitize_callback' => 'sanitize_textarea_field',
+	) );
+	$wp_customize->add_control( 'amz_clients_list', array(
+		'label'       => __( 'Clients list (one per line)', 'amz-prints' ),
+		'section'     => 'amz_sections',
+		'type'        => 'textarea',
+		'description' => __( 'Each line becomes one client name chip.', 'amz-prints' ),
+	) );
+
+	$wp_customize->add_setting( 'amz_projects_title', array(
+		'default'           => 'Successful Projects',
+		'sanitize_callback' => 'sanitize_text_field',
+	) );
+	$wp_customize->add_control( 'amz_projects_title', array(
+		'label'   => __( 'Projects section title', 'amz-prints' ),
+		'section' => 'amz_sections',
+		'type'    => 'text',
+	) );
+	$wp_customize->add_setting( 'amz_projects_sub', array(
+		'default'           => 'Selected work across packaging, large format, branding, and public services.',
+		'sanitize_callback' => 'sanitize_text_field',
+	) );
+	$wp_customize->add_control( 'amz_projects_sub', array(
+		'label'   => __( 'Projects section subtitle', 'amz-prints' ),
+		'section' => 'amz_sections',
+		'type'    => 'textarea',
+	) );
+	$wp_customize->add_setting( 'amz_projects_list', array(
+		'default'           => "Brand Launch Kit|Packaging|2025\nRetail Campaign Banners|Large Format|2025\nCorporate Identity Suite|Offset|2024\nNADRA Desk Rollout|Public Service|2024\nProduct Catalog Series|Digital|2025\nEvent Branding System|Advertising|2024",
+		'sanitize_callback' => 'sanitize_textarea_field',
+	) );
+	$wp_customize->add_control( 'amz_projects_list', array(
+		'label'       => __( 'Projects list', 'amz-prints' ),
+		'section'     => 'amz_sections',
+		'type'        => 'textarea',
+		'description' => __( 'One project per line: Title|Category|Year', 'amz-prints' ),
+	) );
 
 	/* ── NADRA ── */
 	$wp_customize->add_section( 'amz_nadra', array(

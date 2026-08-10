@@ -204,21 +204,21 @@ $slider_meta = array(
 	</div>
 </section>
 
-<section class="amz-marquee" aria-label="<?php esc_attr_e( 'Services', 'amz-prints' ); ?>">
+<section class="amz-marquee amz-marquee--ink" aria-label="<?php esc_attr_e( 'Services', 'amz-prints' ); ?>">
 	<div class="amz-marquee__track">
 		<?php foreach ( array_merge( $marquee_items, $marquee_items ) as $label ) : ?>
-			<span class="amz-marquee__item"><?php echo esc_html( $label ); ?></span>
+			<span class="amz-marquee__item"><em aria-hidden="true"></em><?php echo esc_html( $label ); ?></span>
 		<?php endforeach; ?>
 	</div>
 </section>
 
-<section class="quick-actions">
+<section class="quick-actions quick-actions--lower">
 	<div class="container quick-actions__grid">
-		<a class="quick-action reveal has-tilt" data-reveal href="<?php echo esc_url( home_url( '/track-order/' ) ); ?>">
+		<a class="quick-action quick-action--ink reveal has-tilt" data-reveal href="<?php echo esc_url( home_url( '/track-order/' ) ); ?>">
 			<span class="quick-action__label"><?php echo esc_html( amz_t( 'track_order' ) ); ?></span>
 			<strong><?php echo esc_html( amz_t( 'track_order' ) ); ?></strong>
 		</a>
-		<a class="quick-action reveal has-tilt" data-reveal href="<?php echo esc_url( home_url( '/how-we-work/' ) ); ?>">
+		<a class="quick-action quick-action--orange reveal has-tilt" data-reveal href="<?php echo esc_url( home_url( '/how-we-work/' ) ); ?>">
 			<span class="quick-action__label"><?php echo esc_html( amz_t( 'how_we_work' ) ); ?></span>
 			<strong><?php echo esc_html( amz_t( 'how_we_work' ) ); ?></strong>
 		</a>
@@ -226,7 +226,7 @@ $slider_meta = array(
 			<span class="quick-action__label"><?php echo esc_html( amz_t( 'nadra' ) ); ?></span>
 			<strong><?php echo esc_html( amz_t( 'nadra' ) ); ?></strong>
 		</a>
-		<a class="quick-action reveal has-tilt" data-reveal href="<?php echo esc_url( home_url( '/products/' ) ); ?>">
+		<a class="quick-action quick-action--mix reveal has-tilt" data-reveal href="<?php echo esc_url( home_url( '/products/' ) ); ?>">
 			<span class="quick-action__label"><?php esc_html_e( 'Shop', 'amz-prints' ); ?></span>
 			<strong><?php esc_html_e( 'Shop products', 'amz-prints' ); ?></strong>
 		</a>
@@ -257,6 +257,92 @@ $slider_meta = array(
 		</div>
 	</div>
 </section>
+
+<?php
+$clients_raw = (string) amz_prints_mod(
+	'amz_clients_list',
+	"Honda Atlas\nPepsiCo\nEngro\nJazz\nUnilever\nNestlé\nTelenor\nPackages Ltd"
+);
+$clients = array_values( array_filter( array_map( 'trim', preg_split( '/\r\n|\r|\n/', $clients_raw ) ) ) );
+if ( count( $clients ) < 4 ) {
+	$clients = array( 'Honda Atlas', 'PepsiCo', 'Engro', 'Jazz', 'Unilever', 'Nestlé', 'Telenor', 'Packages Ltd' );
+}
+
+$projects_raw = (string) amz_prints_mod(
+	'amz_projects_list',
+	"Brand Launch Kit|Packaging|2025\nRetail Campaign Banners|Large Format|2025\nCorporate Identity Suite|Offset|2024\nNADRA Desk Rollout|Public Service|2024\nProduct Catalog Series|Digital|2025\nEvent Branding System|Advertising|2024"
+);
+$projects = array();
+foreach ( preg_split( '/\r\n|\r|\n/', $projects_raw ) as $line ) {
+	$line = trim( $line );
+	if ( ! $line ) {
+		continue;
+	}
+	$parts = array_map( 'trim', explode( '|', $line ) );
+	$projects[] = array(
+		'title'    => $parts[0] ?? '',
+		'category' => $parts[1] ?? 'Print',
+		'year'     => $parts[2] ?? '',
+	);
+}
+if ( count( $projects ) < 3 ) {
+	$projects = array(
+		array( 'title' => 'Brand Launch Kit', 'category' => 'Packaging', 'year' => '2025' ),
+		array( 'title' => 'Retail Campaign Banners', 'category' => 'Large Format', 'year' => '2025' ),
+		array( 'title' => 'Corporate Identity Suite', 'category' => 'Offset', 'year' => '2024' ),
+		array( 'title' => 'NADRA Desk Rollout', 'category' => 'Public Service', 'year' => '2024' ),
+		array( 'title' => 'Product Catalog Series', 'category' => 'Digital', 'year' => '2025' ),
+		array( 'title' => 'Event Branding System', 'category' => 'Advertising', 'year' => '2024' ),
+	);
+}
+?>
+
+<?php if ( amz_prints_mod( 'amz_show_clients', true ) ) : ?>
+<section class="section section--clients" id="clients">
+	<div class="container">
+		<header class="section-head reveal" data-reveal>
+			<p class="eyebrow"><?php esc_html_e( 'Trusted by', 'amz-prints' ); ?></p>
+			<h2><?php echo esc_html( amz_prints_mod( 'amz_clients_title', 'Our Clients' ) ); ?></h2>
+			<p><?php echo esc_html( amz_prints_mod( 'amz_clients_sub', 'Brands that trust AMZ Prints for color-true production and on-time delivery.' ) ); ?></p>
+		</header>
+		<div class="clients-grid reveal" data-reveal>
+			<?php foreach ( $clients as $i => $client ) : ?>
+				<div class="client-chip" style="--i:<?php echo esc_attr( (string) $i ); ?>">
+					<span><?php echo esc_html( $client ); ?></span>
+				</div>
+			<?php endforeach; ?>
+		</div>
+	</div>
+</section>
+<?php endif; ?>
+
+<?php if ( amz_prints_mod( 'amz_show_projects', true ) ) : ?>
+<section class="section section--projects section--atelier" id="projects">
+	<div class="container">
+		<header class="section-head reveal" data-reveal>
+			<p class="eyebrow"><?php esc_html_e( 'Portfolio', 'amz-prints' ); ?></p>
+			<h2><?php echo esc_html( amz_prints_mod( 'amz_projects_title', 'Successful Projects' ) ); ?></h2>
+			<p><?php echo esc_html( amz_prints_mod( 'amz_projects_sub', 'Selected work across packaging, large format, branding, and public services.' ) ); ?></p>
+		</header>
+		<div class="projects-grid">
+			<?php foreach ( $projects as $i => $project ) : ?>
+				<?php if ( empty( $project['title'] ) ) { continue; } ?>
+				<article class="project-card reveal has-tilt" data-reveal style="--reveal-delay:<?php echo esc_attr( (string) ( $i * 70 ) ); ?>ms; --i:<?php echo esc_attr( (string) $i ); ?>">
+					<div class="project-card__glow" aria-hidden="true"></div>
+					<p class="project-card__meta">
+						<span><?php echo esc_html( $project['category'] ); ?></span>
+						<?php if ( ! empty( $project['year'] ) ) : ?>
+							<em><?php echo esc_html( $project['year'] ); ?></em>
+						<?php endif; ?>
+					</p>
+					<h3><?php echo esc_html( $project['title'] ); ?></h3>
+					<span class="text-link"><?php esc_html_e( 'View case', 'amz-prints' ); ?></span>
+				</article>
+			<?php endforeach; ?>
+		</div>
+	</div>
+</section>
+<?php endif; ?>
 
 <section class="section section--about-home" id="about">
 	<div class="container about-home reveal" data-reveal>
