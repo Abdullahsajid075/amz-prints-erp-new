@@ -156,9 +156,10 @@ const Products = () => {
     if (!file) return;
     setImageBusy(true);
     try {
-      const dataUrl = await compressImageFile(file, { maxEdge: 240, maxChars: 40000, quality: 0.58 });
+      // High-res compress for sharp website/ERP display (fits Sheets ~45k limit).
+      const dataUrl = await compressImageFile(file, { maxEdge: 1000, maxChars: 45000, quality: 0.86 });
       setFormData((prev) => ({ ...prev, image: dataUrl }));
-      toast.success('Photo ready');
+      toast.success('Photo ready — sharp quality');
     } catch (err) {
       toast.error(err.message || 'Photo failed');
     } finally {

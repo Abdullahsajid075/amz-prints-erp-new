@@ -1,8 +1,9 @@
 /** Compress image for catalog only — never attach to order/invoice lines. */
 
-const DEFAULT_MAX_EDGE = 280;
-const DEFAULT_JPEG_QUALITY = 0.62;
-const DEFAULT_MAX_CHARS = 42000;
+// Keep under Google Sheets ~50k cell limit, but prefer sharp display quality.
+const DEFAULT_MAX_EDGE = 1000;
+const DEFAULT_JPEG_QUALITY = 0.86;
+const DEFAULT_MAX_CHARS = 45000;
 
 /**
  * @param {File} file
@@ -34,6 +35,8 @@ export function compressImageFile(file, opts = {}) {
           canvas.width = w;
           canvas.height = h;
           const ctx = canvas.getContext('2d');
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
           ctx.fillStyle = '#ffffff';
           ctx.fillRect(0, 0, w, h);
           ctx.drawImage(img, 0, 0, w, h);
@@ -41,20 +44,22 @@ export function compressImageFile(file, opts = {}) {
         };
 
         try {
+          // Prefer high quality first; only reduce if Sheets cell limit requires it.
           let dataUrl = tryEncode(width, height, JPEG_QUALITY);
           let q = JPEG_QUALITY;
           let w = width;
           let h = height;
-          while (dataUrl.length > MAX_DATA_URL_CHARS && (q > 0.35 || w > 100)) {
-            if (q > 0.35) q = Math.max(0.35, q - 0.08);
-            else {
-              w = Math.max(100, Math.round(w * 0.75));
-              h = Math.max(100, Math.round(h * 0.75));
+          while (dataUrl.length > MAX_DATA_URL_CHARS && (q > 0.55 || w > 480)) {
+            if (q > 0.55) {
+              q = Math.max(0.55, q - 0.05);
+            } else {
+              w = Math.max(480, Math.round(w * 0.85));
+              h = Math.max(480, Math.round(h * 0.85));
             }
             dataUrl = tryEncode(w, h, q);
           }
           if (dataUrl.length > MAX_DATA_URL_CHARS) {
-            reject(new Error('Image still too large — pick a smaller photo'));
+            reject(new Error('Image still too large for storage — use a clearer, smaller photo (under ~2MB)'));
             return;
           }
           resolve(dataUrl);
