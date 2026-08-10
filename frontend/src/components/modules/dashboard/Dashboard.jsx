@@ -198,11 +198,10 @@ const Dashboard = () => {
 
   const displayName = getUserDisplayName(user);
   const greeting = greetingForHour(new Date().getHours());
-  // Prefer cash net (Payments Cash In − Out); fallback to revenue − expenses
+  // Cash net = Payments Cash In − Cash Out (do not mix with Expenses sheet)
   const net = Number.isFinite(Number(stats.cashNet))
     ? Number(stats.cashNet)
-    : (Number(stats.cashIn || 0) - Number(stats.cashOut || stats.expenses || 0))
-      || (Number(stats.revenue || 0) - Number(stats.expenses || 0));
+    : Number(stats.cashIn || 0) - Number(stats.cashOut || 0);
   const todayLabel = new Date().toLocaleDateString('en-PK', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
@@ -589,7 +588,6 @@ const Dashboard = () => {
           testId="stat-payables"
           label="Vendor payables"
           value={formatCurrency(stats.payables || stats.vendorPayables || 0)}
-          sub={net >= 0 ? `Net +${formatCurrency(net)}` : `Net ${formatCurrency(net)}`}
           icon={Wallet}
           tint="#E11D48"
           onClick={() => navigate('/purchases')}

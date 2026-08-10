@@ -2649,8 +2649,8 @@ function getDashboardBootstrap_(params) {
     if (t === 'outflow' || t === 'out') return s + Number(p.amount || 0);
     return s;
   }, 0);
-  // Net cash = money in − money out (fallback: expenses if no outflow rows)
-  var cashNet = cashIn - (cashOut > 0 ? cashOut : expenseTotal);
+  // Net cash = Payments Cash In − Cash Out only (never substitute Expenses sheet)
+  var cashNet = cashIn - cashOut;
   // Collected = order advances + cash-in payments (cash position visibility)
   collected = collected + cashIn;
 
@@ -2729,7 +2729,7 @@ function getDashboardBootstrap_(params) {
       receivables: receivables,
       collected: collected,
       cashIn: cashIn,
-      cashOut: cashOut > 0 ? cashOut : expenseTotal,
+      cashOut: cashOut,
       cashNet: cashNet,
       payables: payables,
       vendorPayables: payables,
