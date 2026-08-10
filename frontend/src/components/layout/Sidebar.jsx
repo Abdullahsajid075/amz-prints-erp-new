@@ -11,42 +11,92 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useBrand } from '@/context/BrandContext';
 import { useAuth } from '@/context/AuthContext';
 
-const menuItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', module: 'dashboard', testId: 'nav-dashboard' },
-  { icon: Quote, label: 'Quotation', path: '/quotations', module: 'quotations', testId: 'nav-quotations' },
-  { icon: ShoppingCart, label: 'Orders', path: '/orders', module: 'orders', testId: 'nav-orders' },
-  { icon: Ticket, label: 'Token Booking', path: '/tokens', module: 'tokens', testId: 'nav-tokens' },
-  { icon: FileText, label: 'Invoices', path: '/invoices', module: 'invoices', testId: 'nav-invoices' },
-  { icon: Users, label: 'Customers', path: '/customers', module: 'customers', testId: 'nav-customers' },
-  { icon: Kanban, label: 'CRM', path: '/crm', module: 'crm', testId: 'nav-crm' },
-  { icon: ShoppingBag, label: 'Purchases', path: '/purchases', module: 'purchases', testId: 'nav-purchases' },
-  { icon: Warehouse, label: 'Warehouse', path: '/warehouse', module: 'warehouse', testId: 'nav-warehouse',
-    children: [
-      { label: 'Products', path: '/warehouse/products', module: 'warehouse' },
-      { label: 'Inventory', path: '/warehouse/inventory', module: 'warehouse' },
-    ]
+const menuGroups = [
+  {
+    id: 'overview',
+    label: null,
+    items: [
+      { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', module: 'dashboard', testId: 'nav-dashboard' },
+    ],
   },
-  { icon: Store, label: 'POS', path: '/pos', module: 'pos', testId: 'nav-pos',
-    children: [
-      { label: 'Counter', path: '/pos', module: 'pos' },
-      { label: 'POS Statement', path: '/pos/statement', module: 'pos' },
-    ]
+  {
+    id: 'sales',
+    label: 'Sales',
+    items: [
+      { icon: Quote, label: 'Quotation', path: '/quotations', module: 'quotations', testId: 'nav-quotations' },
+      { icon: ShoppingCart, label: 'Orders', path: '/orders', module: 'orders', testId: 'nav-orders' },
+      { icon: Ticket, label: 'Token Booking', path: '/tokens', module: 'tokens', testId: 'nav-tokens' },
+      { icon: FileText, label: 'Invoices', path: '/invoices', module: 'invoices', testId: 'nav-invoices' },
+      { icon: Users, label: 'Customers', path: '/customers', module: 'customers', testId: 'nav-customers' },
+      { icon: Kanban, label: 'CRM', path: '/crm', module: 'crm', testId: 'nav-crm' },
+      {
+        icon: Store,
+        label: 'POS',
+        path: '/pos',
+        module: 'pos',
+        testId: 'nav-pos',
+        children: [
+          { label: 'Counter', path: '/pos', module: 'pos' },
+          { label: 'POS Statement', path: '/pos/statement', module: 'pos' },
+        ],
+      },
+    ],
   },
-  { icon: UsersRound, label: 'HR', path: '/hr', module: 'hr', testId: 'nav-hr',
-    children: [
-      { label: 'Employees', path: '/hr/employees', module: 'hr' },
-    ]
+  {
+    id: 'ops',
+    label: 'Operations',
+    items: [
+      { icon: ShoppingBag, label: 'Purchases', path: '/purchases', module: 'purchases', testId: 'nav-purchases' },
+      {
+        icon: Warehouse,
+        label: 'Warehouse',
+        path: '/warehouse',
+        module: 'warehouse',
+        testId: 'nav-warehouse',
+        children: [
+          { label: 'Products', path: '/warehouse/products', module: 'warehouse' },
+          { label: 'Inventory', path: '/warehouse/inventory', module: 'warehouse' },
+        ],
+      },
+      {
+        icon: UsersRound,
+        label: 'HR',
+        path: '/hr',
+        module: 'hr',
+        testId: 'nav-hr',
+        children: [
+          { label: 'Employees', path: '/hr/employees', module: 'hr' },
+        ],
+      },
+      { icon: Calculator, label: 'Cost Calculator', path: '/calculator', module: 'calculator', testId: 'nav-calculator' },
+    ],
   },
-  { icon: Calculator, label: 'Cost Calculator', path: '/calculator', module: 'calculator', testId: 'nav-calculator' },
-  { icon: CreditCard, label: 'Accounts', path: '/accounts', module: 'accounts', testId: 'nav-accounts',
-    children: [
-      { label: 'Payments', path: '/accounts/payments', module: 'accounts' },
-      { label: 'Expenses', path: '/accounts/expenses', module: 'accounts' },
-      { label: 'Vendors', path: '/accounts/vendors', module: 'vendors' },
-    ]
+  {
+    id: 'finance',
+    label: 'Finance',
+    items: [
+      {
+        icon: CreditCard,
+        label: 'Accounts',
+        path: '/accounts',
+        module: 'accounts',
+        testId: 'nav-accounts',
+        children: [
+          { label: 'Payments', path: '/accounts/payments', module: 'accounts' },
+          { label: 'Expenses', path: '/accounts/expenses', module: 'accounts' },
+          { label: 'Vendors', path: '/accounts/vendors', module: 'vendors' },
+        ],
+      },
+      { icon: BarChart3, label: 'Reports', path: '/reports', module: 'reports', testId: 'nav-reports' },
+    ],
   },
-  { icon: BarChart3, label: 'Reports', path: '/reports', module: 'reports', testId: 'nav-reports' },
-  { icon: Settings, label: 'Settings', path: '/settings', module: 'settings', testId: 'nav-settings' },
+  {
+    id: 'system',
+    label: 'System',
+    items: [
+      { icon: Settings, label: 'Settings', path: '/settings', module: 'settings', testId: 'nav-settings' },
+    ],
+  },
 ];
 
 const pathMatches = (base, pathname) => {
@@ -60,30 +110,41 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
   const { canAccessModule } = useAuth();
   const location = useLocation();
   const [openGroup, setOpenGroup] = useState('');
+  const accent = primary || '#F26522';
 
-  const visibleMenu = useMemo(() => {
-    return menuItems
-      .map((item) => {
-        if (!item.children) {
-          return canAccessModule(item.module) ? item : null;
-        }
-        const children = item.children.filter((c) => canAccessModule(c.module || item.module));
-        if (!children.length) return null;
-        return { ...item, children };
+  const visibleGroups = useMemo(() => {
+    return menuGroups
+      .map((group) => {
+        const items = group.items
+          .map((item) => {
+            if (!item.children) {
+              return canAccessModule(item.module) ? item : null;
+            }
+            const children = item.children.filter((c) => canAccessModule(c.module || item.module));
+            if (!children.length) return null;
+            return { ...item, children };
+          })
+          .filter(Boolean);
+        if (!items.length) return null;
+        return { ...group, items };
       })
       .filter(Boolean);
   }, [canAccessModule]);
 
-  // Auto-expand the group that matches the current route
+  const flatItems = useMemo(
+    () => visibleGroups.flatMap((g) => g.items),
+    [visibleGroups]
+  );
+
   useEffect(() => {
-    const active = visibleMenu.find(
+    const active = flatItems.find(
       (item) => item.children?.length && (
         pathMatches(item.path, location.pathname)
         || item.children.some((c) => pathMatches(c.path, location.pathname))
       )
     );
     setOpenGroup(active ? active.path : '');
-  }, [location.pathname, visibleMenu]);
+  }, [location.pathname, flatItems]);
 
   const toggleGroup = (path) => {
     setOpenGroup((prev) => (prev === path ? '' : path));
@@ -91,97 +152,169 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
 
   return (
     <>
-      {isOpen && (<div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={closeSidebar} />)}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-ink/50 backdrop-blur-[2px] z-40 lg:hidden"
+          onClick={closeSidebar}
+        />
+      )}
       <aside
-        className={cn('fixed top-16 left-0 bottom-0 w-64 bg-white border-r border-gray-200 z-40 transform transition-transform duration-300 ease-in-out',
-          isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0')}
+        className={cn(
+          'fixed top-0 left-0 bottom-0 w-[260px] z-40 transform transition-transform duration-300 ease-out',
+          'bg-sidebar text-sidebar-foreground border-r border-sidebar-border',
+          isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        )}
         data-testid="sidebar"
       >
         <div className="h-full flex flex-col">
-          <div className="flex items-center justify-between p-4 lg:hidden">
-            <h2 className="text-lg font-semibold" style={{ color: '#2E2E2E' }}>{company.name || 'Menu'}</h2>
-            <Button variant="ghost" size="icon" onClick={closeSidebar}><X className="h-5 w-5" /></Button>
+          <div className="h-14 px-4 flex items-center justify-between border-b border-sidebar-border shrink-0">
+            <div className="flex items-center gap-2.5 min-w-0">
+              {company.logo ? (
+                <img
+                  src={company.logo}
+                  alt={company.name}
+                  className="h-8 w-auto max-w-[110px] object-contain brightness-0 invert opacity-95"
+                />
+              ) : (
+                <div
+                  className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 shadow-lg"
+                  style={{ backgroundColor: accent }}
+                >
+                  <span className="text-white font-display font-bold text-sm">
+                    {(company.name || 'A').charAt(0)}
+                  </span>
+                </div>
+              )}
+              <div className="min-w-0 leading-tight">
+                <p className="font-display font-bold text-sm text-white truncate">
+                  {company.name || 'AMZ Prints'}
+                </p>
+                <p className="text-[10px] text-sidebar-muted font-medium tracking-wide uppercase">
+                  Press Ops
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="lg:hidden text-white/80 hover:text-white hover:bg-white/10 h-8 w-8"
+              onClick={closeSidebar}
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </div>
-          <ScrollArea className="flex-1 px-3 py-4">
-            <nav className="space-y-1">
-              {visibleMenu.map((item) => {
-                const hasChildren = item.children && item.children.length > 0;
-                const expanded = hasChildren && openGroup === item.path;
-                const groupActive = hasChildren && (
-                  pathMatches(item.path, location.pathname)
-                  || item.children.some((c) => pathMatches(c.path, location.pathname))
-                );
 
-                if (!hasChildren) {
-                  return (
-                    <NavLink
-                      key={item.path}
-                      to={item.path}
-                      onClick={closeSidebar}
-                      data-testid={item.testId}
-                      className={({ isActive }) => cn('flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                        isActive ? 'text-white' : 'text-gray-700 hover:bg-gray-100')}
-                      style={({ isActive }) => ({ backgroundColor: isActive ? (primary || '#F26522') : 'transparent' })}
-                    >
-                      {({ isActive }) => (
-                        <>
-                          <item.icon className={cn('h-5 w-5', isActive ? 'text-white' : 'text-gray-500')} />
-                          <span>{item.label}</span>
-                        </>
-                      )}
-                    </NavLink>
-                  );
-                }
+          <ScrollArea className="flex-1 px-2.5 py-3">
+            <nav className="space-y-4">
+              {visibleGroups.map((group) => (
+                <div key={group.id}>
+                  {group.label && (
+                    <p className="px-2.5 mb-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-sidebar-muted/80">
+                      {group.label}
+                    </p>
+                  )}
+                  <div className="space-y-0.5">
+                    {group.items.map((item) => {
+                      const hasChildren = item.children && item.children.length > 0;
+                      const expanded = hasChildren && openGroup === item.path;
+                      const groupActive = hasChildren && (
+                        pathMatches(item.path, location.pathname)
+                        || item.children.some((c) => pathMatches(c.path, location.pathname))
+                      );
 
-                return (
-                  <div key={item.path} className="space-y-0.5">
-                    <button
-                      type="button"
-                      data-testid={item.testId}
-                      onClick={() => toggleGroup(item.path)}
-                      className={cn(
-                        'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left',
-                        groupActive ? 'text-white' : 'text-gray-700 hover:bg-gray-100'
-                      )}
-                      style={{ backgroundColor: groupActive ? (primary || '#F26522') : 'transparent' }}
-                      aria-expanded={expanded}
-                    >
-                      <item.icon className={cn('h-5 w-5', groupActive ? 'text-white' : 'text-gray-500')} />
-                      <span className="flex-1">{item.label}</span>
-                      <ChevronDown
-                        className={cn(
-                          'h-4 w-4 shrink-0 transition-transform duration-200',
-                          groupActive ? 'text-white/90' : 'text-gray-400',
-                          expanded ? 'rotate-180' : ''
-                        )}
-                      />
-                    </button>
-                    {expanded && (
-                      <div className="ml-4 pl-3 border-l border-gray-200 space-y-0.5 pb-1">
-                        {item.children.map((child) => (
+                      if (!hasChildren) {
+                        return (
                           <NavLink
-                            key={child.path}
-                            to={child.path}
-                            end={child.path === item.path}
+                            key={item.path}
+                            to={item.path}
                             onClick={closeSidebar}
+                            data-testid={item.testId}
                             className={({ isActive }) => cn(
-                              'block text-sm py-2 px-2.5 rounded-md transition-colors',
+                              'erp-nav-link',
                               isActive
-                                ? 'font-semibold bg-orange-50'
-                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                ? 'text-white shadow-md'
+                                : 'text-sidebar-muted hover:text-white hover:bg-white/[0.06]'
                             )}
-                            style={({ isActive }) => ({ color: isActive ? (primary || '#F26522') : undefined })}
+                            style={({ isActive }) => ({
+                              backgroundColor: isActive ? accent : undefined,
+                            })}
                           >
-                            {child.label}
+                            {({ isActive }) => (
+                              <>
+                                <item.icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-white' : 'text-sidebar-muted')} />
+                                <span>{item.label}</span>
+                              </>
+                            )}
                           </NavLink>
-                        ))}
-                      </div>
-                    )}
+                        );
+                      }
+
+                      return (
+                        <div key={item.path} className="space-y-0.5">
+                          <button
+                            type="button"
+                            data-testid={item.testId}
+                            onClick={() => toggleGroup(item.path)}
+                            className={cn(
+                              'erp-nav-link w-full text-left',
+                              groupActive
+                                ? 'text-white'
+                                : 'text-sidebar-muted hover:text-white hover:bg-white/[0.06]'
+                            )}
+                            style={{
+                              backgroundColor: groupActive ? `${accent}22` : undefined,
+                              boxShadow: groupActive ? `inset 3px 0 0 ${accent}` : undefined,
+                            }}
+                            aria-expanded={expanded}
+                          >
+                            <item.icon className={cn('h-4 w-4 shrink-0', groupActive ? 'text-white' : 'text-sidebar-muted')} />
+                            <span className="flex-1">{item.label}</span>
+                            <ChevronDown
+                              className={cn(
+                                'h-3.5 w-3.5 shrink-0 transition-transform duration-200',
+                                expanded ? 'rotate-180' : '',
+                                groupActive ? 'text-white/80' : 'text-sidebar-muted'
+                              )}
+                            />
+                          </button>
+                          {expanded && (
+                            <div className="ml-3 pl-2.5 border-l border-white/10 space-y-0.5 py-0.5">
+                              {item.children.map((child) => (
+                                <NavLink
+                                  key={child.path}
+                                  to={child.path}
+                                  end={child.path === item.path}
+                                  onClick={closeSidebar}
+                                  className={({ isActive }) => cn(
+                                    'block text-[12.5px] py-1.5 px-2.5 rounded-md transition-colors',
+                                    isActive
+                                      ? 'font-semibold text-white'
+                                      : 'text-sidebar-muted hover:text-white hover:bg-white/[0.05]'
+                                  )}
+                                  style={({ isActive }) => ({
+                                    backgroundColor: isActive ? `${accent}33` : undefined,
+                                    color: isActive ? accent : undefined,
+                                  })}
+                                >
+                                  {child.label}
+                                </NavLink>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </nav>
           </ScrollArea>
+
+          <div className="px-3 py-3 border-t border-sidebar-border shrink-0">
+            <p className="text-[10px] text-sidebar-muted text-center tracking-wide">
+              AMZ Press Ops
+            </p>
+          </div>
         </div>
       </aside>
     </>

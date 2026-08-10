@@ -1,12 +1,16 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-    darkMode: ["class"],
-    content: [
+  darkMode: ["class"],
+  content: [
     "./src/**/*.{js,jsx,ts,tsx}",
     "./public/index.html"
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+        display: ['Outfit', '"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+      },
       borderRadius: {
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
@@ -46,6 +50,20 @@ module.exports = {
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
+        ink: {
+          DEFAULT: '#1C2430',
+          soft: '#2E2E2E',
+        },
+        sidebar: {
+          DEFAULT: '#151B24',
+          foreground: '#E8EDF5',
+          muted: '#8B96A8',
+          border: 'rgba(255,255,255,0.08)',
+        },
+        brand: {
+          DEFAULT: 'var(--brand-primary)',
+          orange: '#F26522',
+        },
         chart: {
           '1': 'hsl(var(--chart-1))',
           '2': 'hsl(var(--chart-2))',
@@ -56,20 +74,12 @@ module.exports = {
       },
       keyframes: {
         'accordion-down': {
-          from: {
-            height: '0'
-          },
-          to: {
-            height: 'var(--radix-accordion-content-height)'
-          }
+          from: { height: '0' },
+          to: { height: 'var(--radix-accordion-content-height)' }
         },
         'accordion-up': {
-          from: {
-            height: 'var(--radix-accordion-content-height)'
-          },
-          to: {
-            height: '0'
-          }
+          from: { height: 'var(--radix-accordion-content-height)' },
+          to: { height: '0' }
         }
       },
       animation: {

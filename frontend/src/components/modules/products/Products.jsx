@@ -13,6 +13,7 @@ import { productsAPI, designersAPI } from '@/services/api';
 import { formatCurrency } from '@/utils/helpers';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
+import PageHeader from '@/components/shared/PageHeader';
 import { clearGasCache } from '@/services/gasClient';
 import { compressImageFile, productImageSrc } from '@/utils/productImage';
 import {
@@ -322,20 +323,20 @@ const Products = () => {
   };
 
   return (
-    <div className="space-y-4" data-testid="products-page">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: '#2E2E2E' }}>Products</h1>
-          <p className="text-sm text-gray-600">Catalog with photos · manual stock edit</p>
-        </div>
-        <Button onClick={openCreateDialog} style={{ backgroundColor: '#F26522' }} className="text-white h-9" data-testid="add-product-button">
-          <Plus className="h-4 w-4 mr-1.5" />
-          Add
-        </Button>
-      </div>
+    <div className="erp-page space-y-4" data-testid="products-page">
+      <PageHeader
+        eyebrow="Operations"
+        title="Products"
+        subtitle="Catalog with photos · manual stock edit"
+        actions={(
+          <Button onClick={openCreateDialog} style={{ backgroundColor: '#F26522' }} className="text-white h-9 rounded-xl" data-testid="add-product-button">
+            <Plus className="h-4 w-4 mr-1.5" />
+            Add
+          </Button>
+        )}
+      />
 
-      <Card>
-        <CardContent className="p-3 space-y-2">
+      <div className="erp-panel p-3 space-y-2">
           <div className="flex flex-wrap gap-1.5" data-testid="product-type-filter">
             {[
               { value: 'all', label: 'All' },
@@ -348,7 +349,7 @@ const Products = () => {
                 size="sm"
                 variant={typeFilter === tab.value ? 'default' : 'outline'}
                 style={typeFilter === tab.value ? { backgroundColor: '#F26522' } : undefined}
-                className={`h-7 text-xs ${typeFilter === tab.value ? 'text-white' : ''}`}
+                className={`h-7 text-xs rounded-lg ${typeFilter === tab.value ? 'text-white' : ''}`}
                 onClick={() => setTypeFilter(tab.value)}
               >
                 {tab.label}
@@ -357,17 +358,17 @@ const Products = () => {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <div className="sm:col-span-2 relative">
-              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
               <Input
                 placeholder="Search…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-8 h-9 text-sm"
+                className="pl-8 h-9 text-sm rounded-xl"
                 data-testid="product-search-input"
               />
             </div>
             <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v === 'all' ? undefined : v)}>
-              <SelectTrigger className="h-9 text-sm" data-testid="category-filter">
+              <SelectTrigger className="h-9 text-sm rounded-xl" data-testid="category-filter">
                 <SelectValue placeholder="All categories" />
               </SelectTrigger>
               <SelectContent>
@@ -381,21 +382,20 @@ const Products = () => {
           <div className="mt-2 max-w-md">
             <SortBar value={sort} onChange={setSort} options={PRODUCT_SORT_OPTS} />
           </div>
-        </CardContent>
-      </Card>
+      </div>
 
-      <Card>
-        <CardHeader className="py-3 px-4">
-          <CardTitle className="text-base">Catalog ({sorted.length})</CardTitle>
-        </CardHeader>
-        <CardContent className="px-3 pb-3 pt-0">
+      <div className="erp-panel">
+        <div className="py-3 px-4 border-b border-black/[0.05]">
+          <h3 className="font-display text-sm font-bold text-ink">Catalog ({sorted.length})</h3>
+        </div>
+        <div className="px-3 pb-3 pt-3">
           {loading ? (
-            <div className="text-center py-8 text-sm text-gray-500">Loading…</div>
+            <div className="text-center py-8 text-sm text-slate-500">Loading…</div>
           ) : sorted.length === 0 ? (
             <div className="text-center py-10">
-              <Package className="h-8 w-8 mx-auto text-gray-300 mb-2" />
-              <p className="text-sm text-gray-500 mb-3">No items yet.</p>
-              <Button onClick={openCreateDialog} style={{ backgroundColor: '#F26522' }} className="text-white h-8 text-sm">
+              <Package className="h-8 w-8 mx-auto text-slate-300 mb-2" />
+              <p className="text-sm text-slate-500 mb-3">No items yet.</p>
+              <Button onClick={openCreateDialog} style={{ backgroundColor: '#F26522' }} className="text-white h-8 text-sm rounded-xl">
                 <Plus className="h-3.5 w-3.5 mr-1" />Add first
               </Button>
             </div>
@@ -481,8 +481,8 @@ const Products = () => {
               })}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <Dialog open={stockDialog.open} onOpenChange={(open) => setStockDialog((s) => ({ ...s, open }))}>
         <DialogContent className="sm:max-w-sm">

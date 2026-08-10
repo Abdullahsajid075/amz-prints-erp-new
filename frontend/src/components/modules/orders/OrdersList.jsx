@@ -11,6 +11,7 @@ import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
 import { ORDER_STATUS } from '@/utils/constants';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
+import PageHeader from '@/components/shared/PageHeader';
 import { openWhatsAppChat, fillTemplate, buildTemplateVars, resolveWhatsAppTemplate } from '@/services/notifications';
 import { Plus, Search, Eye, Edit, Copy, Trash2, User, Phone, Mail, MapPin, Calendar, Package, FileText, X, Printer, Receipt, Truck, Link2, Bell, StickyNote, Wallet } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
@@ -439,40 +440,39 @@ const OrdersList = () => {
   );
 
   return (
-    <div className="space-y-6" data-testid="orders-list">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold" style={{ color: '#1F2937' }}>Orders</h1>
-          <p className="text-gray-600 mt-1">In-process orders as cards · completed orders in the list below</p>
-        </div>
-        <Button onClick={() => navigate('/orders/new')} style={{ backgroundColor: '#F26522' }} className="text-white" data-testid="create-order-button">
-          <Plus className="h-4 w-4 mr-2" />Create Order
-        </Button>
-      </div>
+    <div className="erp-page space-y-5" data-testid="orders-list">
+      <PageHeader
+        eyebrow="Sales"
+        title="Orders"
+        subtitle="In-process orders as cards · completed orders in the list below"
+        actions={(
+          <Button onClick={() => navigate('/orders/new')} style={{ backgroundColor: '#F26522' }} className="text-white rounded-xl" data-testid="create-order-button">
+            <Plus className="h-4 w-4 mr-2" />Create Order
+          </Button>
+        )}
+      />
 
-      <Card>
-        <CardContent className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <div className="md:col-span-2 relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-              <Input placeholder="Search by order ID or customer..." value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && fetchOrders()} className="pl-10" data-testid="search-input" />
-            </div>
-            <Select value={filters.status || 'all'} onValueChange={(v) => setFilters({ ...filters, status: v === 'all' ? undefined : v })}>
-              <SelectTrigger data-testid="status-filter"><SelectValue placeholder="All Status" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                {Object.values(ORDER_STATUS).map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Button onClick={fetchOrders} style={{ backgroundColor: '#F26522' }} className="text-white" data-testid="search-button">
-              <Search className="h-4 w-4 mr-2" />Search
-            </Button>
+      <div className="erp-panel p-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className="md:col-span-2 relative">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+            <Input placeholder="Search by order ID or customer..." value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && fetchOrders()} className="pl-10 rounded-xl" data-testid="search-input" />
           </div>
-          <div className="mt-3 max-w-md">
-            <SortBar value={sort} onChange={setSort} options={ORDER_SORT_OPTS} />
-          </div>
-        </CardContent>
-      </Card>
+          <Select value={filters.status || 'all'} onValueChange={(v) => setFilters({ ...filters, status: v === 'all' ? undefined : v })}>
+            <SelectTrigger className="rounded-xl" data-testid="status-filter"><SelectValue placeholder="All Status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              {Object.values(ORDER_STATUS).map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button onClick={fetchOrders} style={{ backgroundColor: '#F26522' }} className="text-white rounded-xl" data-testid="search-button">
+            <Search className="h-4 w-4 mr-2" />Search
+          </Button>
+        </div>
+        <div className="mt-3 max-w-md">
+          <SortBar value={sort} onChange={setSort} options={ORDER_SORT_OPTS} />
+        </div>
+      </div>
 
       {/* In-progress orders as cards */}
       <div>

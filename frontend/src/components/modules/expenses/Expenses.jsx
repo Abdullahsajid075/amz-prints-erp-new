@@ -11,6 +11,7 @@ import { expensesAPI } from '@/services/api';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
+import PageHeader from '@/components/shared/PageHeader';
 import {
   Plus, Search, Edit, Trash2, Receipt, TrendingDown, Calendar, Filter, X, Save,
   Building, Zap, Wrench, Fuel, Users as UsersIcon, ShoppingBag, MoreHorizontal
@@ -160,68 +161,61 @@ const Expenses = () => {
   const getCategoryConfig = (key) => CATEGORIES.find(c => c.key === key) || CATEGORIES[6];
 
   return (
-    <div className="space-y-6" data-testid="expenses-page">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold" style={{ color: '#2E2E2E' }}>Expenses</h1>
-          <p className="text-gray-600 mt-1">Track and manage all business expenses</p>
-        </div>
-        <Button
-          onClick={openCreate}
-          style={{ backgroundColor: '#F26522' }}
-          className="text-white"
-          data-testid="add-expense-button"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Record Expense
-        </Button>
-      </div>
+    <div className="erp-page space-y-5" data-testid="expenses-page">
+      <PageHeader
+        eyebrow="Finance"
+        title="Expenses"
+        subtitle="Track and manage all business expenses"
+        actions={(
+          <Button
+            onClick={openCreate}
+            style={{ backgroundColor: '#F26522' }}
+            className="text-white rounded-xl"
+            data-testid="add-expense-button"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Record Expense
+          </Button>
+        )}
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#EF4444' }}>
-              <TrendingDown className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase font-medium">Total Expenses</p>
-              <p className="text-xl font-bold" style={{ color: '#2E2E2E' }}>{formatCurrency(totals.total)}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#F59E0B' }}>
-              <Calendar className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase font-medium">This Month</p>
-              <p className="text-xl font-bold" style={{ color: '#2E2E2E' }}>{formatCurrency(totals.thisMonth)}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#F26522' }}>
-              <Receipt className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase font-medium">Today</p>
-              <p className="text-xl font-bold" style={{ color: '#2E2E2E' }}>{formatCurrency(totals.today)}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#8B5CF6' }}>
-              <Filter className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase font-medium">Total Entries</p>
-              <p className="text-xl font-bold" style={{ color: '#2E2E2E' }}>{totals.count}</p>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div className="erp-kpi flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#EF4444' }}>
+            <TrendingDown className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.12em] text-slate-500 font-bold">Total Expenses</p>
+            <p className="font-display text-xl font-bold text-ink">{formatCurrency(totals.total)}</p>
+          </div>
+        </div>
+        <div className="erp-kpi flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#F59E0B' }}>
+            <Calendar className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.12em] text-slate-500 font-bold">This Month</p>
+            <p className="font-display text-xl font-bold text-ink">{formatCurrency(totals.thisMonth)}</p>
+          </div>
+        </div>
+        <div className="erp-kpi flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#F26522' }}>
+            <Receipt className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.12em] text-slate-500 font-bold">Today</p>
+            <p className="font-display text-xl font-bold text-ink">{formatCurrency(totals.today)}</p>
+          </div>
+        </div>
+        <div className="erp-kpi flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#1C2430' }}>
+            <Filter className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.12em] text-slate-500 font-bold">Total Entries</p>
+            <p className="font-display text-xl font-bold text-ink">{totals.count}</p>
+          </div>
+        </div>
       </div>
 
       {categoryTotals.length > 0 && (

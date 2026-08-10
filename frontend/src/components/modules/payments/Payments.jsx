@@ -14,6 +14,7 @@ import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPic
 import { formatCurrency, formatDate } from '@/utils/helpers';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
+import PageHeader from '@/components/shared/PageHeader';
 import { useBrand } from '@/context/BrandContext';
 import { Plus, Search, Edit, Trash2, CreditCard, TrendingUp, TrendingDown, Wallet, Building, Save, X, ArrowDownLeft, ArrowUpRight, Printer } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
@@ -461,49 +462,50 @@ const Payments = () => {
   };
 
   return (
-    <div className="space-y-6" data-testid="payments-page">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold" style={{ color: '#1F2937' }}>Payments</h1>
-          <p className="text-gray-600 mt-1">Complete transaction history — money in & out</p>
-        </div>
-        <Button onClick={openCreate} style={{ backgroundColor: '#F26522' }} className="text-white" data-testid="add-payment-button">
-          <Plus className="h-4 w-4 mr-2" />Record Transaction
-        </Button>
-      </div>
+    <div className="erp-page space-y-5" data-testid="payments-page">
+      <PageHeader
+        eyebrow="Finance"
+        title="Payments"
+        subtitle="Complete transaction history — money in & out"
+        actions={(
+          <Button onClick={openCreate} style={{ backgroundColor: '#F26522' }} className="text-white rounded-xl" data-testid="add-payment-button">
+            <Plus className="h-4 w-4 mr-2" />Record Transaction
+          </Button>
+        )}
+      />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card><CardContent className="p-4 flex items-center gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="erp-kpi flex items-center gap-3">
           <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#10B981' }}>
             <TrendingUp className="h-5 w-5 text-white" />
           </div>
-          <div><p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Money In</p><p className="text-lg font-bold text-emerald-700">{formatCurrency(stats.inflow)}</p></div>
-        </CardContent></Card>
-        <Card><CardContent className="p-4 flex items-center gap-3">
+          <div><p className="text-[10px] uppercase tracking-[0.12em] text-slate-500 font-bold">Money In</p><p className="font-display text-lg font-bold text-emerald-700">{formatCurrency(stats.inflow)}</p></div>
+        </div>
+        <div className="erp-kpi flex items-center gap-3">
           <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#EF4444' }}>
             <TrendingDown className="h-5 w-5 text-white" />
           </div>
-          <div><p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Money Out</p><p className="text-lg font-bold text-rose-600">{formatCurrency(stats.outflow)}</p></div>
-        </CardContent></Card>
-        <Card><CardContent className="p-4 flex items-center gap-3">
+          <div><p className="text-[10px] uppercase tracking-[0.12em] text-slate-500 font-bold">Money Out</p><p className="font-display text-lg font-bold text-rose-600">{formatCurrency(stats.outflow)}</p></div>
+        </div>
+        <div className="erp-kpi flex items-center gap-3">
           <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#F26522' }}>
             <Wallet className="h-5 w-5 text-white" />
           </div>
-          <div><p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Net Balance</p><p className={`text-lg font-bold ${stats.net >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{formatCurrency(stats.net)}</p></div>
-        </CardContent></Card>
-        <Card><CardContent className="p-4 flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#8B5CF6' }}>
+          <div><p className="text-[10px] uppercase tracking-[0.12em] text-slate-500 font-bold">Net Balance</p><p className={`font-display text-lg font-bold ${stats.net >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{formatCurrency(stats.net)}</p></div>
+        </div>
+        <div className="erp-kpi flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#1C2430' }}>
             <CreditCard className="h-5 w-5 text-white" />
           </div>
-          <div><p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Transactions</p><p className="text-lg font-bold" style={{ color: '#1F2937' }}>{stats.count}</p></div>
-        </CardContent></Card>
+          <div><p className="text-[10px] uppercase tracking-[0.12em] text-slate-500 font-bold">Transactions</p><p className="font-display text-lg font-bold text-ink">{stats.count}</p></div>
+        </div>
       </div>
 
-      <Card><CardContent className="p-4">
+      <div className="erp-panel p-4">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
           <div className="md:col-span-2 relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-            <Input placeholder="Search by party or reference..." value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} className="pl-10" data-testid="payment-search" />
+            <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+            <Input placeholder="Search by party or reference..." value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} className="pl-10 rounded-xl" data-testid="payment-search" />
           </div>
           <Select value={filters.category} onValueChange={(v) => setFilters({ ...filters, category: v === 'all' ? undefined : v })}>
             <SelectTrigger data-testid="category-filter"><SelectValue placeholder="All Categories" /></SelectTrigger>
@@ -513,35 +515,37 @@ const Payments = () => {
             <SelectTrigger data-testid="method-filter"><SelectValue placeholder="All Methods" /></SelectTrigger>
             <SelectContent><SelectItem value="all">All Methods</SelectItem>{methods.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
           </Select>
-          <Button onClick={loadPayments} style={{ backgroundColor: '#F26522' }} className="text-white">Apply</Button>
+          <Button onClick={loadPayments} style={{ backgroundColor: '#F26522' }} className="text-white rounded-xl">Apply</Button>
         </div>
         <div className="mt-3 max-w-md">
           <SortBar value={sort} onChange={setSort} options={PAYMENT_SORT_OPTS} />
         </div>
-      </CardContent></Card>
+      </div>
 
-      <Card>
-        <CardHeader><CardTitle>Transaction History</CardTitle></CardHeader>
-        <CardContent>
-          {loading ? <div className="text-center py-8 text-gray-500">Loading...</div>
+      <div className="erp-table-wrap">
+        <div className="px-4 py-3 border-b border-black/[0.05]">
+          <h3 className="font-display text-sm font-bold text-ink">Transaction History</h3>
+        </div>
+        <div className="p-2 sm:p-3">
+          {loading ? <div className="text-center py-8 text-slate-500">Loading...</div>
             : sorted.length === 0 ? (
               <div className="text-center py-12">
-                <CreditCard className="h-12 w-12 mx-auto text-gray-300 mb-3" />
-                <p className="text-gray-500 mb-4">No transactions yet.</p>
-                <Button onClick={openCreate} style={{ backgroundColor: '#F26522' }} className="text-white"><Plus className="h-4 w-4 mr-2" />Record First Transaction</Button>
+                <CreditCard className="h-12 w-12 mx-auto text-slate-300 mb-3" />
+                <p className="text-slate-500 mb-4">No transactions yet.</p>
+                <Button onClick={openCreate} style={{ backgroundColor: '#F26522' }} className="text-white rounded-xl"><Plus className="h-4 w-4 mr-2" />Record First Transaction</Button>
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead><tr className="border-b bg-gray-50">
-                    <th className="text-left py-3 px-3 text-xs uppercase font-semibold text-gray-600">Date</th>
-                    <th className="text-left py-3 px-3 text-xs uppercase font-semibold text-gray-600">Type</th>
-                    <th className="text-left py-3 px-3 text-xs uppercase font-semibold text-gray-600">Category</th>
-                    <th className="text-left py-3 px-3 text-xs uppercase font-semibold text-gray-600">Party</th>
-                    <th className="text-left py-3 px-3 text-xs uppercase font-semibold text-gray-600">Reference</th>
-                    <th className="text-left py-3 px-3 text-xs uppercase font-semibold text-gray-600">Method</th>
-                    <th className="text-right py-3 px-3 text-xs uppercase font-semibold text-gray-600">Amount</th>
-                    <th className="text-right py-3 px-3 text-xs uppercase font-semibold text-gray-600">Actions</th>
+                <table>
+                  <thead><tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Category</th>
+                    <th>Party</th>
+                    <th>Reference</th>
+                    <th>Method</th>
+                    <th className="!text-right">Amount</th>
+                    <th className="!text-right">Actions</th>
                   </tr></thead>
                   <tbody>
                     {sorted.map(p => {
@@ -579,8 +583,8 @@ const Payments = () => {
                 </table>
               </div>
             )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg" data-testid="payment-dialog">
