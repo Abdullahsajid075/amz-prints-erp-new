@@ -50,9 +50,27 @@ if ( count( $marquee_items ) < 8 ) {
 	$marquee_items = array_merge( $marquee_items, array( 'Digital Print', 'Offset', 'Packaging', 'UV', 'DTF', 'Branding', 'NADRA', 'Large Format' ) );
 }
 
-$hero_tiles = array();
+// Build image pool (Customizer → ERP → fallbacks). No 6th bottom tile.
+$hero_pool = array();
+$push_hero = static function ( $url, $name = '', $id = '' ) use ( &$hero_pool, $company ) {
+	$url = trim( (string) $url );
+	if ( ! $url ) {
+		return;
+	}
+	foreach ( $hero_pool as $existing ) {
+		if ( ( $existing['url'] ?? '' ) === $url ) {
+			return;
+		}
+	}
+	$hero_pool[] = array(
+		'url'  => $url,
+		'name' => $name ? $name : $company,
+		'id'   => (string) $id,
+	);
+};
+
 if ( $main_url ) {
-	$hero_tiles[] = array( 'url' => $main_url, 'name' => $company, 'id' => '' );
+	$push_hero( $main_url, $company );
 }
 foreach ( array( 'amz_hero_image_2', 'amz_hero_image_3', 'amz_hero_support_1', 'amz_hero_support_2', 'amz_hero_support_3', 'amz_hero_support_4', 'amz_hero_support_5' ) as $key ) {
 	$id = absint( amz_prints_mod( $key, 0 ) );
@@ -63,44 +81,56 @@ foreach ( array( 'amz_hero_image_2', 'amz_hero_image_3', 'amz_hero_support_1', '
 	if ( ! $url ) {
 		$url = wp_get_attachment_image_url( $id, 'large' );
 	}
-	if ( $url ) {
-		$hero_tiles[] = array( 'url' => $url, 'name' => $company, 'id' => '' );
-	}
+	$push_hero( $url, $company );
 }
 foreach ( $erp_all as $p ) {
-	$img = '';
-	if ( ! empty( $p['image'] ) ) {
-		$raw = (string) $p['image'];
-		if ( 0 === strpos( $raw, 'data:image' ) || preg_match( '#^https?://#i', $raw ) ) {
-			$img = $raw;
-		}
-	}
-	if ( ! $img ) {
+	$raw = ! empty( $p['image'] ) ? (string) $p['image'] : '';
+	if ( ! $raw ) {
 		continue;
 	}
-	$hero_tiles[] = array(
-		'url'  => $img,
-		'name' => (string) ( $p['name'] ?? '' ),
-		'id'   => (string) ( $p['id'] ?? '' ),
-	);
-	if ( count( $hero_tiles ) >= 7 ) {
+	if ( 0 !== strpos( $raw, 'data:image' ) && ! preg_match( '#^https?://#i', $raw ) ) {
+		continue;
+	}
+	// Skip e-Sahulat / NADRA-looking tiles from hero stage.
+	$pname = mb_strtolower( (string) ( $p['name'] ?? '' ) );
+	$pcat  = mb_strtolower( (string) ( $p['category'] ?? '' ) );
+	if ( false !== strpos( $pname, 'sahulat' ) || false !== strpos( $pname, 'e-sahulat' ) || false !== strpos( $pcat, 'sahulat' ) ) {
+		continue;
+	}
+	$push_hero( $raw, (string) ( $p['name'] ?? $company ), (string) ( $p['id'] ?? '' ) );
+	if ( count( $hero_pool ) >= 12 ) {
 		break;
 	}
 }
-$fi = 0;
-while ( count( $hero_tiles ) < 6 ) {
-	$hero_tiles[] = array(
-		'url'  => $fallback_imgs[ $fi % count( $fallback_imgs ) ],
-		'name' => $company,
-		'id'   => '',
-	);
-	$fi++;
+foreach ( $fallback_imgs as $fb ) {
+	$push_hero( $fb, $company );
+	if ( count( $hero_pool ) >= 12 ) {
+		break;
+	}
 }
-$hero_tiles = array_slice( $hero_tiles, 0, 6 );
-$hero_bg    = $main_url ? $main_url : ( $hero_tiles[0]['url'] ?? $fallback_imgs[0] );
+
+// 3 independent sliders — each head gets a different image set.
+$slider_sets = array( array(), array(), array() );
+foreach ( $hero_pool as $i => $tile ) {
+	$slider_sets[ $i % 3 ][] = $tile;
+}
+foreach ( $slider_sets as $si => $set ) {
+	while ( count( $slider_sets[ $si ] ) < 3 ) {
+		$slider_sets[ $si ][] = $hero_pool[ ( $si + count( $slider_sets[ $si ] ) ) % count( $hero_pool ) ];
+	}
+	$slider_sets[ $si ] = array_slice( $slider_sets[ $si ], 0, 4 );
+}
+
+$hero_bg = $main_url ? $main_url : ( $slider_sets[0][0]['url'] ?? $fallback_imgs[0] );
 if ( 0 === strpos( (string) $hero_bg, 'data:image' ) ) {
 	$hero_bg = $fallback_imgs[0];
 }
+
+$slider_meta = array(
+	array( 'label' => __( 'Featured', 'amz-prints' ), 'mod' => 'main', 'delay' => 0 ),
+	array( 'label' => __( 'Press', 'amz-prints' ), 'mod' => 'side', 'delay' => 1600 ),
+	array( 'label' => __( 'Brand', 'amz-prints' ), 'mod' => 'side', 'delay' => 3200 ),
+);
 ?>
 
 <section class="hero hero--premium" data-hero-premium>
@@ -125,29 +155,49 @@ if ( 0 === strpos( (string) $hero_bg, 'data:image' ) ) {
 		</div>
 
 		<div class="hero__stage" data-hero-stage>
-			<div class="hero-flex" data-hero-flex>
-				<?php foreach ( $hero_tiles as $i => $tile ) : ?>
+			<div class="hero-sliders" data-hero-flex>
+				<?php foreach ( $slider_sets as $si => $slides ) : ?>
 					<?php
-					$is_hero = ( 0 === $i );
-					$cls     = $is_hero ? 'hero-flex__item hero-flex__item--hero' : 'hero-flex__item';
-					$src     = function_exists( 'amz_prints_product_img_src' )
-						? amz_prints_product_img_src( $tile['url'] )
-						: esc_url( $tile['url'] );
-					$pid     = (string) ( $tile['id'] ?? '' );
+					$meta  = $slider_meta[ $si ];
+					$mod   = $meta['mod'];
+					$delay = (int) $meta['delay'];
 					?>
-					<figure
-						class="<?php echo esc_attr( $cls ); ?>"
-						style="--i:<?php echo esc_attr( (string) $i ); ?>"
-						data-hero-tile
-						<?php if ( $pid ) : ?>
-							data-open-product="<?php echo esc_attr( $pid ); ?>"
-							data-product-name="<?php echo esc_attr( $tile['name'] ); ?>"
-							role="button"
-							tabindex="0"
-						<?php endif; ?>
+					<div
+						class="hero-slot hero-slot--<?php echo esc_attr( $mod ); ?>"
+						data-hero-slot
+						data-interval="5000"
+						data-delay="<?php echo esc_attr( (string) $delay ); ?>"
+						aria-label="<?php echo esc_attr( $meta['label'] ); ?>"
 					>
-						<img src="<?php echo $src; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>" alt="<?php echo esc_attr( $tile['name'] ); ?>" <?php echo $is_hero ? '' : 'loading="lazy"'; ?>>
-					</figure>
+						<span class="hero-slot__label"><?php echo esc_html( $meta['label'] ); ?></span>
+						<div class="hero-slot__slides">
+							<?php foreach ( $slides as $ji => $tile ) : ?>
+								<?php
+								$src = function_exists( 'amz_prints_product_img_src' )
+									? amz_prints_product_img_src( $tile['url'] )
+									: esc_url( $tile['url'] );
+								$pid = (string) ( $tile['id'] ?? '' );
+								?>
+								<figure
+									class="hero-slot__slide<?php echo 0 === $ji ? ' is-active' : ''; ?>"
+									data-hero-slide
+									<?php if ( $pid ) : ?>
+										data-open-product="<?php echo esc_attr( $pid ); ?>"
+										data-product-name="<?php echo esc_attr( $tile['name'] ); ?>"
+										role="button"
+										tabindex="0"
+									<?php endif; ?>
+								>
+									<img src="<?php echo $src; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>" alt="<?php echo esc_attr( $tile['name'] ); ?>" <?php echo ( 0 === $ji && 0 === $si ) ? '' : 'loading="lazy"'; ?>>
+								</figure>
+							<?php endforeach; ?>
+						</div>
+						<div class="hero-slot__dots" aria-hidden="true">
+							<?php foreach ( $slides as $ji => $tile ) : ?>
+								<span class="hero-slot__dot<?php echo 0 === $ji ? ' is-active' : ''; ?>"></span>
+							<?php endforeach; ?>
+						</div>
+					</div>
 				<?php endforeach; ?>
 			</div>
 		</div>

@@ -229,45 +229,60 @@
     start();
   }
 
-  /* Premium hero — flex parallax + featured pulse */
+  /* Premium hero — 3 independent sliders (5s) + light parallax */
   var heroPremium = document.querySelector('[data-hero-premium]');
   if (heroPremium) {
     var flex = heroPremium.querySelector('[data-hero-flex]');
-    var tiles = Array.prototype.slice.call(heroPremium.querySelectorAll('[data-hero-tile]'));
-    var featureIdx = 0;
     var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var slots = Array.prototype.slice.call(heroPremium.querySelectorAll('[data-hero-slot]'));
 
-    function setFeatured(i) {
-      tiles.forEach(function (tile, idx) {
-        tile.classList.toggle('is-featured', idx === i);
+    slots.forEach(function (slot) {
+      var slides = Array.prototype.slice.call(slot.querySelectorAll('[data-hero-slide]'));
+      var dots = Array.prototype.slice.call(slot.querySelectorAll('.hero-slot__dot'));
+      if (slides.length < 2) return;
+      var idx = 0;
+      var interval = parseInt(slot.getAttribute('data-interval'), 10) || 5000;
+      var startDelay = parseInt(slot.getAttribute('data-delay'), 10) || 0;
+
+      function goTo(next) {
+        slides[idx].classList.remove('is-active');
+        slides[idx].classList.add('is-leaving');
+        var prev = idx;
+        idx = (next + slides.length) % slides.length;
+        slides[idx].classList.add('is-active');
+        dots.forEach(function (dot, i) { dot.classList.toggle('is-active', i === idx); });
+        window.setTimeout(function () {
+          slides[prev].classList.remove('is-leaving');
+        }, 700);
+      }
+
+      if (!reduce) {
+        window.setTimeout(function () {
+          window.setInterval(function () { goTo(idx + 1); }, interval);
+        }, startDelay);
+      }
+
+      slides.forEach(function (slide) {
+        slide.addEventListener('keydown', function (e) {
+          if ((e.key === 'Enter' || e.key === ' ') && slide.getAttribute('data-open-product')) {
+            e.preventDefault();
+            slide.click();
+          }
+        });
       });
-    }
-    if (tiles.length) setFeatured(0);
+    });
 
     if (!reduce && flex) {
       heroPremium.addEventListener('pointermove', function (e) {
         var rect = heroPremium.getBoundingClientRect();
         var x = ((e.clientX - rect.left) / rect.width - 0.5) * 2;
         var y = ((e.clientY - rect.top) / rect.height - 0.5) * 2;
-        flex.style.transform = 'rotateY(' + (x * -6) + 'deg) rotateX(' + (y * 5) + 'deg) translateZ(0)';
+        flex.style.transform = 'rotateY(' + (x * -4) + 'deg) rotateX(' + (y * 3) + 'deg) translateZ(0)';
       });
       heroPremium.addEventListener('pointerleave', function () {
         flex.style.transform = '';
       });
-      window.setInterval(function () {
-        featureIdx = (featureIdx + 1) % tiles.length;
-        setFeatured(featureIdx);
-      }, 2800);
     }
-
-    tiles.forEach(function (tile) {
-      tile.addEventListener('keydown', function (e) {
-        if ((e.key === 'Enter' || e.key === ' ') && tile.getAttribute('data-open-product')) {
-          e.preventDefault();
-          tile.click();
-        }
-      });
-    });
   }
 
   /* Build WhatsApp message from form */
