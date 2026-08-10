@@ -1,6 +1,6 @@
 <?php
 /**
- * Homepage — full hero + supporting image strip + shop products
+ * Homepage — premium animated hero + shop products
  *
  * @package AMZ_Prints
  */
@@ -17,7 +17,7 @@ $cta1_url = amz_prints_mod( 'amz_hero_cta_primary_url', '/products/' );
 $cta2_url = amz_prints_mod( 'amz_hero_cta_secondary_url', '/services/' );
 
 $fallback_imgs = array(
-	'https://images.unsplash.com/photo-1562564055-71e051d33c19?auto=format&fit=crop&w=1920&q=80',
+	'https://images.unsplash.com/photo-1562564055-71e051d33c19?auto=format&fit=crop&w=1400&q=80',
 	'https://images.unsplash.com/photo-1626785774573-4b7993143459?auto=format&fit=crop&w=900&q=80',
 	'https://images.unsplash.com/photo-1586075010923-2dd4570fb338?auto=format&fit=crop&w=900&q=80',
 	'https://images.unsplash.com/photo-1503690970856-d1a3c8d8e9e3?auto=format&fit=crop&w=900&q=80',
@@ -28,34 +28,6 @@ $fallback_imgs = array(
 $main_id  = absint( amz_prints_mod( 'amz_hero_image', 0 ) );
 $main_url = $main_id ? wp_get_attachment_image_url( $main_id, 'amz-hero' ) : '';
 
-$hero_slides = array();
-if ( $main_url ) {
-	$hero_slides[] = $main_url;
-}
-foreach ( array( 'amz_hero_image_2', 'amz_hero_image_3' ) as $key ) {
-	$id = absint( amz_prints_mod( $key, 0 ) );
-	if ( $id ) {
-		$url = wp_get_attachment_image_url( $id, 'amz-hero' );
-		if ( $url ) {
-			$hero_slides[] = $url;
-		}
-	}
-}
-if ( empty( $hero_slides ) ) {
-	$hero_slides[] = $fallback_imgs[0];
-}
-while ( count( $hero_slides ) < 3 ) {
-	$hero_slides[] = $fallback_imgs[ count( $hero_slides ) % count( $fallback_imgs ) ];
-}
-$hero_slides = array_slice( $hero_slides, 0, 3 );
-
-$support = array();
-foreach ( array( 'amz_hero_support_1', 'amz_hero_support_2', 'amz_hero_support_3', 'amz_hero_support_4', 'amz_hero_support_5' ) as $i => $key ) {
-	$id  = absint( amz_prints_mod( $key, 0 ) );
-	$url = $id ? wp_get_attachment_image_url( $id, 'amz-card' ) : '';
-	$support[] = $url ? $url : $fallback_imgs[ min( $i + 1, count( $fallback_imgs ) - 1 ) ];
-}
-
 $catalog = array_slice( amz_prints_services_catalog(), 0, 6 );
 $erp_all = function_exists( 'amz_prints_erp_get_products' ) ? amz_prints_erp_get_products() : array();
 $cats    = array();
@@ -65,43 +37,112 @@ foreach ( $erp_all as $p ) {
 		$cats[ sanitize_title( $c ) ] = $c;
 	}
 }
+
+// Animated hero flex tiles: Customizer → ERP product images → fallbacks.
+$hero_tiles = array();
+if ( $main_url ) {
+	$hero_tiles[] = array(
+		'url'  => $main_url,
+		'name' => $company,
+		'id'   => '',
+	);
+}
+foreach ( array( 'amz_hero_image_2', 'amz_hero_image_3', 'amz_hero_support_1', 'amz_hero_support_2', 'amz_hero_support_3', 'amz_hero_support_4', 'amz_hero_support_5' ) as $key ) {
+	$id = absint( amz_prints_mod( $key, 0 ) );
+	if ( ! $id ) {
+		continue;
+	}
+	$url = wp_get_attachment_image_url( $id, 'amz-card' );
+	if ( ! $url ) {
+		$url = wp_get_attachment_image_url( $id, 'large' );
+	}
+	if ( $url ) {
+		$hero_tiles[] = array( 'url' => $url, 'name' => $company, 'id' => '' );
+	}
+}
+foreach ( $erp_all as $p ) {
+	$img = '';
+	if ( ! empty( $p['image'] ) ) {
+		$raw = (string) $p['image'];
+		if ( 0 === strpos( $raw, 'data:image' ) || preg_match( '#^https?://#i', $raw ) ) {
+			$img = $raw;
+		}
+	}
+	if ( ! $img ) {
+		continue;
+	}
+	$hero_tiles[] = array(
+		'url'  => $img,
+		'name' => (string) ( $p['name'] ?? '' ),
+		'id'   => (string) ( $p['id'] ?? '' ),
+	);
+	if ( count( $hero_tiles ) >= 7 ) {
+		break;
+	}
+}
+$fi = 0;
+while ( count( $hero_tiles ) < 6 ) {
+	$hero_tiles[] = array(
+		'url'  => $fallback_imgs[ $fi % count( $fallback_imgs ) ],
+		'name' => $company,
+		'id'   => '',
+	);
+	$fi++;
+}
+$hero_tiles = array_slice( $hero_tiles, 0, 6 );
+$hero_bg    = $main_url ? $main_url : ( $hero_tiles[0]['url'] ?? $fallback_imgs[0] );
+if ( 0 === strpos( (string) $hero_bg, 'data:image' ) ) {
+	$hero_bg = $fallback_imgs[0];
+}
 ?>
 
-<section class="hero hero--slider" data-hero-slider data-hero-interval="3000">
-	<div class="hero__media" aria-hidden="true">
-		<div class="hero__slides">
-			<?php foreach ( $hero_slides as $i => $url ) : ?>
-				<div class="hero__slide<?php echo 0 === $i ? ' is-active' : ''; ?>" style="background-image:url('<?php echo esc_url( $url ); ?>')"></div>
-			<?php endforeach; ?>
-		</div>
-		<div class="hero__veil"></div>
+<section class="hero hero--premium" data-hero-premium>
+	<div class="hero__atmosphere" aria-hidden="true">
+		<div class="hero__glow hero__glow--a"></div>
+		<div class="hero__glow hero__glow--b"></div>
+		<div class="hero__mesh"></div>
 		<div class="hero__grain"></div>
+		<div class="hero__bg-photo" style="background-image:url('<?php echo esc_url( $hero_bg ); ?>')"></div>
 	</div>
-	<div class="hero__content container">
-		<p class="hero__brand reveal" data-reveal><?php echo esc_html( $company ); ?></p>
-		<p class="hero__legal reveal" data-reveal><?php echo esc_html( $legal ); ?></p>
-		<h1 class="hero__title reveal" data-reveal><?php echo esc_html( $headline ); ?></h1>
-		<p class="hero__sub reveal" data-reveal><?php echo esc_html( $sub ); ?></p>
-		<div class="hero__actions reveal" data-reveal>
-			<a class="btn btn--primary btn--lg" href="<?php echo esc_url( home_url( $cta1_url ) ); ?>"><?php echo esc_html( $cta1 ); ?></a>
-			<a class="btn btn--ghost btn--lg" href="<?php echo esc_url( home_url( $cta2_url ) ); ?>"><?php echo esc_html( $cta2 ); ?></a>
-		</div>
-	</div>
-	<div class="hero__dots" aria-hidden="true">
-		<?php foreach ( $hero_slides as $i => $url ) : ?>
-			<button type="button" class="hero__dot<?php echo 0 === $i ? ' is-active' : ''; ?>" data-hero-dot="<?php echo esc_attr( $i ); ?>"></button>
-		<?php endforeach; ?>
-	</div>
-</section>
 
-<section class="hero-strip" aria-label="<?php esc_attr_e( 'Featured images', 'amz-prints' ); ?>">
-	<div class="container">
-		<div class="hero-strip__track" data-hero-strip>
-			<?php foreach ( $support as $i => $url ) : ?>
-				<figure class="hero-strip__item reveal" data-reveal style="--i:<?php echo esc_attr( (string) $i ); ?>">
-					<img src="<?php echo esc_url( $url ); ?>" alt="" loading="lazy">
-				</figure>
-			<?php endforeach; ?>
+	<div class="hero__layout container">
+		<div class="hero__copy">
+			<p class="hero__brand reveal" data-reveal><?php echo esc_html( $company ); ?></p>
+			<p class="hero__legal reveal" data-reveal><?php echo esc_html( $legal ); ?></p>
+			<h1 class="hero__title reveal" data-reveal><?php echo esc_html( $headline ); ?></h1>
+			<p class="hero__sub reveal" data-reveal><?php echo esc_html( $sub ); ?></p>
+			<div class="hero__actions reveal" data-reveal>
+				<a class="btn btn--primary btn--lg" href="<?php echo esc_url( home_url( $cta1_url ) ); ?>"><?php echo esc_html( $cta1 ); ?></a>
+				<a class="btn btn--ghost btn--lg" href="<?php echo esc_url( home_url( $cta2_url ) ); ?>"><?php echo esc_html( $cta2 ); ?></a>
+			</div>
+		</div>
+
+		<div class="hero__stage" data-hero-stage>
+			<div class="hero-flex" data-hero-flex>
+				<?php foreach ( $hero_tiles as $i => $tile ) : ?>
+					<?php
+					$is_hero = ( 0 === $i );
+					$cls     = $is_hero ? 'hero-flex__item hero-flex__item--hero' : 'hero-flex__item';
+					$src     = function_exists( 'amz_prints_product_img_src' )
+						? amz_prints_product_img_src( $tile['url'] )
+						: esc_url( $tile['url'] );
+					$pid     = (string) ( $tile['id'] ?? '' );
+					?>
+					<figure
+						class="<?php echo esc_attr( $cls ); ?>"
+						style="--i:<?php echo esc_attr( (string) $i ); ?>"
+						data-hero-tile
+						<?php if ( $pid ) : ?>
+							data-open-product="<?php echo esc_attr( $pid ); ?>"
+							data-product-name="<?php echo esc_attr( $tile['name'] ); ?>"
+							role="button"
+							tabindex="0"
+						<?php endif; ?>
+					>
+						<img src="<?php echo $src; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>" alt="<?php echo esc_attr( $tile['name'] ); ?>" <?php echo $is_hero ? '' : 'loading="lazy"'; ?>>
+					</figure>
+				<?php endforeach; ?>
+			</div>
 		</div>
 	</div>
 </section>

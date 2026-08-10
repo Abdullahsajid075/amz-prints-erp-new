@@ -58,25 +58,7 @@ function amz_prints_enqueue_assets() {
 		'loggedIn'      => function_exists( 'amz_prints_customer_is_logged_in' ) ? amz_prints_customer_is_logged_in() : false,
 	) );
 
-	$catalog = array();
-	if ( function_exists( 'amz_prints_erp_get_products' ) ) {
-		foreach ( amz_prints_erp_get_products() as $p ) {
-			$catalog[] = array(
-				'id'          => (string) ( $p['id'] ?? '' ),
-				'name'        => (string) ( $p['name'] ?? '' ),
-				'category'    => (string) ( $p['category'] ?? '' ),
-				'description' => (string) ( $p['description'] ?? '' ),
-				'basePrice'   => (float) ( $p['basePrice'] ?? 0 ),
-				'unit'        => (string) ( $p['unit'] ?? '' ),
-				'material'    => (string) ( $p['material'] ?? '' ),
-				'size'        => (string) ( $p['size'] ?? '' ),
-				'minQuantity' => max( 1, (int) ( $p['minQuantity'] ?? 1 ) ),
-				'image'       => (string) ( $p['image'] ?? '' ),
-				'images'      => ! empty( $p['images'] ) && is_array( $p['images'] ) ? array_values( $p['images'] ) : array(),
-			);
-		}
-	}
-
+	// Keep localize lean — full catalog is printed as JSON in footer (avoids broken JS from data:image).
 	wp_localize_script( 'amz-prints-commerce', 'amzCommerce', array(
 		'ajaxUrl'    => admin_url( 'admin-ajax.php' ),
 		'nonce'      => wp_create_nonce( 'amz_prints_commerce' ),
@@ -85,10 +67,24 @@ function amz_prints_enqueue_assets() {
 		'quoteUrl'   => home_url( '/quote/' ),
 		'cartCount'  => function_exists( 'amz_prints_cart_count' ) ? amz_prints_cart_count() : 0,
 		'loggedIn'   => function_exists( 'amz_prints_customer_is_logged_in' ) ? amz_prints_customer_is_logged_in() : false,
-		'products'   => $catalog,
+		'products'   => array(),
 	) );
 }
 add_action( 'wp_enqueue_scripts', 'amz_prints_enqueue_assets' );
+
+/**
+ * Print product catalog JSON for the product modal (reliable vs wp_localize size limits).
+ */
+function amz_prints_print_products_json() {
+	if ( is_admin() ) {
+		return;
+	}
+	$catalog = function_exists( 'amz_prints_commerce_product_catalog' )
+		? amz_prints_commerce_product_catalog()
+		: array();
+	echo '<script type="application/json" id="amz-products-data">' . wp_json_encode( $catalog ) . '</script>' . "\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+}
+add_action( 'wp_footer', 'amz_prints_print_products_json', 5 );
 
 /**
  * AI chat AJAX — webhook if set, else smart local replies

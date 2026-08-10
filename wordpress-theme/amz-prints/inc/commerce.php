@@ -29,6 +29,66 @@ function amz_prints_product_img_src( $src ) {
 }
 
 /**
+ * Image URL safe for JSON / localize payloads (omit huge data: URIs).
+ *
+ * @param string $src Raw image.
+ * @return string http(s) URL or empty.
+ */
+function amz_prints_public_image_url( $src ) {
+	$src = trim( (string) $src );
+	if ( ! $src || 0 === stripos( $src, 'data:' ) ) {
+		return '';
+	}
+	if ( preg_match( '#^https?://#i', $src ) ) {
+		return esc_url_raw( $src );
+	}
+	return '';
+}
+
+/**
+ * Catalog payload for front-end product modal (no data:image bloat).
+ *
+ * @return array
+ */
+function amz_prints_commerce_product_catalog() {
+	$catalog = array();
+	if ( ! function_exists( 'amz_prints_erp_get_products' ) ) {
+		return $catalog;
+	}
+	foreach ( amz_prints_erp_get_products() as $p ) {
+		$images = array();
+		if ( ! empty( $p['images'] ) && is_array( $p['images'] ) ) {
+			foreach ( $p['images'] as $img ) {
+				$url = amz_prints_public_image_url( $img );
+				if ( $url && ! in_array( $url, $images, true ) ) {
+					$images[] = $url;
+				}
+			}
+		}
+		$primary = amz_prints_public_image_url( $p['image'] ?? '' );
+		if ( $primary && ! in_array( $primary, $images, true ) ) {
+			array_unshift( $images, $primary );
+		} elseif ( ! $primary && ! empty( $images ) ) {
+			$primary = $images[0];
+		}
+		$catalog[] = array(
+			'id'          => (string) ( $p['id'] ?? '' ),
+			'name'        => (string) ( $p['name'] ?? '' ),
+			'category'    => (string) ( $p['category'] ?? '' ),
+			'description' => (string) ( $p['description'] ?? '' ),
+			'basePrice'   => (float) ( $p['basePrice'] ?? 0 ),
+			'unit'        => (string) ( $p['unit'] ?? '' ),
+			'material'    => (string) ( $p['material'] ?? '' ),
+			'size'        => (string) ( $p['size'] ?? '' ),
+			'minQuantity' => max( 1, (int) ( $p['minQuantity'] ?? 1 ) ),
+			'image'       => $primary,
+			'images'      => $images,
+		);
+	}
+	return $catalog;
+}
+
+/**
  * Product detail URL for an ERP product id.
  *
  * @param string $product_id ERP product id.

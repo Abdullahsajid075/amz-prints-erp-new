@@ -1,16 +1,19 @@
 /**
- * Promo popup — show on homepage load; cookie suppresses repeat annoyance
+ * Promo popup — show on configured pages; cookie suppresses repeats.
+ * Use /?show_popup=1 to force open (ignores cookie/session).
  */
 (function () {
   'use strict';
-  var root = document.querySelector('[data-popup]');
+  var root = document.getElementById('amz-promo-popup') || document.querySelector('[data-popup]');
   if (!root) return;
 
-  var key = 'amz_promo_popup_dismissed';
+  var key = 'amz_promo_popup_dismissed_v254';
   var days = parseInt(root.getAttribute('data-cookie-days') || '1', 10);
   if (isNaN(days) || days < 0) days = 1;
-  var delay = parseInt(root.getAttribute('data-delay') || '600', 10) || 0;
-  var force = root.getAttribute('data-force') === '1';
+  var delay = parseInt(root.getAttribute('data-delay') || '600', 10);
+  if (isNaN(delay)) delay = 600;
+  var force = root.getAttribute('data-force') === '1'
+    || /(?:\?|&)show_popup=1(?:&|$)/.test(window.location.search);
 
   function readCookie(name) {
     var m = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/([.$?*|{}()[\]\\/+^])/g, '\\$1') + '=([^;]*)'));
@@ -23,16 +26,12 @@
     document.cookie = name + '=' + encodeURIComponent(value) + '; path=/; max-age=' + maxAge + '; SameSite=Lax';
   }
 
-  if (!force && (readCookie(key) === '1' || sessionStorage.getItem(key) === '1')) {
-    return;
-  }
-
   function close() {
     root.classList.remove('is-open');
     root.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('popup-open');
     if (!force) {
-      sessionStorage.setItem(key, '1');
+      try { sessionStorage.setItem(key, '1'); } catch (e) { /* ignore */ }
       writeCookie(key, '1', days);
     }
   }
@@ -50,5 +49,14 @@
     if (e.key === 'Escape' && root.classList.contains('is-open')) close();
   });
 
-  setTimeout(open, Math.max(0, delay));
+  var dismissed = false;
+  try {
+    dismissed = !force && (readCookie(key) === '1' || sessionStorage.getItem(key) === '1');
+  } catch (e) {
+    dismissed = !force && readCookie(key) === '1';
+  }
+
+  if (dismissed) return;
+
+  window.setTimeout(open, Math.max(0, delay));
 })();

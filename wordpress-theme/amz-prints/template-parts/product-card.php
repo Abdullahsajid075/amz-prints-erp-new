@@ -27,7 +27,20 @@ if ( ! $category ) {
 $pid = (string) ( $product['id'] ?? '' );
 ?>
 <article class="shop-card" data-category="<?php echo esc_attr( $category ); ?>" data-product-id="<?php echo esc_attr( $pid ); ?>">
-	<button type="button" class="shop-card__link" data-open-product="<?php echo esc_attr( $pid ); ?>" aria-haspopup="dialog">
+	<button
+		type="button"
+		class="shop-card__link"
+		data-open-product="<?php echo esc_attr( $pid ); ?>"
+		data-product-name="<?php echo esc_attr( $product['name'] ); ?>"
+		data-product-category="<?php echo esc_attr( (string) ( $product['category'] ?? '' ) ); ?>"
+		data-product-desc="<?php echo esc_attr( $excerpt ); ?>"
+		data-product-price="<?php echo esc_attr( (string) $price_n ); ?>"
+		data-product-unit="<?php echo esc_attr( (string) ( $product['unit'] ?? '' ) ); ?>"
+		data-product-material="<?php echo esc_attr( (string) ( $product['material'] ?? '' ) ); ?>"
+		data-product-size="<?php echo esc_attr( (string) ( $product['size'] ?? '' ) ); ?>"
+		data-product-min="<?php echo esc_attr( (string) max( 1, (int) ( $product['minQuantity'] ?? 1 ) ) ); ?>"
+		aria-haspopup="dialog"
+	>
 		<div class="shop-card__media">
 			<?php if ( $img ) : ?>
 				<img src="<?php echo function_exists( 'amz_prints_product_img_src' ) ? amz_prints_product_img_src( $img ) : esc_url( $img ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>" alt="<?php echo esc_attr( $product['name'] ); ?>" loading="lazy">
