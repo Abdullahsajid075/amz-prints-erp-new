@@ -3814,7 +3814,7 @@ function handleProducts_(path, method, body) {
       appendObject_(sheet, SHEET_NAMES.PRODUCTS, created);
       var apiCreated = toApiProduct_(created);
       if ((body && (body.image || body.photo)) && !apiCreated.image) {
-        throw new Error('Photo was not stored. Use a smaller image (compressed under ~45KB).');
+        throw new Error('Photo was not stored. Re-upload a clear product photo (ERP compresses under Sheets limit).');
       }
       return apiCreated;
     }
