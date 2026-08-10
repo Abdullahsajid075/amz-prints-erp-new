@@ -34,6 +34,9 @@ $pid = (string) ( $product['id'] ?? '' );
 			<?php else : ?>
 				<span class="shop-card__letter" aria-hidden="true"><?php echo esc_html( mb_substr( $product['name'], 0, 1 ) ); ?></span>
 			<?php endif; ?>
+			<?php if ( ! empty( $product['category'] ) ) : ?>
+				<span class="shop-card__tag"><?php echo esc_html( $product['category'] ); ?></span>
+			<?php endif; ?>
 		</div>
 		<div class="shop-card__body">
 			<h3 class="shop-card__title"><?php echo esc_html( $product['name'] ); ?></h3>
