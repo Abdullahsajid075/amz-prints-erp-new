@@ -463,4 +463,85 @@
       }
     });
   });
+
+  /* ===== Press Atelier 3.0 motion ===== */
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var finePointer = window.matchMedia && window.matchMedia('(pointer: fine)').matches;
+
+  /* Scroll progress */
+  var progress = document.getElementById('amz-progress');
+  function updateProgress() {
+    if (!progress) return;
+    var doc = document.documentElement;
+    var max = doc.scrollHeight - window.innerHeight;
+    var pct = max > 0 ? Math.min(100, Math.max(0, (window.scrollY / max) * 100)) : 0;
+    progress.style.setProperty('--amz-progress', pct.toFixed(2) + '%');
+  }
+  window.addEventListener('scroll', updateProgress, { passive: true });
+  updateProgress();
+
+  /* Soft cursor orb */
+  var cursor = document.getElementById('amz-cursor');
+  if (cursor && finePointer && !reduceMotion) {
+    var cx = 0, cy = 0, tx = 0, ty = 0, raf = 0;
+    function loopCursor() {
+      cx += (tx - cx) * 0.18;
+      cy += (ty - cy) * 0.18;
+      cursor.style.left = cx + 'px';
+      cursor.style.top = cy + 'px';
+      raf = requestAnimationFrame(loopCursor);
+    }
+    window.addEventListener('pointermove', function (e) {
+      tx = e.clientX;
+      ty = e.clientY;
+      cursor.classList.add('is-on');
+    }, { passive: true });
+    document.addEventListener('pointerover', function (e) {
+      var hot = e.target.closest('a, button, [data-open-product], .shop-card, .mega-card, .btn');
+      cursor.classList.toggle('is-hot', !!hot);
+    });
+    raf = requestAnimationFrame(loopCursor);
+  } else if (cursor) {
+    cursor.remove();
+  }
+
+  /* Magnetic buttons */
+  if (finePointer && !reduceMotion) {
+    document.querySelectorAll('.btn--magnetic').forEach(function (btn) {
+      btn.addEventListener('pointermove', function (e) {
+        var r = btn.getBoundingClientRect();
+        var x = e.clientX - r.left - r.width / 2;
+        var y = e.clientY - r.top - r.height / 2;
+        btn.style.transform = 'translate(' + (x * 0.18) + 'px,' + (y * 0.22) + 'px)';
+      });
+      btn.addEventListener('pointerleave', function () {
+        btn.style.transform = '';
+      });
+    });
+  }
+
+  /* 3D tilt cards */
+  if (finePointer && !reduceMotion) {
+    document.querySelectorAll('.has-tilt').forEach(function (card) {
+      card.addEventListener('pointermove', function (e) {
+        var r = card.getBoundingClientRect();
+        var px = (e.clientX - r.left) / r.width;
+        var py = (e.clientY - r.top) / r.height;
+        var rx = (0.5 - py) * 8;
+        var ry = (px - 0.5) * 10;
+        card.style.transform = 'perspective(900px) rotateX(' + rx + 'deg) rotateY(' + ry + 'deg) translateY(-2px)';
+      });
+      card.addEventListener('pointerleave', function () {
+        card.style.transform = '';
+      });
+    });
+  }
+
+  /* Back to top */
+  var backTop = document.getElementById('amz-back-top');
+  if (backTop) {
+    backTop.addEventListener('click', function () {
+      window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+    });
+  }
 })();

@@ -1,8 +1,6 @@
 <?php
 /**
- * Minimal product card (ERP product array) — opens detail popup on click.
- *
- * Expects $args['product'] array.
+ * Minimal product card — Press Atelier hover + detail popup
  *
  * @package AMZ_Prints
  */
@@ -26,7 +24,7 @@ if ( ! $category ) {
 }
 $pid = (string) ( $product['id'] ?? '' );
 ?>
-<article class="shop-card" data-category="<?php echo esc_attr( $category ); ?>" data-product-id="<?php echo esc_attr( $pid ); ?>">
+<article class="shop-card has-tilt" data-category="<?php echo esc_attr( $category ); ?>" data-product-id="<?php echo esc_attr( $pid ); ?>">
 	<button
 		type="button"
 		class="shop-card__link"
@@ -47,6 +45,7 @@ $pid = (string) ( $product['id'] ?? '' );
 			<?php else : ?>
 				<span class="shop-card__letter" aria-hidden="true"><?php echo esc_html( mb_substr( $product['name'], 0, 1 ) ); ?></span>
 			<?php endif; ?>
+			<span class="shop-card__shine" aria-hidden="true"></span>
 			<?php if ( ! empty( $product['category'] ) ) : ?>
 				<span class="shop-card__tag"><?php echo esc_html( $product['category'] ); ?></span>
 			<?php endif; ?>
@@ -56,6 +55,7 @@ $pid = (string) ( $product['id'] ?? '' );
 			<p class="shop-card__desc"><?php echo esc_html( $excerpt ); ?></p>
 			<span class="shop-card__rule" aria-hidden="true"></span>
 			<span class="shop-card__price"><?php echo esc_html( $price ); ?></span>
+			<span class="shop-card__cta"><?php esc_html_e( 'View details', 'amz-prints' ); ?></span>
 		</div>
 	</button>
 </article>

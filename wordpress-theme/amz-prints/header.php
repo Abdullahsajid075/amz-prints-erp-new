@@ -1,6 +1,6 @@
 <?php
 /**
- * Header — English only, NADRA in main, full mobile nav (no cart in menus)
+ * Header — Press Atelier 3.0
  *
  * @package AMZ_Prints
  */
@@ -12,10 +12,12 @@
 	<link rel="profile" href="https://gmpg.org/xfn/11">
 	<?php wp_head(); ?>
 </head>
-<body <?php body_class(); ?>>
+<body <?php body_class( 'amz-v3' ); ?>>
 <?php wp_body_open(); ?>
 
 <a class="skip-link" href="#main">Skip to content</a>
+<div class="amz-progress" id="amz-progress" aria-hidden="true"></div>
+<div class="amz-cursor" id="amz-cursor" aria-hidden="true"></div>
 
 <header class="site-header" id="site-header">
 	<div class="site-header__inner">
@@ -24,6 +26,7 @@
 				<?php the_custom_logo(); ?>
 			<?php else : ?>
 				<a class="site-brand__text" href="<?php echo esc_url( home_url( '/' ) ); ?>">
+					<span class="site-brand__mark" aria-hidden="true"></span>
 					<span class="site-brand__name"><?php echo esc_html( amz_prints_mod( 'amz_company_name', 'AMZ Prints' ) ); ?></span>
 				</a>
 			<?php endif; ?>
@@ -80,12 +83,12 @@
 
 		<div class="site-header__actions">
 			<?php if ( function_exists( 'amz_prints_customer_is_logged_in' ) && amz_prints_customer_is_logged_in() ) : ?>
-				<a class="btn btn--login btn--sm" href="<?php echo esc_url( home_url( '/my-account/' ) ); ?>">Account</a>
+				<a class="btn btn--login btn--sm btn--magnetic" href="<?php echo esc_url( home_url( '/my-account/' ) ); ?>">Account</a>
 			<?php else : ?>
-				<a class="btn btn--login btn--sm" href="<?php echo esc_url( home_url( '/customer-login/' ) ); ?>">Login</a>
+				<a class="btn btn--login btn--sm btn--magnetic" href="<?php echo esc_url( home_url( '/customer-login/' ) ); ?>">Login</a>
 			<?php endif; ?>
-			<a class="btn btn--primary btn--sm btn--quote-desk" href="<?php echo esc_url( home_url( '/products/' ) ); ?>">Shop</a>
-			<button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="site-nav" type="button">
+			<a class="btn btn--primary btn--sm btn--quote-desk btn--magnetic" href="<?php echo esc_url( home_url( '/products/' ) ); ?>">Shop</a>
+			<button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="site-nav" type="button" aria-label="Menu">
 				<span class="nav-toggle__bar"></span>
 				<span class="nav-toggle__bar"></span>
 				<span class="nav-toggle__bar"></span>
