@@ -41,27 +41,21 @@
 						<svg class="mega-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
 					</button>
 				</li>
+				<li><a class="nav-link-main" href="<?php echo esc_url( home_url( '/digital-services/' ) ); ?>">Digital Services</a></li>
 				<li><a class="nav-link-main" href="<?php echo esc_url( home_url( '/products/' ) ); ?>">Products</a></li>
 				<li><a class="nav-link-main" href="<?php echo esc_url( home_url( '/nadra-e-services/' ) ); ?>">NADRA</a></li>
-				<li>
-					<?php if ( function_exists( 'amz_prints_customer_is_logged_in' ) && amz_prints_customer_is_logged_in() ) : ?>
-						<a class="nav-link-main" href="<?php echo esc_url( home_url( '/my-account/' ) ); ?>">My Account</a>
-					<?php else : ?>
-						<a class="nav-link-main" href="<?php echo esc_url( home_url( '/customer-login/' ) ); ?>">Login</a>
-					<?php endif; ?>
-				</li>
 				<li class="has-more">
 					<button type="button" class="nav-link-main more-trigger" aria-expanded="false" aria-controls="more-menu">
 						More
 						<svg class="mega-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
 					</button>
 					<ul class="more-menu" id="more-menu">
-						<li><a href="<?php echo esc_url( home_url( '/digital-services/' ) ); ?>">Digital Services</a></li>
-						<li><a href="<?php echo esc_url( home_url( '/company-profile/' ) ); ?>">Company Profile PDF</a></li>
+						<li><a href="<?php echo esc_url( home_url( '/company-profile/' ) ); ?>">Company Profiles</a></li>
+						<li><a href="<?php echo esc_url( home_url( '/company-profile-print/?download=1' ) ); ?>">Print Profile PDF</a></li>
+						<li><a href="<?php echo esc_url( home_url( '/company-profile-digital/?download=1' ) ); ?>">Digital Profile PDF</a></li>
 						<li><a href="<?php echo esc_url( home_url( '/pricing/' ) ); ?>">Pricing</a></li>
 						<li><a href="<?php echo esc_url( home_url( '/how-we-work/' ) ); ?>">How We Work</a></li>
 						<li><a href="<?php echo esc_url( home_url( '/track-order/' ) ); ?>">Track Order</a></li>
-						<li><a href="<?php echo esc_url( home_url( '/my-account/' ) ); ?>">My Account</a></li>
 						<li><a href="<?php echo esc_url( home_url( '/gallery/' ) ); ?>">Gallery</a></li>
 						<li><a href="<?php echo esc_url( home_url( '/about/' ) ); ?>">About</a></li>
 						<li><a href="<?php echo esc_url( home_url( '/contact/' ) ); ?>">Contact</a></li>
@@ -73,6 +67,7 @@
 			<ul class="site-nav__mobile-extra" aria-label="More pages">
 				<li><a href="<?php echo esc_url( home_url( '/services/' ) ); ?>">All Services</a></li>
 				<li><a href="<?php echo esc_url( home_url( '/digital-services/' ) ); ?>">Digital Services</a></li>
+				<li><a href="<?php echo esc_url( home_url( '/company-profile/' ) ); ?>">Company Profiles</a></li>
 				<li><a href="<?php echo esc_url( home_url( '/pricing/' ) ); ?>">Pricing</a></li>
 				<li><a href="<?php echo esc_url( home_url( '/how-we-work/' ) ); ?>">How We Work</a></li>
 				<li><a href="<?php echo esc_url( home_url( '/track-order/' ) ); ?>">Track Order</a></li>
@@ -80,16 +75,11 @@
 				<li><a href="<?php echo esc_url( home_url( '/about/' ) ); ?>">About</a></li>
 				<li><a href="<?php echo esc_url( home_url( '/contact/' ) ); ?>">Contact</a></li>
 				<li><a href="<?php echo esc_url( home_url( '/quote/' ) ); ?>">Get a Quote</a></li>
-				<li><a href="<?php echo esc_url( home_url( '/customer-login/' ) ); ?>">Create Account</a></li>
 			</ul>
 		</nav>
 
 		<div class="site-header__actions">
-			<?php if ( function_exists( 'amz_prints_customer_is_logged_in' ) && amz_prints_customer_is_logged_in() ) : ?>
-				<a class="btn btn--login btn--sm btn--magnetic" href="<?php echo esc_url( home_url( '/my-account/' ) ); ?>">Account</a>
-			<?php else : ?>
-				<a class="btn btn--login btn--sm btn--magnetic" href="<?php echo esc_url( home_url( '/customer-login/' ) ); ?>">Login</a>
-			<?php endif; ?>
+			<a class="btn btn--ghost btn--sm btn--magnetic" href="<?php echo esc_url( home_url( '/quote/' ) ); ?>">Quote</a>
 			<a class="btn btn--primary btn--sm btn--quote-desk btn--magnetic" href="<?php echo esc_url( home_url( '/products/' ) ); ?>">Shop</a>
 			<button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="site-nav" type="button" aria-label="Menu">
 				<span class="nav-toggle__bar"></span>

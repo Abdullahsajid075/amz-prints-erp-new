@@ -4400,6 +4400,137 @@ body.nav-open .nav-toggle__bar:nth-child(3) { transform: translateY(-8px) rotate
   .catalog-promo__actions { justify-content: flex-start; }
 }
 
+.catalog-promo--dual .catalog-promo__head { text-align: center; margin-bottom: 1.5rem; }
+.catalog-dual {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+.catalog-dual--page { margin-top: 0.5rem; }
+.catalog-dual__card {
+  position: relative;
+  overflow: hidden;
+  padding: 1.75rem 1.6rem;
+  border-radius: calc(var(--radius) + 6px);
+  color: #fff;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  min-height: 280px;
+}
+.catalog-dual__card .eyebrow { margin: 0; }
+.catalog-dual__card h2,
+.catalog-dual__card h3 { margin: 0; color: #fff; font-family: var(--font-display); letter-spacing: -0.03em; }
+.catalog-dual__card > p { margin: 0; color: rgba(255,255,255,0.78); max-width: 42ch; }
+.catalog-dual__actions { display: flex; flex-wrap: wrap; gap: 0.55rem; margin-top: auto; }
+.catalog-dual__actions .btn--ghost {
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+  border-color: rgba(255,255,255,0.28);
+}
+.catalog-dual__card--print {
+  background:
+    radial-gradient(420px 220px at 100% 0%, rgba(242,101,34,0.45), transparent 60%),
+    linear-gradient(145deg, #0E141B, #1a222d 55%, #F26522);
+}
+.catalog-dual__card--digital {
+  background:
+    radial-gradient(420px 220px at 0% 100%, rgba(30,200,179,0.35), transparent 55%),
+    linear-gradient(145deg, #071525, #0c2740 50%, #0f3d4a);
+}
+.catalog-dual__visual {
+  height: 140px;
+  margin: -0.35rem -0.2rem 0.65rem;
+  border-radius: 12px;
+  background-size: cover;
+  background-position: center;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12);
+}
+.page-hero--profiles {
+  background:
+    radial-gradient(600px 280px at 80% 0%, rgba(30,200,179,0.18), transparent 50%),
+    radial-gradient(500px 240px at 10% 100%, rgba(242,101,34,0.2), transparent 55%),
+    linear-gradient(160deg, #0E141B, #18202b);
+  color: #fff;
+}
+.page-hero--profiles .page-hero__brand { color: #ffb088; }
+.page-hero--profiles h1 { color: #fff; }
+.page-hero--profiles .page-hero__lead { color: rgba(255,255,255,0.72); }
+
+/* Homepage dual pillars */
+.section--pillars { padding-top: 1rem; }
+.service-pillars {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+.service-pillar {
+  display: grid;
+  grid-template-rows: 200px 1fr;
+  border-radius: calc(var(--radius) + 6px);
+  overflow: hidden;
+  background: #fff;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid rgba(14,20,27,0.06);
+}
+.service-pillar__media {
+  background-size: cover;
+  background-position: center;
+  position: relative;
+}
+.service-pillar__media::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 30%, rgba(14,20,27,0.55));
+}
+.service-pillar__body {
+  padding: 1.35rem 1.4rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.service-pillar__body h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.65rem;
+  letter-spacing: -0.03em;
+}
+.service-pillar__body > p { margin: 0; color: #445062; }
+.service-pillar__body ul {
+  margin: 0.15rem 0 0.35rem;
+  padding-left: 1.1rem;
+  color: #1f2a37;
+}
+.service-pillar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: auto;
+}
+.service-pillar--print .eyebrow { color: #F26522; }
+.service-pillar--print .service-pillar__media::after {
+  background: linear-gradient(180deg, transparent 25%, rgba(242,101,34,0.55));
+}
+.service-pillar--digital .eyebrow { color: #0f766e; }
+.service-pillar--digital {
+  border-color: rgba(15,118,110,0.15);
+}
+.service-pillar--digital .btn--primary {
+  background: #0f766e;
+  border-color: #0f766e;
+}
+.service-pillar--digital .btn--primary:hover {
+  background: #0d9488;
+  border-color: #0d9488;
+}
+
+@media (max-width: 900px) {
+  .catalog-dual,
+  .service-pillars { grid-template-columns: 1fr; }
+}
+
 /* ========== Landscape A4 Company Profile Book ========== */
 .amz-catalog-body {
   margin: 0;
@@ -5044,6 +5175,95 @@ body.nav-open .nav-toggle__bar:nth-child(3) { transform: translateY(-8px) rotate
   color: #445062;
 }
 
+.catalog-mech-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.65rem;
+}
+.catalog-mech-grid article {
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  background: #F0FDFA;
+  border: 1px solid rgba(15,118,110,0.18);
+}
+.catalog-mech-grid span {
+  display: block;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #0f766e;
+  margin-bottom: 0.25rem;
+}
+.catalog-mech-grid h3 {
+  margin: 0 0 0.3rem;
+  font-size: 1.1rem;
+}
+.catalog-mech-grid p {
+  margin: 0;
+  font-size: 0.92rem;
+  color: #445062;
+}
+
+/* Print theme accents (default catalog already orange/charcoal) */
+.catalog-theme-print .catalog-page {
+  background:
+    linear-gradient(180deg, #fffaf6 0%, #ffffff 28%, #ffffff 100%);
+}
+.catalog-theme-print .catalog-page--cover {
+  background:
+    radial-gradient(700px 360px at 90% 10%, rgba(242,101,34,0.42), transparent 55%),
+    linear-gradient(135deg, #0E141B 0%, #18202b 55%, #1c2530 100%) !important;
+}
+
+/* Digital / IT theme — navy + teal */
+.catalog-theme-digital {
+  background: #c5d0db;
+}
+.catalog-toolbar--digital {
+  background: #071525;
+}
+.catalog-theme-digital .catalog-page {
+  background:
+    linear-gradient(180deg, #f3fbfa 0%, #ffffff 30%, #ffffff 100%);
+}
+.catalog-theme-digital .catalog-kicker { color: #0f766e; }
+.catalog-theme-digital .catalog-toc__n { color: #0f766e; }
+.catalog-theme-digital .catalog-contact-brand { color: #0f766e; }
+.catalog-theme-digital .catalog-page--cover-digital {
+  background:
+    radial-gradient(680px 340px at 85% 0%, rgba(30,200,179,0.38), transparent 55%),
+    linear-gradient(135deg, #04101c 0%, #0a2136 50%, #0d3a45 100%) !important;
+}
+.catalog-theme-digital .catalog-cover__short { color: #5eead4; }
+.catalog-theme-digital .catalog-cover__mark--teal {
+  background: linear-gradient(135deg, #14b8a6, #2dd4bf);
+  box-shadow: 0 0 0 8px rgba(20,184,166,0.22);
+}
+.catalog-theme-digital .catalog-cover__panel strong { color: #5eead4; }
+.catalog-theme-digital .catalog-page--ink-digital {
+  background: linear-gradient(145deg, #04101c, #0a2136 55%, #0f3d4a) !important;
+}
+.catalog-theme-digital .catalog-item-grid--dark li {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(94,234,212,0.25);
+  color: #fff;
+}
+.catalog-theme-digital .catalog-values--digital div {
+  background: linear-gradient(160deg, #0a2136, #0f3d4a);
+}
+.catalog-theme-digital .catalog-values--digital strong { color: #5eead4; }
+.catalog-theme-digital .catalog-callout--digital {
+  background: linear-gradient(120deg, #0a2136, #0f766e);
+}
+.catalog-theme-digital .catalog-mv--wide article {
+  background: linear-gradient(160deg, #fff, #e6fffa);
+  border-color: rgba(15,118,110,0.22);
+}
+.catalog-theme-digital .catalog-why-grid span { color: #0f766e; }
+.catalog-theme-digital .catalog-tri article {
+  background: linear-gradient(160deg, #fff, #e6fffa);
+  border-color: rgba(15,118,110,0.2);
+}
+
 @media print {
   .no-print { display: none !important; }
   .amz-catalog-body { background: #fff !important; }
@@ -5080,6 +5300,7 @@ body.nav-open .nav-toggle__bar:nth-child(3) { transform: translateY(-8px) rotate
   .catalog-facts,
   .catalog-item-grid--4,
   .catalog-mv--wide,
+  .catalog-mech-grid,
   .catalog-qr-grid--big { grid-template-columns: 1fr; }
   .catalog-item-grid { grid-template-columns: 1fr 1fr; }
 }

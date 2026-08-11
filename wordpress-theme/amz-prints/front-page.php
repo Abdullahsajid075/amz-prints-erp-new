@@ -233,6 +233,8 @@ $slider_meta = array(
 	</div>
 </section>
 
+<?php if ( function_exists( 'amz_prints_home_service_pillars' ) ) { amz_prints_home_service_pillars(); } ?>
+
 <section class="section section--services section--atelier" id="services">
 	<div class="container">
 		<header class="section-head reveal" data-reveal>
