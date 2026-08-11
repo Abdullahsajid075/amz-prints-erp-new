@@ -559,4 +559,17 @@
       window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
     });
   }
+
+  /* Digital services stage slideshow */
+  document.querySelectorAll('[data-ds-stage]').forEach(function (stage) {
+    var imgs = Array.prototype.slice.call(stage.querySelectorAll('.ds-stage__img'));
+    if (imgs.length < 2) return;
+    var i = 0;
+    if (reduceMotion) return;
+    window.setInterval(function () {
+      imgs[i].classList.remove('is-active');
+      i = (i + 1) % imgs.length;
+      imgs[i].classList.add('is-active');
+    }, 4500);
+  });
 })();

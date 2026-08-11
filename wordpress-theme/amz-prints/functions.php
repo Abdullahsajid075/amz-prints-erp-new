@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AMZ_PRINTS_VERSION', '3.0.2' );
+define( 'AMZ_PRINTS_VERSION', '3.0.3' );
 
 /**
  * Avoid long Hostinger CDN HTML cache hiding theme updates.
@@ -211,6 +211,7 @@ function amz_prints_default_pages() {
 		'product'          => array( 'title' => 'Product', 'template' => 'page-templates/template-product.php' ),
 		'cart'             => array( 'title' => 'Cart', 'template' => 'page-templates/template-cart.php' ),
 		'checkout'         => array( 'title' => 'Checkout', 'template' => 'page-templates/template-checkout.php' ),
+		'digital-services'=> array( 'title' => 'Digital Services', 'template' => 'page-templates/template-digital-services.php' ),
 		'gallery'          => array( 'title' => 'Gallery', 'template' => 'page-templates/template-gallery.php' ),
 		'quote'            => array( 'title' => 'Get a Quote', 'template' => 'page-templates/template-quote.php' ),
 		'contact'          => array( 'title' => 'Contact', 'template' => 'page-templates/template-contact.php' ),

@@ -27,13 +27,18 @@ $catalog = amz_prints_services_catalog();
 
 		<?php foreach ( $catalog as $cat ) : ?>
 			<section class="service-category reveal" data-reveal id="<?php echo esc_attr( $cat['slug'] ); ?>">
-				<a class="service-category__banner" href="<?php echo esc_url( amz_prints_service_section_url( $cat['slug'] ) ); ?>">
+				<a class="service-category__banner" href="<?php echo esc_url( 'web-digital-services' === $cat['slug'] ? home_url( '/digital-services/' ) : amz_prints_service_section_url( $cat['slug'] ) ); ?>">
 					<img src="<?php echo esc_url( $cat['image'] ); ?>" alt="<?php echo esc_attr( amz_prints_svc_label( $cat ) ); ?>" loading="lazy">
 					<div class="service-category__banner-copy">
 						<h2><?php echo esc_html( amz_prints_svc_label( $cat ) ); ?></h2>
 						<span><?php echo esc_html( count( $cat['items'] ) ); ?> <?php echo esc_html( amz_prints_is_rtl() ? 'سروسز' : 'services' ); ?></span>
 					</div>
 				</a>
+				<?php if ( 'web-digital-services' === $cat['slug'] ) : ?>
+					<p class="service-category__note">
+						<a class="text-link" href="<?php echo esc_url( home_url( '/digital-services/' ) ); ?>"><?php esc_html_e( 'Open full Digital Services details', 'amz-prints' ); ?></a>
+					</p>
+				<?php endif; ?>
 				<div class="service-category__grid">
 					<?php foreach ( $cat['items'] as $item ) : ?>
 						<a class="service-chip" href="<?php echo esc_url( amz_prints_service_quote_url( $item['en'] ) ); ?>">
