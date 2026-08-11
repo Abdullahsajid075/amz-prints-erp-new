@@ -12,8 +12,10 @@ import { purchasesAPI, vendorsAPI, ordersAPI, productsAPI, paymentsAPI } from '@
 import { formatCurrency, formatDate } from '@/utils/helpers';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
-import { notifyPaymentEvent } from '@/services/notifications';
-import { Plus, Search, Eye, Edit, Trash2, ShoppingBag, PackageCheck, Paperclip, AlertTriangle, X, Save, FileText, Link2, PackagePlus, Building2 } from 'lucide-react';
+import { notifyPaymentEvent, openWhatsAppChat } from '@/services/notifications';
+import { useBrand } from '@/context/BrandContext';
+import { Plus, Search, Eye, Edit, Trash2, ShoppingBag, PackageCheck, Paperclip, AlertTriangle, X, Save, FileText, Link2, PackagePlus, Building2, Truck } from 'lucide-react';
+import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
 
 const PO_STATUS = ['Draft', 'Ordered', 'Partial Paid', 'Fully Paid', 'Received'];
@@ -92,6 +94,7 @@ const normalizePurchase = (p = {}) => {
 
 const Purchases = () => {
   const navigate = useNavigate();
+  const { company } = useBrand();
   const [purchases, setPurchases] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -233,6 +236,76 @@ const Purchases = () => {
     }
   };
 
+  const vendorPhoneFor = useCallback((purchaseOrVendorId, vendorName) => {
+    const id = typeof purchaseOrVendorId === 'object'
+      ? (purchaseOrVendorId?.vendorId || '')
+      : purchaseOrVendorId;
+    const byId = vendors.find((v) => String(v.id) === String(id));
+    if (byId?.phone) return byId.phone;
+    if (vendorName) {
+      const byName = vendors.find((v) => String(v.name || '').toLowerCase() === String(vendorName).toLowerCase());
+      if (byName?.phone) return byName.phone;
+    }
+    if (typeof purchaseOrVendorId === 'object' && purchaseOrVendorId?.vendorPhone) {
+      return purchaseOrVendorId.vendorPhone;
+    }
+    return '';
+  }, [vendors]);
+
+  const buildPoMessage = (purchase, type) => {
+    const companyName = company?.name || 'Amazon Printing Services';
+    const vendorName = purchase.vendorName || 'Vendor';
+    const po = purchase.poNumber || purchase.purchaseNo || purchase.id || '';
+    const date = purchase.purchaseDate || purchase.date || '';
+    const delivery = purchase.expectedDeliveryDate || '';
+    const total = formatCurrency(purchase.totalAmount || purchase.total || 0);
+    const items = (purchase.items || [])
+      .slice(0, 8)
+      .map((it, i) => `${i + 1}. ${it.name || 'Item'} × ${it.quantity || 0}`)
+      .join('\n');
+    const more = (purchase.items || []).length > 8
+      ? `\n… +${(purchase.items || []).length - 8} more`
+      : '';
+
+    if (type === 'delivery') {
+      return (
+        `Dear ${vendorName},\n\n`
+        + `*Reminder — Delivery*\n\n`
+        + `Please deliver PO *${po}* as per schedule.`
+        + (delivery ? `\nExpected delivery: *${formatDate(delivery)}*` : '')
+        + `\n\nPO total: ${total}`
+        + (items ? `\n\nItems:\n${items}${more}` : '')
+        + `\n\nKindly confirm delivery status.\n\nThank you.\n${companyName}`
+      );
+    }
+
+    // Default: PO created / order placed with vendor
+    return (
+      `Dear ${vendorName},\n\n`
+      + `*Purchase Order*\n\n`
+      + `Please find our purchase order *${po}*.`
+      + (date ? `\nPO date: ${formatDate(date)}` : '')
+      + (delivery ? `\nExpected delivery: *${formatDate(delivery)}*` : '')
+      + `\n\nTotal amount: ${total}`
+      + (items ? `\n\nItems:\n${items}${more}` : '')
+      + (purchase.notes ? `\n\nNotes: ${purchase.notes}` : '')
+      + `\n\nPlease confirm availability and delivery.\n\nThank you.\n${companyName}`
+    );
+  };
+
+  const sendVendorWhatsApp = (purchase, type = 'po') => {
+    const phone = vendorPhoneFor(purchase, purchase.vendorName);
+    if (!phone) {
+      toast.error('Vendor WhatsApp phone missing — add phone in Vendors');
+      return;
+    }
+    const msg = buildPoMessage(purchase, type);
+    const result = openWhatsAppChat(phone, msg);
+    if (!result.ok) toast.error('Could not open WhatsApp');
+    else if (type === 'delivery') toast.message('Delivery reminder opened — tap Send');
+    else toast.message('PO message opened — tap Send');
+  };
+
   const createVendorPayment = async ({ vendorName, vendorPhone, amount, refId, poNumber }) => {
     if (!paymentsAPI?.create || !(Number(amount) > 0)) return;
     try {
@@ -339,6 +412,22 @@ const Purchases = () => {
         const res = await purchasesAPI.create(payload);
         saved = normalizePurchase(res.data || payload);
         toast.success('Purchase order created');
+        // Open WhatsApp to vendor with PO details (Ordered / any non-draft, or always on create)
+        if (payload.status !== 'Draft') {
+          sendVendorWhatsApp({ ...saved, vendorName: vendor?.name || payload.vendorName }, 'po');
+        } else if (vendor?.phone) {
+          // Still offer PO message for draft if they want — only auto-send when Ordered+
+        }
+      }
+
+      // When moving Draft → Ordered (or creating as Ordered), notify vendor
+      if (
+        editing
+        && editing.status === 'Draft'
+        && payload.status !== 'Draft'
+        && payload.status !== 'Received'
+      ) {
+        sendVendorWhatsApp({ ...saved, vendorName: vendor?.name || payload.vendorName }, 'po');
       }
 
       if (isPaidStatus(formData.status) && paidAmount > 0) {
@@ -500,6 +589,26 @@ const Purchases = () => {
                             <div className="flex items-center gap-1 justify-end">
                               {p.status !== 'Received' && (
                                 <Button size="icon" variant="ghost" onClick={() => markReceived(p)} title="Mark Received"><PackageCheck className="h-4 w-4 text-green-600" /></Button>
+                              )}
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="text-green-600 hover:bg-green-50"
+                                title="WhatsApp PO to vendor"
+                                onClick={() => sendVendorWhatsApp(p, 'po')}
+                              >
+                                <WhatsAppIcon className="h-4 w-4" />
+                              </Button>
+                              {p.status !== 'Received' && (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className={isOverdue ? 'text-amber-600 hover:bg-amber-50' : 'text-sky-600 hover:bg-sky-50'}
+                                  title="Delivery reminder"
+                                  onClick={() => sendVendorWhatsApp(p, 'delivery')}
+                                >
+                                  <Truck className="h-4 w-4" />
+                                </Button>
                               )}
                               <Button size="icon" variant="ghost" onClick={() => openView(p)}><Eye className="h-4 w-4" /></Button>
                               <Button size="icon" variant="ghost" onClick={() => openEdit(p)}><Edit className="h-4 w-4" /></Button>
@@ -696,6 +805,26 @@ const Purchases = () => {
                 <div className="flex justify-between border-t border-white/20 pt-2 mt-2"><span>Balance</span><span className="font-bold">{formatCurrency((viewData.totalAmount || 0) - (viewData.paidAmount || 0))}</span></div>
               </div>
               {viewData.notes && <div><p className="text-xs text-gray-500">Notes</p><p className="text-sm">{viewData.notes}</p></div>}
+              <div className="flex flex-wrap gap-2 pt-2 border-t">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="text-green-700 border-green-200 hover:bg-green-50"
+                  onClick={() => sendVendorWhatsApp(viewData, 'po')}
+                >
+                  <WhatsAppIcon className="h-4 w-4 mr-2" />Send PO to vendor
+                </Button>
+                {viewData.status !== 'Received' && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="text-sky-700 border-sky-200 hover:bg-sky-50"
+                    onClick={() => sendVendorWhatsApp(viewData, 'delivery')}
+                  >
+                    <Truck className="h-4 w-4 mr-2" />Delivery reminder
+                  </Button>
+                )}
+              </div>
             </div>
           )}
         </DialogContent>

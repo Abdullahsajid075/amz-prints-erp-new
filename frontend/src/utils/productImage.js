@@ -113,7 +113,37 @@ export function compressImageFile(file, opts = {}) {
 
 /** Safe src for catalog thumbnails (Drive + data URLs). */
 export function productImageSrc(product) {
-  return String(product?.image || product?.photo || '').trim();
+  const list = productImagesList(product);
+  return list[0] || '';
+}
+
+export const MAX_PRODUCT_IMAGES = 5;
+
+/** Normalize product.images / image / photo → unique non-empty list (max 5). */
+export function productImagesList(product) {
+  const out = [];
+  const push = (v) => {
+    const s = String(v || '').trim();
+    if (!s || out.includes(s) || out.length >= MAX_PRODUCT_IMAGES) return;
+    out.push(s);
+  };
+  let extra = product?.images ?? product?.gallery;
+  if (typeof extra === 'string') {
+    try { extra = JSON.parse(extra); } catch { extra = []; }
+  }
+  if (Array.isArray(extra)) extra.forEach(push);
+  push(product?.image);
+  push(product?.photo);
+  return out;
+}
+
+/** Gallery compress — fits multiple images in one Sheets cell as JSON. */
+export function compressGalleryImageFile(file) {
+  return compressImageFile(file, {
+    maxEdge: 1200,
+    maxChars: 9000,
+    quality: 0.88,
+  });
 }
 
 /** Strip catalog-only fields before saving onto order/invoice line items */

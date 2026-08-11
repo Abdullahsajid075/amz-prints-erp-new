@@ -15,7 +15,7 @@ import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
 import PageHeader from '@/components/shared/PageHeader';
 import { clearGasCache } from '@/services/gasClient';
-import { compressImageFile, productImageSrc } from '@/utils/productImage';
+import { compressGalleryImageFile, productImageSrc, productImagesList, MAX_PRODUCT_IMAGES } from '@/utils/productImage';
 import {
   Plus, Search, Edit, Trash2, Package, X, Save, Wrench, ImagePlus, Boxes, Globe,
 } from 'lucide-react';
@@ -60,6 +60,7 @@ const emptyProduct = {
   stock: 0,
   designer: '',
   image: '',
+  images: [],
   active: true,
   showOnWebsite: true,
   showOnTop: false,
@@ -93,6 +94,7 @@ const Products = () => {
       const list = (response.data || []).map((p) => ({
         ...p,
         basePrice: p.basePrice ?? p.rate ?? 0,
+        images: productImagesList(p),
         image: productImageSrc(p),
         stock: Number(p.stock ?? 0) || 0,
       }));
@@ -170,6 +172,7 @@ const Products = () => {
       fullDescription: product.fullDescription || '',
       designer: product.designer || '',
       stock: Number(product.stock ?? 0) || 0,
+      images: productImagesList(product),
       image: productImageSrc(product),
       showOnWebsite: product.showOnWebsite !== false,
       showOnTop: !!product.showOnTop,
@@ -178,25 +181,41 @@ const Products = () => {
     setDialogOpen(true);
   };
 
-  const onPickImage = async (ev) => {
-    const file = ev.target.files?.[0];
+  const onPickImages = async (ev) => {
+    const files = Array.from(ev.target.files || []);
     ev.target.value = '';
-    if (!file) return;
+    if (!files.length) return;
+    const room = MAX_PRODUCT_IMAGES - (formData.images?.length || 0);
+    if (room <= 0) {
+      toast.error(`Max ${MAX_PRODUCT_IMAGES} photos`);
+      return;
+    }
+    const batch = files.slice(0, room);
     setImageBusy(true);
     try {
-      // HD compress (up to ~1400px, high quality WebP/JPEG) within Sheets cell limit
-      const dataUrl = await compressImageFile(file, {
-        maxEdge: 1400,
-        maxChars: 48000,
-        quality: 0.92,
+      const added = [];
+      for (const file of batch) {
+        // Gallery budget keeps multiple photos under Sheets cell limit
+        const dataUrl = await compressGalleryImageFile(file);
+        added.push(dataUrl);
+      }
+      setFormData((prev) => {
+        const images = [...(prev.images || []), ...added].slice(0, MAX_PRODUCT_IMAGES);
+        return { ...prev, images, image: images[0] || '' };
       });
-      setFormData((prev) => ({ ...prev, image: dataUrl }));
-      toast.success('HD photo ready');
+      toast.success(added.length > 1 ? `${added.length} photos ready` : 'Photo ready');
     } catch (err) {
       toast.error(err.message || 'Photo failed');
     } finally {
       setImageBusy(false);
     }
+  };
+
+  const removeImageAt = (idx) => {
+    setFormData((prev) => {
+      const images = (prev.images || []).filter((_, i) => i !== idx);
+      return { ...prev, images, image: images[0] || '' };
+    });
   };
 
   const openStockEdit = (product) => {
@@ -225,6 +244,7 @@ const Products = () => {
         rate: product.basePrice ?? product.rate ?? 0,
         productType: product.productType || 'Product',
         image: productImageSrc(product) || '',
+        images: productImagesList(product),
         status: product.active === false ? 'Inactive' : (product.status || 'Active'),
         active: product.active !== false,
       });
@@ -269,7 +289,8 @@ const Products = () => {
             designer: '',
             minQuantity: 1,
             stock: 0,
-            image: formData.image || '',
+            image: (formData.images && formData.images[0]) || formData.image || '',
+            images: formData.images || [],
             active: formData.active !== false,
             status: formData.active === false ? 'Inactive' : 'Active',
             showOnWebsite: formData.showOnWebsite !== false,
@@ -291,7 +312,8 @@ const Products = () => {
             minQuantity: formData.minQuantity || 1,
             stock: Math.max(0, Math.floor(Number(formData.stock) || 0)),
             designer: formData.designer || '',
-            image: formData.image || '',
+            image: (formData.images && formData.images[0]) || formData.image || '',
+            images: formData.images || [],
             active: formData.active !== false,
             status: formData.active === false ? 'Inactive' : 'Active',
             showOnWebsite: formData.showOnWebsite !== false,
@@ -408,7 +430,8 @@ const Products = () => {
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {sorted.map((product) => {
                 const service = String(product.productType || '').toLowerCase() === 'service';
-                const img = productImageSrc(product);
+                const imgs = productImagesList(product);
+                const img = imgs[0] || '';
                 return (
                   <div
                     key={product.id}
@@ -422,6 +445,11 @@ const Products = () => {
                         <Wrench className="h-8 w-8 text-gray-300" />
                       ) : (
                         <Package className="h-8 w-8 text-gray-300" />
+                      )}
+                      {imgs.length > 1 && (
+                        <Badge className="absolute bottom-1.5 right-1.5 text-[10px] px-1.5 py-0 h-5 bg-black/70 text-white border-0">
+                          {imgs.length} photos
+                        </Badge>
                       )}
                       <Badge
                         variant="outline"
@@ -558,29 +586,43 @@ const Products = () => {
           </DialogHeader>
 
           <form onSubmit={handleSave} className="space-y-3 mt-2">
-            <div className="flex items-center gap-3">
-              <div className="w-20 h-20 rounded-lg border bg-gray-50 overflow-hidden flex items-center justify-center shrink-0">
-                {formData.image ? (
-                  <img src={formData.image} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                ) : (
-                  <ImagePlus className="h-6 w-6 text-gray-300" />
+            <div className="space-y-2">
+              <Label>Catalog photos (up to {MAX_PRODUCT_IMAGES})</Label>
+              <div className="flex flex-wrap gap-2">
+                {(formData.images || []).map((src, idx) => (
+                  <div key={`${idx}_${src.slice(-12)}`} className="relative w-20 h-20 rounded-lg border bg-gray-50 overflow-hidden group">
+                    <img src={src} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    {idx === 0 && (
+                      <span className="absolute bottom-0 inset-x-0 bg-black/55 text-white text-[9px] text-center py-0.5">Main</span>
+                    )}
+                    <button
+                      type="button"
+                      className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-red-600 text-white text-xs leading-none opacity-90 hover:opacity-100"
+                      onClick={() => removeImageAt(idx)}
+                      title="Remove"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+                {(formData.images?.length || 0) < MAX_PRODUCT_IMAGES && (
+                  <label className="w-20 h-20 rounded-lg border border-dashed border-gray-300 bg-gray-50 flex flex-col items-center justify-center cursor-pointer hover:border-orange-400 text-gray-400">
+                    <ImagePlus className="h-5 w-5" />
+                    <span className="text-[9px] mt-0.5">Add</span>
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={onPickImages}
+                      disabled={imageBusy}
+                      className="hidden"
+                    />
+                  </label>
                 )}
               </div>
-              <div className="space-y-1 flex-1 min-w-0">
-                <Label>Catalog photo</Label>
-                <Input type="file" accept="image/*" onChange={onPickImage} disabled={imageBusy} className="text-xs" />
-                {formData.image && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs text-red-600 px-0"
-                    onClick={() => setFormData({ ...formData, image: '' })}
-                  >
-                    Remove photo
-                  </Button>
-                )}
-              </div>
+              <p className="text-[11px] text-gray-500">
+                {imageBusy ? 'Compressing…' : 'Select multiple photos — first is the main / website image.'}
+              </p>
             </div>
 
             <div>

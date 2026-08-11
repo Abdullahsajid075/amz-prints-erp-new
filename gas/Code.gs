@@ -59,7 +59,7 @@ var DEFAULT_HEADERS = {
   ],
   Products: [
     'Id', 'Name', 'Category', 'Rate', 'SalePrice', 'Unit', 'Description', 'FullDescription', 'Status', 'ProductType',
-    'Designer', 'Stock', 'Material', 'Size', 'MinQuantity', 'Image', 'ShowOnWebsite', 'ShowOnTop', 'Variations'
+    'Designer', 'Stock', 'Material', 'Size', 'MinQuantity', 'Image', 'Images', 'ShowOnWebsite', 'ShowOnTop', 'Variations'
   ],
   Invoices: [
     'Id', 'InvoiceNo', 'Date', 'DueDate', 'OrderId', 'CustomerId', 'CustomerName', 'CustomerPhone',
@@ -224,7 +224,8 @@ function normalizeHeader_(header) {
     deliveryaddress: 'deliveryaddress', quotationid: 'quotationid',
     unit: 'unit', description: 'description',
     image: 'image', productimage: 'image', img: 'image', picture: 'photo',
-    photo: 'photo', employeecode: 'employeecode', cnic: 'cnic', designation: 'designation',
+    photo: 'photo', images: 'images', gallery: 'images', productimages: 'images',
+    employeecode: 'employeecode', cnic: 'cnic', designation: 'designation',
     validfrom: 'validfrom', validuntil: 'validuntil', enddate: 'enddate',
     emergencycontact: 'emergencycontact', emergencyphone: 'emergencyphone', employeeid: 'employeeid',
     orderid: 'orderid', date: 'date', time: 'time', deliverydate: 'deliverydate',
@@ -435,6 +436,7 @@ function valueForHeader_(obj, rawHeader) {
     tax: ['tax'],
     image: ['image', 'photo'],
     photo: ['photo', 'image'],
+    images: ['images', 'gallery'],
   };
 
   var keys = fallbacks[key] || [key];
@@ -2991,6 +2993,34 @@ function parseProductVariations_(raw) {
   }).filter(function (v) { return !!v.name; });
 }
 
+/** Product gallery — JSON array of data-URLs / http(s) URLs (max 5). */
+function parseProductImages_(raw, primary) {
+  var out = [];
+  var push = function (v) {
+    var s = sanitizeCatalogImage_(v);
+    if (!s) return;
+    if (out.indexOf(s) >= 0) return;
+    if (out.length >= 5) return;
+    out.push(s);
+  };
+  var list = raw;
+  if (typeof list === 'string') {
+    var t = String(list || '').trim();
+    if (t.charAt(0) === '[') {
+      try { list = JSON.parse(t); } catch (eImg) { list = []; }
+    } else if (t.indexOf('data:image') === 0 || /^https?:\/\//i.test(t)) {
+      list = [t];
+    } else {
+      list = [];
+    }
+  }
+  if (Array.isArray(list)) {
+    list.forEach(function (img) { push(img); });
+  }
+  push(primary);
+  return out;
+}
+
 function isShowOnWebsite_(p) {
   if (!p) return false;
   if (p.showonwebsite === undefined || p.showonwebsite === null || p.showonwebsite === '') {
@@ -3021,19 +3051,9 @@ function toPublicProduct_(p) {
   var api = toApiProduct_(p);
   if (!api.active) return null;
   if (!api.showOnWebsite) return null;
-  var images = [];
-  if (api.image) images.push(api.image);
-  var extra = p.images || p.gallery;
-  if (typeof extra === 'string') {
-    try { extra = JSON.parse(extra); } catch (eImg) { extra = []; }
+  if (!Array.isArray(api.images) || !api.images.length) {
+    api.images = api.image ? [api.image] : [];
   }
-  if (Array.isArray(extra)) {
-    extra.forEach(function (img) {
-      var s = sanitizeCatalogImage_(img);
-      if (s && images.indexOf(s) === -1) images.push(s);
-    });
-  }
-  api.images = images;
   return api;
 }
 
@@ -3615,7 +3635,8 @@ function sanitizeCatalogImage_(img) {
 function toApiProduct_(p) {
   var rate = Number(p.rate || p.baseprice || 0);
   var salePrice = productSalePrice_(p);
-  var img = sanitizeCatalogImage_(p.image || p.photo || '');
+  var images = parseProductImages_(p.images || p.gallery, p.image || p.photo || '');
+  var img = images.length ? images[0] : '';
   var variations = parseProductVariations_(p.variations);
   return {
     id: p.id,
@@ -3636,6 +3657,7 @@ function toApiProduct_(p) {
     designer: p.designer || '',
     image: img,
     photo: img,
+    images: images,
     active: String(p.status || 'Active').toLowerCase() !== 'inactive',
     status: p.status || 'Active',
     showOnWebsite: isShowOnWebsite_(p),
@@ -3653,10 +3675,25 @@ function normalizeProduct_(body, existing) {
   var ptype = body.productType || body.producttype || existing.producttype || 'Product';
   var isService = String(ptype).toLowerCase() === 'service';
   var id = body.id || existing.id || ('product_' + Date.now());
-  var incomingImage = body.image != null ? body.image : (body.photo != null ? body.photo : null);
-  var imageVal = incomingImage != null
-    ? saveProductImageToDrive_(incomingImage, id)
-    : (existing.image || existing.photo || '');
+  var incomingImages = body.images != null ? body.images
+    : (body.gallery != null ? body.gallery : null);
+  var imageList = [];
+  if (incomingImages != null) {
+    imageList = parseProductImages_(incomingImages, body.image || body.photo || '');
+  } else {
+    var incomingImage = body.image != null ? body.image : (body.photo != null ? body.photo : null);
+    if (incomingImage != null) {
+      imageList = parseProductImages_(existing.images || existing.gallery, incomingImage);
+    } else {
+      imageList = parseProductImages_(existing.images || existing.gallery, existing.image || existing.photo || '');
+    }
+  }
+  // Persist each data-URL through size check
+  imageList = imageList.map(function (img) {
+    return saveProductImageToDrive_(img, id);
+  }).filter(function (s) { return !!s; });
+  if (imageList.length > 5) imageList = imageList.slice(0, 5);
+  var imageVal = imageList.length ? imageList[0] : '';
   var variationsRaw = body.variations != null ? body.variations : existing.variations;
   var variations = parseProductVariations_(variationsRaw);
   var showWeb = true;
@@ -3684,6 +3721,7 @@ function normalizeProduct_(body, existing) {
     stock: Number(body.stock != null ? body.stock : (existing.stock || 0)),
     designer: isService ? '' : (body.designer || existing.designer || ''),
     image: imageVal,
+    images: imageList,
     status: body.active === false ? 'Inactive' : (body.status || existing.status || 'Active'),
     showonwebsite: showWeb,
     showontop: showTop,
