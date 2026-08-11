@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AMZ_PRINTS_VERSION', '3.0.3' );
+define( 'AMZ_PRINTS_VERSION', '3.0.4' );
 
 /**
  * Avoid long Hostinger CDN HTML cache hiding theme updates.
@@ -56,6 +56,7 @@ require_once AMZ_PRINTS_DIR . '/inc/track-order.php';
 require_once AMZ_PRINTS_DIR . '/inc/erp-api.php';
 require_once AMZ_PRINTS_DIR . '/inc/customer-portal.php';
 require_once AMZ_PRINTS_DIR . '/inc/commerce.php';
+require_once AMZ_PRINTS_DIR . '/inc/company-catalog.php';
 
 /**
  * Theme setup
@@ -212,6 +213,7 @@ function amz_prints_default_pages() {
 		'cart'             => array( 'title' => 'Cart', 'template' => 'page-templates/template-cart.php' ),
 		'checkout'         => array( 'title' => 'Checkout', 'template' => 'page-templates/template-checkout.php' ),
 		'digital-services'=> array( 'title' => 'Digital Services', 'template' => 'page-templates/template-digital-services.php' ),
+		'company-profile'  => array( 'title' => 'Company Profile', 'template' => 'page-templates/template-company-profile.php' ),
 		'gallery'          => array( 'title' => 'Gallery', 'template' => 'page-templates/template-gallery.php' ),
 		'quote'            => array( 'title' => 'Get a Quote', 'template' => 'page-templates/template-quote.php' ),
 		'contact'          => array( 'title' => 'Contact', 'template' => 'page-templates/template-contact.php' ),
@@ -301,12 +303,12 @@ add_action( 'after_switch_theme', 'amz_prints_after_switch' );
  * Create missing pages on upgrade (fixes Services 404 without re-activating theme)
  */
 function amz_prints_maybe_upgrade_pages() {
-	if ( get_option( 'amz_prints_pages_ver' ) === '3.0.3' ) {
+	if ( get_option( 'amz_prints_pages_ver' ) === '3.0.4' ) {
 		return;
 	}
 	amz_prints_ensure_pages();
 	flush_rewrite_rules( false );
-	update_option( 'amz_prints_pages_ver', '3.0.3' );
+	update_option( 'amz_prints_pages_ver', '3.0.4' );
 }
 add_action( 'init', 'amz_prints_maybe_upgrade_pages', 20 );
 

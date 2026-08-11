@@ -28,6 +28,7 @@ $cart_n  = function_exists( 'amz_prints_cart_count' ) ? (int) amz_prints_cart_co
 			<ul class="footer-menu">
 				<li><a href="<?php echo esc_url( home_url( '/services/' ) ); ?>">Services</a></li>
 				<li><a href="<?php echo esc_url( home_url( '/digital-services/' ) ); ?>">Digital Services</a></li>
+				<li><a href="<?php echo esc_url( home_url( '/company-profile/?print=1' ) ); ?>">Download Catalog PDF</a></li>
 				<li><a href="<?php echo esc_url( home_url( '/products/' ) ); ?>">Products</a></li>
 				<li><a href="<?php echo esc_url( home_url( '/pricing/' ) ); ?>">Pricing</a></li>
 				<li><a href="<?php echo esc_url( home_url( '/nadra-e-services/' ) ); ?>">NADRA</a></li>

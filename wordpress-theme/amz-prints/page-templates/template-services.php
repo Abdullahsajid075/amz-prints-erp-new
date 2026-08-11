@@ -52,6 +52,8 @@ $catalog = amz_prints_services_catalog();
 	</div>
 </section>
 
+<?php if ( function_exists( 'amz_prints_catalog_promo' ) ) { amz_prints_catalog_promo( 'services' ); } ?>
+
 <section class="section section--cta">
 	<div class="container cta-band reveal" data-reveal>
 		<div class="cta-band__copy">

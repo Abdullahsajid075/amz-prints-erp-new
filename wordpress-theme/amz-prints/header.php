@@ -57,6 +57,7 @@
 					</button>
 					<ul class="more-menu" id="more-menu">
 						<li><a href="<?php echo esc_url( home_url( '/digital-services/' ) ); ?>">Digital Services</a></li>
+						<li><a href="<?php echo esc_url( home_url( '/company-profile/' ) ); ?>">Company Profile PDF</a></li>
 						<li><a href="<?php echo esc_url( home_url( '/pricing/' ) ); ?>">Pricing</a></li>
 						<li><a href="<?php echo esc_url( home_url( '/how-we-work/' ) ); ?>">How We Work</a></li>
 						<li><a href="<?php echo esc_url( home_url( '/track-order/' ) ); ?>">Track Order</a></li>

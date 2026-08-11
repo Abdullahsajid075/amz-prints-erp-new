@@ -280,6 +280,8 @@ $why_custom = array(
 	</div>
 </section>
 
+<?php if ( function_exists( 'amz_prints_catalog_promo' ) ) { amz_prints_catalog_promo( 'digital' ); } ?>
+
 <section class="section ds-section ds-cta" id="discuss">
 	<div class="container ds-cta__band reveal" data-reveal>
 		<div>

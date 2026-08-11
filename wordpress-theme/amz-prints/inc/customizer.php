@@ -62,6 +62,25 @@ function amz_prints_customize_register( $wp_customize ) {
 		) );
 	}
 
+	$wp_customize->add_setting( 'amz_mission', array(
+		'default'           => 'To help brands look premium in print and digital — with reliable production, clear communication, and craftsmanship that earns repeat trust.',
+		'sanitize_callback' => 'sanitize_textarea_field',
+	) );
+	$wp_customize->add_control( 'amz_mission', array(
+		'label'   => __( 'Mission (company catalog)', 'amz-prints' ),
+		'section' => 'amz_company',
+		'type'    => 'textarea',
+	) );
+	$wp_customize->add_setting( 'amz_vision', array(
+		'default'           => 'To be Pakistan’s most dependable print + digital partner — where every job is tracked, every color is intentional, and every client feels looked after.',
+		'sanitize_callback' => 'sanitize_textarea_field',
+	) );
+	$wp_customize->add_control( 'amz_vision', array(
+		'label'   => __( 'Vision (company catalog)', 'amz-prints' ),
+		'section' => 'amz_company',
+		'type'    => 'textarea',
+	) );
+
 	/* ── Hero ── */
 	$wp_customize->add_section( 'amz_hero', array(
 		'title'    => __( 'Homepage Hero', 'amz-prints' ),
