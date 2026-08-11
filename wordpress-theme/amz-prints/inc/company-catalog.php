@@ -12,13 +12,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Company profile catalog page URL.
  *
- * @param bool $print Append ?print=1 for auto print/PDF.
+ * @param bool $download Append ?download=1 for auto landscape PDF save.
  * @return string
  */
-function amz_prints_company_profile_url( $print = false ) {
+function amz_prints_company_profile_url( $download = false ) {
 	$url = home_url( '/company-profile/' );
-	if ( $print ) {
-		$url = add_query_arg( 'print', '1', $url );
+	if ( $download ) {
+		$url = add_query_arg( 'download', '1', $url );
 	}
 	return $url;
 }
@@ -45,17 +45,19 @@ function amz_prints_catalog_download_button( $args = array() ) {
 	$args  = wp_parse_args(
 		$args,
 		array(
-			'class' => 'btn btn--primary btn--magnetic',
-			'label' => __( 'Download Company Profile PDF', 'amz-prints' ),
-			'print' => true,
-			'size'  => '',
+			'class'    => 'btn btn--primary btn--magnetic',
+			'label'    => __( 'Download Company Profile PDF', 'amz-prints' ),
+			'download' => true,
+			'print'    => true, // legacy alias → download
+			'size'     => '',
 		)
 	);
 	$class = $args['class'];
 	if ( $args['size'] ) {
 		$class .= ' ' . $args['size'];
 	}
-	$url = amz_prints_company_profile_url( (bool) $args['print'] );
+	$auto = ! empty( $args['download'] ) || ! empty( $args['print'] );
+	$url  = amz_prints_company_profile_url( $auto );
 	printf(
 		'<a class="%1$s" href="%2$s" target="_blank" rel="noopener noreferrer" data-catalog-download>%3$s</a>',
 		esc_attr( $class ),
@@ -71,9 +73,9 @@ function amz_prints_catalog_download_button( $args = array() ) {
  */
 function amz_prints_catalog_promo( $context = 'home' ) {
 	$copy = array(
-		'home'     => __( 'Get our full company profile — services, portfolio mockups, mission, and contact QRs in one A4 PDF catalog.', 'amz-prints' ),
-		'services' => __( 'Download the complete AMZ company catalog with every service category, portfolio mockups, and contact details.', 'amz-prints' ),
-		'digital'  => __( 'Download our company profile PDF covering print + digital capabilities, why choose us, and WhatsApp / website QR codes.', 'amz-prints' ),
+		'home'     => __( 'Get our full company profile — big headings, every service with mockups, digital details, and contact QRs. Downloads as a landscape A4 PDF automatically.', 'amz-prints' ),
+		'services' => __( 'Download the complete landscape AMZ company catalog — every service category, portfolio mockups, and contact details.', 'amz-prints' ),
+		'digital'  => __( 'Download our landscape company profile PDF covering print + digital capabilities, why choose us, and WhatsApp / website QR codes.', 'amz-prints' ),
 	);
 	$text = isset( $copy[ $context ] ) ? $copy[ $context ] : $copy['home'];
 	?>
@@ -88,9 +90,9 @@ function amz_prints_catalog_promo( $context = 'home' ) {
 				<?php
 				amz_prints_catalog_download_button(
 					array(
-						'class' => 'btn btn--primary btn--lg btn--magnetic',
-						'label' => __( 'Download PDF Catalog', 'amz-prints' ),
-						'print' => true,
+						'class'    => 'btn btn--primary btn--lg btn--magnetic',
+						'label'    => __( 'Download PDF Catalog', 'amz-prints' ),
+						'download' => true,
 					)
 				);
 				?>
