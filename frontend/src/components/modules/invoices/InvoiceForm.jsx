@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { invoicesAPI, customersAPI, productsAPI, settingsAPI } from '@/services/api';
-import { notifyOrderEvent, printPaymentSlip, openWhatsAppChat, fillTemplate, resolveWhatsAppTemplate, buildTemplateVars } from '@/services/notifications';
+import { notifyOrderEvent, printPaymentSlip, openWhatsAppChat, buildWhatsAppAppUrl, fillTemplate, resolveWhatsAppTemplate, buildTemplateVars } from '@/services/notifications';
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import { formatCurrency } from '@/utils/helpers';
 import { catalogFieldsForOrderLine } from '@/utils/productImage';
@@ -311,10 +311,22 @@ const InvoiceForm = () => {
         waWindow = window.open('about:blank', '_blank');
       }
       const payload = {
-        ...formData,
-        id: isEdit ? invoiceId : formData.id,
-        subtotal,
+        invoiceNumber: formData.invoiceNumber,
+        orderId: formData.orderId || '',
+        customerId: formData.customerId || '',
+        customerName: formData.customerName || '',
+        customerEmail: formData.customerEmail || '',
+        customerPhone: formData.customerPhone || '',
+        customerAddress: formData.customerAddress || '',
+        date: formData.date,
+        dueDate: formData.dueDate || '',
+        taxRate: Number(formData.taxRate) || 0,
         tax,
+        discount: Number(formData.discount) || 0,
+        previousBalance: Number(formData.previousBalance) || 0,
+        paidAmount: Number(formData.paidAmount) || 0,
+        notes: formData.notes || '',
+        subtotal,
         totalAmount: total,
         status: derivedStatus(),
         items: formData.items.map((it) => {
@@ -331,6 +343,8 @@ const InvoiceForm = () => {
           };
         }),
       };
+      if (isEdit) payload.id = invoiceId;
+
       let res;
       if (isEdit) {
         res = await invoicesAPI.update(invoiceId, payload);
@@ -340,73 +354,87 @@ const InvoiceForm = () => {
         const nextPaid = Number(payload.paidAmount) || 0;
         const receivedDelta = Math.max(0, nextPaid - prevPaid);
         if (receivedDelta > 0) {
-          printPaymentSlip({
-            type: 'inflow',
-            party: payload.customerName,
-            partyPhone: payload.customerPhone,
-            amount: receivedDelta,
-            totalAmount: grandTotal,
-            balanceDue: balance,
-            method: 'Invoice payment',
-            category: 'Invoice Payment',
-            reference: payload.invoiceNumber,
-            date: payload.date,
-            notes: `Invoice ${payload.invoiceNumber}`,
-          }, company || {});
-          await notifyOrderEvent({
-            event: 'payment_received',
-            order: {
-              customerName: payload.customerName,
-              customerPhone: payload.customerPhone,
-              customerEmail: payload.customerEmail,
-              orderId: payload.orderId,
-              totalAmount: grandTotal,
-              balanceAmount: balance,
-            },
-            invoice: {
-              ...data,
-              invoiceNumber: payload.invoiceNumber,
-              date: payload.date,
-              totalAmount: grandTotal,
-              paidAmount: nextPaid,
-              balanceAmount: balance,
-            },
-            payment: {
+          try {
+            printPaymentSlip({
+              type: 'inflow',
               party: payload.customerName,
               partyPhone: payload.customerPhone,
-              partyEmail: payload.customerEmail,
               amount: receivedDelta,
-              method: 'Invoice payment',
-              reference: payload.invoiceNumber,
-              type: 'inflow',
+              totalAmount: grandTotal,
               balanceDue: balance,
-            },
-            sendEmail: true,
-          });
-          toast.message('Payment receipt printed + WhatsApp');
+              method: 'Invoice payment',
+              category: 'Invoice Payment',
+              reference: payload.invoiceNumber,
+              date: payload.date,
+              notes: `Invoice ${payload.invoiceNumber}`,
+            }, company || {});
+            await notifyOrderEvent({
+              event: 'payment_received',
+              order: {
+                customerName: payload.customerName,
+                customerPhone: payload.customerPhone,
+                customerEmail: payload.customerEmail,
+                orderId: payload.orderId,
+                totalAmount: grandTotal,
+                balanceAmount: balance,
+              },
+              invoice: {
+                ...data,
+                invoiceNumber: payload.invoiceNumber,
+                date: payload.date,
+                totalAmount: grandTotal,
+                paidAmount: nextPaid,
+                balanceAmount: balance,
+              },
+              payment: {
+                party: payload.customerName,
+                partyPhone: payload.customerPhone,
+                partyEmail: payload.customerEmail,
+                amount: receivedDelta,
+                method: 'Invoice payment',
+                reference: payload.invoiceNumber,
+                type: 'inflow',
+                balanceDue: balance,
+              },
+              sendEmail: true,
+            });
+            toast.message('Payment receipt printed + WhatsApp');
+          } catch (postErr) {
+            console.error(postErr);
+            toast.message('Invoice saved — payment notify failed');
+          }
         }
       } else {
         res = await invoicesAPI.create(payload);
-        toast.success(`Invoice ${payload.invoiceNumber} created`);
+        toast.success(`Invoice ${payload.invoiceNumber || res.data?.invoiceNumber || ''} created`);
         const data = { ...payload, ...(res.data || {}) };
-        // Single WhatsApp open (Settings invoice template) — skip GAS hint to avoid duplicate
-        await sendInvoiceWhatsApp(data, grandTotal, balance, Number(payload.paidAmount) || 0, waWindow);
-        waWindow = null;
-        const paidNow = Number(payload.paidAmount) || 0;
-        if (paidNow > 0) {
-          printPaymentSlip({
-            type: 'inflow',
-            party: payload.customerName,
-            partyPhone: payload.customerPhone,
-            amount: paidNow,
-            totalAmount: grandTotal,
-            balanceDue: balance,
-            method: 'Invoice payment',
-            category: 'Invoice Payment',
-            reference: payload.invoiceNumber,
-            date: payload.date,
-            notes: `Invoice ${payload.invoiceNumber}`,
-          }, company || {});
+        try {
+          // Single WhatsApp open (Settings invoice template) — skip GAS hint to avoid duplicate
+          await sendInvoiceWhatsApp(data, grandTotal, balance, Number(payload.paidAmount) || 0, waWindow);
+          waWindow = null;
+          const paidNow = Number(payload.paidAmount) || 0;
+          if (paidNow > 0) {
+            printPaymentSlip({
+              type: 'inflow',
+              party: payload.customerName,
+              partyPhone: payload.customerPhone,
+              amount: paidNow,
+              totalAmount: grandTotal,
+              balanceDue: balance,
+              method: 'Invoice payment',
+              category: 'Invoice Payment',
+              reference: payload.invoiceNumber,
+              date: payload.date,
+              notes: `Invoice ${payload.invoiceNumber}`,
+            }, company || {});
+          }
+        } catch (postErr) {
+          if (waWindow && !waWindow.closed) {
+            try { waWindow.close(); } catch { /* ignore */ }
+          }
+          waWindow = null;
+          console.error(postErr);
+          toast.message('Invoice saved — WhatsApp / receipt skipped');
         }
       }
       const id = res.data?.id || invoiceId;
@@ -417,7 +445,7 @@ const InvoiceForm = () => {
         try { waWindow.close(); } catch { /* ignore */ }
       }
       console.error(err);
-      toast.error(err.response?.data?.message || 'Failed to save invoice');
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to save invoice');
     } finally {
       setSaving(false);
     }

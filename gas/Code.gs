@@ -2132,8 +2132,11 @@ function handleInvoices_(path, method, body) {
         });
         body.customerId = cust.id;
       }
-      var created = normalizeInvoice_(body);
-      appendObject_(sheet, SHEET_NAMES.INVOICES, created);
+  var created = normalizeInvoice_(body);
+  if (!created.invoiceno) {
+    created.invoiceno = 'INV-' + Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Karachi', 'yyyy') + '-' + String(Date.now()).slice(-4);
+  }
+  appendObject_(sheet, SHEET_NAMES.INVOICES, created);
       var apiInv = toApiInvoice_(created);
       try {
         apiInv._notifications = dispatchOrderNotifications_({
