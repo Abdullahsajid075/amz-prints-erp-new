@@ -46,6 +46,22 @@ function hasAdvanceReceived(order) {
   return Number(order?.advancePayment || 0) > 0;
 }
 
+/** Design/proof already approved — hide Approval + Docs reminders. */
+function isDesignApproved(order) {
+  const s = String(order?.status || '').trim().toLowerCase();
+  if (!s) return false;
+  if (/design\s*approved|proof\s*approved|approved/.test(s) && !/proof\s*approval/.test(s)) return true;
+  // Past Proof Approval stage
+  return ['printing', 'finishing', 'packing', 'ready', 'delivered', 'completed', 'complete'].some(
+    (stage) => s === stage || s.startsWith(stage)
+  );
+}
+
+/** Still waiting on design approval / docs — show those reminders. */
+function needsDesignDocsReminder(order) {
+  return !isDesignApproved(order);
+}
+
 const OrdersList = () => {
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
@@ -175,6 +191,10 @@ const OrdersList = () => {
 
   const sendOrderReminder = async (order, type) => {
     try {
+      if ((type === 'approval' || type === 'documents') && isDesignApproved(order)) {
+        toast.message('Design already approved — this reminder is locked');
+        return;
+      }
       if (type === 'advance' && hasAdvanceReceived(order)) {
         toast.message('Advance payment already received — reminder not needed');
         return;
@@ -396,28 +416,32 @@ const OrdersList = () => {
         </Button>
       </div>
       <div className="flex gap-1 mt-1.5 flex-wrap">
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="flex-1 min-w-[30%] h-7 text-[10px] px-1.5 text-amber-800 border-amber-200 hover:bg-amber-50"
-          title="WhatsApp: Waiting for approval"
-          onClick={() => sendOrderReminder(order, 'approval')}
-          data-testid={`reminder-approval-${order.id}`}
-        >
-          <Bell className="h-3 w-3 mr-1 shrink-0" />Approval
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="flex-1 min-w-[30%] h-7 text-[10px] px-1.5 text-sky-800 border-sky-200 hover:bg-sky-50"
-          title="WhatsApp: Required documents or data"
-          onClick={() => sendOrderReminder(order, 'documents')}
-          data-testid={`reminder-docs-${order.id}`}
-        >
-          <FileText className="h-3 w-3 mr-1 shrink-0" />Docs / Data
-        </Button>
+        {needsDesignDocsReminder(order) && (
+          <>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="flex-1 min-w-[30%] h-7 text-[10px] px-1.5 text-amber-800 border-amber-200 hover:bg-amber-50"
+              title="WhatsApp: Waiting for approval"
+              onClick={() => sendOrderReminder(order, 'approval')}
+              data-testid={`reminder-approval-${order.id}`}
+            >
+              <Bell className="h-3 w-3 mr-1 shrink-0" />Approval
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="flex-1 min-w-[30%] h-7 text-[10px] px-1.5 text-sky-800 border-sky-200 hover:bg-sky-50"
+              title="WhatsApp: Required documents or data"
+              onClick={() => sendOrderReminder(order, 'documents')}
+              data-testid={`reminder-docs-${order.id}`}
+            >
+              <FileText className="h-3 w-3 mr-1 shrink-0" />Docs / Data
+            </Button>
+          </>
+        )}
         <Button
           type="button"
           size="sm"
@@ -526,8 +550,12 @@ const OrdersList = () => {
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleView(order.id)} title="View"><Eye className="h-4 w-4" /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleGenerateInvoice(order)} title="Invoice"><Receipt className="h-4 w-4" style={{ color: '#F26522' }} /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600" onClick={() => handleWhatsApp(order)} title="WhatsApp"><WhatsAppIcon className="h-4 w-4" /></Button>
-                          <Button size="icon" variant="ghost" className="h-8 w-8 text-amber-700" onClick={() => sendOrderReminder(order, 'approval')} title="Waiting for approval"><Bell className="h-4 w-4" /></Button>
-                          <Button size="icon" variant="ghost" className="h-8 w-8 text-sky-700" onClick={() => sendOrderReminder(order, 'documents')} title="Required documents / data"><FileText className="h-4 w-4" /></Button>
+                          {needsDesignDocsReminder(order) && (
+                            <>
+                              <Button size="icon" variant="ghost" className="h-8 w-8 text-amber-700" onClick={() => sendOrderReminder(order, 'approval')} title="Waiting for approval"><Bell className="h-4 w-4" /></Button>
+                              <Button size="icon" variant="ghost" className="h-8 w-8 text-sky-700" onClick={() => sendOrderReminder(order, 'documents')} title="Required documents / data"><FileText className="h-4 w-4" /></Button>
+                            </>
+                          )}
                           <Button
                             size="icon"
                             variant="ghost"
@@ -675,12 +703,16 @@ const OrdersList = () => {
                     <Truck className="h-4 w-4 mr-1" />Delivery Slip
                   </Button>
                 )}
-                <Button variant="outline" className="text-amber-800 border-amber-200" onClick={() => sendOrderReminder(viewOrder, 'approval')}>
-                  <Bell className="h-4 w-4 mr-1" />Approval reminder
-                </Button>
-                <Button variant="outline" className="text-sky-800 border-sky-200" onClick={() => sendOrderReminder(viewOrder, 'documents')}>
-                  <FileText className="h-4 w-4 mr-1" />Docs reminder
-                </Button>
+                {needsDesignDocsReminder(viewOrder) && (
+                  <>
+                    <Button variant="outline" className="text-amber-800 border-amber-200" onClick={() => sendOrderReminder(viewOrder, 'approval')}>
+                      <Bell className="h-4 w-4 mr-1" />Approval reminder
+                    </Button>
+                    <Button variant="outline" className="text-sky-800 border-sky-200" onClick={() => sendOrderReminder(viewOrder, 'documents')}>
+                      <FileText className="h-4 w-4 mr-1" />Docs reminder
+                    </Button>
+                  </>
+                )}
                 <Button
                   variant="outline"
                   className={hasAdvanceReceived(viewOrder) ? 'text-gray-400 border-gray-200' : 'text-emerald-800 border-emerald-200'}

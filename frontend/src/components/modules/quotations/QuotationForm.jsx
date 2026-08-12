@@ -208,6 +208,11 @@ const QuotationForm = ({ printMode = false }) => {
   };
 
   const sendFollowUp = () => {
+    const status = String(form.status || '').trim().toLowerCase();
+    if (status === 'accepted' || status.includes('accept') || status.includes('converted')) {
+      toast.message('Quotation already accepted — follow-up not needed');
+      return;
+    }
     const phone = form.customerPhone || '';
     if (!phone) {
       toast.error('Customer phone missing — add phone to follow up');
@@ -467,7 +472,8 @@ const QuotationForm = ({ printMode = false }) => {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {isEdit && (
+            {isEdit && !(['accepted'].includes(String(form.status || '').trim().toLowerCase())
+              || /accept|converted/i.test(String(form.status || ''))) && (
               <Button
                 variant="outline"
                 size="sm"

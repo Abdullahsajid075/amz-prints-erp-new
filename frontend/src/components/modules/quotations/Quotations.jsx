@@ -68,6 +68,11 @@ const Quotations = () => {
 
   const sendFollowUp = async (q) => {
     try {
+      const status = String(q?.status || '').trim().toLowerCase();
+      if (status === 'accepted' || status.includes('accept') || status.includes('converted')) {
+        toast.message('Quotation already accepted — follow-up not needed');
+        return;
+      }
       const full = q.customerPhone ? q : (await quotationsAPI.getById(q.id)).data;
       const phone = full?.customerPhone || '';
       if (!phone) {
@@ -190,17 +195,20 @@ const Quotations = () => {
                       </td>
                       <td className="py-2.5 px-3 text-right">
                         <div className="flex items-center gap-1 justify-end">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-xs gap-1 border-green-200 text-green-700 hover:bg-green-50"
-                            title="Follow up on WhatsApp"
-                            data-testid={`quotation-followup-${q.id}`}
-                            onClick={() => sendFollowUp(q)}
-                          >
-                            <WhatsAppIcon className="h-3.5 w-3.5" />
-                            <span className="hidden sm:inline">Follow up</span>
-                          </Button>
+                          {!(['accepted'].includes(String(q.status || '').trim().toLowerCase())
+                            || /accept|converted/i.test(String(q.status || ''))) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs gap-1 border-green-200 text-green-700 hover:bg-green-50"
+                              title="Follow up on WhatsApp"
+                              data-testid={`quotation-followup-${q.id}`}
+                              onClick={() => sendFollowUp(q)}
+                            >
+                              <WhatsAppIcon className="h-3.5 w-3.5" />
+                              <span className="hidden sm:inline">Follow up</span>
+                            </Button>
+                          )}
                           <Button size="icon" variant="ghost" className="h-8 w-8" title="View / Edit" onClick={() => navigate(`/quotations/${q.id}/edit`)}>
                             <Edit className="h-4 w-4" />
                           </Button>
