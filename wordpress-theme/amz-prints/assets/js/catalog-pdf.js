@@ -1,6 +1,5 @@
 /**
- * Landscape PDF export from catalog pages (never blank).
- * Builds off-screen portrait→landscape sheets from .page HTML clones.
+ * Portrait A4 PDF export — one page per sheet.
  */
 (function () {
   'use strict';
@@ -9,14 +8,13 @@
   var statusEl = document.getElementById('amz-catalog-status');
   var book = document.getElementById('amz-flipbook');
   var exportRoot = document.getElementById('amz-pdf-export');
-  var pageSource = null;
   var busy = false;
   var fileName = (window.amzCatalogPdf && window.amzCatalogPdf.filename) || 'AMZ-Prints-Company-Profile.pdf';
-  var HARD_TIMEOUT_MS = 120000;
+  var HARD_TIMEOUT_MS = 180000;
 
-  // Landscape A4 at ~150dpi-ish for quality
-  var SHEET_W = 1400;
-  var SHEET_H = 990;
+  // Portrait A4 ~150dpi
+  var SHEET_W = 794;
+  var SHEET_H = 1123;
 
   function setStatus(msg) {
     if (statusEl) statusEl.textContent = msg;
@@ -94,33 +92,22 @@
     exportRoot.innerHTML = '';
     exportRoot.classList.add('is-active');
 
-    pageSource = document.getElementById('amz-page-source') || book;
+    var pageSource = document.getElementById('amz-page-source') || book;
     var sourcePages = pageSource.querySelectorAll('.page');
     if (!sourcePages.length && book) {
       sourcePages = book.querySelectorAll('.page');
     }
     var sheets = [];
 
-    for (var i = 0; i < sourcePages.length; i += 2) {
+    for (var i = 0; i < sourcePages.length; i += 1) {
       var sheet = document.createElement('div');
-      sheet.className = 'pdf-sheet';
+      sheet.className = 'pdf-sheet pdf-sheet--portrait';
       sheet.style.width = SHEET_W + 'px';
       sheet.style.height = SHEET_H + 'px';
-
-      var left = document.createElement('div');
-      left.className = 'pdf-sheet__half pdf-sheet__half--left';
-      left.appendChild(sourcePages[i].cloneNode(true));
-
-      var right = document.createElement('div');
-      right.className = 'pdf-sheet__half pdf-sheet__half--right';
-      if (sourcePages[i + 1]) {
-        right.appendChild(sourcePages[i + 1].cloneNode(true));
-      } else {
-        right.classList.add('is-blank');
-      }
-
-      sheet.appendChild(left);
-      sheet.appendChild(right);
+      var half = document.createElement('div');
+      half.className = 'pdf-sheet__page';
+      half.appendChild(sourcePages[i].cloneNode(true));
+      sheet.appendChild(half);
       exportRoot.appendChild(sheet);
       sheets.push(sheet);
     }
@@ -129,7 +116,7 @@
 
   function captureSheet(sheet) {
     return html2canvas(sheet, {
-      scale: 1.25,
+      scale: 1.35,
       useCORS: true,
       allowTaint: false,
       backgroundColor: '#ffffff',
@@ -140,16 +127,7 @@
       windowHeight: SHEET_H,
       imageTimeout: 8000
     }).then(function (canvas) {
-      // Guard against blank canvases
-      var ctx = canvas.getContext('2d');
-      var sample = ctx.getImageData(40, 40, 1, 1).data;
-      var sample2 = ctx.getImageData(canvas.width - 40, canvas.height - 40, 1, 1).data;
-      var blank =
-        sample[0] > 250 && sample[1] > 250 && sample[2] > 250 &&
-        sample2[0] > 250 && sample2[1] > 250 && sample2[2] > 250 &&
-        canvas.width > 100;
-      // Still export even if light — content may be mostly white
-      return canvas.toDataURL('image/jpeg', 0.9);
+      return canvas.toDataURL('image/jpeg', 0.92);
     });
   }
 
@@ -166,7 +144,7 @@
       btn.disabled = true;
       btn.textContent = 'Preparing PDF…';
     }
-    setStatus('Building landscape PDF spreads…');
+    setStatus('Building portrait PDF…');
 
     var timedOut = false;
     var timer = setTimeout(function () {
@@ -189,14 +167,14 @@
       .then(function (sheets) {
         if (timedOut || !sheets) return null;
         var JsPDF = window.jspdf.jsPDF;
-        var pdf = new JsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
+        var pdf = new JsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
         var i = 0;
 
         function next() {
           if (timedOut) return Promise.resolve(null);
           if (i >= sheets.length) return Promise.resolve(pdf);
           var n = i + 1;
-          setStatus('Rendering spread ' + n + ' of ' + sheets.length + '…');
+          setStatus('Rendering page ' + n + ' of ' + sheets.length + '…');
           if (btn) btn.textContent = 'PDF ' + n + '/' + sheets.length;
           var sheet = sheets[i];
           i += 1;
@@ -204,7 +182,7 @@
             .then(function (dataUrl) {
               if (timedOut) return null;
               if (n > 1) pdf.addPage();
-              pdf.addImage(dataUrl, 'JPEG', 0, 0, 297, 210, undefined, 'FAST');
+              pdf.addImage(dataUrl, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
               return next();
             })
             .catch(function (err) {

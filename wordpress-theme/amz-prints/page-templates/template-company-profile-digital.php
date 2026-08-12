@@ -1,7 +1,7 @@
 <?php
 /**
  * Template Name: Company Profile — IT & Digital
- * Premium black + gold flip book.
+ * Classic portrait black + gold IT catalog.
  *
  * @package AMZ_Prints
  */
@@ -10,281 +10,320 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-$c       = amz_prints_catalog_context();
-$catalog = amz_prints_catalog_digital_services();
-$auto_dl = isset( $_GET['download'] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-$about   = amz_prints_mod( 'amz_book_digital_about', '' );
-if ( ! $about ) {
-	$about = $c['about'];
-}
-$intro_img = amz_prints_book_image( 'amz_book_digital_intro', 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1000&q=80' );
-$cover_img = amz_prints_book_image( 'amz_book_digital_cover', 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1000&q=80' );
-$portfolio = amz_prints_book_portfolio( 'digital' );
-
-$website_types = array(
-	array( 'Business Website', 'Authority site — services, about, contact, and lead capture.' ),
-	array( 'E-Commerce Store', 'Product catalog, cart, checkout, and real order flow.' ),
-	array( 'Portfolio / Agency', 'Case studies with cinematic layout and inquiry CTAs.' ),
-	array( 'Booking & Services', 'Appointments and quote booking for field teams.' ),
-	array( 'Landing Pages', 'High-conversion campaign pages for ads and launches.' ),
-	array( 'Custom Web Apps', 'Dashboards, portals, and tools — not templates.' ),
+$id         = amz_prints_profile_identity();
+$chapters   = amz_prints_digital_service_chapters();
+$packages   = amz_prints_digital_packages();
+$process    = amz_prints_digital_process();
+$auto_dl    = isset( $_GET['download'] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+$cover_img  = amz_prints_book_image( 'amz_book_digital_cover', 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80' );
+$intro_img  = amz_prints_book_image( 'amz_book_digital_intro', 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1000&q=80' );
+$portfolio  = amz_prints_book_portfolio( 'digital' );
+$brand      = $id['brand'] . ' — Digital';
+$pn         = 1;
+$core_cats  = array(
+	'Website Design & Development',
+	'Custom Software Development',
+	'Mobile App Development',
+	'ERP, CRM & Business Automation',
+	'UI/UX & Product Design',
+	'E-Commerce Solutions',
+	'SEO & Search Engine Marketing',
+	'Social Media & Digital Marketing',
+	'Cloud, Hosting, API & IT Infrastructure',
+	'IT Consulting, Maintenance & Technical Support',
 );
-$web_features = array(
-	'UI/UX design aligned to your brand',
-	'Responsive mobile-first builds',
-	'SEO-ready structure & speed basics',
-	'CMS / admin for easy content updates',
-	'Forms, WhatsApp & lead capture',
-	'Secure hosting guidance & SSL',
-	'Analytics & conversion tracking',
-	'Training + post-launch support',
+$tech_stack = array(
+	'Frontend' => array( 'HTML', 'CSS', 'JavaScript', 'React', 'Next.js', 'Responsive Web' ),
+	'Backend'  => array( 'Node.js', 'PHP', 'Laravel', 'REST APIs', 'Server-Side Apps' ),
+	'Data'     => array( 'PostgreSQL', 'MySQL', 'MongoDB', 'Supabase' ),
+	'CMS'      => array( 'WordPress', 'WooCommerce', 'Custom CMS', 'Custom E-Commerce' ),
+	'Design'   => array( 'Figma', 'Photoshop', 'Illustrator', 'After Effects', 'UI Systems' ),
+	'Ops'      => array( 'Git / GitHub', 'Cloud Hosting', 'VPS', 'Hostinger', 'Vercel', 'CI/CD', 'DNS & SSL' ),
 );
-$mechanism = array(
-	array( '01', 'Discovery', 'Goals, audience, competitors, must-have features.' ),
-	array( '02', 'Blueprint', 'Sitemap, wireframes, tech stack, timeline.' ),
-	array( '03', 'Design System', 'Visual language, components, motion.' ),
-	array( '04', 'Build', 'Custom code, CMS, APIs, device QA.' ),
-	array( '05', 'Launch', 'Go-live, analytics, training, support.' ),
-	array( '06', 'Grow', 'New pages, modules, campaigns, upgrades.' ),
+$toc = array(
+	'Digital Overview', 'CEO Message', 'Core Categories', 'Service Chapters',
+	'Packages', 'Process', 'Technology', 'Industries', 'Why Choose Us', 'Contact',
 );
-$toc = array( 'Introduction', 'Vision & Mission', 'Website Types', 'Web Development', 'Software & Social', 'How We Work', 'Portfolio', 'Why Us & Contact' );
-$pn  = 1;
 ?><!DOCTYPE html>
 <html <?php language_attributes(); ?>>
 <head>
 	<meta charset="<?php bloginfo( 'charset' ); ?>">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title><?php echo esc_html( $c['legal'] ); ?> — Digital Services Profile</title>
+	<title><?php echo esc_html( $id['registered'] ); ?> — IT &amp; Digital Profile</title>
 	<?php wp_head(); ?>
 </head>
-<body <?php body_class( 'amz-catalog-body catalog-theme-digital catalog-theme-gold flipbook-body' . ( $auto_dl ? ' catalog-download-mode' : '' ) ); ?>>
+<body <?php body_class( 'amz-catalog-body catalog-theme-digital catalog-theme-gold catalog-classic catalog-portrait flipbook-body' . ( $auto_dl ? ' catalog-download-mode' : '' ) ); ?>>
 <?php wp_body_open(); ?>
 <?php
 amz_prints_flipbook_shell_open(
 	array(
 		'theme'    => 'digital',
-		'title'    => __( 'IT & Digital Services Profile', 'amz-prints' ),
-		'subtitle' => __( 'Black & gold premium catalog', 'amz-prints' ),
+		'title'    => __( 'IT & Digital Solutions Profile', 'amz-prints' ),
+		'subtitle' => __( 'Classic black & gold portrait catalog', 'amz-prints' ),
 	)
 );
 ?>
 
-	<div class="page page--hard page--cover-gold" data-density="hard">
-		<div class="page-content page-content--cover page-content--cover-photo page-content--cover-gold" style="--cover-img:url('<?php echo esc_url( $cover_img ); ?>')">
-			<div class="page-cover__veil page-cover__veil--gold"></div>
-			<div class="page-cover__copy">
-				<?php if ( $c['logo_url'] ) : ?><img class="page-cover__logo" src="<?php echo esc_url( $c['logo_url'] ); ?>" alt=""><?php endif; ?>
-				<p class="page-cover__eyebrow">Digital Profile <?php echo esc_html( $c['year'] ); ?></p>
-				<p class="page-cover__short page-cover__short--gold"><?php echo esc_html( $c['company'] ); ?></p>
-				<h1><?php echo esc_html( $c['legal'] ); ?></h1>
-				<p class="page-cover__tag">Websites · Custom Software · Social · IT Systems</p>
+	<div class="page page--hard" data-density="hard">
+		<div class="page-content cp cp--cover cp--cover-gold" style="--cp-cover:url('<?php echo esc_url( $cover_img ); ?>')">
+			<div class="cp-cover__frame">
+				<?php if ( ! empty( $id['logo_url'] ) ) : ?>
+					<img class="cp-cover__logo" src="<?php echo esc_url( $id['logo_url'] ); ?>" alt="">
+				<?php endif; ?>
+				<p class="cp-cover__eyebrow">IT &amp; Digital Solutions · <?php echo esc_html( $id['year'] ); ?></p>
+				<h1 class="cp-cover__title"><?php echo esc_html( $id['registered'] ); ?></h1>
+				<p class="cp-cover__brand"><?php echo esc_html( $id['brand'] ); ?></p>
+				<div class="cp-cover__rule cp-cover__rule--gold"></div>
+				<p class="cp-cover__tag">Websites · Software · Apps · SEO · Social · Automation</p>
+				<p class="cp-cover__loc"><?php echo esc_html( $id['hq'] ); ?></p>
 			</div>
 		</div>
 	</div>
 
 	<div class="page page--hard" data-density="hard">
-		<div class="page-content page-content--center page-content--premium page-content--ink">
-			<p class="page-kicker page-kicker--gold">IT &amp; Digital Division</p>
-			<h2 class="page-title page-title--light"><?php echo esc_html( $c['company'] ); ?></h2>
-			<p class="page-lead page-lead--muted"><?php echo esc_html( $c['legal'] ); ?></p>
-			<p class="page-body page-body--muted">Digital products with the same brand discipline as our print floor — interfaces that convert and systems you own.</p>
-			<div class="page-chip-row page-chip-row--gold">
-				<span>Web</span><span>Software</span><span>Social</span><span>IT</span>
-			</div>
-			<p class="page-footer-num"><?php echo esc_html( sprintf( '%02d', $pn++ ) ); ?></p>
-		</div>
-	</div>
-
-	<div class="page">
-		<div class="page-content page-content--toc page-content--toc-gold">
-			<div class="page-gold-bar">Table of Contents</div>
-			<table class="page-toc-table page-toc-table--gold">
-				<thead><tr><th>SL NO</th><th>Description</th><th>Page</th></tr></thead>
-				<tbody>
-					<?php foreach ( $toc as $i => $label ) : ?>
-						<tr>
-							<td><?php echo esc_html( sprintf( '%02d', $i + 1 ) ); ?></td>
-							<td><?php echo esc_html( $label ); ?></td>
-							<td><?php echo esc_html( sprintf( '%02d', $i + 3 ) ); ?></td>
-						</tr>
-					<?php endforeach; ?>
-				</tbody>
+		<div class="page-content cp cp--identity cp--ink">
+			<p class="cp-kicker cp-kicker--gold">Division Identity</p>
+			<h2 class="cp-h1">IT &amp; Digital Solutions</h2>
+			<table class="cp-meta-table cp-meta-table--gold">
+				<tr><th>Company</th><td><?php echo esc_html( $id['registered'] ); ?></td></tr>
+				<tr><th>Brand</th><td><?php echo esc_html( $id['brand'] ); ?></td></tr>
+				<tr><th>Division</th><td>IT &amp; Digital Solutions</td></tr>
+				<tr><th>CEO</th><td><?php echo esc_html( $id['ceo'] ); ?></td></tr>
+				<tr><th>Office</th><td><?php echo esc_html( $id['hq'] ); ?></td></tr>
+				<tr><th>WhatsApp</th><td><?php echo esc_html( $id['wa_display'] ); ?></td></tr>
+				<tr><th>Website</th><td><?php echo esc_html( $id['website'] ); ?></td></tr>
+				<tr><th>Digital Hub</th><td>amzprints.com/digital-services</td></tr>
 			</table>
-			<span class="page-spine-bar page-spine-bar--right page-spine-bar--gold" aria-hidden="true"></span>
-			<p class="page-footer-num"><?php echo esc_html( sprintf( '%02d', $pn++ ) ); ?></p>
+			<?php amz_cp_foot( $pn, $brand ); ?>
 		</div>
 	</div>
 
 	<div class="page">
-		<div class="page-content page-content--intro page-content--ink">
-			<span class="page-spine-bar page-spine-bar--left page-spine-bar--gold" aria-hidden="true"></span>
-			<div class="page-intro-grid">
-				<figure class="page-intro-photo page-hover-lift"><img src="<?php echo esc_url( $intro_img ); ?>" alt=""></figure>
-				<div class="page-intro-copy">
-					<h2 class="page-heading-gold">Introduction</h2>
-					<p class="page-body--muted"><?php echo esc_html( $about ); ?></p>
-					<p class="page-body--muted">We design and develop websites, custom software, and social systems that look sharp and work hard — lead capture, ecommerce, portals, ERP modules, and always-on brand presence.</p>
-				</div>
-			</div>
-			<div class="page-bottom-meta">
-				<span class="page-logo-mark page-logo-mark--gold"><?php echo esc_html( $c['company'] ); ?> Digital</span>
-				<span class="page-footer-num"><?php echo esc_html( sprintf( '%02d', $pn++ ) ); ?></span>
-			</div>
+		<div class="page-content cp cp--toc cp--ink">
+			<div class="cp-ribbon cp-ribbon--gold">Contents</div>
+			<ol class="cp-toc cp-toc--gold">
+				<?php foreach ( $toc as $i => $label ) : ?>
+					<li><span><?php echo esc_html( sprintf( '%02d', $i + 1 ) ); ?></span><em><?php echo esc_html( $label ); ?></em></li>
+				<?php endforeach; ?>
+			</ol>
+			<?php amz_cp_foot( $pn, $brand ); ?>
 		</div>
 	</div>
 
 	<div class="page">
-		<div class="page-content page-content--ink">
-			<div class="page-gold-bar">Vision &amp; Mission</div>
-			<div class="page-pad">
-				<h3 class="page-heading-gold">Vision</h3>
-				<p class="page-body--muted"><?php echo esc_html( $c['vision'] ); ?></p>
-				<h3 class="page-heading-gold">Mission</h3>
-				<p class="page-body--muted"><?php echo esc_html( $c['mission'] ); ?></p>
-				<div class="page-value-row page-value-row--gold">
-					<div class="page-hover-lift"><strong>Clarity</strong><span>Blueprints before build</span></div>
-					<div class="page-hover-lift"><strong>Ownership</strong><span>Custom code you keep</span></div>
-					<div class="page-hover-lift"><strong>Support</strong><span>Local WhatsApp teams</span></div>
-				</div>
+		<div class="page-content cp cp--intro cp--ink">
+			<figure class="cp-intro__photo"><img src="<?php echo esc_url( $intro_img ); ?>" alt=""></figure>
+			<div class="cp-intro__copy">
+				<p class="cp-kicker cp-kicker--gold">01 — Overview</p>
+				<h2 class="cp-h2">IT &amp; Digital Solutions</h2>
+				<p>Our IT &amp; Digital Solutions division provides modern, scalable and customized technology services for businesses, startups, organizations and individuals. We combine software development, website development, digital marketing, branding, automation, cloud solutions and IT consulting to help businesses establish, operate and grow digitally.</p>
+				<p>Our objective is to provide businesses with a complete technology partner under one roof — from website and software development to digital marketing, SEO, social media management, business automation and ongoing technical support.</p>
 			</div>
-			<span class="page-spine-bar page-spine-bar--right page-spine-bar--gold" aria-hidden="true"></span>
-			<p class="page-footer-num"><?php echo esc_html( sprintf( '%02d', $pn++ ) ); ?></p>
+			<?php amz_cp_foot( $pn, $brand ); ?>
 		</div>
 	</div>
 
 	<div class="page">
-		<div class="page-content page-content--ink">
-			<span class="page-spine-bar page-spine-bar--left page-spine-bar--gold" aria-hidden="true"></span>
-			<div class="page-gold-bar">Website Types</div>
-			<div class="page-pad">
-				<ul class="page-type-list page-type-list--gold">
-					<?php foreach ( $website_types as $t ) : ?>
-						<li class="page-hover-lift"><strong><?php echo esc_html( $t[0] ); ?></strong><span><?php echo esc_html( $t[1] ); ?></span></li>
+		<div class="page-content cp cp--letter cp--ink">
+			<p class="cp-kicker cp-kicker--gold">02 — Leadership</p>
+			<h2 class="cp-h2">Message from the CEO</h2>
+			<blockquote class="cp-quote cp-quote--gold">
+				<p>Technology should feel as crafted as print. Our digital division builds websites, software and growth systems that match the same quality standard as our press floor — clear process, modern stack, and support you can reach.</p>
+				<p>From Mandi Bahauddin to partners across Pakistan and the GCC, we help brands own their digital future.</p>
+			</blockquote>
+			<div class="cp-sign">
+				<strong><?php echo esc_html( $id['ceo'] ); ?></strong>
+				<span><?php echo esc_html( $id['ceo_title'] ); ?></span>
+			</div>
+			<?php amz_cp_foot( $pn, $brand ); ?>
+		</div>
+	</div>
+
+	<div class="page">
+		<div class="page-content cp cp--services-index cp--ink">
+			<div class="cp-band cp-band--gold">Core Categories</div>
+			<p class="cp-pad-top">Ten professional service pillars for the company profile.</p>
+			<ol class="cp-index-list cp-index-list--gold">
+				<?php foreach ( $core_cats as $i => $cat ) : ?>
+					<li><b><?php echo esc_html( sprintf( '%02d', $i + 1 ) ); ?></b><span><?php echo esc_html( $cat ); ?></span></li>
+				<?php endforeach; ?>
+			</ol>
+			<?php amz_cp_foot( $pn, $brand ); ?>
+		</div>
+	</div>
+
+	<?php foreach ( $chapters as $ci => $ch ) : ?>
+		<div class="page">
+			<div class="page-content cp cp--chapter cp--ink <?php echo esc_attr( 0 === $ci % 2 ? 'cp--chapter-gold-a' : 'cp--chapter-gold-b' ); ?>">
+				<div class="cp-band cp-band--gold"><?php echo esc_html( $ch['title'] ); ?></div>
+				<div class="cp-chapter-body">
+					<p class="cp-lead"><?php echo esc_html( $ch['intro'] ); ?></p>
+					<?php foreach ( $ch['groups'] as $gtitle => $items ) : ?>
+						<h3 class="cp-h3 cp-h3--gold"><?php echo esc_html( $gtitle ); ?></h3>
+						<?php amz_cp_checklist( $items ); ?>
 					<?php endforeach; ?>
-				</ul>
+				</div>
+				<?php amz_cp_foot( $pn, $brand ); ?>
 			</div>
-			<p class="page-footer-num"><?php echo esc_html( sprintf( '%02d', $pn++ ) ); ?></p>
+		</div>
+	<?php endforeach; ?>
+
+	<!-- Content / Creative + Digital Transformation brief -->
+	<div class="page">
+		<div class="page-content cp cp--ink">
+			<p class="cp-kicker cp-kicker--gold">Creative &amp; Transformation</p>
+			<h2 class="cp-h2">Content, Creative &amp; Digital Transformation</h2>
+			<h3 class="cp-h3 cp-h3--gold">Content Creation</h3>
+			<?php amz_cp_chips( array( 'Social Media Posts', 'Promotional Graphics', 'Reels', 'Short Videos', 'Product Videos', 'Corporate Videos', 'Explainer Videos', 'Motion Graphics', 'Infographics', 'Blog Content', 'Website Content', 'Product Descriptions', 'Advertising Copy', 'Email Content' ), 'cp-chips--gold' ); ?>
+			<h3 class="cp-h3 cp-h3--gold">Digital Transformation</h3>
+			<?php amz_cp_chips( array( 'Business Process Analysis', 'Digital Strategy', 'Workflow Automation', 'Paperless Operations', 'Cloud Migration', 'ERP Implementation', 'CRM Implementation', 'E-Commerce Transformation', 'Digital Customer Service', 'Data Management', 'Reporting & Analytics' ), 'cp-chips--gold' ); ?>
+			<?php amz_cp_foot( $pn, $brand ); ?>
 		</div>
 	</div>
 
+	<!-- PACKAGES -->
 	<div class="page">
-		<div class="page-content page-content--ink">
-			<div class="page-gold-bar">Web Development</div>
-			<div class="page-pad">
-				<p class="page-lead page-lead--muted">From first sketch to live launch — premium UI, speed, SEO structure, CMS, WhatsApp leads, analytics, and training.</p>
-				<ul class="page-bullets page-bullets--gold">
-					<?php foreach ( $web_features as $f ) : ?>
-						<li><?php echo esc_html( $f ); ?></li>
-					<?php endforeach; ?>
-				</ul>
-			</div>
-			<span class="page-spine-bar page-spine-bar--right page-spine-bar--gold" aria-hidden="true"></span>
-			<p class="page-footer-num"><?php echo esc_html( sprintf( '%02d', $pn++ ) ); ?></p>
-		</div>
-	</div>
-
-	<div class="page">
-		<div class="page-content page-content--ink">
-			<span class="page-spine-bar page-spine-bar--left page-spine-bar--gold" aria-hidden="true"></span>
-			<div class="page-gold-bar">Software &amp; Social</div>
-			<div class="page-pad">
-				<h3 class="page-heading-gold">Custom Software</h3>
-				<p class="page-body--muted">ERP modules, portals, CRMs, booking systems — engineered around how your team actually works. Full ownership. Clean architecture.</p>
-				<h3 class="page-heading-gold">Social Media</h3>
-				<p class="page-body--muted">Content calendar, creatives, engagement, ads support, and monthly reports aligned with your print brand.</p>
-				<?php foreach ( $catalog as $cat ) : ?>
-					<p class="page-body--muted"><strong class="gold-text"><?php echo esc_html( amz_prints_svc_label( $cat ) ); ?>:</strong> <?php echo esc_html( implode( ', ', array_map( 'amz_prints_svc_label', $cat['items'] ) ) ); ?></p>
+		<div class="page-content cp cp--packages cp--ink">
+			<div class="cp-band cp-band--gold">Digital Packages</div>
+			<div class="cp-package-grid">
+				<?php foreach ( $packages as $pkg ) : ?>
+					<article>
+						<strong><?php echo esc_html( $pkg['title'] ); ?></strong>
+						<ul>
+							<?php foreach ( $pkg['items'] as $it ) : ?>
+								<li><?php echo esc_html( $it ); ?></li>
+							<?php endforeach; ?>
+						</ul>
+					</article>
 				<?php endforeach; ?>
 			</div>
-			<p class="page-footer-num"><?php echo esc_html( sprintf( '%02d', $pn++ ) ); ?></p>
+			<?php amz_cp_foot( $pn, $brand ); ?>
 		</div>
 	</div>
 
+	<!-- PROCESS -->
 	<div class="page">
-		<div class="page-content page-content--ink">
-			<div class="page-gold-bar">How We Work</div>
-			<div class="page-pad">
-				<ol class="page-mech page-mech--gold">
-					<?php foreach ( $mechanism as $step ) : ?>
-						<li class="page-hover-lift"><strong><?php echo esc_html( $step[0] . ' · ' . $step[1] ); ?></strong><span><?php echo esc_html( $step[2] ); ?></span></li>
+		<div class="page-content cp cp--process cp--ink">
+			<p class="cp-kicker cp-kicker--gold">How We Work</p>
+			<h2 class="cp-h2">Development Process</h2>
+			<ol class="cp-process">
+				<?php foreach ( $process as $step ) : ?>
+					<li>
+						<b><?php echo esc_html( $step[0] ); ?></b>
+						<strong><?php echo esc_html( $step[1] ); ?></strong>
+						<span><?php echo esc_html( $step[2] ); ?></span>
+					</li>
+				<?php endforeach; ?>
+			</ol>
+			<?php amz_cp_foot( $pn, $brand ); ?>
+		</div>
+	</div>
+
+	<!-- TECH -->
+	<div class="page">
+		<div class="page-content cp cp--tech cp--ink">
+			<p class="cp-kicker cp-kicker--gold">Capabilities</p>
+			<h2 class="cp-h2">Technology Stack</h2>
+			<?php foreach ( $tech_stack as $label => $items ) : ?>
+				<h3 class="cp-h3 cp-h3--gold"><?php echo esc_html( $label ); ?></h3>
+				<?php amz_cp_chips( $items, 'cp-chips--gold' ); ?>
+			<?php endforeach; ?>
+			<?php amz_cp_foot( $pn, $brand ); ?>
+		</div>
+	</div>
+
+	<!-- INDUSTRIES + PORTFOLIO -->
+	<div class="page">
+		<div class="page-content cp cp--markets cp--ink">
+			<p class="cp-kicker cp-kicker--gold">Markets</p>
+			<h2 class="cp-h2">Industries We Serve</h2>
+			<?php amz_cp_chips( $id['segments'], 'cp-chips--gold' ); ?>
+			<h3 class="cp-h3 cp-h3--gold">Digital Portfolio</h3>
+			<div class="cp-folio cp-folio--gold">
+				<?php foreach ( array_slice( $portfolio, 0, 4 ) as $item ) : ?>
+					<figure>
+						<img src="<?php echo esc_url( $item['img'] ); ?>" alt="">
+						<figcaption><?php echo esc_html( $item['title'] ); ?></figcaption>
+					</figure>
+				<?php endforeach; ?>
+			</div>
+			<?php amz_cp_foot( $pn, $brand ); ?>
+		</div>
+	</div>
+
+	<!-- WHY -->
+	<div class="page">
+		<div class="page-content cp cp--why cp--ink">
+			<div class="cp-band cp-band--gold">Why Choose Us</div>
+			<div class="cp-chapter-body">
+				<ol class="cp-why-list cp-why-list--gold">
+					<?php
+					$why_digital = array(
+						'Complete digital solutions under one roof',
+						'Custom-built solutions instead of one-size-fits-all systems',
+						'Professional UI/UX',
+						'Modern development technologies',
+						'Business-focused software development',
+						'SEO and digital marketing expertise',
+						'Social media management',
+						'E-Commerce expertise',
+						'Business automation',
+						'Printing + Branding + Digital under one company',
+						'Scalable solutions',
+						'Ongoing technical support',
+						'Local and international business support',
+					);
+					foreach ( $why_digital as $i => $w ) :
+						?>
+						<li><b><?php echo esc_html( sprintf( '%02d', $i + 1 ) ); ?></b><span><?php echo esc_html( $w ); ?></span></li>
 					<?php endforeach; ?>
 				</ol>
 			</div>
-			<span class="page-spine-bar page-spine-bar--right page-spine-bar--gold" aria-hidden="true"></span>
-			<p class="page-footer-num"><?php echo esc_html( sprintf( '%02d', $pn++ ) ); ?></p>
+			<?php amz_cp_foot( $pn, $brand ); ?>
 		</div>
 	</div>
 
+	<!-- GROUP + CONTACT -->
 	<div class="page">
-		<div class="page-content page-content--ink">
-			<span class="page-spine-bar page-spine-bar--left page-spine-bar--gold" aria-hidden="true"></span>
-			<div class="page-gold-bar">Digital Portfolio</div>
-			<div class="page-pad">
-				<div class="page-portfolio-grid">
-					<?php foreach ( $portfolio as $item ) : ?>
-						<figure class="page-hover-lift">
-							<img src="<?php echo esc_url( $item['img'] ); ?>" alt="">
-							<figcaption><?php echo esc_html( $item['title'] ); ?></figcaption>
-						</figure>
-					<?php endforeach; ?>
-				</div>
+		<div class="page-content cp cp--contact cp--ink">
+			<div class="cp-band cp-band--gold">Contact &amp; Partners</div>
+			<div class="cp-contact-block">
+				<p><strong><?php echo esc_html( $id['registered'] ); ?></strong></p>
+				<p><?php echo esc_html( $id['brand'] ); ?> — IT &amp; Digital</p>
+				<p>CEO: <?php echo esc_html( $id['ceo'] ); ?></p>
+				<p><?php echo esc_html( $id['hq'] ); ?></p>
+				<p>WhatsApp: <?php echo esc_html( $id['wa_display'] ); ?></p>
+				<p>Website: <?php echo esc_html( $id['website'] ); ?></p>
+				<?php if ( $id['email'] ) : ?><p>Email: <?php echo esc_html( $id['email'] ); ?></p><?php endif; ?>
 			</div>
-			<p class="page-footer-num"><?php echo esc_html( sprintf( '%02d', $pn++ ) ); ?></p>
+			<?php foreach ( $id['group'] as $g ) : ?>
+				<article class="cp-group-card cp-group-card--gold">
+					<strong><?php echo esc_html( $g['name'] ); ?></strong>
+					<p><?php echo esc_html( $g['desc'] ); ?></p>
+				</article>
+			<?php endforeach; ?>
+			<div class="cp-qr">
+				<figure>
+					<img src="<?php echo esc_url( amz_prints_qr_url( $id['site_url'], 140 ) ); ?>" alt="">
+					<figcaption>Website</figcaption>
+				</figure>
+				<figure>
+					<img src="<?php echo esc_url( amz_prints_qr_url( $id['wa_link'], 140 ) ); ?>" alt="">
+					<figcaption>WhatsApp</figcaption>
+				</figure>
+			</div>
+			<?php amz_cp_foot( $pn, $brand ); ?>
 		</div>
 	</div>
 
-	<div class="page">
-		<div class="page-content page-content--ink">
-			<div class="page-gold-bar">Why Choose Us</div>
-			<div class="page-pad">
-				<ul class="page-why page-why--gold">
-					<li><strong>Print + Digital one roof</strong><span>Brand stays consistent from press to website.</span></li>
-					<li><strong>Custom code</strong><span>No locked templates — products you own.</span></li>
-					<li><strong>Business-first</strong><span>Features map to leads, sales, operations.</span></li>
-					<li><strong>Local support</strong><span>Branches and WhatsApp you can reach.</span></li>
-					<li><strong>Scalable architecture</strong><span>Cheaper updates later, not temporary hacks.</span></li>
-					<li><strong>Security by design</strong><span>Roles built for your team.</span></li>
-				</ul>
-			</div>
-			<span class="page-spine-bar page-spine-bar--right page-spine-bar--gold" aria-hidden="true"></span>
-			<p class="page-footer-num"><?php echo esc_html( sprintf( '%02d', $pn++ ) ); ?></p>
-		</div>
-	</div>
-
-	<div class="page">
-		<div class="page-content page-content--ink">
-			<span class="page-spine-bar page-spine-bar--left page-spine-bar--gold" aria-hidden="true"></span>
-			<div class="page-gold-bar">Contact Us</div>
-			<div class="page-pad">
-				<div class="page-contact page-contact--gold">
-					<p><strong><?php echo esc_html( $c['legal'] ); ?></strong></p>
-					<p><?php echo esc_html( $c['company'] ); ?> · Digital</p>
-					<?php if ( $c['phone'] ) : ?><p><?php echo esc_html( $c['phone'] ); ?></p><?php endif; ?>
-					<?php if ( $c['email'] ) : ?><p><?php echo esc_html( $c['email'] ); ?></p><?php endif; ?>
-					<p><?php echo esc_html( $c['site_url'] ); ?></p>
-					<p><?php echo esc_html( home_url( '/digital-services/' ) ); ?></p>
-				</div>
-				<div class="page-qr-row">
-					<figure class="page-hover-lift">
-						<img src="<?php echo esc_url( amz_prints_qr_url( $c['site_url'], 160 ) ); ?>" alt="">
-						<figcaption>Website</figcaption>
-					</figure>
-					<figure class="page-hover-lift">
-						<img src="<?php echo esc_url( amz_prints_qr_url( $c['wa_link'], 160 ) ); ?>" alt="">
-						<figcaption>WhatsApp</figcaption>
-					</figure>
-				</div>
-			</div>
-			<p class="page-footer-num"><?php echo esc_html( sprintf( '%02d', $pn++ ) ); ?></p>
-		</div>
-	</div>
-
-	<div class="page page--hard page--cover-gold" data-density="hard">
-		<div class="page-content page-content--cover page-content--back page-content--cover-gold">
-			<p class="page-cover__short page-cover__short--gold"><?php echo esc_html( $c['company'] ); ?></p>
-			<h2>Digital Services</h2>
-			<p class="page-cover__tag"><?php echo esc_html( home_url( '/digital-services/' ) ); ?></p>
-			<p class="page-cover__tag">Thank you — let's build something exceptional</p>
+	<div class="page page--hard" data-density="hard">
+		<div class="page-content cp cp--back cp--cover-gold">
+			<p class="cp-cover__brand"><?php echo esc_html( $id['brand'] ); ?></p>
+			<h2 class="cp-cover__title">IT &amp; Digital Solutions</h2>
+			<div class="cp-cover__rule cp-cover__rule--gold"></div>
+			<p class="cp-cover__tag"><?php echo esc_html( $id['website'] ); ?></p>
+			<p class="cp-cover__loc">WhatsApp <?php echo esc_html( $id['wa_display'] ); ?></p>
+			<p class="cp-cover__tag">Thank you — let’s build something exceptional</p>
 		</div>
 	</div>
 

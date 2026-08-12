@@ -1,5 +1,5 @@
 /**
- * Real flip-book via StPageFlip — hover fold, click to turn, auto-open.
+ * Real flip-book via StPageFlip — classic portrait pages.
  */
 (function () {
   'use strict';
@@ -13,7 +13,6 @@
   var pages = bookEl.querySelectorAll('.page');
   if (!pages.length) return;
 
-  // Preserve pristine HTML for PDF export (StPageFlip wraps/mutates live nodes).
   var source = document.getElementById('amz-page-source');
   if (!source) {
     source = document.createElement('div');
@@ -30,17 +29,17 @@
   var pageFlip = null;
 
   function pageSize() {
-    var maxW = Math.min(520, Math.floor(window.innerWidth * 0.42));
+    var maxW = Math.min(460, Math.floor(window.innerWidth * 0.4));
     if (window.innerWidth < 720) {
-      maxW = Math.min(360, Math.floor(window.innerWidth * 0.88));
+      maxW = Math.min(340, Math.floor(window.innerWidth * 0.86));
     }
-    var h = Math.round(maxW * 1.414); // A4 portrait ratio
-    var maxH = Math.floor(window.innerHeight * 0.72);
+    var h = Math.round(maxW * 1.414);
+    var maxH = Math.floor(window.innerHeight * 0.74);
     if (h > maxH) {
       h = maxH;
       maxW = Math.round(h / 1.414);
     }
-    return { width: maxW, height: h };
+    return { width: Math.max(260, maxW), height: Math.max(380, h) };
   }
 
   function init() {
@@ -54,22 +53,22 @@
       width: size.width,
       height: size.height,
       size: 'fixed',
-      minWidth: 280,
-      maxWidth: 600,
-      minHeight: 400,
-      maxHeight: 850,
+      minWidth: 260,
+      maxWidth: 520,
+      minHeight: 380,
+      maxHeight: 900,
       drawShadow: true,
-      flippingTime: 900,
-      usePortrait: window.innerWidth < 720,
+      flippingTime: 850,
+      usePortrait: window.innerWidth < 780,
       startPage: 0,
       autoSize: false,
-      maxShadowOpacity: 0.45,
+      maxShadowOpacity: 0.4,
       showCover: true,
       mobileScrollSupport: true,
       clickEventForward: true,
       useMouseEvents: true,
       swipeDistance: 30,
-      showPageCorners: true,
+      showPageCorners: false,
       disableFlipByClick: false
     });
 
@@ -90,7 +89,6 @@
     document.body.classList.add('flipbook-ready', 'flipbook-open');
   }
 
-  // Wait fonts/images briefly so first paint is clean
   window.setTimeout(init, 120);
 
   var resizeTimer;

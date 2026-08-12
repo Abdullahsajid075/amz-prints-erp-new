@@ -1,7 +1,7 @@
 <?php
 /**
  * Template Name: Company Profile — Print & Design
- * Premium website-style flip book (charcoal + orange).
+ * Classic portrait company profile catalog.
  *
  * @package AMZ_Prints
  */
@@ -10,300 +10,371 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-$c       = amz_prints_catalog_context();
-$catalog = amz_prints_catalog_print_services();
-$auto_dl = isset( $_GET['download'] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-$about   = amz_prints_mod( 'amz_book_print_about', '' );
-if ( ! $about ) {
-	$about = $c['about'];
-}
+$id        = amz_prints_profile_identity();
+$chapters  = amz_prints_print_service_chapters();
+$auto_dl   = isset( $_GET['download'] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+$cover_img = amz_prints_book_image( 'amz_book_print_cover', 'https://images.unsplash.com/photo-1626785774573-4b7993143459?auto=format&fit=crop&w=1200&q=80' );
 $intro_img = amz_prints_book_image( 'amz_book_print_intro', 'https://images.unsplash.com/photo-1562564055-71e051d33c19?auto=format&fit=crop&w=1000&q=80' );
-$cover_img = amz_prints_book_image( 'amz_book_print_cover', 'https://images.unsplash.com/photo-1626785774573-4b7993143459?auto=format&fit=crop&w=1000&q=80' );
 $portfolio = amz_prints_book_portfolio( 'print' );
-$svc_blurb = array(
-	'printing-services'        => 'Commercial and specialty print with color-true output for marketing, packaging, and production runs — digital, offset, UV, DTF, and large format.',
-	'branding-signage'         => 'Indoor and outdoor identity systems that make storefronts, fleets, and events impossible to miss.',
-	'marketing-materials'      => 'Everyday brand touchpoints — cards, flyers, brochures, catalogs, and folders that feel premium in the hand.',
-	'packaging-solutions'      => 'Product boxes, labels, and custom packs that protect goods and sell on the shelf.',
-	'promotional-items'        => 'Memorable giveaways and branded gifts that keep your name in clients hands.',
-	'corporate-branding'       => 'From logo systems to exhibition stands — cohesive identity for offices and events.',
-	'document-office-printing' => 'Fast, reliable document production, binding, IDs, certificates, and finishing for offices.',
-	'graphic-design'           => 'Creative that works in print and on screen — logos, social, packaging, and campaigns.',
-	'photography-media'        => 'Product and corporate photography plus video and motion for campaigns.',
-	'custom-printing'          => 'Wedding cards, invitations, menus, calendars, notebooks, and made-to-order gifts.',
+$brand     = $id['brand'];
+$pn        = 1;
+$toc       = array(
+	'Company Introduction', 'CEO Message', 'About Us', 'Vision & Mission', 'Core Values',
+	'Our Services', 'Printing Chapters', 'Production & Team', 'Technology & ERP',
+	'Quality & Markets', 'Why Choose Us', 'Group Companies', 'Contact',
 );
-$toc = array(
-	'Introduction', 'Mission & Vision', 'Services Overview', 'Service Portfolio', 'Selected Work', 'Why Choose Us', 'Branches', 'Contact & QR',
-);
-$pn = 1;
 ?><!DOCTYPE html>
 <html <?php language_attributes(); ?>>
 <head>
 	<meta charset="<?php bloginfo( 'charset' ); ?>">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title><?php echo esc_html( $c['legal'] ); ?> — Print &amp; Design Profile</title>
+	<title><?php echo esc_html( $id['registered'] ); ?> — Company Profile</title>
 	<?php wp_head(); ?>
 </head>
-<body <?php body_class( 'amz-catalog-body catalog-theme-print flipbook-body' . ( $auto_dl ? ' catalog-download-mode' : '' ) ); ?>>
+<body <?php body_class( 'amz-catalog-body catalog-theme-print catalog-classic catalog-portrait flipbook-body' . ( $auto_dl ? ' catalog-download-mode' : '' ) ); ?>>
 <?php wp_body_open(); ?>
 <?php
 amz_prints_flipbook_shell_open(
 	array(
 		'theme'    => 'print',
 		'title'    => __( 'Printing & Designing Profile', 'amz-prints' ),
-		'subtitle' => __( 'Premium catalog · website style', 'amz-prints' ),
+		'subtitle' => __( 'Classic portrait catalog', 'amz-prints' ),
 	)
 );
 ?>
 
-	<div class="page page--hard page--cover-print" data-density="hard">
-		<div class="page-content page-content--cover page-content--cover-photo" style="--cover-img:url('<?php echo esc_url( $cover_img ); ?>')">
-			<div class="page-cover__veil"></div>
-			<div class="page-cover__copy">
-				<?php if ( $c['logo_url'] ) : ?><img class="page-cover__logo" src="<?php echo esc_url( $c['logo_url'] ); ?>" alt=""><?php endif; ?>
-				<p class="page-cover__eyebrow">Company Profile <?php echo esc_html( $c['year'] ); ?></p>
-				<p class="page-cover__short"><?php echo esc_html( $c['company'] ); ?></p>
-				<h1><?php echo esc_html( $c['legal'] ); ?></h1>
-				<p class="page-cover__tag">Printing · Branding · Packaging · Graphic Design</p>
-			</div>
-		</div>
-	</div>
-
+	<!-- COVER -->
 	<div class="page page--hard" data-density="hard">
-		<div class="page-content page-content--center page-content--premium">
-			<p class="page-kicker">Official identity</p>
-			<h2 class="page-title"><?php echo esc_html( $c['legal'] ); ?></h2>
-			<p class="page-lead">Brand: <strong><?php echo esc_html( $c['company'] ); ?></strong></p>
-			<p class="page-body"><?php echo esc_html( $c['tagline'] ); ?></p>
-			<div class="page-chip-row">
-				<span>Press</span><span>Brand</span><span>Pack</span><span>Design</span>
+		<div class="page-content cp cp--cover cp--cover-print" style="--cp-cover:url('<?php echo esc_url( $cover_img ); ?>')">
+			<div class="cp-cover__frame">
+				<?php if ( ! empty( $id['logo_url'] ) ) : ?>
+					<img class="cp-cover__logo" src="<?php echo esc_url( $id['logo_url'] ); ?>" alt="">
+				<?php endif; ?>
+				<p class="cp-cover__eyebrow">Official Company Profile <?php echo esc_html( $id['year'] ); ?></p>
+				<h1 class="cp-cover__title"><?php echo esc_html( $id['registered'] ); ?></h1>
+				<p class="cp-cover__brand"><?php echo esc_html( $brand ); ?></p>
+				<div class="cp-cover__rule"></div>
+				<p class="cp-cover__tag"><?php echo esc_html( $id['business'] ); ?></p>
+				<p class="cp-cover__loc"><?php echo esc_html( $id['hq'] ); ?></p>
 			</div>
-			<p class="page-footer-num"><?php echo esc_html( sprintf( '%02d', $pn++ ) ); ?></p>
 		</div>
 	</div>
 
-	<div class="page">
-		<div class="page-content page-content--toc">
-			<div class="page-orange-bar">Table of Contents</div>
-			<table class="page-toc-table">
-				<thead><tr><th>SL NO</th><th>Description</th><th>Page</th></tr></thead>
-				<tbody>
-					<?php foreach ( $toc as $i => $label ) : ?>
-						<tr>
-							<td><?php echo esc_html( sprintf( '%02d', $i + 1 ) ); ?></td>
-							<td><?php echo esc_html( $label ); ?></td>
-							<td><?php echo esc_html( sprintf( '%02d', $i + 3 ) ); ?></td>
-						</tr>
-					<?php endforeach; ?>
-				</tbody>
+	<!-- INSIDE COVER / IDENTITY -->
+	<div class="page page--hard" data-density="hard">
+		<div class="page-content cp cp--identity">
+			<p class="cp-kicker">Company Identity</p>
+			<h2 class="cp-h1"><?php echo esc_html( $id['registered'] ); ?></h2>
+			<table class="cp-meta-table">
+				<tr><th>Registered Name</th><td><?php echo esc_html( $id['registered'] ); ?></td></tr>
+				<tr><th>Brand / Trading</th><td><?php echo esc_html( $brand ); ?></td></tr>
+				<tr><th>Business Type</th><td><?php echo esc_html( $id['business'] ); ?></td></tr>
+				<tr><th>CEO / MD</th><td><?php echo esc_html( $id['ceo'] ); ?></td></tr>
+				<tr><th>Head Office</th><td><?php echo esc_html( $id['hq'] ); ?></td></tr>
+				<tr><th>WhatsApp</th><td><?php echo esc_html( $id['wa_display'] ); ?></td></tr>
+				<tr><th>Website</th><td><?php echo esc_html( $id['website'] ); ?></td></tr>
+				<tr><th>Email</th><td><?php echo esc_html( $id['email'] ); ?></td></tr>
+				<tr><th>Hours</th><td><?php echo esc_html( $id['hours'] ); ?></td></tr>
 			</table>
-			<span class="page-spine-bar page-spine-bar--right" aria-hidden="true"></span>
-			<p class="page-footer-num"><?php echo esc_html( sprintf( '%02d', $pn++ ) ); ?></p>
+			<?php amz_cp_foot( $pn, $brand ); ?>
 		</div>
 	</div>
 
+	<!-- TOC -->
 	<div class="page">
-		<div class="page-content page-content--intro">
-			<span class="page-spine-bar page-spine-bar--left" aria-hidden="true"></span>
-			<div class="page-intro-grid">
-				<figure class="page-intro-photo page-hover-lift"><img src="<?php echo esc_url( $intro_img ); ?>" alt=""></figure>
-				<div class="page-intro-copy">
-					<h2 class="page-heading-orange">Introduction</h2>
-					<p><?php echo esc_html( $about ); ?></p>
-					<p>We partner with businesses and agencies who need print that looks sharp and arrives on time — from business cards to vehicle wraps, packaging to large-format campaigns. Design and press stay under one roof so color and finish never drift.</p>
-					<ul class="page-mini-facts">
-						<li><strong>Hours</strong> <?php echo esc_html( $c['hours'] ); ?></li>
-						<?php if ( $c['address'] ) : ?><li><strong>Address</strong> <?php echo esc_html( $c['address'] ); ?></li><?php endif; ?>
-					</ul>
-				</div>
-			</div>
-			<div class="page-bottom-meta">
-				<span class="page-logo-mark"><?php echo esc_html( $c['company'] ); ?></span>
-				<span class="page-footer-num"><?php echo esc_html( sprintf( '%02d', $pn++ ) ); ?></span>
-			</div>
+		<div class="page-content cp cp--toc">
+			<div class="cp-ribbon">Contents</div>
+			<ol class="cp-toc">
+				<?php foreach ( $toc as $i => $label ) : ?>
+					<li><span><?php echo esc_html( sprintf( '%02d', $i + 1 ) ); ?></span><em><?php echo esc_html( $label ); ?></em></li>
+				<?php endforeach; ?>
+			</ol>
+			<?php amz_cp_foot( $pn, $brand ); ?>
 		</div>
 	</div>
 
+	<!-- INTRODUCTION -->
 	<div class="page">
-		<div class="page-content">
-			<div class="page-orange-bar">Our Mission</div>
-			<div class="page-pad">
-				<h2 class="page-title">Why we print</h2>
-				<p class="page-lead"><?php echo esc_html( $c['mission'] ); ?></p>
-				<div class="page-value-row">
-					<div class="page-hover-lift"><strong>Quality</strong><span>Color-true output</span></div>
-					<div class="page-hover-lift"><strong>Speed</strong><span>Clear timelines</span></div>
-					<div class="page-hover-lift"><strong>Craft</strong><span>Premium finishes</span></div>
-				</div>
+		<div class="page-content cp cp--intro">
+			<figure class="cp-intro__photo"><img src="<?php echo esc_url( $intro_img ); ?>" alt=""></figure>
+			<div class="cp-intro__copy">
+				<p class="cp-kicker">01 — Introduction</p>
+				<h2 class="cp-h2">Company Overview</h2>
+				<p><?php echo esc_html( $id['overview'] ); ?></p>
+				<p><?php echo esc_html( $id['history'] ); ?></p>
 			</div>
-			<span class="page-spine-bar page-spine-bar--right" aria-hidden="true"></span>
-			<p class="page-footer-num"><?php echo esc_html( sprintf( '%02d', $pn++ ) ); ?></p>
+			<?php amz_cp_foot( $pn, $brand ); ?>
 		</div>
 	</div>
 
+	<!-- CEO MESSAGE -->
 	<div class="page">
-		<div class="page-content">
-			<span class="page-spine-bar page-spine-bar--left" aria-hidden="true"></span>
-			<div class="page-orange-bar">Our Vision</div>
-			<div class="page-pad">
-				<h2 class="page-title">Where we are going</h2>
-				<p class="page-lead"><?php echo esc_html( $c['vision'] ); ?></p>
-				<ul class="page-bullets">
-					<li>Calibrated color across every substrate</li>
-					<li>Tracked jobs from brief to handover</li>
-					<li>Local branches and WhatsApp support</li>
-					<li>Print craftsmanship that earns repeat trust</li>
-					<li>Brand continuity from press to digital</li>
-				</ul>
+		<div class="page-content cp cp--letter">
+			<p class="cp-kicker">02 — Leadership</p>
+			<h2 class="cp-h2">Message from the CEO</h2>
+			<blockquote class="cp-quote">
+				<p>At Amazon Printing Services, we believe every brand deserves print and digital work that feels intentional — sharp color, reliable timelines, and creative that earns trust. From Mandi Bahauddin to clients across Pakistan and beyond, our team builds lasting partnerships through craftsmanship and clear communication.</p>
+				<p>Whether you need a single visiting card or a complete branding and technology system, we are ready to deliver with professionalism and care.</p>
+			</blockquote>
+			<div class="cp-sign">
+				<strong><?php echo esc_html( $id['ceo'] ); ?></strong>
+				<span><?php echo esc_html( $id['ceo_title'] ); ?></span>
+				<span><?php echo esc_html( $id['registered'] ); ?></span>
 			</div>
-			<p class="page-footer-num"><?php echo esc_html( sprintf( '%02d', $pn++ ) ); ?></p>
+			<?php amz_cp_foot( $pn, $brand ); ?>
 		</div>
 	</div>
 
+	<!-- ABOUT / EXPERTISE -->
 	<div class="page">
-		<div class="page-content">
-			<div class="page-orange-bar">Our Best Services</div>
-			<div class="page-pad">
-				<p class="page-body">Full print and design capabilities — each category detailed on the following pages with offerings and mockups.</p>
-				<ul class="page-service-index">
-					<?php foreach ( $catalog as $i => $cat ) : ?>
-						<li class="page-hover-lift">
-							<span><?php echo esc_html( sprintf( '%02d', $i + 1 ) ); ?></span>
-							<strong><?php echo esc_html( amz_prints_svc_label( $cat ) ); ?></strong>
-							<em><?php echo esc_html( count( $cat['items'] ) ); ?> offerings</em>
-						</li>
-					<?php endforeach; ?>
-				</ul>
-			</div>
-			<span class="page-spine-bar page-spine-bar--right" aria-hidden="true"></span>
-			<p class="page-footer-num"><?php echo esc_html( sprintf( '%02d', $pn++ ) ); ?></p>
+		<div class="page-content cp cp--about">
+			<p class="cp-kicker">03 — About Us</p>
+			<h2 class="cp-h2">Business Nature &amp; Core Expertise</h2>
+			<p class="cp-lead">We serve individuals, retailers, corporates, institutions and agencies with printing, advertising, branding and digital services.</p>
+			<h3 class="cp-h3">Core Expertise</h3>
+			<?php amz_cp_checklist( $id['expertise'] ); ?>
+			<h3 class="cp-h3">Company Strengths</h3>
+			<?php amz_cp_checklist( $id['strengths'] ); ?>
+			<?php amz_cp_foot( $pn, $brand ); ?>
 		</div>
 	</div>
 
-	<?php foreach ( $catalog as $cat ) : ?>
-		<?php
-		$slug  = $cat['slug'];
-		$blurb = isset( $svc_blurb[ $slug ] ) ? $svc_blurb[ $slug ] : '';
-		?>
+	<!-- VISION MISSION -->
+	<div class="page">
+		<div class="page-content cp cp--vm">
+			<p class="cp-kicker">04 — Direction</p>
+			<div class="cp-vm-card cp-vm-card--vision">
+				<span>Vision</span>
+				<p><?php echo esc_html( $id['vision'] ); ?></p>
+			</div>
+			<div class="cp-vm-card cp-vm-card--mission">
+				<span>Mission</span>
+				<p><?php echo esc_html( $id['mission'] ); ?></p>
+			</div>
+			<?php amz_cp_foot( $pn, $brand ); ?>
+		</div>
+	</div>
+
+	<!-- VALUES -->
+	<div class="page">
+		<div class="page-content cp cp--values">
+			<p class="cp-kicker">05 — Principles</p>
+			<h2 class="cp-h2">Core Values</h2>
+			<div class="cp-value-grid">
+				<?php foreach ( $id['values'] as $v ) : ?>
+					<div class="cp-value"><span><?php echo esc_html( $v ); ?></span></div>
+				<?php endforeach; ?>
+			</div>
+			<?php amz_cp_foot( $pn, $brand ); ?>
+		</div>
+	</div>
+
+	<!-- SERVICES OVERVIEW -->
+	<div class="page">
+		<div class="page-content cp cp--services-index">
+			<div class="cp-band">Our Services</div>
+			<p class="cp-pad-top">A complete print, branding and studio offering — detailed chapter by chapter in the following pages.</p>
+			<ol class="cp-index-list">
+				<?php foreach ( $chapters as $i => $ch ) : ?>
+					<li><b><?php echo esc_html( sprintf( '%02d', $i + 1 ) ); ?></b><span><?php echo esc_html( $ch['title'] ); ?></span><em><?php echo esc_html( count( $ch['items'] ) ); ?> offerings</em></li>
+				<?php endforeach; ?>
+			</ol>
+			<?php amz_cp_foot( $pn, $brand ); ?>
+		</div>
+	</div>
+
+	<?php foreach ( $chapters as $ci => $ch ) : ?>
 		<div class="page">
-			<div class="page-content page-content--svc">
-				<span class="page-spine-bar page-spine-bar--left" aria-hidden="true"></span>
-				<div class="page-orange-bar"><?php echo esc_html( amz_prints_svc_label( $cat ) ); ?></div>
-				<div class="page-pad page-svc-layout">
-					<figure class="page-hover-lift"><img src="<?php echo esc_url( $cat['image'] ); ?>" alt=""></figure>
-					<div>
-						<p class="page-body"><?php echo esc_html( $blurb ); ?></p>
-						<ul class="page-item-list">
-							<?php foreach ( $cat['items'] as $item ) : ?>
-								<li><?php echo esc_html( amz_prints_svc_label( $item ) ); ?></li>
-							<?php endforeach; ?>
-						</ul>
-					</div>
+			<div class="page-content cp cp--chapter <?php echo esc_attr( 0 === $ci % 2 ? 'cp--chapter-a' : 'cp--chapter-b' ); ?>">
+				<div class="cp-band"><?php echo esc_html( $ch['title'] ); ?></div>
+				<div class="cp-chapter-body">
+					<p class="cp-lead"><?php echo esc_html( $ch['intro'] ); ?></p>
+					<?php amz_cp_checklist( $ch['items'] ); ?>
 				</div>
-				<p class="page-footer-num"><?php echo esc_html( sprintf( '%02d', $pn++ ) ); ?></p>
+				<?php amz_cp_foot( $pn, $brand ); ?>
 			</div>
 		</div>
 	<?php endforeach; ?>
 
+	<!-- DIGITAL BRIEF -->
 	<div class="page">
-		<div class="page-content">
-			<div class="page-orange-bar">Selected Portfolio</div>
-			<div class="page-pad">
-				<p class="page-body">A snapshot of print, packaging, branding, and campaign work.</p>
-				<div class="page-portfolio-grid">
-					<?php foreach ( array_slice( $portfolio, 0, 4 ) as $item ) : ?>
-						<figure class="page-hover-lift">
-							<img src="<?php echo esc_url( $item['img'] ); ?>" alt="">
-							<figcaption><?php echo esc_html( $item['title'] ); ?></figcaption>
-						</figure>
-					<?php endforeach; ?>
-				</div>
-			</div>
-			<span class="page-spine-bar page-spine-bar--right" aria-hidden="true"></span>
-			<p class="page-footer-num"><?php echo esc_html( sprintf( '%02d', $pn++ ) ); ?></p>
+		<div class="page-content cp cp--ink-soft">
+			<p class="cp-kicker">Digital &amp; IT</p>
+			<h2 class="cp-h2">Digital Services at a Glance</h2>
+			<p class="cp-lead">Alongside print, our IT &amp; Digital division delivers websites, custom software, ecommerce, SEO, social media and business automation — see the Digital Profile for the complete catalogue.</p>
+			<?php
+			amz_cp_checklist(
+				array(
+					'Website Design & Development',
+					'Custom Website Development',
+					'WordPress & E-Commerce',
+					'UI / Mobile App UI Design',
+					'Digital Marketing & SEO',
+					'Social Media Management',
+					'Business Automation',
+					'ERP / Business Management Solutions',
+				)
+			);
+			?>
+			<?php amz_cp_foot( $pn, $brand ); ?>
 		</div>
 	</div>
 
+	<!-- PRODUCTION -->
 	<div class="page">
-		<div class="page-content">
-			<span class="page-spine-bar page-spine-bar--left" aria-hidden="true"></span>
-			<div class="page-orange-bar">More Portfolio</div>
-			<div class="page-pad">
-				<div class="page-portfolio-grid">
-					<?php foreach ( array_slice( $portfolio, 4, 2 ) as $item ) : ?>
-						<figure class="page-hover-lift">
-							<img src="<?php echo esc_url( $item['img'] ); ?>" alt="">
-							<figcaption><?php echo esc_html( $item['title'] ); ?></figcaption>
-						</figure>
-					<?php endforeach; ?>
-				</div>
-				<ul class="page-why" style="margin-top:0.85rem">
-					<li><strong>Color that matches</strong><span>Calibrated workflows across jobs and substrates.</span></li>
-					<li><strong>Deadlines kept</strong><span>Transparent timelines from proof to delivery.</span></li>
-					<li><strong>Premium finishes</strong><span>Lamination, foil, emboss, die-cut details.</span></li>
-				</ul>
-			</div>
-			<p class="page-footer-num"><?php echo esc_html( sprintf( '%02d', $pn++ ) ); ?></p>
+		<div class="page-content cp cp--facilities">
+			<p class="cp-kicker">Production Facilities</p>
+			<h2 class="cp-h2">Infrastructure &amp; Capability</h2>
+			<?php amz_cp_checklist( $id['facilities'] ); ?>
+			<h3 class="cp-h3">Business Infrastructure</h3>
+			<?php amz_cp_chips( $id['infra'] ); ?>
+			<?php amz_cp_foot( $pn, $brand ); ?>
 		</div>
 	</div>
 
+	<!-- TEAM -->
 	<div class="page">
-		<div class="page-content">
-			<div class="page-orange-bar">Why Choose Us</div>
-			<div class="page-pad">
-				<ul class="page-why">
-					<li><strong>Design + press under one roof</strong><span>Artwork and production stay aligned.</span></li>
-					<li><strong>Tracked production</strong><span>Know where every job stands.</span></li>
-					<li><strong>Local branches</strong><span>Visit or WhatsApp for fast quotes.</span></li>
-					<li><strong>NADRA facilitation</strong><span>Authorized e-services with trained staff.</span></li>
-					<li><strong>Brand continuity</strong><span>Same visual language from print to digital.</span></li>
-					<li><strong>Quality checks</strong><span>Every station before handover.</span></li>
-				</ul>
+		<div class="page-content cp cp--team">
+			<p class="cp-kicker">Our Team</p>
+			<h2 class="cp-h2">Human Resources</h2>
+			<div class="cp-stat-grid">
+				<?php foreach ( $id['workforce'] as $row ) : ?>
+					<div class="cp-stat"><strong><?php echo esc_html( $row[0] ); ?></strong><span><?php echo esc_html( $row[1] ); ?></span></div>
+				<?php endforeach; ?>
 			</div>
-			<span class="page-spine-bar page-spine-bar--right" aria-hidden="true"></span>
-			<p class="page-footer-num"><?php echo esc_html( sprintf( '%02d', $pn++ ) ); ?></p>
+			<h3 class="cp-h3">Departments</h3>
+			<?php amz_cp_chips( $id['departments'] ); ?>
+			<?php amz_cp_foot( $pn, $brand ); ?>
 		</div>
 	</div>
 
+	<!-- TECH & ERP -->
 	<div class="page">
-		<div class="page-content">
-			<span class="page-spine-bar page-spine-bar--left" aria-hidden="true"></span>
-			<div class="page-orange-bar">Branches & Contact</div>
-			<div class="page-pad">
-				<ul class="page-branches">
-					<li><strong>Bahria Town Phase 8</strong><span>Rawalpindi (Coming Soon)</span></li>
-					<li><strong>Mandi Bahauddin</strong><span>Punjab, Pakistan</span></li>
-					<li><strong>Johar Town</strong><span>Lahore</span></li>
-				</ul>
-				<div class="page-contact">
-					<p><strong><?php echo esc_html( $c['legal'] ); ?></strong></p>
-					<p><?php echo esc_html( $c['company'] ); ?></p>
-					<?php if ( $c['phone'] ) : ?><p><?php echo esc_html( $c['phone'] ); ?></p><?php endif; ?>
-					<?php if ( $c['email'] ) : ?><p><?php echo esc_html( $c['email'] ); ?></p><?php endif; ?>
-					<p><?php echo esc_html( $c['site_url'] ); ?></p>
-					<p><?php echo esc_html( $c['hours'] ); ?></p>
-				</div>
-				<div class="page-qr-row">
-					<figure class="page-hover-lift">
-						<img src="<?php echo esc_url( amz_prints_qr_url( $c['site_url'], 160 ) ); ?>" alt="">
-						<figcaption>Website</figcaption>
+		<div class="page-content cp cp--tech">
+			<p class="cp-kicker">Technology</p>
+			<h2 class="cp-h2">Systems &amp; ERP</h2>
+			<p class="cp-lead">Modern systems keep jobs tracked — from enquiry to dispatch.</p>
+			<h3 class="cp-h3">Technology &amp; Systems</h3>
+			<?php amz_cp_checklist( $id['tech'] ); ?>
+			<h3 class="cp-h3">ERP Modules</h3>
+			<?php amz_cp_chips( $id['erp'] ); ?>
+			<?php amz_cp_foot( $pn, $brand ); ?>
+		</div>
+	</div>
+
+	<!-- QUALITY -->
+	<div class="page">
+		<div class="page-content cp cp--quality">
+			<div class="cp-band">Quality Policy</div>
+			<div class="cp-chapter-body">
+				<p class="cp-lead">Every job passes through design, production and finishing checks before handover.</p>
+				<?php amz_cp_checklist( $id['quality'] ); ?>
+			</div>
+			<?php amz_cp_foot( $pn, $brand ); ?>
+		</div>
+	</div>
+
+	<!-- SEGMENTS & MARKETS -->
+	<div class="page">
+		<div class="page-content cp cp--markets">
+			<p class="cp-kicker">Markets</p>
+			<h2 class="cp-h2">Industries We Serve</h2>
+			<?php amz_cp_chips( $id['segments'] ); ?>
+			<h3 class="cp-h3">Primary Market</h3>
+			<?php amz_cp_chips( $id['markets'] ); ?>
+			<h3 class="cp-h3">Expansion Focus</h3>
+			<?php amz_cp_chips( $id['expansion'] ); ?>
+			<?php amz_cp_foot( $pn, $brand ); ?>
+		</div>
+	</div>
+
+	<!-- PORTFOLIO -->
+	<div class="page">
+		<div class="page-content cp cp--portfolio">
+			<p class="cp-kicker">Portfolio</p>
+			<h2 class="cp-h2">Selected Work</h2>
+			<div class="cp-folio">
+				<?php foreach ( array_slice( $portfolio, 0, 6 ) as $item ) : ?>
+					<figure>
+						<img src="<?php echo esc_url( $item['img'] ); ?>" alt="">
+						<figcaption><?php echo esc_html( $item['title'] ); ?></figcaption>
 					</figure>
-					<figure class="page-hover-lift">
-						<img src="<?php echo esc_url( amz_prints_qr_url( $c['wa_link'], 160 ) ); ?>" alt="">
-						<figcaption>WhatsApp</figcaption>
-					</figure>
-				</div>
+				<?php endforeach; ?>
 			</div>
-			<p class="page-footer-num"><?php echo esc_html( sprintf( '%02d', $pn++ ) ); ?></p>
+			<?php amz_cp_foot( $pn, $brand ); ?>
 		</div>
 	</div>
 
-	<div class="page page--hard page--cover-print" data-density="hard">
-		<div class="page-content page-content--cover page-content--back">
-			<p class="page-cover__short"><?php echo esc_html( $c['company'] ); ?></p>
-			<h2><?php echo esc_html( $c['legal'] ); ?></h2>
-			<p class="page-cover__tag"><?php echo esc_html( $c['site_url'] ); ?></p>
-			<p class="page-cover__tag">Thank you for considering us</p>
+	<!-- WHY US -->
+	<div class="page">
+		<div class="page-content cp cp--why">
+			<div class="cp-band">Why Choose Us</div>
+			<div class="cp-chapter-body">
+				<ol class="cp-why-list">
+					<?php foreach ( $id['why'] as $i => $w ) : ?>
+						<li><b><?php echo esc_html( sprintf( '%02d', $i + 1 ) ); ?></b><span><?php echo esc_html( $w ); ?></span></li>
+					<?php endforeach; ?>
+				</ol>
+			</div>
+			<?php amz_cp_foot( $pn, $brand ); ?>
+		</div>
+	</div>
+
+	<!-- GROUP -->
+	<div class="page">
+		<div class="page-content cp cp--group">
+			<p class="cp-kicker">Group Companies</p>
+			<h2 class="cp-h2">Associated Companies</h2>
+			<?php foreach ( $id['group'] as $g ) : ?>
+				<article class="cp-group-card">
+					<strong><?php echo esc_html( $g['name'] ); ?></strong>
+					<p><?php echo esc_html( $g['desc'] ); ?></p>
+				</article>
+			<?php endforeach; ?>
+			<p class="cp-note">Presented as group / associated companies subject to confirming exact legal relationships.</p>
+			<?php amz_cp_foot( $pn, $brand ); ?>
+		</div>
+	</div>
+
+	<!-- ONLINE + CONTACT -->
+	<div class="page">
+		<div class="page-content cp cp--contact">
+			<div class="cp-band">Contact Us</div>
+			<div class="cp-contact-block">
+				<p><strong><?php echo esc_html( $id['registered'] ); ?></strong></p>
+				<p><?php echo esc_html( $brand ); ?></p>
+				<p><?php echo esc_html( $id['hq'] ); ?></p>
+				<p>WhatsApp: <?php echo esc_html( $id['wa_display'] ); ?></p>
+				<p>Website: <?php echo esc_html( $id['website'] ); ?></p>
+				<?php if ( $id['email'] ) : ?><p>Email: <?php echo esc_html( $id['email'] ); ?></p><?php endif; ?>
+				<?php if ( $id['phone'] ) : ?><p>Phone: <?php echo esc_html( $id['phone'] ); ?></p><?php endif; ?>
+				<p><?php echo esc_html( $id['hours'] ); ?></p>
+			</div>
+			<h3 class="cp-h3">Online Presence</h3>
+			<?php amz_cp_chips( $id['online'] ); ?>
+			<div class="cp-qr">
+				<figure>
+					<img src="<?php echo esc_url( amz_prints_qr_url( $id['site_url'], 140 ) ); ?>" alt="">
+					<figcaption>Website</figcaption>
+				</figure>
+				<figure>
+					<img src="<?php echo esc_url( amz_prints_qr_url( $id['wa_link'], 140 ) ); ?>" alt="">
+					<figcaption>WhatsApp</figcaption>
+				</figure>
+			</div>
+			<?php amz_cp_foot( $pn, $brand ); ?>
+		</div>
+	</div>
+
+	<!-- BACK COVER -->
+	<div class="page page--hard" data-density="hard">
+		<div class="page-content cp cp--back cp--cover-print">
+			<p class="cp-cover__brand"><?php echo esc_html( $brand ); ?></p>
+			<h2 class="cp-cover__title"><?php echo esc_html( $id['registered'] ); ?></h2>
+			<div class="cp-cover__rule"></div>
+			<p class="cp-cover__tag"><?php echo esc_html( $id['website'] ); ?></p>
+			<p class="cp-cover__loc">WhatsApp <?php echo esc_html( $id['wa_display'] ); ?></p>
+			<p class="cp-cover__tag">Thank you</p>
 		</div>
 	</div>
 

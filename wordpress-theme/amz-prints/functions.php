@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AMZ_PRINTS_VERSION', '3.1.0' );
+define( 'AMZ_PRINTS_VERSION', '3.2.0' );
 
 /**
  * Avoid long Hostinger CDN HTML cache hiding theme updates.
@@ -49,6 +49,8 @@ define( 'AMZ_PRINTS_URI', get_template_directory_uri() );
 
 require_once AMZ_PRINTS_DIR . '/inc/services-catalog.php';
 require_once AMZ_PRINTS_DIR . '/inc/company-catalog.php';
+require_once AMZ_PRINTS_DIR . '/inc/catalog-profile-data.php';
+require_once AMZ_PRINTS_DIR . '/inc/catalog-page-helpers.php';
 require_once AMZ_PRINTS_DIR . '/inc/catalog-book-ui.php';
 require_once AMZ_PRINTS_DIR . '/inc/enqueue.php';
 require_once AMZ_PRINTS_DIR . '/inc/customizer.php';
@@ -306,12 +308,12 @@ add_action( 'after_switch_theme', 'amz_prints_after_switch' );
  * Create missing pages on upgrade (fixes Services 404 without re-activating theme)
  */
 function amz_prints_maybe_upgrade_pages() {
-	if ( get_option( 'amz_prints_pages_ver' ) === '3.1.0' ) {
+	if ( get_option( 'amz_prints_pages_ver' ) === '3.2.0' ) {
 		return;
 	}
 	amz_prints_ensure_pages();
 	flush_rewrite_rules( false );
-	update_option( 'amz_prints_pages_ver', '3.1.0' );
+	update_option( 'amz_prints_pages_ver', '3.2.0' );
 }
 add_action( 'init', 'amz_prints_maybe_upgrade_pages', 20 );
 

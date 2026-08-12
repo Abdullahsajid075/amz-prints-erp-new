@@ -37,7 +37,7 @@ function amz_prints_flipbook_shell_open( $args = array() ) {
 				<a class="btn btn--ghost" href="<?php echo esc_url( home_url( '/company-profile/' ) ); ?>"><?php esc_html_e( 'All books', 'amz-prints' ); ?></a>
 			</div>
 		</div>
-		<p class="catalog-toolbar__hint" id="amz-catalog-status"><?php esc_html_e( 'Hover a page corner to fold · Click left or right page to turn · Feels like a real book', 'amz-prints' ); ?></p>
+		<p class="catalog-toolbar__hint" id="amz-catalog-status"><?php esc_html_e( 'Click the left or right page to turn · Drag the page edge · Download PDF anytime', 'amz-prints' ); ?></p>
 	</div>
 
 	<div class="book-room book-room--wood">
@@ -55,10 +55,10 @@ function amz_prints_flipbook_shell_close() {
 	?>
 				</div><!-- #amz-flipbook -->
 			</div>
-			<p class="book-desk__hint no-print"><?php esc_html_e( 'Drag or click the page edge to flip — just like a printed catalog.', 'amz-prints' ); ?></p>
+			<p class="book-desk__hint no-print"><?php esc_html_e( 'Click or drag the page edge to flip — classic portrait catalog.', 'amz-prints' ); ?></p>
 		</div>
 	</div>
-	<!-- Off-screen landscape sheets for reliable PDF capture -->
+	<!-- Off-screen portrait sheets for PDF capture -->
 	<div id="amz-pdf-export" class="amz-pdf-export" aria-hidden="true"></div>
 	<?php
 }
