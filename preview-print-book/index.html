@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Amazon Printings Pvt Ltd — Print Book Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --orange: #F26522;
+  --orange-deep: #D45512;
+  --ink: #0E141B;
+  --black: #07090c;
+  --paper: #f4f1ec;
+  --muted: #9aa3ae;
+  --display: "Unbounded", sans-serif;
+  --body: "Manrope", sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: var(--body);
+  background: #12151a;
+  color: #fff;
+  overflow: hidden;
+}
+.bar {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  background: #0E141B;
+  border-bottom: 1px solid rgba(242,101,34,.25);
+}
+.bar strong { font-family: var(--display); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; }
+.bar span { color: var(--muted); font-size: 13px; }
+.nav { display: flex; gap: 8px; align-items: center; }
+.nav button {
+  background: transparent;
+  color: #fff;
+  border: 1px solid rgba(255,255,255,.2);
+  padding: 8px 14px;
+  font-family: var(--body);
+  font-weight: 700;
+  cursor: pointer;
+}
+.nav button.primary { background: var(--orange); border-color: var(--orange); color: #fff; }
+.stage {
+  height: calc(100% - 64px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(242,101,34,.12), transparent 50%),
+    #1a1e24;
+}
+.spread {
+  display: none;
+  gap: 0;
+  filter: drop-shadow(0 30px 50px rgba(0,0,0,.55));
+}
+.spread.is-on { display: flex; }
+.page {
+  width: min(38vw, 420px);
+  height: min(76vh, 620px);
+  position: relative;
+  overflow: hidden;
+  background: var(--ink);
+}
+.page--cover, .page--back { width: min(42vw, 460px); }
+.bleed {
+  position: absolute; inset: 0;
+  background-size: cover;
+  background-position: center;
+}
+.bleed::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, transparent 45%, rgba(7,9,12,.75));
+}
+.cap {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 18px 22px;
+  z-index: 2;
+  font-size: 12px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: #fff;
+}
+.cap b { color: var(--orange); display: block; font-size: 11px; margin-bottom: 4px; }
+
+.cover {
+  background: var(--black);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 36px 32px 40px;
+  border: 1px solid rgba(242,101,34,.35);
+}
+.cover .photo {
+  position: absolute; inset: 0;
+  background-size: cover; background-position: center;
+  opacity: .38;
+  filter: grayscale(.35) contrast(1.1);
+}
+.cover .veil {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(7,9,12,.2) 0%, rgba(7,9,12,.55) 40%, rgba(7,9,12,.96) 78%);
+}
+.cover .copy { position: relative; z-index: 2; }
+.cover .year {
+  font-size: 11px; letter-spacing: .28em; text-transform: uppercase; color: var(--orange); font-weight: 800; margin-bottom: 18px;
+}
+.cover h1 {
+  font-family: var(--display);
+  font-size: clamp(28px, 3.4vw, 44px);
+  line-height: .95;
+  font-weight: 800;
+  letter-spacing: -.02em;
+}
+.cover h1 em { font-style: normal; color: var(--orange); display: block; }
+.cover .rule { width: 72px; height: 4px; background: var(--orange); margin: 22px 0 16px; }
+.cover h2 {
+  font-family: var(--body);
+  font-size: 15px;
+  font-weight: 700;
+  color: rgba(255,255,255,.88);
+  line-height: 1.4;
+}
+.cover h2 small {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.text {
+  background: var(--black);
+  padding: 36px 32px 28px;
+  display: flex;
+  flex-direction: column;
+}
+.text .kicker {
+  color: var(--orange);
+  font-size: 11px;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  font-weight: 800;
+  margin-bottom: 14px;
+}
+.text h2 {
+  font-family: var(--display);
+  font-size: clamp(26px, 2.8vw, 38px);
+  line-height: 1.02;
+  margin-bottom: 16px;
+}
+.text p {
+  font-size: 14px;
+  line-height: 1.55;
+  color: rgba(255,255,255,.78);
+  margin-bottom: 12px;
+}
+.text .big {
+  font-family: var(--display);
+  font-size: 18px;
+  line-height: 1.35;
+  color: #fff;
+  margin-bottom: 16px;
+}
+.subs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+  overflow: auto;
+  flex: 1;
+}
+.sub {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: 8px;
+  align-items: center;
+  background: #12161c;
+  border: 1px solid rgba(255,255,255,.06);
+  padding: 6px;
+}
+.sub img { width: 44px; height: 44px; object-fit: cover; display: block; }
+.sub span { font-size: 11px; font-weight: 700; line-height: 1.25; color: #fff; }
+
+.values { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.values div {
+  border: 1px solid rgba(242,101,34,.35);
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.folio { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; height: 100%; padding: 16px; background: var(--black); }
+.folio figure { margin: 0; position: relative; overflow: hidden; }
+.folio img { width: 100%; height: 100%; object-fit: cover; display: block; min-height: 140px; }
+.folio figcaption {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 8px 10px;
+  background: linear-gradient(transparent, rgba(0,0,0,.8));
+  font-size: 11px; font-weight: 800;
+}
+
+.contact { background: var(--black); padding: 36px 32px; }
+.contact h2 { font-family: var(--display); font-size: 32px; margin: 10px 0 18px; }
+.contact p { font-size: 15px; line-height: 1.5; margin: 4px 0; }
+.contact .wa { color: var(--orange); font-weight: 800; font-size: 18px; margin-top: 12px; }
+
+@media (max-width: 900px) {
+  .page, .page--cover, .page--back { width: min(92vw, 420px); height: min(70vh, 560px); }
+  .spread.is-on { flex-direction: column; }
+  .spread .page:nth-child(2) { display: none; }
+  .spread.cover-only .page:nth-child(2) { display: none; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <div>
+    <strong>Print Book Preview</strong>
+    <span> — not WordPress yet · orange + black · real photos</span>
+  </div>
+  <div class="nav">
+    <button type="button" id="prev">← Prev</button>
+    <span id="count">1 / 1</span>
+    <button type="button" class="primary" id="next">Next →</button>
+  </div>
+</header>
+<main class="stage" id="stage"></main>
+
+<script>
+const U = (id, w=1200) => `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${w}&q=80`;
+
+const photos = {
+  press: U('photo-1503694978374-8a2fa23213d6'),
+  shop: U('photo-1562564055-71e051d33c19'),
+  design: U('photo-1626785774573-4b7993143459'),
+  desk: U('photo-1542744173-8e7e53415bb0'),
+  cards: U('photo-1586075010923-2dd4570fb338'),
+  pack: U('photo-1607349913338-fca6f7fc42d0'),
+  merch: U('photo-1529374255404-311a2a4f1fd9'),
+  invite: U('photo-1513885535751-8b9238bd345a'),
+  banner: U('photo-1561070791-2526d30994b5'),
+  car: U('photo-1449965408869-eaa3f722e40d'),
+  van: U('photo-1558618666-fcd25c85cd64'),
+  shirt: U('photo-1576566588028-4147f3842fbc'),
+  mug: U('photo-1514228742587-6b15571aecd0'),
+  box: U('photo-1607349913338-fca6f7fc42d0'),
+  event: U('photo-1540575467063-178a50c2df87'),
+  sign: U('photo-1486406146926-c627a92ad1ab'),
+  label: U('photo-1586495777744-4413f21062fa'),
+  studio: U('photo-1526170375885-4d8ecf77b99f'),
+  team: U('photo-1522071820081-009f0129c71c'),
+  paper: U('photo-1452860606245-08befc0ff44b'),
+  offset: U('photo-1611532736597-de2d4265fba3'),
+  flex: U('photo-1497366216548-37526070297c'),
+  acrylic: U('photo-1497366811353-6870744d04b2'),
+  brand: U('photo-1634942537030-13917416ce1e'),
+};
+
+function imgPage(src, cap, kicker) {
+  return `<div class="page"><div class="bleed" style="background-image:url('${src}')"></div><div class="cap"><b>${kicker || 'Amazon Printings'}</b>${cap}</div></div>`;
+}
+function textPage(kicker, title, html) {
+  return `<div class="page text"><div class="kicker">${kicker}</div><h2>${title}</h2>${html}</div>`;
+}
+function subGrid(items) {
+  return `<div class="subs">${items.map(it => `<div class="sub"><img src="${it.img}" alt=""><span>${it.name}</span></div>`).join('')}</div>`;
+}
+
+const services = [
+  {
+    title: 'Digital Printing',
+    hero: photos.shop,
+    intro: 'Fast, colour-true output for everyday documents and marketing pieces.',
+    items: [
+      ['Color Printing', photos.paper], ['Certificates', photos.cards], ['Brochures', photos.design],
+      ['Flyers', photos.banner], ['Menus', photos.invite], ['Catalogues', photos.desk],
+      ['Reports', photos.paper], ['Company Profiles', photos.design]
+    ]
+  },
+  {
+    title: 'Offset Printing',
+    hero: photos.offset,
+    intro: 'High-volume commercial print for stationery, books and packaging runs.',
+    items: [
+      ['Business Cards', photos.cards], ['Letterheads', photos.paper], ['Envelopes', photos.paper],
+      ['Books', photos.desk], ['Notebooks', photos.paper], ['Bulk Printing', photos.press]
+    ]
+  },
+  {
+    title: 'Large Format',
+    hero: photos.flex,
+    intro: 'Indoor and outdoor campaigns that command attention at street scale.',
+    items: [
+      ['Flex Printing', photos.banner], ['Vinyl Printing', photos.van], ['Banners', photos.event],
+      ['Billboards', photos.sign], ['Shop Branding', photos.acrylic], ['Wall Graphics', photos.banner]
+    ]
+  },
+  {
+    title: 'Signage',
+    hero: photos.acrylic,
+    intro: 'Durable identity for storefronts, offices and wayfinding.',
+    items: [
+      ['Acrylic Boards', photos.acrylic], ['3D Signs', photos.sign], ['LED Signs', photos.sign],
+      ['Light Boxes', photos.banner], ['Shop Signs', photos.acrylic], ['Reception Signs', photos.desk]
+    ]
+  },
+  {
+    title: 'Branding',
+    hero: photos.brand,
+    intro: 'Complete visual identity — from logo systems to brand kits.',
+    items: [
+      ['Logo Design', photos.brand], ['Brand Kit', photos.design], ['Stationery', photos.cards],
+      ['Packaging Design', photos.pack], ['Social Branding', photos.banner], ['Corporate Branding', photos.desk]
+    ]
+  },
+  {
+    title: 'Vehicle Branding',
+    hero: photos.car,
+    intro: 'Moving billboards — wraps and graphics for cars, vans and fleets.',
+    items: [
+      ['Car Branding', photos.car], ['Van Branding', photos.van], ['Truck Branding', photos.van],
+      ['Full Wrap', photos.car], ['Partial Wrap', photos.van], ['Vinyl Graphics', photos.banner]
+    ]
+  },
+  {
+    title: 'Promotional',
+    hero: photos.shirt,
+    intro: 'Wearables and gifts that keep your brand in customers’ hands.',
+    items: [
+      ['T-Shirts', photos.shirt], ['Caps', photos.merch], ['Mugs', photos.mug],
+      ['Bags', photos.pack], ['DTF Printing', photos.shirt], ['Corporate Gifts', photos.merch]
+    ]
+  },
+  {
+    title: 'Cards & Stationery',
+    hero: photos.cards,
+    intro: 'Premium cards, IDs and office stationery with sharp finishing.',
+    items: [
+      ['UV Visiting Cards', photos.cards], ['PVC / ID Cards', photos.cards], ['Wedding Cards', photos.invite],
+      ['Letterheads', photos.paper], ['Envelopes', photos.paper], ['Notebooks', photos.desk]
+    ]
+  },
+  {
+    title: 'Stickers & Labels',
+    hero: photos.label,
+    intro: 'Product and packaging labels with clean cuts and durable adhesives.',
+    items: [
+      ['Vinyl Stickers', photos.label], ['Product Labels', photos.pack], ['Die-Cut', photos.label],
+      ['Transparent', photos.label], ['Barcode Labels', photos.pack], ['Brand Labels', photos.brand]
+    ]
+  },
+  {
+    title: 'Packaging',
+    hero: photos.pack,
+    intro: 'Retail-ready packs that protect products and sell on the shelf.',
+    items: [
+      ['Product Boxes', photos.box], ['Food Packaging', photos.pack], ['Shopping Bags', photos.merch],
+      ['Custom Packs', photos.box], ['Retail Packaging', photos.pack], ['Corporate Packs', photos.desk]
+    ]
+  },
+  {
+    title: 'Exhibition & Events',
+    hero: photos.event,
+    intro: 'Stands, backdrops and event systems for launches and trade shows.',
+    items: [
+      ['Roll-Up Stands', photos.banner], ['Backdrops', photos.event], ['Event Banners', photos.flex],
+      ['Table Displays', photos.desk], ['Step & Repeat', photos.event], ['Event Signage', photos.sign]
+    ]
+  },
+  {
+    title: 'Graphic Design',
+    hero: photos.design,
+    intro: 'Creative that works in print and on screen.',
+    items: [
+      ['Logo Design', photos.brand], ['Posters', photos.banner], ['Flyers', photos.design],
+      ['Catalogues', photos.desk], ['Menus', photos.invite], ['Campaigns', photos.banner]
+    ]
+  },
+  {
+    title: 'Studio & Docs',
+    hero: photos.studio,
+    intro: 'Photos, documents, NADRA facilitation and everyday office services.',
+    items: [
+      ['Passport Photos', photos.studio], ['Photo Printing', photos.studio], ['Scanning', photos.paper],
+      ['NADRA E-Services', photos.desk], ['CV Design', photos.design], ['Office Docs', photos.paper]
+    ]
+  }
+];
+
+const spreads = [];
+
+spreads.push({
+  cover: true,
+  html: `<div class="spread cover-only">
+    <div class="page page--cover cover">
+      <div class="photo" style="background-image:url('${photos.press}')"></div>
+      <div class="veil"></div>
+      <div class="copy">
+        <p class="year">Official Profile 2026</p>
+        <h1>Amazon<br>Printings<br><em>Pvt Ltd</em></h1>
+        <div class="rule"></div>
+        <h2>Company Profile
+          <small>(Printing and Designing Services)</small>
+        </h2>
+      </div>
+    </div>
+  </div>`
+});
+
+spreads.push({
+  html: `<div class="spread">
+    ${imgPage(photos.shop, 'King Road, Mandi Bahauddin', 'Head Office')}
+    ${textPage('01 — The Company', 'Print. Brand.<br>Deliver.', `
+      <p class="big">Amazon Printings Pvt Ltd — trading as Amazon Printing Services — is a full-service print, branding and advertising house.</p>
+      <p>From King Chowk / King Road, Mandi Bahauddin, we produce commercial print, large-format campaigns, signage, vehicle branding, packaging and graphic design under one roof.</p>
+      <p>CEO Muhammad Abdullah Sajid · WhatsApp 0327-6650001 · amzprints.com</p>`)}
+  </div>`
+});
+
+spreads.push({
+  html: `<div class="spread">
+    ${imgPage(photos.desk, 'Leadership', '02')}
+    ${textPage('02 — CEO Message', 'Craft you can trust.', `
+      <p class="big">Every brand deserves print that feels intentional — sharp colour, reliable timelines, and creative that earns repeat work.</p>
+      <p>Whether you need a visiting card or a complete branding system, we deliver with professionalism and care.</p>
+      <p><strong style="color:#F26522">Muhammad Abdullah Sajid</strong><br>Chief Executive Officer</p>`)}
+  </div>`
+});
+
+spreads.push({
+  html: `<div class="spread">
+    ${imgPage(photos.press, 'Direction', '03')}
+    ${textPage('03 — Vision & Mission', 'Built to lead.', `
+      <p class="big">Vision</p>
+      <p>To become a trusted and leading printing, branding, advertising and digital solutions company in Pakistan and international markets.</p>
+      <p class="big" style="margin-top:12px">Mission</p>
+      <p>Professional printing, branding, design and advertising through modern technology, skilled people, quality materials and customer-focused service.</p>`)}
+  </div>`
+});
+
+spreads.push({
+  html: `<div class="spread">
+    ${imgPage(photos.design, 'How we work', '04')}
+    ${textPage('04 — Core Values', 'Orange standard.', `
+      <div class="values">
+        ${['Quality','Customer Satisfaction','Innovation','Reliability','Professionalism','Integrity','Creativity','Timely Delivery','Continuous Improvement','Technology'].map(v=>`<div>${v}</div>`).join('')}
+      </div>`)}
+  </div>`
+});
+
+services.forEach((s, i) => {
+  const items = s.items.map(([name, img]) => ({ name, img: img.replace('w=1200','w=200') }));
+  spreads.push({
+    html: `<div class="spread">
+      ${imgPage(s.hero, s.title, String(i+5).padStart(2,'0'))}
+      ${textPage('Service', s.title, `<p class="big">${s.intro}</p>${subGrid(items)}`)}
+    </div>`
+  });
+});
+
+spreads.push({
+  html: `<div class="spread">
+    ${imgPage(photos.press, 'In-house production', 'Production')}
+    ${textPage('Facilities', 'Made on our floor.', `
+      <p class="big">Digital, offset, large format, signage, acrylic, vinyl, DTF, finishing and quality control — under one roof.</p>
+      ${subGrid([
+        ['Digital Unit', photos.shop],['Offset', photos.offset],['Large Format', photos.flex],
+        ['Signage', photos.acrylic],['DTF', photos.shirt],['Finishing', photos.cards]
+      ])}`)}
+  </div>`
+});
+
+spreads.push({
+  html: `<div class="spread">
+    ${imgPage(photos.team, 'People behind the press', 'Team')}
+    ${textPage('Human Resources', 'A working house.', `
+      <p class="big">13 production · 7 office · marketing pair · 6 design interns · 4 female office staff.</p>
+      <p>Departments: Management, Design, Digital, Offset, Large Format, Signage, Finishing, Sales, Marketing, Support, IT, Accounts.</p>`)}
+  </div>`
+});
+
+spreads.push({
+  html: `<div class="spread">
+    <div class="page folio">
+      <figure><img src="${photos.cards}" alt=""><figcaption>Stationery</figcaption></figure>
+      <figure><img src="${photos.pack}" alt=""><figcaption>Packaging</figcaption></figure>
+      <figure><img src="${photos.banner}" alt=""><figcaption>Campaigns</figcaption></figure>
+      <figure><img src="${photos.shirt}" alt=""><figcaption>Promotional</figcaption></figure>
+    </div>
+    <div class="page folio">
+      <figure><img src="${photos.car}" alt=""><figcaption>Vehicle</figcaption></figure>
+      <figure><img src="${photos.event}" alt=""><figcaption>Events</figcaption></figure>
+      <figure><img src="${photos.acrylic}" alt=""><figcaption>Signage</figcaption></figure>
+      <figure><img src="${photos.invite}" alt=""><figcaption>Invitations</figcaption></figure>
+    </div>
+  </div>`
+});
+
+spreads.push({
+  html: `<div class="spread">
+    ${imgPage(photos.shop, 'Why Amazon Printing Services', 'Choose us')}
+    ${textPage('Why us', 'One roof. Full finish.', `
+      <p class="big">Print + branding + design from one company. Fast turnaround. Colour that matches. Local WhatsApp support.</p>
+      <p>Corporate, retail, schools, hospitals, restaurants, real estate, agencies and government work — Mandi Bahauddin, Punjab, Pakistan.</p>`)}
+  </div>`
+});
+
+spreads.push({
+  html: `<div class="spread">
+    ${imgPage(photos.sign, 'King Chowk / King Road', 'Visit')}
+    <div class="page contact">
+      <div class="kicker" style="color:#F26522;font-size:11px;letter-spacing:.22em;text-transform:uppercase;font-weight:800">Contact</div>
+      <h2>Let’s print.</h2>
+      <p>Amazon Printings Pvt Ltd</p>
+      <p>Amazon Printing Services</p>
+      <p>King Chowk / King Road<br>Mandi Bahauddin, Pakistan</p>
+      <p class="wa">WhatsApp 0327-6650001</p>
+      <p>amzprints.com</p>
+    </div>
+  </div>`
+});
+
+spreads.push({
+  cover: true,
+  html: `<div class="spread cover-only">
+    <div class="page page--back cover">
+      <div class="photo" style="background-image:url('${photos.press}')"></div>
+      <div class="veil"></div>
+      <div class="copy">
+        <h1>Amazon<br>Printings</h1>
+        <div class="rule"></div>
+        <h2>amzprints.com
+          <small>WhatsApp 0327-6650001</small>
+        </h2>
+      </div>
+    </div>
+  </div>`
+});
+
+const stage = document.getElementById('stage');
+stage.innerHTML = spreads.map(s => s.html).join('');
+const nodes = [...stage.querySelectorAll('.spread')];
+let i = 0;
+function show() {
+  nodes.forEach((n, idx) => n.classList.toggle('is-on', idx === i));
+  document.getElementById('count').textContent = (i+1) + ' / ' + nodes.length;
+}
+document.getElementById('next').onclick = () => { i = Math.min(nodes.length-1, i+1); show(); };
+document.getElementById('prev').onclick = () => { i = Math.max(0, i-1); show(); };
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight') document.getElementById('next').click();
+  if (e.key === 'ArrowLeft') document.getElementById('prev').click();
+});
+show();
+</script>
+</body>
+</html>
