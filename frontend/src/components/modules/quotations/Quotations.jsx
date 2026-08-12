@@ -8,6 +8,8 @@ import { quotationsAPI } from '@/services/api';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
+import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
+import { openWhatsAppChat } from '@/services/notifications';
 import { useBrand } from '@/context/BrandContext';
 import { Plus, Search, Eye, Edit, Trash2, Printer, FileText } from 'lucide-react';
 import { toast } from 'sonner';
@@ -22,7 +24,7 @@ const QUOTATION_SORT_OPTS = [
 
 const Quotations = () => {
   const navigate = useNavigate();
-  const { primary } = useBrand();
+  const { primary, company } = useBrand();
   const [quotations, setQuotations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -64,6 +66,37 @@ const Quotations = () => {
     status: (q) => q.status || '',
   }), [filtered, sort]);
 
+  const sendFollowUp = async (q) => {
+    try {
+      const full = q.customerPhone ? q : (await quotationsAPI.getById(q.id)).data;
+      const phone = full?.customerPhone || '';
+      if (!phone) {
+        toast.error('Customer phone missing — add phone to follow up');
+        return;
+      }
+      const name = full.customerName || 'Customer';
+      const quoteNo = full.orderId || full.quotationId || full.id || '';
+      const amount = formatCurrency(full.totalAmount || 0);
+      const companyName = company?.name || 'Amazon Printing Services';
+      const msg = (
+        `Dear ${name},\n\n`
+        + `*Soft follow-up — Quotation*\n\n`
+        + `Just checking in regarding quotation *${quoteNo}*`
+        + (Number(full.totalAmount) > 0 ? ` (Total: ${amount})` : '')
+        + `.\n\n`
+        + `Please let us know if you would like to proceed, need any changes, or have questions.\n\n`
+        + `We are ready to start as soon as you confirm.\n\n`
+        + `Thank you.\n${companyName}`
+      );
+      const result = openWhatsAppChat(phone, msg);
+      if (!result.ok) toast.error('Could not open WhatsApp');
+      else toast.message('Follow-up opened — tap Send');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to open follow-up');
+    }
+  };
+
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this quotation?')) return;
     try {
@@ -90,7 +123,7 @@ const Quotations = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold" style={{ color: '#2E2E2E' }}>Quotations</h1>
-          <p className="text-gray-600 mt-1">Create quotes, convert to orders, print</p>
+          <p className="text-gray-600 mt-1">Create quotes, follow up, convert to orders, print</p>
         </div>
         <Button
           onClick={() => navigate('/quotations/new')}
@@ -157,6 +190,17 @@ const Quotations = () => {
                       </td>
                       <td className="py-2.5 px-3 text-right">
                         <div className="flex items-center gap-1 justify-end">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-xs gap-1 border-green-200 text-green-700 hover:bg-green-50"
+                            title="Follow up on WhatsApp"
+                            data-testid={`quotation-followup-${q.id}`}
+                            onClick={() => sendFollowUp(q)}
+                          >
+                            <WhatsAppIcon className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline">Follow up</span>
+                          </Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8" title="View / Edit" onClick={() => navigate(`/quotations/${q.id}/edit`)}>
                             <Edit className="h-4 w-4" />
                           </Button>

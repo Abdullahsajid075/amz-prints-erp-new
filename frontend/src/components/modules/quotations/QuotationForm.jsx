@@ -7,8 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { quotationsAPI, productsAPI, ordersAPI, customersAPI } from '@/services/api';
-import { applyServerNotificationHint, notifyOrderEvent } from '@/services/notifications';
+import { applyServerNotificationHint, notifyOrderEvent, openWhatsAppChat } from '@/services/notifications';
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
+import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { formatCurrency } from '@/utils/helpers';
 import { useBrand } from '@/context/BrandContext';
 import { ArrowLeft, Plus, Trash2, Save, ShoppingCart, Printer, FileText, PackagePlus } from 'lucide-react';
@@ -204,6 +205,30 @@ const QuotationForm = ({ printMode = false }) => {
     } catch (err) {
       console.warn('Quotation notify failed', err);
     }
+  };
+
+  const sendFollowUp = () => {
+    const phone = form.customerPhone || '';
+    if (!phone) {
+      toast.error('Customer phone missing — add phone to follow up');
+      return;
+    }
+    const name = form.customerName || 'Customer';
+    const quoteNo = form.orderId || quotationId || '';
+    const companyName = company?.name || 'Amazon Printing Services';
+    const msg = (
+      `Dear ${name},\n\n`
+      + `*Soft follow-up — Quotation*\n\n`
+      + `Just checking in regarding quotation *${quoteNo}*`
+      + (total > 0 ? ` (Total: ${formatCurrency(total)})` : '')
+      + `.\n\n`
+      + `Please let us know if you would like to proceed, need any changes, or have questions.\n\n`
+      + `We are ready to start as soon as you confirm.\n\n`
+      + `Thank you.\n${companyName}`
+    );
+    const result = openWhatsAppChat(phone, msg);
+    if (!result.ok) toast.error('Could not open WhatsApp');
+    else toast.message('Follow-up opened — tap Send');
   };
 
   const handleSave = async () => {
@@ -442,6 +467,18 @@ const QuotationForm = ({ printMode = false }) => {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            {isEdit && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-green-700 border-green-200 hover:bg-green-50"
+                onClick={sendFollowUp}
+                data-testid="quotation-followup-button"
+              >
+                <WhatsAppIcon className="h-4 w-4 mr-1.5" />
+                Follow up
+              </Button>
+            )}
             {isEdit && (
               <Button variant="outline" size="sm" onClick={() => navigate(`/quotations/${quotationId}/print`)}>
                 <Printer className="h-4 w-4 mr-1.5" />Print
