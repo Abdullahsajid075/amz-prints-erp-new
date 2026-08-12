@@ -1,95 +1,112 @@
 /**
- * Premium flip-book viewer for company profile catalogs.
- * Left half click = previous page, right half = next page.
+ * Real flip-book via StPageFlip — hover fold, click to turn, auto-open.
  */
 (function () {
   'use strict';
 
-  var stage = document.getElementById('amz-flipbook');
-  if (!stage) return;
+  var bookEl = document.getElementById('amz-flipbook');
+  if (!bookEl || !window.St || !St.PageFlip) {
+    console.error('StPageFlip missing');
+    return;
+  }
 
-  var pages = Array.prototype.slice.call(stage.querySelectorAll('.catalog-page'));
+  var pages = bookEl.querySelectorAll('.page');
   if (!pages.length) return;
 
-  var idx = 0;
-  var flipping = false;
-  var counter = document.getElementById('amz-flip-counter');
-  var btnPrev = document.getElementById('amz-flip-prev');
-  var btnNext = document.getElementById('amz-flip-next');
-  var hitLeft = document.getElementById('amz-flip-hit-left');
-  var hitRight = document.getElementById('amz-flip-hit-right');
-
-  function updateUI() {
-    pages.forEach(function (p, i) {
-      p.classList.toggle('is-active', i === idx);
-      p.classList.toggle('is-passed', i < idx);
-      p.setAttribute('aria-hidden', i === idx ? 'false' : 'true');
+  // Preserve pristine HTML for PDF export (StPageFlip wraps/mutates live nodes).
+  var source = document.getElementById('amz-page-source');
+  if (!source) {
+    source = document.createElement('div');
+    source.id = 'amz-page-source';
+    source.setAttribute('aria-hidden', 'true');
+    source.style.cssText = 'position:absolute;left:-99999px;top:0;width:1px;height:1px;overflow:hidden;';
+    Array.prototype.forEach.call(pages, function (p) {
+      source.appendChild(p.cloneNode(true));
     });
-    if (counter) {
-      counter.textContent = (idx + 1) + ' / ' + pages.length;
-    }
-    if (btnPrev) btnPrev.disabled = idx <= 0;
-    if (btnNext) btnNext.disabled = idx >= pages.length - 1;
+    document.body.appendChild(source);
   }
 
-  function go(to, dir) {
-    if (flipping) return;
-    if (to < 0 || to >= pages.length || to === idx) return;
-    flipping = true;
-    var current = pages[idx];
-    var next = pages[to];
-    var outClass = dir < 0 ? 'flip-out-right' : 'flip-out-left';
-    var inClass = dir < 0 ? 'flip-in-left' : 'flip-in-right';
+  var counter = document.getElementById('amz-flip-counter');
+  var pageFlip = null;
 
-    current.classList.add(outClass);
-    next.classList.add('is-active', inClass);
-
-    window.setTimeout(function () {
-      current.classList.remove('is-active', outClass);
-      next.classList.remove(inClass);
-      idx = to;
-      flipping = false;
-      updateUI();
-    }, 520);
+  function pageSize() {
+    var maxW = Math.min(520, Math.floor(window.innerWidth * 0.42));
+    if (window.innerWidth < 720) {
+      maxW = Math.min(360, Math.floor(window.innerWidth * 0.88));
+    }
+    var h = Math.round(maxW * 1.414); // A4 portrait ratio
+    var maxH = Math.floor(window.innerHeight * 0.72);
+    if (h > maxH) {
+      h = maxH;
+      maxW = Math.round(h / 1.414);
+    }
+    return { width: maxW, height: h };
   }
 
-  function next() { go(idx + 1, 1); }
-  function prev() { go(idx - 1, -1); }
-
-  if (hitLeft) hitLeft.addEventListener('click', prev);
-  if (hitRight) hitRight.addEventListener('click', next);
-  if (btnPrev) btnPrev.addEventListener('click', prev);
-  if (btnNext) btnNext.addEventListener('click', next);
-
-  document.addEventListener('keydown', function (e) {
-    if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
-      e.preventDefault();
-      prev();
-    } else if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
-      e.preventDefault();
-      next();
+  function init() {
+    var size = pageSize();
+    if (pageFlip) {
+      try { pageFlip.destroy(); } catch (e) {}
+      pageFlip = null;
     }
+
+    pageFlip = new St.PageFlip(bookEl, {
+      width: size.width,
+      height: size.height,
+      size: 'fixed',
+      minWidth: 280,
+      maxWidth: 600,
+      minHeight: 400,
+      maxHeight: 850,
+      drawShadow: true,
+      flippingTime: 900,
+      usePortrait: window.innerWidth < 720,
+      startPage: 0,
+      autoSize: false,
+      maxShadowOpacity: 0.45,
+      showCover: true,
+      mobileScrollSupport: true,
+      clickEventForward: true,
+      useMouseEvents: true,
+      swipeDistance: 30,
+      showPageCorners: true,
+      disableFlipByClick: false
+    });
+
+    pageFlip.loadFromHTML(bookEl.querySelectorAll('.page'));
+    window.amzPageFlip = pageFlip;
+
+    function syncCounter() {
+      if (!counter || !pageFlip) return;
+      var cur = pageFlip.getCurrentPageIndex() + 1;
+      var total = pageFlip.getPageCount();
+      counter.textContent = cur + ' / ' + total;
+    }
+
+    pageFlip.on('flip', syncCounter);
+    pageFlip.on('changeState', syncCounter);
+    syncCounter();
+
+    document.body.classList.add('flipbook-ready', 'flipbook-open');
+  }
+
+  // Wait fonts/images briefly so first paint is clean
+  window.setTimeout(init, 120);
+
+  var resizeTimer;
+  window.addEventListener('resize', function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(init, 250);
   });
 
-  // Touch swipe
-  var touchX = null;
-  stage.addEventListener('touchstart', function (e) {
-    touchX = e.changedTouches[0].screenX;
-  }, { passive: true });
-  stage.addEventListener('touchend', function (e) {
-    if (touchX === null) return;
-    var dx = e.changedTouches[0].screenX - touchX;
-    touchX = null;
-    if (Math.abs(dx) < 40) return;
-    if (dx > 0) prev();
-    else next();
-  }, { passive: true });
-
-  // Open cover animation once
-  document.body.classList.add('flipbook-ready');
-  window.setTimeout(function () {
-    document.body.classList.add('flipbook-open');
-  }, 80);
-
-  updateUI();
+  document.addEventListener('keydown', function (e) {
+    if (!pageFlip) return;
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+      e.preventDefault();
+      pageFlip.flipNext();
+    } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+      e.preventDefault();
+      pageFlip.flipPrev();
+    }
+  });
 })();

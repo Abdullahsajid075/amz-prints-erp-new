@@ -15,12 +15,19 @@ function amz_prints_enqueue_assets() {
 	wp_enqueue_style( 'amz-prints-fonts', $fonts, array(), null );
 	wp_enqueue_style( 'amz-prints-main', AMZ_PRINTS_URI . '/assets/css/main.css', array( 'amz-prints-fonts' ), AMZ_PRINTS_VERSION );
 
-	// Catalog PDF books — CSS only + flipbook + PDF script (no commerce/popup noise).
+	// Catalog flip-books — StPageFlip + PDF export (no commerce/popup scripts).
 	if ( amz_prints_is_catalog_book() ) {
+		wp_enqueue_script(
+			'amz-prints-pageflip',
+			AMZ_PRINTS_URI . '/assets/js/vendor/page-flip.browser.min.js',
+			array(),
+			'2.0.7',
+			true
+		);
 		wp_enqueue_script(
 			'amz-prints-catalog-flipbook',
 			AMZ_PRINTS_URI . '/assets/js/catalog-flipbook.js',
-			array(),
+			array( 'amz-prints-pageflip' ),
 			AMZ_PRINTS_VERSION,
 			true
 		);
