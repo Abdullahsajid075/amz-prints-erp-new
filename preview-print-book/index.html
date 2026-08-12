@@ -313,13 +313,13 @@ body {
 <main class="stage" id="stage"></main>
 
 <script>
-const FALLBACK = 'https://images.unsplash.com/photo-1503694978374-8a2fa23213d6?auto=format&fit=crop&w=1200&q=80';
+const FALLBACK = 'https://images.unsplash.com/photo-1562564055-71e051d33c19?auto=format&fit=crop&w=1200&q=80';
 const U = (id, w=1400) => `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${w}&q=80`;
 
 const photos = {
-  press:   U('photo-1503694978374-8a2fa23213d6'),
+  press:   U('photo-1581092160562-40aa08e78837'),
   shop:    U('photo-1562564055-71e051d33c19'),
-  design:  U('photo-1626785774573-4b7993143459'),
+  design:  U('photo-1519389950473-47ba0277781c'),
   desk:    U('photo-1542744173-8e7e53415bb0'),
   cards:   U('photo-1586075010923-2dd4570fb338'),
   pack:    U('photo-1607349913338-fca6f7fc42d0'),
@@ -327,9 +327,9 @@ const photos = {
   invite:  U('photo-1513885535751-8b9238bd345a'),
   banner:  U('photo-1561070791-2526d30994b5'),
   car:     U('photo-1449965408869-eaa3f722e40d'),
-  truck:   U('photo-1601584115197-04ecc1da31d7'),
-  shirt:   U('photo-1576566588028-4147f3842fbc'),
-  mug:     U('photo-1514228742587-6b15571aecd0'),
+  truck:   U('photo-1593941707882-a5bba14938c7'),
+  shirt:   U('photo-1521572163474-6864f9cf17ab'),
+  mug:     U('photo-1495474472287-4d71bcdd2085'),
   bag:     U('photo-1553062407-98eeb64c6a62'),
   event:   U('photo-1540575467063-178a50c2df87'),
   store:   U('photo-1441986300917-64674bd600d8'),
@@ -337,7 +337,7 @@ const photos = {
   studio:  U('photo-1526170375885-4d8ecf77b99f'),
   team:    U('photo-1522071820081-009f0129c71c'),
   paper:   U('photo-1452860606245-08befc0ff44b'),
-  news:    U('photo-1479147039791-5fbc06d3406c'),
+  news:    U('photo-1504711434969-e33886168f5c'),
   office:  U('photo-1497366216548-37526070297c'),
   lobby:   U('photo-1497366811353-6870744d04b2'),
   city:    U('photo-1486406146926-c627a92ad1ab'),
@@ -346,6 +346,10 @@ const photos = {
   color:   U('photo-1550684848-fac1c5b4e853'),
   box:     U('photo-1535957998253-26ae1ef29506'),
   neon:    U('photo-1497366754035-f200968a6e72'),
+  clothes: U('photo-1489987707025-afc232f7ea0f'),
+  tee:     U('photo-1503342217505-b0a15ec3261c'),
+  meet:    U('photo-1517048676732-d65bc937f952'),
+  docs:    U('photo-1586281380349-632531db7ed4'),
 };
 
 function safe(src) { return src || FALLBACK; }
@@ -437,10 +441,10 @@ const services = [
     hero: photos.shirt,
     intro: 'Wearables and gifts that keep your brand in customers’ hands.',
     items: [
-      ['T-Shirts', photos.shirt], ['Workwear', photos.merch], ['Worker Jackets', photos.merch],
+      ['T-Shirts', photos.tee], ['Workwear', photos.clothes], ['Worker Jackets', photos.clothes],
       ['Caps', photos.merch], ['Mugs', photos.mug], ['Magic Mugs', photos.mug],
       ['Promotional Bags', photos.bag], ['Corporate Gifts', photos.invite], ['Keychains', photos.merch],
-      ['DTF Printing', photos.shirt], ['Heat Transfer', photos.shirt]
+      ['DTF Printing', photos.shirt], ['Heat Transfer', photos.tee]
     ]
   },
   {
@@ -500,9 +504,9 @@ const services = [
     hero: photos.studio,
     intro: 'Photos, documents, NADRA facilitation and everyday office services.',
     items: [
-      ['Passport Photos', photos.studio], ['Photo Printing', photos.studio], ['Document Printing', photos.paper],
-      ['Scanning', photos.paper], ['Photocopy', photos.news], ['Document Formatting', photos.desk],
-      ['NADRA E-Services', photos.office], ['Online Applications', photos.desk], ['Office Documentation', photos.paper],
+      ['Passport Photos', photos.studio], ['Photo Printing', photos.studio], ['Document Printing', photos.docs],
+      ['Scanning', photos.docs], ['Photocopy', photos.news], ['Document Formatting', photos.desk],
+      ['NADRA E-Services', photos.office], ['Online Applications', photos.meet], ['Office Documentation', photos.paper],
       ['CV / Resume Design', photos.design]
     ]
   }
@@ -643,7 +647,7 @@ spreads.push(`<div class="spread">
     <figure><img src="${photos.cards}" alt="" onerror="this.src='${FALLBACK}'"><figcaption>Stationery</figcaption></figure>
     <figure><img src="${photos.pack}" alt="" onerror="this.src='${FALLBACK}'"><figcaption>Packaging</figcaption></figure>
     <figure><img src="${photos.banner}" alt="" onerror="this.src='${FALLBACK}'"><figcaption>Campaigns</figcaption></figure>
-    <figure><img src="${photos.shirt}" alt="" onerror="this.src='${FALLBACK}'"><figcaption>Promotional</figcaption></figure>
+    <figure><img src="${photos.tee}" alt="" onerror="this.src='${FALLBACK}'"><figcaption>Promotional</figcaption></figure>
   </div>
   <div class="page folio">
     <figure><img src="${photos.car}" alt="" onerror="this.src='${FALLBACK}'"><figcaption>Vehicle</figcaption></figure>
