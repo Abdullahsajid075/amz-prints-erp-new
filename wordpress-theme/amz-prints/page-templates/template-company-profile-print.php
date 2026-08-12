@@ -19,7 +19,7 @@ $svc_blurb = array(
 	'branding-signage'         => 'Indoor and outdoor identity systems that make storefronts, fleets, and events impossible to miss.',
 	'marketing-materials'      => 'Everyday brand touchpoints — cards, flyers, catalogs, and folders that feel premium in the hand.',
 	'packaging-solutions'      => 'Product boxes, labels, and custom packs that protect goods and sell on the shelf.',
-	'promotional-items'        => 'Memorable giveaways and branded gifts that keep your name in clients’ hands.',
+	'promotional-items'        => 'Memorable giveaways and branded gifts that keep your name in clients hands.',
 	'corporate-branding'       => 'From logo systems to exhibition stands — cohesive identity for offices and events.',
 	'document-office-printing' => 'Fast, reliable document production, binding, IDs, and finishing for offices and institutions.',
 	'graphic-design'           => 'Creative that works in print and on screen — logos, social, packaging layouts, and campaigns.',
@@ -58,11 +58,12 @@ $portfolio = array(
 		<strong><?php esc_html_e( 'Print & Design Profile · Landscape A4', 'amz-prints' ); ?></strong>
 		<div class="catalog-toolbar__actions">
 			<button type="button" class="btn btn--primary" id="amz-catalog-download"><?php esc_html_e( 'Download PDF', 'amz-prints' ); ?></button>
+			<button type="button" class="btn btn--ghost" id="amz-catalog-print"><?php esc_html_e( 'Print / Save PDF', 'amz-prints' ); ?></button>
 			<a class="btn btn--ghost" href="<?php echo esc_url( home_url( '/company-profile/' ) ); ?>"><?php esc_html_e( 'All catalogs', 'amz-prints' ); ?></a>
 			<a class="btn btn--ghost" href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php esc_html_e( 'Home', 'amz-prints' ); ?></a>
 		</div>
 	</div>
-	<p class="catalog-toolbar__hint" id="amz-catalog-status"><?php esc_html_e( 'Click Download PDF — landscape file saves automatically.', 'amz-prints' ); ?></p>
+	<p class="catalog-toolbar__hint" id="amz-catalog-status"><?php esc_html_e( 'Download PDF saves automatically. If it fails, use Print / Save PDF → Save as PDF, A4 Landscape.', 'amz-prints' ); ?></p>
 </div>
 
 <main class="catalog-book" id="amz-catalog-book">

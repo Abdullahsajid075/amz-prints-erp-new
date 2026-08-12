@@ -91,11 +91,12 @@ $portfolio = array(
 		<strong><?php esc_html_e( 'IT & Digital Profile · Landscape A4', 'amz-prints' ); ?></strong>
 		<div class="catalog-toolbar__actions">
 			<button type="button" class="btn btn--primary" id="amz-catalog-download"><?php esc_html_e( 'Download PDF', 'amz-prints' ); ?></button>
+			<button type="button" class="btn btn--ghost" id="amz-catalog-print"><?php esc_html_e( 'Print / Save PDF', 'amz-prints' ); ?></button>
 			<a class="btn btn--ghost" href="<?php echo esc_url( home_url( '/company-profile/' ) ); ?>"><?php esc_html_e( 'All catalogs', 'amz-prints' ); ?></a>
 			<a class="btn btn--ghost" href="<?php echo esc_url( home_url( '/digital-services/' ) ); ?>"><?php esc_html_e( 'Digital page', 'amz-prints' ); ?></a>
 		</div>
 	</div>
-	<p class="catalog-toolbar__hint" id="amz-catalog-status"><?php esc_html_e( 'Click Download PDF — landscape file saves automatically.', 'amz-prints' ); ?></p>
+	<p class="catalog-toolbar__hint" id="amz-catalog-status"><?php esc_html_e( 'Download PDF saves automatically. If it fails, use Print / Save PDF → Save as PDF, A4 Landscape.', 'amz-prints' ); ?></p>
 </div>
 
 <main class="catalog-book" id="amz-catalog-book">
@@ -326,7 +327,7 @@ $portfolio = array(
 					<p><strong><?php esc_html_e( 'Digital page', 'amz-prints' ); ?>:</strong> <?php echo esc_html( home_url( '/digital-services/' ) ); ?></p>
 					<?php if ( $c['wa_raw'] ) : ?><p><strong><?php esc_html_e( 'WhatsApp', 'amz-prints' ); ?>:</strong> +<?php echo esc_html( $c['wa_raw'] ); ?></p><?php endif; ?>
 				</div>
-				<p class="catalog-thanks"><?php esc_html_e( 'Thank you — let’s build something that works as hard as it looks.', 'amz-prints' ); ?></p>
+				<p class="catalog-thanks"><?php esc_html_e( 'Thank you — let us build something that works as hard as it looks.', 'amz-prints' ); ?></p>
 			</div>
 			<div class="catalog-qr-grid catalog-qr-grid--big">
 				<figure>

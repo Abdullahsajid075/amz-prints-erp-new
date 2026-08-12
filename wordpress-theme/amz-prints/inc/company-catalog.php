@@ -10,6 +10,22 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
+ * Whether current request is a catalog PDF book template.
+ *
+ * @return bool
+ */
+function amz_prints_is_catalog_book() {
+	if ( is_page_template( 'page-templates/template-company-profile-print.php' )
+		|| is_page_template( 'page-templates/template-company-profile-digital.php' ) ) {
+		return true;
+	}
+	if ( is_page( array( 'company-profile-print', 'company-profile-digital' ) ) ) {
+		return true;
+	}
+	return false;
+}
+
+/**
  * Catalog page URL by type.
  *
  * @param string $type     print|digital|hub.
@@ -48,9 +64,9 @@ function amz_prints_company_profile_url( $download = false ) {
  * @return string
  */
 function amz_prints_qr_url( $data, $size = 220 ) {
-	$data = rawurlencode( (string) $data );
 	$size = max( 80, min( 400, (int) $size ) );
-	return 'https://api.qrserver.com/v1/create-qr-code/?size=' . $size . 'x' . $size . '&margin=8&data=' . $data;
+	// quickchart.io supports CORS for canvas/PDF capture.
+	return 'https://quickchart.io/qr?size=' . $size . '&margin=2&text=' . rawurlencode( (string) $data );
 }
 
 /**
@@ -85,7 +101,7 @@ function amz_prints_catalog_context() {
 		),
 		'vision'   => amz_prints_mod(
 			'amz_vision',
-			'To be Pakistan’s most dependable print + digital partner — where every job is tracked, every color is intentional, and every client feels looked after.'
+			'To be Pakistans most dependable print + digital partner — where every job is tracked, every color is intentional, and every client feels looked after.'
 		),
 		'site_url' => $site,
 		'wa_raw'   => $wa_raw,
@@ -288,78 +304,10 @@ function amz_prints_home_service_pillars() {
 }
 
 /**
- * Inline html2pdf download bootstrap for catalog books.
+ * Inline download script removed — uses assets/js/catalog-pdf.js via enqueue.
  *
- * @param string $filename Download filename.
+ * @param string $filename Unused (kept for back-compat).
  */
 function amz_prints_catalog_download_script( $filename = 'AMZ-Prints-Company-Profile.pdf' ) {
-	$filename = preg_replace( '/[^A-Za-z0-9._-]/', '', $filename );
-	if ( ! $filename ) {
-		$filename = 'AMZ-Prints-Company-Profile.pdf';
-	}
-	?>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-	<script>
-	(function () {
-	  var btn = document.getElementById('amz-catalog-download');
-	  var statusEl = document.getElementById('amz-catalog-status');
-	  var book = document.getElementById('amz-catalog-book');
-	  var busy = false;
-	  var fileName = <?php echo wp_json_encode( $filename ); ?>;
-
-	  function setStatus(msg) {
-	    if (statusEl) statusEl.textContent = msg;
-	  }
-
-	  function waitForImages(root) {
-	    var imgs = Array.prototype.slice.call(root.querySelectorAll('img'));
-	    return Promise.all(imgs.map(function (img) {
-	      if (img.complete && img.naturalWidth) return Promise.resolve();
-	      return new Promise(function (resolve) {
-	        var done = function () { resolve(); };
-	        img.addEventListener('load', done, { once: true });
-	        img.addEventListener('error', done, { once: true });
-	        setTimeout(done, 8000);
-	      });
-	    }));
-	  }
-
-	  function downloadPdf() {
-	    if (busy || !book) return;
-	    if (typeof html2pdf === 'undefined') {
-	      setStatus('PDF library failed to load. Please refresh and try again.');
-	      return;
-	    }
-	    busy = true;
-	    if (btn) { btn.disabled = true; btn.textContent = 'Preparing PDF…'; }
-	    setStatus('Building landscape A4 PDF — please wait…');
-
-	    waitForImages(book).then(function () {
-	      return html2pdf().set({
-	        margin: 0,
-	        filename: fileName,
-	        image: { type: 'jpeg', quality: 0.92 },
-	        html2canvas: { scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff', logging: false, windowWidth: 1400 },
-	        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
-	        pagebreak: { mode: ['css', 'legacy'], after: '.catalog-page' }
-	      }).from(book).save();
-	    }).then(function () {
-	      setStatus('Download started — check your Downloads folder for ' + fileName);
-	    }).catch(function () {
-	      setStatus('Automatic download failed. Opening print dialog as fallback…');
-	      window.print();
-	    }).finally(function () {
-	      busy = false;
-	      if (btn) { btn.disabled = false; btn.textContent = 'Download PDF'; }
-	    });
-	  }
-
-	  if (btn) btn.addEventListener('click', downloadPdf);
-	  if (document.body.classList.contains('catalog-download-mode')) {
-	    setStatus('Starting automatic landscape PDF download…');
-	    window.setTimeout(downloadPdf, 900);
-	  }
-	})();
-	</script>
-	<?php
+	// Intentionally empty — PDF logic lives in catalog-pdf.js.
 }
