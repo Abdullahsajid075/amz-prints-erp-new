@@ -90,6 +90,7 @@
   }
 
   function capturePage(pageEl) {
+    pageEl.classList.add('is-capturing');
     return html2canvas(pageEl, {
       scale: 1.5,
       useCORS: true,
@@ -101,6 +102,8 @@
       foreignObjectRendering: false
     }).then(function (canvas) {
       return canvas.toDataURL('image/jpeg', 0.86);
+    }).finally(function () {
+      pageEl.classList.remove('is-capturing');
     });
   }
 
@@ -112,10 +115,12 @@
       btn.textContent = 'Preparing PDF…';
     }
     setStatus('Loading PDF tools…');
+    document.body.classList.add('catalog-pdf-capture');
 
     var timedOut = false;
     var timer = setTimeout(function () {
       timedOut = true;
+      document.body.classList.remove('catalog-pdf-capture');
       setStatus('PDF is taking too long. Opening print dialog — choose Save as PDF (A4 Landscape).');
       resetBtn('Download PDF');
       try { window.print(); } catch (e) {}
@@ -155,7 +160,6 @@
               return next();
             })
             .catch(function () {
-              // Skip failed page with blank sheet rather than aborting whole PDF.
               if (n > 1) pdf.addPage();
               return next();
             });
@@ -165,6 +169,7 @@
       })
       .then(function (pdf) {
         clearTimeout(timer);
+        document.body.classList.remove('catalog-pdf-capture');
         if (timedOut || !pdf) return;
         setStatus('Saving ' + fileName + '…');
         pdf.save(fileName);
@@ -173,6 +178,7 @@
       })
       .catch(function (err) {
         clearTimeout(timer);
+        document.body.classList.remove('catalog-pdf-capture');
         if (timedOut) return;
         console.error(err);
         setStatus('Auto PDF failed. Opening print dialog — choose Save as PDF, A4 Landscape.');

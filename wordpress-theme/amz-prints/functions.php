@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AMZ_PRINTS_VERSION', '3.0.7' );
+define( 'AMZ_PRINTS_VERSION', '3.0.8' );
 
 /**
  * Avoid long Hostinger CDN HTML cache hiding theme updates.
@@ -49,6 +49,7 @@ define( 'AMZ_PRINTS_URI', get_template_directory_uri() );
 
 require_once AMZ_PRINTS_DIR . '/inc/services-catalog.php';
 require_once AMZ_PRINTS_DIR . '/inc/company-catalog.php';
+require_once AMZ_PRINTS_DIR . '/inc/catalog-book-ui.php';
 require_once AMZ_PRINTS_DIR . '/inc/enqueue.php';
 require_once AMZ_PRINTS_DIR . '/inc/customizer.php';
 require_once AMZ_PRINTS_DIR . '/inc/post-types.php';

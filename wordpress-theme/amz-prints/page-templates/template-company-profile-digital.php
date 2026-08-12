@@ -83,25 +83,20 @@ $portfolio = array(
 	<title><?php echo esc_html( $c['legal'] ); ?> — <?php esc_html_e( 'IT & Digital Profile', 'amz-prints' ); ?></title>
 	<?php wp_head(); ?>
 </head>
-<body <?php body_class( 'amz-catalog-body catalog-theme-digital' . ( $auto_dl ? ' catalog-download-mode' : '' ) ); ?>>
+<body <?php body_class( 'amz-catalog-body catalog-theme-digital flipbook-body' . ( $auto_dl ? ' catalog-download-mode' : '' ) ); ?>>
 <?php wp_body_open(); ?>
 
-<div class="catalog-toolbar no-print catalog-toolbar--digital">
-	<div class="catalog-toolbar__inner">
-		<strong><?php esc_html_e( 'IT & Digital Profile · Landscape A4', 'amz-prints' ); ?></strong>
-		<div class="catalog-toolbar__actions">
-			<button type="button" class="btn btn--primary" id="amz-catalog-download"><?php esc_html_e( 'Download PDF', 'amz-prints' ); ?></button>
-			<button type="button" class="btn btn--ghost" id="amz-catalog-print"><?php esc_html_e( 'Print / Save PDF', 'amz-prints' ); ?></button>
-			<a class="btn btn--ghost" href="<?php echo esc_url( home_url( '/company-profile/' ) ); ?>"><?php esc_html_e( 'All catalogs', 'amz-prints' ); ?></a>
-			<a class="btn btn--ghost" href="<?php echo esc_url( home_url( '/digital-services/' ) ); ?>"><?php esc_html_e( 'Digital page', 'amz-prints' ); ?></a>
-		</div>
-	</div>
-	<p class="catalog-toolbar__hint" id="amz-catalog-status"><?php esc_html_e( 'Download PDF saves automatically. If it fails, use Print / Save PDF → Save as PDF, A4 Landscape.', 'amz-prints' ); ?></p>
-</div>
+<?php
+amz_prints_flipbook_shell_open(
+	array(
+		'theme'    => 'digital',
+		'title'    => __( 'IT & Digital Services Profile', 'amz-prints' ),
+		'subtitle' => __( 'Premium digital catalog book', 'amz-prints' ),
+	)
+);
+?>
 
-<main class="catalog-book" id="amz-catalog-book">
-
-	<section class="catalog-page catalog-page--cover catalog-page--cover-digital" data-page="<?php echo esc_attr( (string) $page_no++ ); ?>">
+	<section class="catalog-page catalog-page--cover catalog-page--cover-digital is-active" data-page="<?php echo esc_attr( (string) $page_no++ ); ?>">
 		<div class="catalog-page__inner catalog-cover">
 			<div class="catalog-cover__left">
 				<?php if ( $c['logo_url'] ) : ?>
@@ -343,8 +338,7 @@ $portfolio = array(
 		<span class="catalog-folio"><?php echo esc_html( sprintf( '%02d', $page_no - 1 ) ); ?></span>
 	</section>
 
-</main>
-<?php amz_prints_catalog_download_script( 'AMZ-Prints-Digital-Services-Profile.pdf' ); ?>
+<?php amz_prints_flipbook_shell_close(); ?>
 <?php wp_footer(); ?>
 </body>
 </html>
