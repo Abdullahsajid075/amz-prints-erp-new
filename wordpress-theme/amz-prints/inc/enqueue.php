@@ -37,16 +37,20 @@ function amz_prints_enqueue_assets() {
 			true
 		);
 		$filename = 'AMZ-Prints-Company-Profile.pdf';
+		$pdf_url  = '';
 		if ( is_page( 'company-profile-print' ) || is_page_template( 'page-templates/template-company-profile-print.php' ) ) {
-			$filename = 'AMZ-Prints-Print-Design-Profile.pdf';
+			$filename = 'Amazon-Printings-Company-Profile.pdf';
+			$pdf_url  = amz_prints_catalog_pdf_file( 'print' );
 		} elseif ( is_page( 'company-profile-digital' ) || is_page_template( 'page-templates/template-company-profile-digital.php' ) ) {
 			$filename = 'AMZ-Prints-Digital-Services-Profile.pdf';
+			$pdf_url  = amz_prints_catalog_pdf_file( 'digital' );
 		}
 		wp_localize_script(
 			'amz-prints-catalog-pdf',
 			'amzCatalogPdf',
 			array(
 				'filename' => $filename,
+				'pdfUrl'   => $pdf_url,
 			)
 		);
 		return;

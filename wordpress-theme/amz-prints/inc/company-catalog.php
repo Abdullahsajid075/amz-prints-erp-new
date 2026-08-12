@@ -26,6 +26,50 @@ function amz_prints_is_catalog_book() {
 }
 
 /**
+ * Image URLs for a PDF-backed flip book (print|digital).
+ *
+ * @param string $type print|digital.
+ * @return string[]
+ */
+function amz_prints_catalog_page_images( $type = 'print' ) {
+	$type = ( 'digital' === $type ) ? 'digital' : 'print';
+	$dir  = AMZ_PRINTS_DIR . '/assets/catalog/' . $type . '/pages';
+	if ( ! is_dir( $dir ) ) {
+		return array();
+	}
+	$files = glob( $dir . '/*.jpg' );
+	$png   = glob( $dir . '/*.png' );
+	$webp  = glob( $dir . '/*.webp' );
+	$files = array_merge( $files ? $files : array(), $png ? $png : array(), $webp ? $webp : array() );
+	if ( ! $files ) {
+		return array();
+	}
+	natsort( $files );
+	$files = array_values( $files );
+	$base = AMZ_PRINTS_URI . '/assets/catalog/' . $type . '/pages/';
+	$out  = array();
+	foreach ( $files as $file ) {
+		$out[] = $base . rawurlencode( basename( $file ) );
+	}
+	return $out;
+}
+
+/**
+ * Static catalog PDF URL if bundled in the theme.
+ *
+ * @param string $type print|digital.
+ * @return string
+ */
+function amz_prints_catalog_pdf_file( $type = 'print' ) {
+	$type = ( 'digital' === $type ) ? 'digital' : 'print';
+	$rel  = '/assets/catalog/' . $type . '/company-profile.pdf';
+	if ( file_exists( AMZ_PRINTS_DIR . $rel ) ) {
+		return AMZ_PRINTS_URI . $rel;
+	}
+	return '';
+}
+
+/**
  * Catalog page URL by type.
  *
  * @param string $type     print|digital|hub.

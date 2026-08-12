@@ -10,6 +10,25 @@
   var exportRoot = document.getElementById('amz-pdf-export');
   var busy = false;
   var fileName = (window.amzCatalogPdf && window.amzCatalogPdf.filename) || 'AMZ-Prints-Company-Profile.pdf';
+  var staticPdf = window.amzCatalogPdf && window.amzCatalogPdf.pdfUrl;
+
+  if (staticPdf && btn) {
+    btn.addEventListener('click', function () {
+      var a = document.createElement('a');
+      a.href = staticPdf;
+      a.download = fileName;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      if (statusEl) statusEl.textContent = 'Download started — ' + fileName;
+    });
+    if (document.body.classList.contains('catalog-download-mode')) {
+      window.setTimeout(function () { btn.click(); }, 400);
+    }
+    return;
+  }
   var HARD_TIMEOUT_MS = 180000;
 
   // Portrait A4 ~150dpi
