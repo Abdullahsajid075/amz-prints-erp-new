@@ -23,7 +23,7 @@ $digital_hub = amz_prints_book_image( 'amz_book_digital_hub', 'https://images.un
 		<header class="book-library__head reveal" data-reveal>
 			<p class="eyebrow"><?php echo esc_html( $company ); ?></p>
 			<h1><?php esc_html_e( 'Company Profile', 'amz-prints' ); ?></h1>
-			<p><?php echo esc_html( $legal ); ?> — <?php esc_html_e( 'two classic portrait catalogs. Open a book, flip pages, download PDF. Edit images in Customizer → A1 — Edit Books.', 'amz-prints' ); ?></p>
+			<p><?php echo esc_html( $legal ); ?> — <?php esc_html_e( 'two editorial portrait catalogs. Open a book, flip pages, download PDF. Edit images in Customizer → A1 — Edit Books.', 'amz-prints' ); ?></p>
 		</header>
 
 		<div class="printed-books">
@@ -42,7 +42,7 @@ $digital_hub = amz_prints_book_image( 'amz_book_digital_hub', 'https://images.un
 					</div>
 				</a>
 				<div class="printed-book__meta">
-					<p><?php esc_html_e( 'Classic portrait catalog — full company profile, services, team, quality, markets and contact.', 'amz-prints' ); ?></p>
+					<p><?php esc_html_e( 'Editorial orange atelier — full company profile with a different layout on every chapter.', 'amz-prints' ); ?></p>
 					<div class="printed-book__actions">
 						<a class="btn btn--primary btn--magnetic" href="<?php echo esc_url( amz_prints_catalog_url( 'print' ) ); ?>"><?php esc_html_e( 'Open book', 'amz-prints' ); ?></a>
 						<a class="btn btn--ghost btn--magnetic" href="<?php echo esc_url( amz_prints_catalog_url( 'print', true ) ); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Download PDF', 'amz-prints' ); ?></a>
@@ -65,7 +65,7 @@ $digital_hub = amz_prints_book_image( 'amz_book_digital_hub', 'https://images.un
 					</div>
 				</a>
 				<div class="printed-book__meta">
-					<p><?php esc_html_e( 'Black & gold premium theme — websites, software, social, portfolio, process, contact QRs.', 'amz-prints' ); ?></p>
+					<p><?php esc_html_e( 'Black & gold editorial catalog — websites, software, apps, SEO, packages and process.', 'amz-prints' ); ?></p>
 					<div class="printed-book__actions">
 						<a class="btn btn--primary btn--magnetic" href="<?php echo esc_url( amz_prints_catalog_url( 'digital' ) ); ?>"><?php esc_html_e( 'Open book', 'amz-prints' ); ?></a>
 						<a class="btn btn--ghost btn--magnetic" href="<?php echo esc_url( amz_prints_catalog_url( 'digital', true ) ); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Download PDF', 'amz-prints' ); ?></a>

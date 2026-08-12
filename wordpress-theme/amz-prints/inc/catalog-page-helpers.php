@@ -43,11 +43,26 @@ function amz_cp_checklist( $items ) {
 }
 
 /**
+ * Decorative page header.
+ *
+ * @param string $kicker Kicker.
+ * @param string $title  Title.
+ * @param bool   $gold   Gold theme.
+ */
+function amz_cp_head( $kicker, $title, $gold = false ) {
+	echo '<header class="cp-head' . ( $gold ? ' cp-head--gold' : '' ) . '">';
+	echo '<p class="cp-kicker' . ( $gold ? ' cp-kicker--gold' : '' ) . '">' . esc_html( $kicker ) . '</p>';
+	echo '<h2 class="cp-h2">' . esc_html( $title ) . '</h2>';
+	echo '<span class="cp-head__rule" aria-hidden="true"></span>';
+	echo '</header>';
+}
+
+/**
  * Footer number.
  *
  * @param int    $n     Number.
  * @param string $brand Brand.
  */
 function amz_cp_foot( &$n, $brand = 'Amazon Printing Services' ) {
-	echo '<div class="cp-foot"><span>' . esc_html( $brand ) . '</span><span>' . esc_html( sprintf( '%02d', $n++ ) ) . '</span></div>';
+	echo '<div class="cp-foot"><span class="cp-foot__mark" aria-hidden="true"></span><span>' . esc_html( $brand ) . '</span><span>' . esc_html( sprintf( '%02d', $n++ ) ) . '</span></div>';
 }

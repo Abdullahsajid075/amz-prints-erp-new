@@ -11,9 +11,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 function amz_prints_enqueue_assets() {
 	if ( amz_prints_is_catalog_book() ) {
-		$fonts = 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Source+Sans+3:wght@400;500;600;700&display=swap';
+		$fonts = 'https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Source+Sans+3:wght@400;500;600;700&display=swap';
 		wp_enqueue_style( 'amz-prints-fonts', $fonts, array(), null );
 		wp_enqueue_style( 'amz-prints-main', AMZ_PRINTS_URI . '/assets/css/main.css', array( 'amz-prints-fonts' ), AMZ_PRINTS_VERSION );
+		wp_enqueue_style( 'amz-prints-catalog', AMZ_PRINTS_URI . '/assets/css/catalog-atelier.css', array( 'amz-prints-main' ), AMZ_PRINTS_VERSION );
 		wp_enqueue_script(
 			'amz-prints-pageflip',
 			AMZ_PRINTS_URI . '/assets/js/vendor/page-flip.browser.min.js',
