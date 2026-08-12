@@ -70,6 +70,63 @@ function amz_prints_qr_url( $data, $size = 220 ) {
 }
 
 /**
+ * Resolve a Customizer media image URL for books.
+ *
+ * @param string $mod_key  Theme mod key.
+ * @param string $fallback Fallback URL.
+ * @return string
+ */
+function amz_prints_book_image( $mod_key, $fallback = '' ) {
+	$id = absint( amz_prints_mod( $mod_key, 0 ) );
+	if ( $id ) {
+		$url = wp_get_attachment_image_url( $id, 'large' );
+		if ( ! $url ) {
+			$url = wp_get_attachment_image_url( $id, 'full' );
+		}
+		if ( $url ) {
+			return $url;
+		}
+	}
+	return $fallback;
+}
+
+/**
+ * Portfolio items for a book type (print|digital).
+ *
+ * @param string $type print|digital.
+ * @return array
+ */
+function amz_prints_book_portfolio( $type = 'print' ) {
+	$defaults_print = array(
+		array( 'Brand kits & packaging', 'https://images.unsplash.com/photo-1586075010923-2dd4570fb338?auto=format&fit=crop&w=900&q=80' ),
+		array( 'Large format campaigns', 'https://images.unsplash.com/photo-1561070791-2526d30994b5?auto=format&fit=crop&w=900&q=80' ),
+		array( 'Corporate stationery', 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?auto=format&fit=crop&w=900&q=80' ),
+		array( 'Packaging systems', 'https://images.unsplash.com/photo-1607349913338-fca6f7fc42d0?auto=format&fit=crop&w=900&q=80' ),
+		array( 'Promotional merchandise', 'https://images.unsplash.com/photo-1529374255404-311a2a4f1fd9?auto=format&fit=crop&w=900&q=80' ),
+		array( 'Custom invitations', 'https://images.unsplash.com/photo-1513885535751-8b9238bd345a?auto=format&fit=crop&w=900&q=80' ),
+	);
+	$defaults_digital = array(
+		array( 'Business websites', 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=900&q=80' ),
+		array( 'Ecommerce & checkout', 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=900&q=80' ),
+		array( 'Dashboards & software', 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=900&q=80' ),
+		array( 'UI systems', 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=80' ),
+		array( 'Social creatives', 'https://images.unsplash.com/photo-1611162616475-46b635cb6868?auto=format&fit=crop&w=900&q=80' ),
+		array( 'Dev & launch', 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=900&q=80' ),
+	);
+	$defaults = ( 'digital' === $type ) ? $defaults_digital : $defaults_print;
+	$prefix   = ( 'digital' === $type ) ? 'amz_book_digital_portfolio_' : 'amz_book_print_portfolio_';
+	$out      = array();
+	foreach ( $defaults as $i => $row ) {
+		$n    = $i + 1;
+		$out[] = array(
+			'title' => $row[0],
+			'img'   => amz_prints_book_image( $prefix . $n, $row[1] ),
+		);
+	}
+	return $out;
+}
+
+/**
  * Shared catalog company context.
  *
  * @return array

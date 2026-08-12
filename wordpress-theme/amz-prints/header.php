@@ -42,6 +42,7 @@
 					</button>
 				</li>
 				<li><a class="nav-link-main" href="<?php echo esc_url( home_url( '/digital-services/' ) ); ?>">Digital Services</a></li>
+				<li><a class="nav-link-main" href="<?php echo esc_url( home_url( '/company-profile/' ) ); ?>">Company Profile</a></li>
 				<li><a class="nav-link-main" href="<?php echo esc_url( home_url( '/products/' ) ); ?>">Products</a></li>
 				<li><a class="nav-link-main" href="<?php echo esc_url( home_url( '/nadra-e-services/' ) ); ?>">NADRA</a></li>
 				<li class="has-more">
@@ -50,9 +51,6 @@
 						<svg class="mega-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
 					</button>
 					<ul class="more-menu" id="more-menu">
-						<li><a href="<?php echo esc_url( home_url( '/company-profile/' ) ); ?>">Company Profiles</a></li>
-						<li><a href="<?php echo esc_url( home_url( '/company-profile-print/?download=1' ) ); ?>">Print Profile PDF</a></li>
-						<li><a href="<?php echo esc_url( home_url( '/company-profile-digital/?download=1' ) ); ?>">Digital Profile PDF</a></li>
 						<li><a href="<?php echo esc_url( home_url( '/pricing/' ) ); ?>">Pricing</a></li>
 						<li><a href="<?php echo esc_url( home_url( '/how-we-work/' ) ); ?>">How We Work</a></li>
 						<li><a href="<?php echo esc_url( home_url( '/track-order/' ) ); ?>">Track Order</a></li>
@@ -67,7 +65,7 @@
 			<ul class="site-nav__mobile-extra" aria-label="More pages">
 				<li><a href="<?php echo esc_url( home_url( '/services/' ) ); ?>">All Services</a></li>
 				<li><a href="<?php echo esc_url( home_url( '/digital-services/' ) ); ?>">Digital Services</a></li>
-				<li><a href="<?php echo esc_url( home_url( '/company-profile/' ) ); ?>">Company Profiles</a></li>
+				<li><a href="<?php echo esc_url( home_url( '/company-profile/' ) ); ?>">Company Profile</a></li>
 				<li><a href="<?php echo esc_url( home_url( '/pricing/' ) ); ?>">Pricing</a></li>
 				<li><a href="<?php echo esc_url( home_url( '/how-we-work/' ) ); ?>">How We Work</a></li>
 				<li><a href="<?php echo esc_url( home_url( '/track-order/' ) ); ?>">Track Order</a></li>

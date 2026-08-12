@@ -90,14 +90,17 @@
   }
 
   function buildExportSheets() {
-    if (!exportRoot || !book) return [];
+    if (!exportRoot) return [];
     exportRoot.innerHTML = '';
     exportRoot.classList.add('is-active');
 
-    var sourcePages = book.querySelectorAll('.page');
+    pageSource = document.getElementById('amz-page-source') || book;
+    var sourcePages = pageSource.querySelectorAll('.page');
+    if (!sourcePages.length && book) {
+      sourcePages = book.querySelectorAll('.page');
+    }
     var sheets = [];
 
-    // Pair pages into landscape spreads (left | right), matching open book.
     for (var i = 0; i < sourcePages.length; i += 2) {
       var sheet = document.createElement('div');
       sheet.className = 'pdf-sheet';

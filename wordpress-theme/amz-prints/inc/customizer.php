@@ -657,6 +657,79 @@ function amz_prints_customize_register( $wp_customize ) {
 		'type'    => 'textarea',
 	) );
 
+	/* ── A1 Edit Books (company profile catalogs) ── */
+	$wp_customize->add_section( 'amz_books', array(
+		'title'       => __( 'A1 — Edit Books', 'amz-prints' ),
+		'description' => __( 'Upload cover, intro, hub, and portfolio images for Print and Digital company profile books.', 'amz-prints' ),
+		'priority'    => 36,
+	) );
+
+	$book_images = array(
+		'amz_book_print_hub'     => __( 'Print book — Hub cover card', 'amz-prints' ),
+		'amz_book_print_cover'   => __( 'Print book — Inside cover image', 'amz-prints' ),
+		'amz_book_print_intro'   => __( 'Print book — Introduction photo', 'amz-prints' ),
+		'amz_book_digital_hub'   => __( 'Digital book — Hub cover card', 'amz-prints' ),
+		'amz_book_digital_cover' => __( 'Digital book — Inside cover image', 'amz-prints' ),
+		'amz_book_digital_intro' => __( 'Digital book — Introduction photo', 'amz-prints' ),
+	);
+	foreach ( $book_images as $id => $label ) {
+		$wp_customize->add_setting( $id, array(
+			'default'           => 0,
+			'sanitize_callback' => 'absint',
+		) );
+		$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, $id, array(
+			'label'     => $label,
+			'section'   => 'amz_books',
+			'mime_type' => 'image',
+		) ) );
+	}
+
+	for ( $i = 1; $i <= 6; $i++ ) {
+		$pid = 'amz_book_print_portfolio_' . $i;
+		$wp_customize->add_setting( $pid, array(
+			'default'           => 0,
+			'sanitize_callback' => 'absint',
+		) );
+		$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, $pid, array(
+			'label'     => sprintf( __( 'Print portfolio image %d', 'amz-prints' ), $i ),
+			'section'   => 'amz_books',
+			'mime_type' => 'image',
+		) ) );
+
+		$did = 'amz_book_digital_portfolio_' . $i;
+		$wp_customize->add_setting( $did, array(
+			'default'           => 0,
+			'sanitize_callback' => 'absint',
+		) );
+		$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, $did, array(
+			'label'     => sprintf( __( 'Digital portfolio image %d', 'amz-prints' ), $i ),
+			'section'   => 'amz_books',
+			'mime_type' => 'image',
+		) ) );
+	}
+
+	$wp_customize->add_setting( 'amz_book_print_about', array(
+		'default'           => '',
+		'sanitize_callback' => 'sanitize_textarea_field',
+	) );
+	$wp_customize->add_control( 'amz_book_print_about', array(
+		'label'       => __( 'Print book — About text (optional override)', 'amz-prints' ),
+		'section'     => 'amz_books',
+		'type'        => 'textarea',
+		'description' => __( 'Leave empty to use Company Info about blurb.', 'amz-prints' ),
+	) );
+
+	$wp_customize->add_setting( 'amz_book_digital_about', array(
+		'default'           => '',
+		'sanitize_callback' => 'sanitize_textarea_field',
+	) );
+	$wp_customize->add_control( 'amz_book_digital_about', array(
+		'label'       => __( 'Digital book — About text (optional override)', 'amz-prints' ),
+		'section'     => 'amz_books',
+		'type'        => 'textarea',
+		'description' => __( 'Leave empty to use Company Info about blurb.', 'amz-prints' ),
+	) );
+
 	/* ── Social ── */
 	$wp_customize->add_section( 'amz_social', array(
 		'title'    => __( 'Social Links', 'amz-prints' ),
