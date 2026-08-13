@@ -1,6 +1,7 @@
 Print catalog flip-book
 =======================
-Pages in /pages are rendered from company-profile.pdf.
+Pages in /pages are rendered from company-profile.pdf
+(source: AMZ company profile — orange designed PDF, 52 pages).
 
 To replace with a new PDF:
 1. Put the new file here as company-profile.pdf
