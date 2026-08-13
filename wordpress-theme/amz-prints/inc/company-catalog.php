@@ -47,9 +47,12 @@ function amz_prints_catalog_page_images( $type = 'print' ) {
 	natsort( $files );
 	$files = array_values( $files );
 	$base = AMZ_PRINTS_URI . '/assets/catalog/' . $type . '/pages/';
+	$ver  = defined( 'AMZ_PRINTS_VERSION' ) ? AMZ_PRINTS_VERSION : '1';
 	$out  = array();
 	foreach ( $files as $file ) {
-		$out[] = $base . rawurlencode( basename( $file ) );
+		$url = $base . rawurlencode( basename( $file ) );
+		// Unique query so Hostinger/browser cannot keep serving the previous 01.jpg for a year.
+		$out[] = add_query_arg( 'ver', $ver . '-' . (string) filemtime( $file ), $url );
 	}
 	return $out;
 }
@@ -63,8 +66,10 @@ function amz_prints_catalog_page_images( $type = 'print' ) {
 function amz_prints_catalog_pdf_file( $type = 'print' ) {
 	$type = ( 'digital' === $type ) ? 'digital' : 'print';
 	$rel  = '/assets/catalog/' . $type . '/company-profile.pdf';
-	if ( file_exists( AMZ_PRINTS_DIR . $rel ) ) {
-		return AMZ_PRINTS_URI . $rel;
+	$path = AMZ_PRINTS_DIR . $rel;
+	if ( file_exists( $path ) ) {
+		$ver = defined( 'AMZ_PRINTS_VERSION' ) ? AMZ_PRINTS_VERSION : '1';
+		return add_query_arg( 'ver', $ver . '-' . (string) filemtime( $path ), AMZ_PRINTS_URI . $rel );
 	}
 	return '';
 }

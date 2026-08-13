@@ -9,7 +9,8 @@
 get_header();
 $company     = amz_prints_mod( 'amz_company_name', 'AMZ Prints' );
 $legal       = amz_prints_mod( 'amz_legal_name', 'Amazon Printings (Pvt) Ltd' );
-$print_hub   = amz_prints_book_image( 'amz_book_print_hub', 'https://images.unsplash.com/photo-1562564055-71e051d33c19?auto=format&fit=crop&w=1000&q=80' );
+$print_pages = amz_prints_catalog_page_images( 'print' );
+$print_hub   = amz_prints_book_image( 'amz_book_print_hub', ! empty( $print_pages[0] ) ? $print_pages[0] : 'https://images.unsplash.com/photo-1562564055-71e051d33c19?auto=format&fit=crop&w=1000&q=80' );
 $digital_hub = amz_prints_book_image( 'amz_book_digital_hub', 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1000&q=80' );
 ?>
 

@@ -38,13 +38,23 @@ function amz_prints_enqueue_assets() {
 		);
 		$filename = 'AMZ-Prints-Company-Profile.pdf';
 		$pdf_url  = '';
+		$images   = array();
 		if ( is_page( 'company-profile-print' ) || is_page_template( 'page-templates/template-company-profile-print.php' ) ) {
 			$filename = 'Amazon-Printings-Company-Profile.pdf';
 			$pdf_url  = amz_prints_catalog_pdf_file( 'print' );
+			$images   = amz_prints_catalog_page_images( 'print' );
 		} elseif ( is_page( 'company-profile-digital' ) || is_page_template( 'page-templates/template-company-profile-digital.php' ) ) {
 			$filename = 'AMZ-Prints-Digital-Services-Profile.pdf';
 			$pdf_url  = amz_prints_catalog_pdf_file( 'digital' );
+			$images   = amz_prints_catalog_page_images( 'digital' );
 		}
+		wp_localize_script(
+			'amz-prints-catalog-flipbook',
+			'amzFlipbook',
+			array(
+				'images' => $images,
+			)
+		);
 		wp_localize_script(
 			'amz-prints-catalog-pdf',
 			'amzCatalogPdf',

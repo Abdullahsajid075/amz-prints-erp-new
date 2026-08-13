@@ -1,7 +1,7 @@
 <?php
 /**
  * Template Name: Company Profile — Print & Design
- * Real flip-book from the official print PDF pages.
+ * Real flip-book from the official orange print PDF pages.
  *
  * @package AMZ_Prints
  */
@@ -28,7 +28,7 @@ amz_prints_flipbook_shell_open(
 	array(
 		'theme'    => 'print',
 		'title'    => __( 'Printing & Designing Profile', 'amz-prints' ),
-		'subtitle' => __( 'Real catalog book', 'amz-prints' ),
+		'subtitle' => __( 'Official company profile', 'amz-prints' ),
 	)
 );
 
@@ -38,7 +38,7 @@ if ( $pages ) :
 		?>
 	<div class="page<?php echo $hard ? ' page--hard' : ''; ?>" data-density="<?php echo $hard ? 'hard' : 'soft'; ?>">
 		<div class="page-content page-content--pdf">
-			<img src="<?php echo esc_url( $url ); ?>" alt="<?php echo esc_attr( sprintf( 'Page %d', $i + 1 ) ); ?>">
+			<img src="<?php echo esc_url( $url ); ?>" alt="<?php echo esc_attr( sprintf( 'Page %d', $i + 1 ) ); ?>" decoding="async">
 		</div>
 	</div>
 		<?php

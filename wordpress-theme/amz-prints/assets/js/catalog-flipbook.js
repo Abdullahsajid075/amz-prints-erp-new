@@ -1,5 +1,5 @@
 /**
- * Real flip-book via StPageFlip — classic portrait pages.
+ * Real flip-book via StPageFlip — PDF page images or HTML chapters.
  */
 (function () {
   'use strict';
@@ -11,10 +11,13 @@
   }
 
   var pages = bookEl.querySelectorAll('.page');
-  if (!pages.length) return;
+  var imageUrls = (window.amzFlipbook && Array.isArray(window.amzFlipbook.images))
+    ? window.amzFlipbook.images
+    : [];
+  if (!pages.length && !imageUrls.length) return;
 
   var source = document.getElementById('amz-page-source');
-  if (!source) {
+  if (!source && pages.length) {
     source = document.createElement('div');
     source.id = 'amz-page-source';
     source.setAttribute('aria-hidden', 'true');
@@ -27,6 +30,7 @@
 
   var counter = document.getElementById('amz-flip-counter');
   var pageFlip = null;
+  var booted = false;
 
   function pageSize() {
     var maxW = Math.min(460, Math.floor(window.innerWidth * 0.4));
@@ -40,6 +44,29 @@
       maxW = Math.round(h / 1.414);
     }
     return { width: Math.max(260, maxW), height: Math.max(380, h) };
+  }
+
+  function preloadImages(urls, done) {
+    if (!urls.length) {
+      done();
+      return;
+    }
+    var left = urls.length;
+    var finished = false;
+    function finish() {
+      if (finished) return;
+      finished = true;
+      done();
+    }
+    urls.forEach(function (url) {
+      var img = new Image();
+      img.onload = img.onerror = function () {
+        left -= 1;
+        if (left <= 0) finish();
+      };
+      img.src = url;
+    });
+    window.setTimeout(finish, 12000);
   }
 
   function init() {
@@ -72,7 +99,14 @@
       disableFlipByClick: false
     });
 
-    pageFlip.loadFromHTML(bookEl.querySelectorAll('.page'));
+    if (imageUrls.length) {
+      while (bookEl.firstChild) {
+        bookEl.removeChild(bookEl.firstChild);
+      }
+      pageFlip.loadFromImages(imageUrls);
+    } else {
+      pageFlip.loadFromHTML(bookEl.querySelectorAll('.page'));
+    }
     window.amzPageFlip = pageFlip;
 
     function syncCounter() {
@@ -89,7 +123,20 @@
     document.body.classList.add('flipbook-ready', 'flipbook-open');
   }
 
-  window.setTimeout(init, 120);
+  function boot() {
+    if (booted) {
+      init();
+      return;
+    }
+    booted = true;
+    if (imageUrls.length) {
+      preloadImages(imageUrls, init);
+    } else {
+      window.setTimeout(init, 120);
+    }
+  }
+
+  boot();
 
   var resizeTimer;
   window.addEventListener('resize', function () {
