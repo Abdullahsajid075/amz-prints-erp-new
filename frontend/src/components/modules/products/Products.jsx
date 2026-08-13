@@ -15,7 +15,7 @@ import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
 import PageHeader from '@/components/shared/PageHeader';
 import { clearGasCache } from '@/services/gasClient';
-import { compressGalleryImageFile, productImageSrc, productImagesList, MAX_PRODUCT_IMAGES } from '@/utils/productImage';
+import { compressGalleryImageFile, productImageSrc, productImagesList, fitImagesForSheets, MAX_PRODUCT_IMAGES } from '@/utils/productImage';
 import {
   Plus, Search, Edit, Trash2, Package, X, Save, Wrench, ImagePlus, Boxes, Globe,
 } from 'lucide-react';
@@ -200,12 +200,12 @@ const Products = () => {
         added.push(dataUrl);
       }
       setFormData((prev) => {
-        const images = [...(prev.images || []), ...added].slice(0, MAX_PRODUCT_IMAGES);
+        const images = fitImagesForSheets([...(prev.images || []), ...added]);
         return { ...prev, images, image: images[0] || '' };
       });
       toast.success(added.length > 1 ? `${added.length} photos ready` : 'Photo ready');
     } catch (err) {
-      toast.error(err.message || 'Photo failed');
+      toast.error(err.message || 'Photo failed — try a smaller image');
     } finally {
       setImageBusy(false);
     }
@@ -273,6 +273,8 @@ const Products = () => {
         }))
         .filter((v) => v.name);
       const salePrice = Number(formData.salePrice) > 0 ? Number(formData.salePrice) : 0;
+      const images = fitImagesForSheets(formData.images || []);
+      const image = images[0] || '';
       const payload = service
         ? {
             name: formData.name,
@@ -289,8 +291,8 @@ const Products = () => {
             designer: '',
             minQuantity: 1,
             stock: 0,
-            image: (formData.images && formData.images[0]) || formData.image || '',
-            images: formData.images || [],
+            image,
+            images,
             active: formData.active !== false,
             status: formData.active === false ? 'Inactive' : 'Active',
             showOnWebsite: formData.showOnWebsite !== false,
@@ -312,8 +314,8 @@ const Products = () => {
             minQuantity: formData.minQuantity || 1,
             stock: Math.max(0, Math.floor(Number(formData.stock) || 0)),
             designer: formData.designer || '',
-            image: (formData.images && formData.images[0]) || formData.image || '',
-            images: formData.images || [],
+            image,
+            images,
             active: formData.active !== false,
             status: formData.active === false ? 'Inactive' : 'Active',
             showOnWebsite: formData.showOnWebsite !== false,

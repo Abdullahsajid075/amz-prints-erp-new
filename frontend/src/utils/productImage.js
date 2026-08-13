@@ -1,11 +1,15 @@
 /** Compress image for catalog only — never attach to order/invoice lines. */
 
 /** Longest side in px — sharp enough for ERP + website product views. */
-const DEFAULT_MAX_EDGE = 1400;
+const DEFAULT_MAX_EDGE = 1200;
 /** Prefer high quality; size loop will step down only if over Sheets limit. */
-const DEFAULT_JPEG_QUALITY = 0.92;
-/** Google Sheets cell max is 50k; stay slightly under for safety. */
-const DEFAULT_MAX_CHARS = 48000;
+const DEFAULT_JPEG_QUALITY = 0.88;
+/** Google Sheets cell max is 50k; stay under for a single Image cell. */
+const DEFAULT_MAX_CHARS = 45000;
+/** Images JSON cell budget (all gallery photos together). */
+export const IMAGES_CELL_BUDGET = 45000;
+/** Per-photo budget so several fit inside Images JSON. */
+export const GALLERY_MAX_CHARS = 7500;
 
 function supportsWebpDataUrl_() {
   try {
@@ -49,7 +53,6 @@ export function compressImageFile(file, opts = {}) {
           canvas.width = w;
           canvas.height = h;
           const ctx = canvas.getContext('2d');
-          // High-quality downsample (default is often blurry)
           ctx.imageSmoothingEnabled = true;
           if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
           if (mime === 'image/jpeg') {
@@ -63,33 +66,26 @@ export function compressImageFile(file, opts = {}) {
         };
 
         try {
-          const mimePrimary = preferWebp ? 'image/webp' : 'image/jpeg';
-          const mimeFallback = 'image/jpeg';
-
-          let mime = mimePrimary;
+          let mime = preferWebp ? 'image/webp' : 'image/jpeg';
           let q = START_QUALITY;
           let w = width;
           let h = height;
           let dataUrl = tryEncode(w, h, q, mime);
 
-          // Prefer keeping resolution; ease quality first, then mild shrink
+          // Always fit under limit — never leave user with a hard failure if possible
           let steps = 0;
-          while (dataUrl.length > MAX_DATA_URL_CHARS && steps < 28) {
+          while (dataUrl.length > MAX_DATA_URL_CHARS && steps < 40) {
             steps += 1;
-            if (q > 0.72) {
-              q = Math.max(0.72, +(q - 0.03).toFixed(2));
-            } else if (q > 0.58) {
-              q = Math.max(0.58, +(q - 0.04).toFixed(2));
-            } else if (w > 720 || h > 720) {
-              w = Math.max(720, Math.round(w * 0.9));
-              h = Math.max(720, Math.round(h * 0.9));
+            if (q > 0.55) {
+              q = Math.max(0.55, +(q - 0.05).toFixed(2));
             } else if (mime === 'image/webp') {
-              // WebP still too big — try JPEG at same size
-              mime = mimeFallback;
-              q = Math.min(START_QUALITY, 0.88);
-            } else if (w > 480 || h > 480) {
-              w = Math.max(480, Math.round(w * 0.88));
-              h = Math.max(480, Math.round(h * 0.88));
+              mime = 'image/jpeg';
+              q = 0.78;
+            } else if (w > 200 || h > 200) {
+              w = Math.max(160, Math.round(w * 0.82));
+              h = Math.max(160, Math.round(h * 0.82));
+            } else if (q > 0.35) {
+              q = Math.max(0.35, +(q - 0.05).toFixed(2));
             } else {
               break;
             }
@@ -97,7 +93,11 @@ export function compressImageFile(file, opts = {}) {
           }
 
           if (dataUrl.length > MAX_DATA_URL_CHARS) {
-            reject(new Error('Image still too large — pick a smaller photo'));
+            // Last resort tiny JPEG
+            dataUrl = tryEncode(160, 160, 0.4, 'image/jpeg');
+          }
+          if (dataUrl.length > MAX_DATA_URL_CHARS) {
+            reject(new Error('Photo still too large after compress — try a simpler / smaller file'));
             return;
           }
           resolve(dataUrl);
@@ -137,13 +137,32 @@ export function productImagesList(product) {
   return out;
 }
 
-/** Gallery compress — fits multiple images in one Sheets cell as JSON. */
+/** Gallery compress — sized so several photos fit in one Sheets Images cell. */
 export function compressGalleryImageFile(file) {
   return compressImageFile(file, {
-    maxEdge: 1200,
-    maxChars: 9000,
-    quality: 0.88,
+    maxEdge: 1000,
+    maxChars: GALLERY_MAX_CHARS,
+    quality: 0.82,
   });
+}
+
+/**
+ * Pack gallery so JSON fits Sheets cell (~50k). Keeps as many photos as possible from the start.
+ * Oversized single entries are skipped.
+ */
+export function fitImagesForSheets(images, budget = IMAGES_CELL_BUDGET) {
+  const list = (Array.isArray(images) ? images : [])
+    .map((s) => String(s || '').trim())
+    .filter(Boolean);
+  const out = [];
+  for (const img of list) {
+    if (img.length > GALLERY_MAX_CHARS + 2000) continue; // skip unusable giants
+    const trial = [...out, img];
+    if (JSON.stringify(trial).length > budget) break;
+    out.push(img);
+    if (out.length >= MAX_PRODUCT_IMAGES) break;
+  }
+  return out;
 }
 
 /** Strip catalog-only fields before saving onto order/invoice line items */
