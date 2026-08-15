@@ -8,13 +8,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { purchasesAPI, vendorsAPI, ordersAPI, productsAPI, paymentsAPI } from '@/services/api';
+import { purchasesAPI, vendorsAPI, ordersAPI, productsAPI, paymentsAPI, expensesAPI, settingsAPI } from '@/services/api';
+import { clearGasCache } from '@/services/gasClient';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
-import { notifyPaymentEvent, openWhatsAppChat } from '@/services/notifications';
+import { notifyPaymentEvent, openWhatsAppChat, printPaymentSlip } from '@/services/notifications';
 import { useBrand } from '@/context/BrandContext';
-import { Plus, Search, Eye, Edit, Trash2, ShoppingBag, PackageCheck, Paperclip, AlertTriangle, X, Save, FileText, Link2, PackagePlus, Building2, Truck } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Trash2, ShoppingBag, PackageCheck, Paperclip, AlertTriangle, X, Save, FileText, Link2, PackagePlus, Building2, Truck, CreditCard } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
 
@@ -109,6 +110,10 @@ const Purchases = () => {
   const [editing, setEditing] = useState(null);
   const [formData, setFormData] = useState(emptyPurchase);
   const [saving, setSaving] = useState(false);
+  const [paymentPurchase, setPaymentPurchase] = useState(null);
+  const [paymentData, setPaymentData] = useState({ amount: 0, method: 'Cash', date: new Date().toISOString().split('T')[0], notes: '' });
+  const [paymentMethods, setPaymentMethods] = useState(['Cash', 'Bank Transfer', 'UPI', 'Card', 'Cheque']);
+  const [paying, setPaying] = useState(false);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -130,6 +135,13 @@ const Purchases = () => {
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  useEffect(() => {
+    settingsAPI.get().then((res) => {
+      const methods = (res.data?.payments?.methods || []).filter((m) => m.enabled).map((m) => m.name);
+      if (methods.length) setPaymentMethods(methods);
+    }).catch(() => {});
+  }, []);
 
   /** Only open orders for linking — keep current link visible when editing a closed one */
   const linkableOrders = useMemo(() => {
@@ -493,6 +505,136 @@ const Purchases = () => {
     }
   };
 
+  const openPayment = (purchase) => {
+    const row = normalizePurchase(purchase);
+    const outstanding = Math.max(0, row.totalAmount - row.paidAmount);
+    if (!(outstanding > 0)) {
+      toast.message('This vendor bill is already fully paid');
+      return;
+    }
+    setPaymentPurchase(row);
+    setPaymentData({
+      amount: outstanding,
+      method: paymentMethods[0] || 'Cash',
+      date: new Date().toISOString().split('T')[0],
+      notes: '',
+    });
+  };
+
+  const saveVendorPayment = async (e) => {
+    e.preventDefault();
+    if (!paymentPurchase) return;
+    const amount = Number(paymentData.amount) || 0;
+    const outstanding = Math.max(0, Number(paymentPurchase.totalAmount) - Number(paymentPurchase.paidAmount));
+    if (!(amount > 0)) {
+      toast.error('Enter a valid payment amount');
+      return;
+    }
+    if (amount > outstanding) {
+      toast.error(`Payment cannot exceed balance due (${formatCurrency(outstanding)})`);
+      return;
+    }
+
+    setPaying(true);
+    try {
+      const vendor = vendors.find((v) => String(v.id) === String(paymentPurchase.vendorId));
+      const poNumber = paymentPurchase.poNumber || paymentPurchase.purchaseNo || paymentPurchase.id;
+      const notes = paymentData.notes || `Vendor bill payment — PO ${poNumber}`;
+      const payBody = {
+        amount,
+        date: paymentData.date,
+        method: paymentData.method,
+        notes,
+        partyPhone: vendor?.phone || '',
+        partyEmail: vendor?.email || '',
+      };
+
+      let result;
+      try {
+        const res = await purchasesAPI.pay(paymentPurchase.id, payBody);
+        result = res?.data || {};
+      } catch (atomicErr) {
+        // Fallback for older GAS deploys without /purchases/:id/pay
+        console.warn('Atomic pay endpoint unavailable, using fallback', atomicErr);
+        const paidAmount = Number(paymentPurchase.paidAmount) + amount;
+        const fullyPaid = paidAmount >= Number(paymentPurchase.totalAmount);
+        const purchaseStatus = paymentPurchase.status === 'Received'
+          ? 'Received'
+          : (fullyPaid ? 'Fully Paid' : 'Partial Paid');
+        await purchasesAPI.update(paymentPurchase.id, {
+          ...paymentPurchase,
+          paidAmount,
+          paid: paidAmount,
+          status: purchaseStatus,
+          paymentStatus: fullyPaid ? 'Paid' : 'Partially Paid',
+        });
+        const payment = {
+          date: paymentData.date,
+          type: 'outflow',
+          category: 'Purchase Payment',
+          method: paymentData.method,
+          vendorId: paymentPurchase.vendorId || '',
+          vendorName: paymentPurchase.vendorName || '',
+          party: paymentPurchase.vendorName || '',
+          partyPhone: vendor?.phone || '',
+          phone: vendor?.phone || '',
+          reference: poNumber,
+          refId: paymentPurchase.id,
+          amount,
+          totalAmount: paymentPurchase.totalAmount,
+          balanceDue: Math.max(0, outstanding - amount),
+          notes,
+        };
+        const payRes = await paymentsAPI.create(payment);
+        await expensesAPI.create({
+          date: paymentData.date,
+          category: 'Purchase Payment',
+          amount,
+          description: `Vendor bill payment · ${paymentPurchase.vendorName || 'Vendor'} · PO ${poNumber}`,
+          paymentMethod: paymentData.method,
+        });
+        result = {
+          purchase: { paidAmount, outstanding: Math.max(0, outstanding - amount) },
+          payment: { ...payment, ...(payRes?.data || {}) },
+        };
+      }
+
+      const savedPayment = {
+        type: 'outflow',
+        category: 'Purchase Payment',
+        party: paymentPurchase.vendorName || '',
+        partyPhone: vendor?.phone || result?.payment?.partyPhone || '',
+        amount,
+        method: paymentData.method,
+        reference: poNumber,
+        date: paymentData.date,
+        notes,
+        totalAmount: Number(paymentPurchase.totalAmount) || 0,
+        balanceDue: Number(result?.payment?.balanceDue ?? Math.max(0, outstanding - amount)) || 0,
+        ...(result?.payment || {}),
+      };
+      try { printPaymentSlip(savedPayment, company || {}); } catch { /* optional */ }
+      if (savedPayment.partyPhone) {
+        try {
+          await notifyPaymentEvent(savedPayment, { openWhatsApp: true });
+        } catch (waErr) {
+          console.warn('Vendor payment WhatsApp failed', waErr);
+        }
+      }
+
+      clearGasCache();
+      setPaymentPurchase(null);
+      const remaining = Number(result?.purchase?.outstanding ?? Math.max(0, outstanding - amount));
+      toast.success(remaining <= 0 ? 'Vendor bill paid in full' : 'Partial vendor payment recorded');
+      fetchAll();
+    } catch (err) {
+      console.error('Vendor payment failed', err);
+      toast.error(err?.response?.data?.message || err?.message || 'Payment could not be recorded');
+    } finally {
+      setPaying(false);
+    }
+  };
+
   const statusColor = (s) => ({
     Draft: 'bg-gray-100 text-gray-800',
     Ordered: 'bg-blue-100 text-blue-800',
@@ -589,6 +731,18 @@ const Purchases = () => {
                             <div className="flex items-center gap-1 justify-end">
                               {p.status !== 'Received' && (
                                 <Button size="icon" variant="ghost" onClick={() => markReceived(p)} title="Mark Received"><PackageCheck className="h-4 w-4 text-green-600" /></Button>
+                              )}
+                              {Math.max(0, Number(p.totalAmount) - Number(p.paidAmount)) > 0 && (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="text-emerald-700 hover:bg-emerald-50"
+                                  title="Pay vendor bill"
+                                  onClick={() => openPayment(p)}
+                                  data-testid={`pay-vendor-bill-${p.id}`}
+                                >
+                                  <CreditCard className="h-4 w-4" />
+                                </Button>
                               )}
                               <Button
                                 size="icon"
@@ -806,6 +960,16 @@ const Purchases = () => {
               </div>
               {viewData.notes && <div><p className="text-xs text-gray-500">Notes</p><p className="text-sm">{viewData.notes}</p></div>}
               <div className="flex flex-wrap gap-2 pt-2 border-t">
+                {Math.max(0, Number(viewData.totalAmount) - Number(viewData.paidAmount)) > 0 && (
+                  <Button
+                    type="button"
+                    className="text-white"
+                    style={{ backgroundColor: '#F26522' }}
+                    onClick={() => openPayment(viewData)}
+                  >
+                    <CreditCard className="h-4 w-4 mr-2" />Pay vendor bill
+                  </Button>
+                )}
                 <Button
                   type="button"
                   variant="outline"
@@ -826,6 +990,62 @@ const Purchases = () => {
                 )}
               </div>
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!paymentPurchase} onOpenChange={(open) => { if (!open && !paying) setPaymentPurchase(null); }}>
+        <DialogContent className="max-w-md" data-testid="vendor-payment-dialog">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">Pay Vendor Bill</DialogTitle>
+          </DialogHeader>
+          {paymentPurchase && (
+            <form onSubmit={saveVendorPayment} className="space-y-4 mt-2">
+              <div className="rounded-xl border border-orange-100 bg-orange-50/60 p-3 text-sm">
+                <p className="font-semibold text-gray-900">{paymentPurchase.vendorName || 'Vendor'}</p>
+                <p className="text-gray-600 mt-1">PO: {paymentPurchase.poNumber || paymentPurchase.purchaseNo || '-'}</p>
+                <div className="mt-3 flex justify-between">
+                  <span className="text-gray-600">Balance due</span>
+                  <strong style={{ color: '#F26522' }}>{formatCurrency(Math.max(0, paymentPurchase.totalAmount - paymentPurchase.paidAmount))}</strong>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Payment Date</Label>
+                  <Input type="date" value={paymentData.date} onChange={(e) => setPaymentData((p) => ({ ...p, date: e.target.value }))} required />
+                </div>
+                <div>
+                  <Label>Payment Method</Label>
+                  <Select value={paymentData.method} onValueChange={(method) => setPaymentData((p) => ({ ...p, method }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{paymentMethods.map((method) => <SelectItem key={method} value={method}>{method}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label>Amount *</Label>
+                <Input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={paymentData.amount}
+                  onChange={(e) => setPaymentData((p) => ({ ...p, amount: e.target.value }))}
+                  required
+                  autoFocus
+                  data-testid="vendor-payment-amount"
+                />
+              </div>
+              <div>
+                <Label>Note</Label>
+                <Textarea value={paymentData.notes} onChange={(e) => setPaymentData((p) => ({ ...p, notes: e.target.value }))} placeholder="Cheque no., transfer reference, etc." rows={2} />
+              </div>
+              <DialogFooter className="gap-2">
+                <Button type="button" variant="outline" onClick={() => setPaymentPurchase(null)} disabled={paying}>Cancel</Button>
+                <Button type="submit" style={{ backgroundColor: '#F26522' }} className="text-white" disabled={paying} data-testid="save-vendor-payment">
+                  <CreditCard className="h-4 w-4 mr-2" />{paying ? 'Saving…' : 'Record payment'}
+                </Button>
+              </DialogFooter>
+            </form>
           )}
         </DialogContent>
       </Dialog>

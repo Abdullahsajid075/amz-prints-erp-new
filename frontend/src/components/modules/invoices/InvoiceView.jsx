@@ -106,6 +106,8 @@ const InvoiceView = ({ isPublic = false }) => {
 
   const verifyUrl = `${window.location.origin}/invoice/${invoice.shareToken}`;
   const balance = pendingBalance();
+  const itemCount = Array.isArray(invoice.items) ? invoice.items.length : 0;
+  const fitOnePage = itemCount <= 10;
 
   const shellClass = {
     classic: 'invoice-container max-w-4xl mx-auto bg-white shadow-xl border border-gray-200',
@@ -113,6 +115,7 @@ const InvoiceView = ({ isPublic = false }) => {
     minimal: 'invoice-container max-w-3xl mx-auto bg-white border border-gray-300',
     bold: 'invoice-container max-w-4xl mx-auto bg-white shadow-xl border-4',
   }[template] || 'invoice-container max-w-4xl mx-auto bg-white shadow-xl border border-gray-200';
+  const printFitClass = fitOnePage ? ' invoice-fit-one-page' : ' invoice-multi-page';
 
   const headerPad = template === 'minimal' ? 'p-6' : 'p-8';
   const tableHeadBg = template === 'bold' ? accent : template === 'minimal' ? '#fff' : '#2E2E2E';
@@ -183,10 +186,12 @@ const InvoiceView = ({ isPublic = false }) => {
       )}
 
       <div
-        className={shellClass}
+        className={`${shellClass}${printFitClass}`}
         id="printable-invoice"
         data-testid="invoice-template"
         data-template={template}
+        data-item-count={itemCount}
+        data-fit-one-page={fitOnePage ? '1' : '0'}
         style={template === 'bold' ? { borderColor: accent } : undefined}
       >
         {template !== 'minimal' && (
@@ -264,12 +269,16 @@ const InvoiceView = ({ isPublic = false }) => {
             <tbody>
               {(invoice.items || []).map((item, i) => {
                 const itemMeta = [item.size, item.material].filter(Boolean).join(' • ');
+                const lineNote = String(item.description || item.notes || '').trim();
                 return (
-                  <tr key={item.id || `${item.name}-${item.quantity}-${item.rate}`} className="border-b border-gray-100">
+                  <tr key={item.id || `${item.name}-${item.quantity}-${item.rate}-${i}`} className="border-b border-gray-100">
                     <td className="p-3 text-sm text-gray-600">{i + 1}</td>
                     <td className="p-3">
                       <p className="font-semibold text-sm" style={{ color: '#2E2E2E' }}>{item.name}</p>
                       {itemMeta && <p className="text-xs text-gray-500 mt-0.5">{itemMeta}</p>}
+                      {lineNote && (
+                        <p className="text-xs text-gray-600 mt-1 whitespace-pre-line leading-snug">{lineNote}</p>
+                      )}
                     </td>
                     <td className="p-3 text-right text-sm">{item.quantity}</td>
                     <td className="p-3 text-right text-sm">{formatCurrency(item.rate)}</td>

@@ -235,7 +235,7 @@ code {
 
 /* Print styles for invoice / quotation — header & footer on every page */
 @media print {
-  @page { size: A4; margin: 14mm 12mm 18mm 12mm; }
+  @page { size: A4; margin: 12mm 10mm 14mm 10mm; }
   .no-print, nav, aside, .invoice-container ~ * { display: none !important; }
   body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .invoice-container {
@@ -254,10 +254,7 @@ code {
     display: block !important;
   }
   .invoice-print-footer {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
+    position: static;
     text-align: center;
     font-size: 9px;
     color: #666;
@@ -277,4 +274,72 @@ code {
   .invoice-container .w-20, .invoice-container .h-20 { width: 52px !important; height: 52px !important; }
   .invoice-container .w-32, .invoice-container .h-32 { width: 84px !important; height: 84px !important; }
   main, .App { padding: 0 !important; margin: 0 !important; }
+
+  /* ≤10 lines: force compact single A4 page */
+  .invoice-fit-one-page {
+    font-size: 10px !important;
+    line-height: 1.25 !important;
+  }
+  .invoice-fit-one-page .p-8,
+  .invoice-fit-one-page .px-8,
+  .invoice-fit-one-page .pb-8 {
+    padding: 6px 0 !important;
+  }
+  .invoice-fit-one-page .p-4 {
+    padding: 4px 0 !important;
+  }
+  .invoice-fit-one-page table {
+    font-size: 9.5px !important;
+  }
+  .invoice-fit-one-page table th,
+  .invoice-fit-one-page table td {
+    padding: 3px 4px !important;
+  }
+  .invoice-fit-one-page h1,
+  .invoice-fit-one-page .text-3xl {
+    font-size: 16px !important;
+  }
+  .invoice-fit-one-page .text-2xl {
+    font-size: 13px !important;
+  }
+  .invoice-fit-one-page .text-xl {
+    font-size: 11px !important;
+  }
+  .invoice-fit-one-page .h-24 {
+    height: 44px !important;
+  }
+  .invoice-fit-one-page .w-20,
+  .invoice-fit-one-page .h-20 {
+    width: 44px !important;
+    height: 44px !important;
+  }
+  .invoice-fit-one-page .w-32,
+  .invoice-fit-one-page .h-32 {
+    width: 64px !important;
+    height: 64px !important;
+  }
+  .invoice-fit-one-page .gap-8 {
+    gap: 0.75rem !important;
+  }
+  .invoice-fit-one-page .gap-6 {
+    gap: 0.5rem !important;
+  }
+  .invoice-fit-one-page .mt-4 {
+    margin-top: 0.35rem !important;
+  }
+  .invoice-fit-one-page .space-y-4 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.4rem !important;
+  }
+  .invoice-fit-one-page .space-y-2 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.2rem !important;
+  }
+  .invoice-fit-one-page {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  /* >10 lines: allow natural multi-page flow */
+  .invoice-multi-page tr {
+    page-break-inside: avoid;
+  }
 }

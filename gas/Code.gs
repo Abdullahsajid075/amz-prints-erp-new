@@ -1932,6 +1932,140 @@ function normalizePurchase_(body, existing) {
   };
 }
 
+/**
+ * Atomically record a vendor bill payment:
+ * update Purchases.Paid/status + append Payments outflow + Expenses audit.
+ */
+function handlePurchasePay_(purchaseId, body) {
+  body = body || {};
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var sheet = getSheet_(SHEET_NAMES.PURCHASES);
+    ensureHeaders_(sheet, SHEET_NAMES.PURCHASES);
+    var rows = getSheetRows_(SHEET_NAMES.PURCHASES);
+    var index = findById_(rows, purchaseId);
+    if (index < 0) throw new Error('Purchase not found');
+
+    var existing = rows[index];
+    if (/cancel/i.test(String(existing.status || ''))) {
+      throw new Error('Cancelled purchase cannot be paid');
+    }
+
+    var total = Number(existing.total != null ? existing.total : (existing.totalamount || 0)) || 0;
+    var paidPrev = Number(existing.paid != null ? existing.paid : (existing.paidamount || 0)) || 0;
+    var outstanding = Math.max(0, total - paidPrev);
+    var amount = Number(body.amount != null ? body.amount : 0) || 0;
+    if (!(amount > 0)) throw new Error('Enter a valid payment amount');
+    if (amount > outstanding + 0.0001) {
+      throw new Error('Payment cannot exceed balance due (' + outstanding + ')');
+    }
+
+    var paidNext = paidPrev + amount;
+    var fullyPaid = paidNext >= total;
+    var prevStatus = String(existing.status || 'Ordered');
+    var nextStatus = prevStatus;
+    if (!/^received$/i.test(prevStatus)) {
+      nextStatus = fullyPaid ? 'Fully Paid' : 'Partial Paid';
+    }
+
+    var updated = normalizePurchase_({
+      paidAmount: paidNext,
+      paid: paidNext,
+      status: nextStatus,
+    }, existing);
+    updated.id = existing.id;
+    updateObjectProps_(sheet, SHEET_NAMES.PURCHASES, existing._row, updated);
+    invalidateSheetCache_(SHEET_NAMES.PURCHASES);
+
+    var vendorId = String(updated.vendorid || existing.vendorid || '');
+    var vendorName = String(updated.vendorname || existing.vendorname || '').trim();
+    var vendorPhone = String(body.partyPhone || body.phone || '').trim();
+    var vendorEmail = String(body.partyEmail || body.email || '').trim();
+    if ((!vendorPhone || !vendorEmail) && vendorId) {
+      try {
+        var vendors = getSheetRows_(SHEET_NAMES.VENDORS);
+        var vIdx = findById_(vendors, vendorId);
+        if (vIdx >= 0) {
+          if (!vendorPhone) vendorPhone = String(vendors[vIdx].phone || '').trim();
+          if (!vendorEmail) vendorEmail = String(vendors[vIdx].email || '').trim();
+          if (!vendorName) vendorName = String(vendors[vIdx].name || '').trim();
+        }
+      } catch (eVend) { /* optional */ }
+    }
+
+    var po = String(updated.purchaseno || existing.purchaseno || existing.ponumber || purchaseId);
+    var payDate = String(body.date || nowDate_()).slice(0, 10);
+    var method = String(body.method || body.paymentMethod || 'Cash').trim() || 'Cash';
+    var notes = String(body.notes || ('Vendor bill payment — PO ' + po)).trim();
+    var balanceDue = Math.max(0, total - paidNext);
+
+    var paySheet = getSheet_(SHEET_NAMES.PAYMENTS);
+    ensureHeaders_(paySheet, SHEET_NAMES.PAYMENTS);
+    var payment = {
+      id: 'pay_po_' + Date.now(),
+      date: payDate,
+      type: 'outflow',
+      category: 'Purchase Payment',
+      refid: purchaseId,
+      customername: vendorName,
+      customerid: vendorId,
+      partyphone: vendorPhone,
+      partyemail: vendorEmail,
+      amount: amount,
+      method: method,
+      notes: notes,
+      balancedue: balanceDue,
+      totalamount: total,
+    };
+    appendObject_(paySheet, SHEET_NAMES.PAYMENTS, payment);
+    invalidateSheetCache_(SHEET_NAMES.PAYMENTS);
+
+    var expSheet = getSheet_(SHEET_NAMES.EXPENSES);
+    ensureHeaders_(expSheet, SHEET_NAMES.EXPENSES);
+    var expense = {
+      id: 'exp_po_' + Date.now(),
+      date: payDate,
+      category: 'Purchase Payment',
+      amount: amount,
+      description: 'Vendor bill payment · ' + (vendorName || 'Vendor') + ' · PO ' + po,
+      paymentmethod: method,
+    };
+    appendObject_(expSheet, SHEET_NAMES.EXPENSES, expense);
+    invalidateSheetCache_(SHEET_NAMES.EXPENSES);
+
+    return {
+      success: true,
+      purchase: toApiPurchase_(updated),
+      payment: {
+        id: payment.id,
+        date: payment.date,
+        type: payment.type,
+        category: payment.category,
+        reference: po,
+        refId: payment.refid,
+        party: payment.customername,
+        partyPhone: payment.partyphone,
+        amount: payment.amount,
+        method: payment.method,
+        notes: payment.notes,
+        balanceDue: payment.balancedue,
+        totalAmount: payment.totalamount,
+      },
+      expense: {
+        id: expense.id,
+        date: expense.date,
+        category: expense.category,
+        amount: expense.amount,
+        description: expense.description,
+        paymentMethod: expense.paymentmethod,
+      },
+    };
+  } finally {
+    try { lock.releaseLock(); } catch (eLock) { /* ignore */ }
+  }
+}
+
 function handlePurchases_(path, method, body) {
   var sheet = getSheet_(SHEET_NAMES.PURCHASES);
   ensureHeaders_(sheet, SHEET_NAMES.PURCHASES);
@@ -1946,9 +2080,16 @@ function handlePurchases_(path, method, body) {
     }
   }
 
-  var id = path.split('/')[2];
+  var parts = String(path || '').split('/');
+  var id = parts[2];
+  var action = parts[3] || '';
   var index = findById_(rows, id);
   if (index < 0) throw new Error('Purchase not found');
+
+  if (action === 'pay') {
+    if (method !== 'POST') throw new Error('Method not allowed');
+    return handlePurchasePay_(id, body || {});
+  }
 
   if (method === 'GET') return toApiPurchase_(rows[index]);
   if (method === 'PUT') {

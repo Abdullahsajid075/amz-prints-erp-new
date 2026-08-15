@@ -25,6 +25,7 @@ const emptyItem = () => ({
   size: '',
   material: '',
   description: '',
+  notes: '',
   productType: 'Product',
 });
 
@@ -114,6 +115,7 @@ const InvoiceForm = () => {
       const items = rawItems.map((i) => {
         const productType = i.productType || 'Product';
         const service = String(productType).toLowerCase() === 'service';
+        const lineNote = i.description || i.notes || '';
         return {
           _key: i._key || `k_${Math.random().toString(36).slice(2, 8)}`,
           productId: i.productId || '',
@@ -122,7 +124,8 @@ const InvoiceForm = () => {
           rate: Number(i.rate) || 0,
           size: service ? '' : (i.size || ''),
           material: service ? '' : (i.material || ''),
-          description: i.description || (service ? (i.notes || '') : ''),
+          description: lineNote,
+          notes: lineNote,
           productType: service ? 'Service' : 'Product',
         };
       });
@@ -200,6 +203,8 @@ const InvoiceForm = () => {
               ...line,
               ...fields,
               _key: line._key,
+              description: line.description || line.notes || fields.notes || '',
+              notes: line.notes || line.description || fields.notes || '',
             }
           : line
       ));
@@ -331,6 +336,7 @@ const InvoiceForm = () => {
         status: derivedStatus(),
         items: formData.items.map((it) => {
           const service = isServiceLine(it, catalog);
+          const lineNote = String(it.description || it.notes || '').trim();
           return {
             productId: it.productId || '',
             name: it.name || '',
@@ -338,7 +344,8 @@ const InvoiceForm = () => {
             rate: Number(it.rate) || 0,
             size: service ? '' : (it.size || ''),
             material: service ? '' : (it.material || ''),
-            description: service ? (it.description || '') : '',
+            description: lineNote,
+            notes: lineNote,
             productType: service ? 'Service' : 'Product',
           };
         }),
@@ -582,6 +589,14 @@ const InvoiceForm = () => {
             )}
             {formData.items.map((it, i) => {
               const service = isServiceLine(it, catalog);
+              const setLineNote = (value) => {
+                setFormData((prev) => {
+                  const items = prev.items.map((line, idx) => (
+                    idx === i ? { ...line, description: value, notes: value } : line
+                  ));
+                  return { ...prev, items };
+                });
+              };
               return (
               <div key={it._key} className="grid grid-cols-12 gap-2 items-end p-2 border rounded-xl bg-gray-50/50" data-testid={`item-${i}`}>
                 <div className={service ? 'col-span-12 md:col-span-5' : 'col-span-12 md:col-span-4'}>
@@ -605,20 +620,11 @@ const InvoiceForm = () => {
                 </div>
                 {service ? (
                   <>
-                    <div className="col-span-12 md:col-span-4">
-                      <Label className="text-xs">Description</Label>
-                      <Input
-                        className="bg-white"
-                        value={it.description || ''}
-                        onChange={(e) => updateItem(i, 'description', e.target.value)}
-                        placeholder="Service details…"
-                      />
-                    </div>
-                    <div className="col-span-6 md:col-span-2">
+                    <div className="col-span-6 md:col-span-3">
                       <Label className="text-xs">Service Charges</Label>
                       <Input className="bg-white" type="number" step="0.01" min="0" value={it.rate} onChange={(e) => updateItem(i, 'rate', parseFloat(e.target.value) || 0)} />
                     </div>
-                    <div className="col-span-4 md:col-span-1">
+                    <div className="col-span-4 md:col-span-3">
                       <Label className="text-xs">Amount</Label>
                       <Input disabled className="bg-white font-semibold" value={formatCurrency(Number(it.rate) || 0)} />
                     </div>
@@ -647,6 +653,16 @@ const InvoiceForm = () => {
                   <Button type="button" size="icon" variant="ghost" onClick={() => removeItem(i)} disabled={formData.items.length === 1}>
                     <Trash2 className="h-4 w-4 text-red-600" />
                   </Button>
+                </div>
+                <div className="col-span-12">
+                  <Label className="text-xs">Line note / description</Label>
+                  <Input
+                    className="bg-white"
+                    value={it.description || it.notes || ''}
+                    onChange={(e) => setLineNote(e.target.value)}
+                    placeholder={service ? 'Custom service details…' : 'Custom line note / description…'}
+                    data-testid={`invoice-line-note-${i}`}
+                  />
                 </div>
               </div>
               );

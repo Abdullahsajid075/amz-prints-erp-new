@@ -104,6 +104,8 @@ export const purchasesAPI = {
   create: (data) => gasRequest('POST', '/purchases', withToken({ data })),
   update: (id, data) => gasRequest('PUT', `/purchases/${id}`, withToken({ data })),
   delete: (id) => gasRequest('DELETE', `/purchases/${id}`, withToken()),
+  /** Atomic vendor bill payment: updates PO + Payments outflow + Expenses audit */
+  pay: (id, data) => gasRequest('POST', `/purchases/${id}/pay`, withToken({ data })),
 };
 
 export const reportsAPI = {
