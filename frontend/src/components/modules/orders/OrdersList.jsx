@@ -28,6 +28,8 @@ const ORDER_SORT_OPTS = [
 const IN_PROGRESS_STATUSES = ['Order Received', 'Designing', 'Proof Approval', 'Printing', 'Finishing', 'Packing', 'Ready'];
 const COMPLETED_STATUSES = ['Delivered', 'Cancelled'];
 
+const isLockedOrder = (order) => /^(delivered|completed|complete)$/i.test(String(order?.status || ''));
+
 function orderDisplayTotal(order) {
   const direct = Number(order?.totalAmount);
   if (direct > 0) return direct;
@@ -71,6 +73,9 @@ const OrdersList = () => {
   const [filters, setFilters] = useState({ search: '', status: undefined });
   const [sort, setSort] = useState({ field: 'date', dir: 'desc' });
   const [company, setCompany] = useState({});
+  const [paymentOrder, setPaymentOrder] = useState(null);
+  const [paymentData, setPaymentData] = useState({ amount: '', method: 'Cash', notes: '' });
+  const [paymentSaving, setPaymentSaving] = useState(false);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -84,6 +89,12 @@ const OrdersList = () => {
       });
       if (filters.status) {
         list = list.filter((o) => String(o.status || '') === String(filters.status));
+      }
+      if (filters.payment === 'pending') {
+        list = list.filter((o) => {
+          const total = orderDisplayTotal(o);
+          return total > Number(o.advancePayment || 0);
+        });
       }
       if (filters.search) {
         const q = String(filters.search).trim().toLowerCase();
@@ -107,14 +118,14 @@ const OrdersList = () => {
     } finally {
       setLoading(false);
     }
-  }, [filters.search, filters.status]);
+  }, [filters.search, filters.status, filters.payment]);
 
   // Active filters — status applies immediately; search debounced while typing
   useEffect(() => {
     const delay = filters.search ? 350 : 0;
     const t = setTimeout(() => { fetchOrders(); }, delay);
     return () => clearTimeout(t);
-  }, [fetchOrders, filters.search, filters.status]);
+  }, [fetchOrders, filters.search, filters.status, filters.payment]);
 
   useEffect(() => {
     settingsAPI.get().then(res => setCompany(res.data?.company || {})).catch(() => {});
@@ -154,12 +165,54 @@ const OrdersList = () => {
   };
 
   const handleDelete = async (orderId) => {
+    const order = orders.find((o) => String(o.id) === String(orderId));
+    if (isLockedOrder(order)) {
+      toast.error('Delivered order is locked and cannot be deleted');
+      return;
+    }
     if (!window.confirm('Are you sure you want to delete this order?')) return;
     try {
       await ordersAPI.delete(orderId);
       toast.success('Order deleted successfully');
       fetchOrders();
     } catch { toast.error('Failed to delete order'); }
+  };
+
+  const openPayment = (order) => {
+    const balance = Math.max(0, orderDisplayTotal(order) - Number(order.advancePayment || 0));
+    if (!(balance > 0)) {
+      toast.message('This order is already fully paid');
+      return;
+    }
+    setPaymentOrder(order);
+    setPaymentData({ amount: balance, method: 'Cash', notes: '' });
+  };
+
+  const saveOrderPayment = async (e) => {
+    e.preventDefault();
+    if (!paymentOrder) return;
+    const amount = Number(paymentData.amount) || 0;
+    const balance = Math.max(0, orderDisplayTotal(paymentOrder) - Number(paymentOrder.advancePayment || 0));
+    if (!(amount > 0) || amount > balance) {
+      toast.error(`Enter an amount up to ${formatCurrency(balance)}`);
+      return;
+    }
+    setPaymentSaving(true);
+    try {
+      await ordersAPI.pay(paymentOrder.id, {
+        amount,
+        method: paymentData.method,
+        notes: paymentData.notes,
+        date: new Date().toISOString().slice(0, 10),
+      });
+      toast.success('Payment recorded');
+      setPaymentOrder(null);
+      fetchOrders();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err?.message || 'Payment could not be recorded');
+    } finally {
+      setPaymentSaving(false);
+    }
   };
 
   const handleWhatsApp = async (order) => {
@@ -411,9 +464,14 @@ const OrdersList = () => {
         <Button size="icon" variant="outline" className="h-8 w-8" title="Print" onClick={() => handlePrint(order)} data-testid={`print-order-${order.id}`}>
           <Printer className="h-3.5 w-3.5" />
         </Button>
-        <Button size="icon" variant="ghost" className="h-8 w-8" title="Edit" onClick={() => navigate(`/orders/${order.id}/edit`)} data-testid={`edit-order-${order.id}`}>
-          <Edit className="h-3.5 w-3.5" />
+        <Button size="icon" variant="outline" className="h-8 w-8 text-emerald-700" title="Record payment" onClick={() => openPayment(order)} data-testid={`pay-order-${order.id}`}>
+          <Wallet className="h-3.5 w-3.5" />
         </Button>
+        {!isLockedOrder(order) && (
+          <Button size="icon" variant="ghost" className="h-8 w-8" title="Edit" onClick={() => navigate(`/orders/${order.id}/edit`)} data-testid={`edit-order-${order.id}`}>
+            <Edit className="h-3.5 w-3.5" />
+          </Button>
+        )}
       </div>
       <div className="flex gap-1 mt-1.5 flex-wrap">
         {needsDesignDocsReminder(order) && (
@@ -489,6 +547,13 @@ const OrdersList = () => {
               {Object.values(ORDER_STATUS).map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
             </SelectContent>
           </Select>
+          <Select value={filters.payment || 'all'} onValueChange={(v) => setFilters({ ...filters, payment: v === 'all' ? undefined : v })}>
+            <SelectTrigger className="rounded-xl" data-testid="payment-filter"><SelectValue placeholder="All Payments" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Payments</SelectItem>
+              <SelectItem value="pending">Pending Payment</SelectItem>
+            </SelectContent>
+          </Select>
           <Button onClick={fetchOrders} style={{ backgroundColor: '#F26522' }} className="text-white rounded-xl" data-testid="search-button">
             <Search className="h-4 w-4 mr-2" />Search
           </Button>
@@ -549,6 +614,7 @@ const OrdersList = () => {
                         <div className="flex items-center gap-1 justify-end">
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleView(order.id)} title="View"><Eye className="h-4 w-4" /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleGenerateInvoice(order)} title="Invoice"><Receipt className="h-4 w-4" style={{ color: '#F26522' }} /></Button>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-700" onClick={() => openPayment(order)} title="Record payment"><Wallet className="h-4 w-4" /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600" onClick={() => handleWhatsApp(order)} title="WhatsApp"><WhatsAppIcon className="h-4 w-4" /></Button>
                           {needsDesignDocsReminder(order) && (
                             <>
@@ -569,7 +635,6 @@ const OrdersList = () => {
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => copyTrackingLink(order)} title="Copy tracking link"><Link2 className="h-4 w-4" style={{ color: '#F26522' }} /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handlePrint(order)} title="Print"><Printer className="h-4 w-4" /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleDuplicate(order.id)} title="Duplicate"><Copy className="h-4 w-4" /></Button>
-                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleDelete(order.id)} title="Delete"><Trash2 className="h-4 w-4 text-red-600" /></Button>
                         </div>
                       </td>
                     </tr>
@@ -725,12 +790,55 @@ const OrdersList = () => {
                 </Button>
                 <Button variant="outline" className="text-green-700" onClick={() => handleWhatsApp(viewOrder)}><WhatsAppIcon className="h-4 w-4 mr-1" />WhatsApp</Button>
                 <Button variant="outline" onClick={() => handleGenerateInvoice(viewOrder)}><Receipt className="h-4 w-4 mr-1" style={{ color: '#F26522' }} />Invoice</Button>
-                <Button style={{ backgroundColor: '#F26522' }} className="text-white" onClick={() => { setViewOpen(false); navigate(`/orders/${viewOrder.id}/edit`); }} data-testid="edit-from-dialog-button">
-                  <Edit className="h-4 w-4 mr-1" />Edit
+                <Button variant="outline" className="text-emerald-700 border-emerald-200" onClick={() => openPayment(viewOrder)}>
+                  <Wallet className="h-4 w-4 mr-1" />Record payment
                 </Button>
+                {!isLockedOrder(viewOrder) && (
+                  <Button style={{ backgroundColor: '#F26522' }} className="text-white" onClick={() => { setViewOpen(false); navigate(`/orders/${viewOrder.id}/edit`); }} data-testid="edit-from-dialog-button">
+                    <Edit className="h-4 w-4 mr-1" />Edit
+                  </Button>
+                )}
               </>
             )}
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!paymentOrder} onOpenChange={(open) => { if (!open && !paymentSaving) setPaymentOrder(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Record Order Payment</DialogTitle>
+            <DialogDescription>{paymentOrder?.orderId} · {paymentOrder?.customerName}</DialogDescription>
+          </DialogHeader>
+          {paymentOrder && (
+            <form onSubmit={saveOrderPayment} className="space-y-4">
+              <div className="rounded-lg bg-emerald-50 border border-emerald-100 p-3 text-sm">
+                <div className="flex justify-between"><span>Order total</span><strong>{formatCurrency(orderDisplayTotal(paymentOrder))}</strong></div>
+                <div className="flex justify-between mt-1"><span>Balance due</span><strong className="text-emerald-700">{formatCurrency(Math.max(0, orderDisplayTotal(paymentOrder) - Number(paymentOrder.advancePayment || 0)))}</strong></div>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Amount</label>
+                <Input type="number" min="0.01" step="0.01" value={paymentData.amount} onChange={(e) => setPaymentData((p) => ({ ...p, amount: e.target.value }))} required autoFocus />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Payment method</label>
+                <Select value={paymentData.method} onValueChange={(method) => setPaymentData((p) => ({ ...p, method }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="Cash">Cash</SelectItem><SelectItem value="Bank Transfer">Bank Transfer</SelectItem><SelectItem value="Card">Card</SelectItem><SelectItem value="Cheque">Cheque</SelectItem></SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Note</label>
+                <Input value={paymentData.notes} onChange={(e) => setPaymentData((p) => ({ ...p, notes: e.target.value }))} placeholder="Receipt / transfer reference" />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setPaymentOrder(null)} disabled={paymentSaving}>Cancel</Button>
+                <Button type="submit" className="text-white" style={{ backgroundColor: '#F26522' }} disabled={paymentSaving}>
+                  <Wallet className="h-4 w-4 mr-1" />{paymentSaving ? 'Saving…' : 'Accept payment'}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
     </div>

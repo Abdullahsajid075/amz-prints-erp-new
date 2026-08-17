@@ -22,6 +22,7 @@ export const ordersAPI = {
   delete: (id) => gasRequest('DELETE', `/orders/${id}`, withToken()),
   duplicate: (id) => gasRequest('POST', `/orders/${id}/duplicate`, withToken()),
   updateStatus: (id, status) => gasRequest('PATCH', `/orders/${id}/status`, withToken({ data: { status } })),
+  pay: (id, data) => gasRequest('POST', `/orders/${id}/payment`, withToken({ data })),
 };
 
 export const customersAPI = {

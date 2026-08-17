@@ -1807,8 +1807,70 @@ function handleOrderById_(path, method, body) {
 
   if (index < 0) throw new Error('Order not found');
 
+  if (path.indexOf('/payment') !== -1 && method === 'POST') {
+    var orderForPayment = orders[index];
+    var amount = Number(body.amount || 0);
+    if (!(amount > 0)) throw new Error('Enter a valid payment amount');
+    var total = Number(orderForPayment.totalamount || orderForPayment.total || 0);
+    var paidBefore = Number(orderForPayment.advancepayment || 0);
+    var balanceBefore = Math.max(0, total - paidBefore);
+    if (amount > balanceBefore) throw new Error('Payment cannot exceed order balance');
+
+    var paidAfter = paidBefore + amount;
+    var balanceAfter = Math.max(0, total - paidAfter);
+    var history = orderForPayment.paymenthistory;
+    if (typeof history === 'string') {
+      try { history = JSON.parse(history); } catch (eHist) { history = []; }
+    }
+    if (!Array.isArray(history)) history = [];
+    history.push({
+      date: body.date || nowDate_(),
+      amount: amount,
+      method: body.method || 'Cash',
+      notes: body.notes || '',
+    });
+    updateObjectProps_(sheet, SHEET_NAMES.ORDERS, orderForPayment._row, {
+      advancepayment: paidAfter,
+      balanceamount: balanceAfter,
+      paymenthistory: history,
+    });
+
+    var paySheet = getSheet_(SHEET_NAMES.PAYMENTS);
+    ensureHeaders_(paySheet, SHEET_NAMES.PAYMENTS);
+    var payment = {
+      id: 'pay_order_' + Date.now(),
+      date: body.date || nowDate_(),
+      type: 'inflow',
+      category: 'Invoice Payment',
+      refid: orderForPayment.orderid || orderForPayment.id,
+      customername: orderForPayment.customername || '',
+      customerid: orderForPayment.customerid || '',
+      partyphone: orderForPayment.customerphone || '',
+      partyemail: orderForPayment.customeremail || '',
+      amount: amount,
+      method: body.method || 'Cash',
+      notes: body.notes || ('Order payment — ' + (orderForPayment.orderid || orderForPayment.id)),
+      balancedue: balanceAfter,
+      totalamount: total,
+    };
+    appendObject_(paySheet, SHEET_NAMES.PAYMENTS, payment);
+
+    var updatedOrder = Object.assign({}, orderForPayment, {
+      advancepayment: paidAfter,
+      balanceamount: balanceAfter,
+      paymenthistory: history,
+    });
+    return {
+      order: toApiOrder_(updatedOrder),
+      payment: payment,
+    };
+  }
+
   if (method === 'GET') return toApiOrder_(orders[index]);
   if (method === 'PUT') {
+    if (/^(delivered|completed|complete)$/i.test(String(orders[index].status || ''))) {
+      throw new Error('Delivered order is locked. Only payments can be recorded.');
+    }
     var prev = toApiOrder_(orders[index]);
     var updated = normalizeOrder_(body, orders[index]);
     updated.id = orders[index].id;
@@ -1821,6 +1883,9 @@ function handleOrderById_(path, method, body) {
     return apiUpdated;
   }
   if (method === 'DELETE') {
+    if (/^(delivered|completed|complete)$/i.test(String(orders[index].status || ''))) {
+      throw new Error('Delivered order cannot be deleted.');
+    }
     deleteRow_(sheet, orders[index]._row, SHEET_NAMES.ORDERS);
     return { success: true };
   }
