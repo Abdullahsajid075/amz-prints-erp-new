@@ -5,9 +5,7 @@
  * @package Studio_Portfolio
  */
 
-$black = studio_get_option( 'color_black', '#0A0A0F' );
-$blue  = studio_get_option( 'color_blue', '#2563EB' );
-$gold  = studio_get_option( 'color_gold', '#D4AF37' );
+$black = studio_get_option( 'color_black', '#0F172A' );
 $white = studio_get_option( 'color_white', '#FFFFFF' );
 ?>
 
@@ -30,9 +28,9 @@ $white = studio_get_option( 'color_white', '#FFFFFF' );
 				<?php
 				$colors = array(
 					array( 'name' => __( 'Black', 'studio-portfolio' ), 'hex' => $black, 'bg' => $black ),
-					array( 'name' => __( 'Blue', 'studio-portfolio' ), 'hex' => $blue, 'bg' => $blue ),
+					array( 'name' => __( 'Green', 'studio-portfolio' ), 'hex' => studio_get_option( 'color_green', '#16A34A' ), 'bg' => studio_get_option( 'color_green', '#16A34A' ) ),
+					array( 'name' => __( 'Light', 'studio-portfolio' ), 'hex' => studio_get_option( 'color_light', '#F0FDF4' ), 'bg' => studio_get_option( 'color_light', '#F0FDF4' ) ),
 					array( 'name' => __( 'White', 'studio-portfolio' ), 'hex' => $white, 'bg' => $white ),
-					array( 'name' => __( 'Gold', 'studio-portfolio' ), 'hex' => $gold, 'bg' => $gold ),
 				);
 				foreach ( $colors as $color ) :
 					?>

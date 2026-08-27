@@ -38,6 +38,22 @@ while ( have_posts() ) :
 				<p class="text-muted" style="margin-bottom:2rem;"><?php echo esc_html( sprintf( __( 'Client: %s', 'studio-portfolio' ), $client ) ); ?></p>
 			<?php endif; ?>
 
+			<?php
+			$pdf_id = get_post_meta( get_the_ID(), '_portfolio_pdf', true );
+			if ( $pdf_id ) :
+				$pdf_url = wp_get_attachment_url( $pdf_id );
+				if ( $pdf_url ) :
+					?>
+					<p style="margin-top:1rem;margin-bottom:2rem;">
+						<a href="<?php echo esc_url( $pdf_url ); ?>" class="btn btn-primary" target="_blank" rel="noopener noreferrer">
+							<?php esc_html_e( 'View Project PDF →', 'studio-portfolio' ); ?>
+						</a>
+					</p>
+					<?php
+				endif;
+			endif;
+			?>
+
 			<?php if ( has_post_thumbnail() ) : ?>
 				<div class="single-portfolio-image">
 					<?php the_post_thumbnail( 'portfolio-hero' ); ?>

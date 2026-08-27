@@ -145,11 +145,46 @@ function studio_section_enabled( $section ) {
 }
 
 /**
- * Output sanitized rich text (allows basic HTML from customizer).
+ * Get WhatsApp chat URL with optional pre-filled message.
  *
- * @param string $key Setting key.
- * @param string $default Default.
+ * @param string $number  Phone with country code, digits only.
+ * @param string $message Prefilled message.
+ * @return string
  */
-function studio_the_html( $key, $default = '' ) {
-	echo wp_kses_post( studio_get_option( $key, $default ) );
+function studio_get_whatsapp_url( $number, $message = '' ) {
+	$number = preg_replace( '/\D+/', '', $number );
+	if ( empty( $number ) ) {
+		return '';
+	}
+	$url = 'https://wa.me/' . $number;
+	if ( $message ) {
+		$url .= '?text=' . rawurlencode( $message );
+	}
+	return $url;
+}
+
+/**
+ * Get portfolio item link — opens PDF in new tab when uploaded.
+ *
+ * @param int $post_id Post ID.
+ * @return array{url:string,target:string,is_pdf:bool}
+ */
+function studio_get_portfolio_link( $post_id ) {
+	$pdf_id = absint( get_post_meta( $post_id, '_portfolio_pdf', true ) );
+	if ( $pdf_id ) {
+		$url = wp_get_attachment_url( $pdf_id );
+		if ( $url ) {
+			return array(
+				'url'    => $url,
+				'target' => '_blank',
+				'is_pdf' => true,
+			);
+		}
+	}
+
+	return array(
+		'url'    => get_permalink( $post_id ),
+		'target' => '_self',
+		'is_pdf' => false,
+	);
 }

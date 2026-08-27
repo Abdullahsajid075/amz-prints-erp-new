@@ -1,75 +1,66 @@
-# Studio Portfolio — WordPress Theme v1.1.0
+# Personal Brand Portfolio — WordPress Theme v1.2.0
 
-Fully editable design portfolio theme for WordPress.
+Your personal brand website — show your work, your story, and everything about you.
 
 ## Download
 
-**Direct download (zip):**  
+**Direct download:**  
 https://github.com/Abdullahsajid075/amz-prints-erp-new/raw/cursor/design-portfolio-website-09e5/wordpress-theme/studio-portfolio.zip
-
-**Or browse files:**  
-https://github.com/Abdullahsajid075/amz-prints-erp-new/tree/cursor/design-portfolio-website-09e5/wordpress-theme/studio-portfolio
-
----
 
 ## Install
 
 1. Download `studio-portfolio.zip`
-2. WordPress Admin → **Appearance → Themes → Add New → Upload Theme**
-3. Choose the zip → **Install Now → Activate**
-4. **Settings → Permalinks → Save Changes**
+2. **Appearance → Themes → Add New → Upload Theme**
+3. Activate → **Settings → Permalinks → Save**
 
 ---
 
-## Edit Everything in WordPress
+## Personal Brand Features
 
-### Appearance → Customize → Studio Portfolio
+### Your Photo in Hero
+**Customize → Hero → Your Personal Photo** — upload your photo to introduce yourself
 
-| Panel | What you can edit |
-|-------|-------------------|
-| **Colors** | Black, Blue, Gold, White |
-| **Header** | Logo letter, nav labels, CTA button |
-| **Hero** | Title, description, buttons, featured card image |
-| **Marquee** | Scrolling skill tags (one per line) |
-| **Portfolio** | Section titles and scroll hint text |
-| **About** | Bio, stats, 4 services (icon, title, description) |
-| **Design System** | Section title and description |
-| **Contact** | Email, location, form button, social links |
-| **Footer** | Tagline |
-| **Show/Hide** | Toggle any homepage section on/off |
+### Full About Section
+**Customize → About Section** — edit:
+- Experience
+- Education
+- Companies & Brands
+- My Goal
+- My Journey & Struggles
+- Introduction & closing text
 
-### Also editable in WordPress Admin
+### Floating Contact Buttons
+**Customize → Floating Contact Buttons**
+- Email button (uses your email)
+- WhatsApp button (mobile-friendly, opens WhatsApp app on phone)
+- Set number with country code: e.g. `923001234567`
 
-| Location | What |
-|----------|------|
-| **Appearance → Customize → Site Identity** | Site name, logo, tagline |
-| **Appearance → Menus** | Custom navigation menu |
-| **Portfolio → Add New** | Upload projects with images & gallery |
-| **Portfolio → Categories** | Project categories |
+### Green / White / Black / Light Theme
+**Customize → Colors** — Green, Light, Black, White
 
----
+### Portfolio with PDF
+**Portfolio → Add New → Upload PDF**
+- When PDF is uploaded, clicking the project opens PDF in a **new browser tab**
+- Featured image = thumbnail on card
 
-## Portfolio Upload (Backend)
-
-1. **Portfolio → Add New**
-2. **Featured Image** — main project photo
-3. **Portfolio Gallery → Upload / Add Images**
-4. Fill year, client, tags, project URL
-5. **Publish**
+### Customizable Categories
+**Portfolio → Categories** — add/edit/delete any category  
+Default categories created on activation: Branding, UI/UX, Print, etc.
 
 ---
 
-## Features
+## Edit Everything
 
-- Blue, Black, White, Gold color theme
-- Portfolio hover auto-scroll
-- Fully editable via WordPress Customizer
-- No page builder required
-- Contact form built-in
+| Where | What |
+|-------|------|
+| **Customize → Personal Brand Portfolio** | All text, colors, photo, about story, WhatsApp |
+| **Portfolio → Add New** | Projects, images, PDF, categories |
+| **Portfolio → Categories** | Manage project categories |
+| **Appearance → Menus** | Navigation |
+| **Appearance → Customize → Site Identity** | Site name & logo |
 
 ---
 
 ## Requirements
 
-- WordPress 6.0+
-- PHP 7.4+
+WordPress 6.0+ · PHP 7.4+

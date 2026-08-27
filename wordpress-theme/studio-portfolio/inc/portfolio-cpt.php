@@ -116,5 +116,12 @@ add_action( 'manage_portfolio_posts_custom_column', 'studio_portfolio_column_con
 function studio_portfolio_activation() {
 	studio_register_portfolio_cpt();
 	flush_rewrite_rules();
+
+	$defaults = array( 'Branding', 'UI/UX Design', 'Print Design', 'Packaging', 'Social Media', 'Logo Design' );
+	foreach ( $defaults as $cat ) {
+		if ( ! term_exists( $cat, 'portfolio_category' ) ) {
+			wp_insert_term( $cat, 'portfolio_category' );
+		}
+	}
 }
 add_action( 'after_switch_theme', 'studio_portfolio_activation' );

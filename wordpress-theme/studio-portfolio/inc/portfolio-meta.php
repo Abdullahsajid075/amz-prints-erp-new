@@ -78,6 +78,34 @@ function studio_portfolio_details_callback( $post ) {
 				<p class="description"><?php esc_html_e( 'Comma-separated tags displayed on the card.', 'studio-portfolio' ); ?></p>
 			</td>
 		</tr>
+		<tr>
+			<th><?php esc_html_e( 'Project PDF', 'studio-portfolio' ); ?></th>
+			<td>
+				<?php
+				$pdf_id = get_post_meta( $post->ID, '_portfolio_pdf', true );
+				$pdf_url = $pdf_id ? wp_get_attachment_url( $pdf_id ) : '';
+				?>
+				<input type="hidden" id="portfolio_pdf" name="portfolio_pdf" value="<?php echo esc_attr( $pdf_id ); ?>" />
+				<div id="studio-pdf-preview" class="studio-pdf-preview">
+					<?php if ( $pdf_url ) : ?>
+						<a href="<?php echo esc_url( $pdf_url ); ?>" target="_blank" rel="noopener"><?php echo esc_html( basename( $pdf_url ) ); ?></a>
+						<button type="button" class="button studio-remove-pdf"><?php esc_html_e( 'Remove PDF', 'studio-portfolio' ); ?></button>
+					<?php endif; ?>
+				</div>
+				<p>
+					<button type="button" class="button button-primary" id="studio-upload-pdf">
+						<?php esc_html_e( 'Upload PDF', 'studio-portfolio' ); ?>
+					</button>
+				</p>
+				<p class="description"><?php esc_html_e( 'When a PDF is uploaded, clicking the portfolio item opens the PDF in a new browser tab.', 'studio-portfolio' ); ?></p>
+			</td>
+		</tr>
+		<tr>
+			<th><?php esc_html_e( 'Category', 'studio-portfolio' ); ?></th>
+			<td>
+				<p class="description"><?php esc_html_e( 'Assign categories using the "Portfolio Categories" box in the right sidebar. Manage all categories under Portfolio → Categories.', 'studio-portfolio' ); ?></p>
+			</td>
+		</tr>
 	</table>
 	<p><strong><?php esc_html_e( 'Featured Image:', 'studio-portfolio' ); ?></strong> <?php esc_html_e( 'Set the main project image using the Featured Image box on the right sidebar.', 'studio-portfolio' ); ?></p>
 	<?php
@@ -154,6 +182,15 @@ function studio_portfolio_save_meta( $post_id ) {
 	if ( isset( $_POST['portfolio_gallery'] ) ) {
 		$ids = array_filter( array_map( 'absint', explode( ',', sanitize_text_field( wp_unslash( $_POST['portfolio_gallery'] ) ) ) ) );
 		update_post_meta( $post_id, '_portfolio_gallery', $ids );
+	}
+
+	if ( isset( $_POST['portfolio_pdf'] ) ) {
+		$pdf_id = absint( $_POST['portfolio_pdf'] );
+		if ( $pdf_id ) {
+			update_post_meta( $post_id, '_portfolio_pdf', $pdf_id );
+		} else {
+			delete_post_meta( $post_id, '_portfolio_pdf' );
+		}
 	}
 }
 add_action( 'save_post_portfolio', 'studio_portfolio_save_meta' );

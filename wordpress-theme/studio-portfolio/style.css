@@ -3,8 +3,8 @@ Theme Name: Studio Portfolio
 Theme URI: https://github.com/Abdullahsajid075/amz-prints-erp-new
 Author: Studio
 Author URI: https://studio.design
-Description: A beautiful design portfolio WordPress theme with blue, black, white, and gold styling. Features hover auto-scroll portfolio gallery and backend portfolio upload management.
-Version: 1.1.0
+Description: Personal brand portfolio WordPress theme — green, white, black & light styling. Hero photo, full about section, floating Email/WhatsApp buttons, PDF portfolio viewer, customizable categories.
+Version: 1.2.0
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
@@ -16,20 +16,26 @@ Tags: portfolio, design, one-page, custom-colors, featured-images, theme-options
 
 /* ── Design Tokens ── */
 :root {
-  --color-black: #0A0A0F;
-  --color-black-elevated: #12121A;
-  --color-black-overlay: #1A1A24;
-  --color-blue: #2563EB;
-  --color-blue-dark: #1E3A8A;
-  --color-blue-light: #3B82F6;
-  --color-blue-glow: #60A5FA;
+  --color-black: #0F172A;
+  --color-black-elevated: #1E293B;
+  --color-black-overlay: #334155;
+  --color-green: #16A34A;
+  --color-green-dark: #15803D;
+  --color-green-light: #22C55E;
+  --color-light: #F0FDF4;
+  --color-light-muted: #DCFCE7;
   --color-white: #FFFFFF;
   --color-white-muted: #E2E8F0;
   --color-white-subtle: #94A3B8;
-  --color-gold: #D4AF37;
-  --color-gold-light: #F5C542;
-  --color-gold-dark: #B8960C;
-  --color-gold-soft: rgba(212, 175, 55, 0.15);
+  /* Legacy aliases mapped to green palette */
+  --color-blue: #16A34A;
+  --color-blue-dark: #15803D;
+  --color-blue-light: #22C55E;
+  --color-blue-glow: #4ADE80;
+  --color-gold: #22C55E;
+  --color-gold-light: #4ADE80;
+  --color-gold-dark: #15803D;
+  --color-gold-soft: rgba(22, 163, 74, 0.15);
 
   --font-display: 'Syne', system-ui, sans-serif;
   --font-body: 'DM Sans', system-ui, sans-serif;
@@ -1143,3 +1149,260 @@ a {
   width: 1px;
   overflow: hidden;
 }
+
+/* ── Hero Personal Photo ── */
+.hero-grid {
+  display: grid;
+  gap: 3rem;
+  align-items: center;
+  position: relative;
+  z-index: 2;
+}
+
+@media (min-width: 1024px) {
+  .hero-grid { grid-template-columns: 1fr 380px; gap: 4rem; }
+}
+
+.hero-glow-green {
+  position: absolute;
+  top: 15%;
+  left: -8rem;
+  width: 24rem;
+  height: 24rem;
+  background: rgba(22, 163, 74, 0.15);
+  border-radius: 50%;
+  filter: blur(120px);
+  animation: pulse-glow 4s ease-in-out infinite;
+}
+
+.hero-glow-light {
+  position: absolute;
+  bottom: 15%;
+  right: -8rem;
+  width: 24rem;
+  height: 24rem;
+  background: rgba(240, 253, 244, 0.08);
+  border-radius: 50%;
+  filter: blur(120px);
+  animation: pulse-glow 4s ease-in-out infinite 2s;
+}
+
+.hero-name {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-green-light);
+  margin-bottom: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.hero-role {
+  font-size: 1.25rem;
+  color: var(--color-light-muted);
+  margin-bottom: 1.5rem;
+}
+
+.hero-photo-wrap { text-align: center; }
+
+.hero-photo-ring {
+  padding: 6px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-green), var(--color-green-light), var(--color-light));
+  display: inline-block;
+  box-shadow: 0 20px 60px rgba(22, 163, 74, 0.25);
+}
+
+.hero-photo {
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--color-black-elevated);
+  border: 4px solid var(--color-black);
+}
+
+@media (min-width: 1024px) {
+  .hero-photo { width: 340px; height: 340px; }
+}
+
+.hero-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hero-photo-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--color-white-subtle);
+  background: linear-gradient(135deg, rgba(22,163,74,0.2), rgba(240,253,244,0.05));
+}
+
+.hero-photo-caption {
+  margin-top: 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--color-green-light);
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, var(--color-green-light), var(--color-light));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-gradient-gold {
+  background: linear-gradient(135deg, var(--color-green-light), var(--color-green));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── About Story Cards ── */
+.about-story-grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .about-story-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.about-story-card {
+  padding: 2rem;
+  border-radius: var(--radius-xl);
+  background: rgba(240, 253, 244, 0.04);
+  border: 1px solid rgba(22, 163, 74, 0.15);
+  transition: border-color 0.3s, transform 0.3s;
+}
+
+.about-story-card:hover {
+  border-color: rgba(22, 163, 74, 0.35);
+  transform: translateY(-4px);
+}
+
+.about-story-icon { font-size: 2rem; margin-bottom: 1rem; }
+
+.about-story-title {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-green-light);
+  margin-bottom: 0.75rem;
+}
+
+.about-story-content {
+  color: var(--color-white-subtle);
+  line-height: 1.8;
+  font-size: 0.9375rem;
+}
+
+.about-closing {
+  margin-top: 3rem;
+  padding: 2rem;
+  border-radius: var(--radius-xl);
+  text-align: center;
+  color: var(--color-white-muted);
+  line-height: 1.8;
+}
+
+.services-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .services-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ── Portfolio PDF Badge ── */
+.portfolio-pdf-badge {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  padding: 0.25rem 0.625rem;
+  background: var(--color-green);
+  color: var(--color-white);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  border-radius: var(--radius-full);
+  letter-spacing: 0.08em;
+  z-index: 2;
+}
+
+/* ── Floating Contact Buttons ── */
+.floating-contact {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.float-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.875rem 1.125rem;
+  border-radius: var(--radius-full);
+  color: var(--color-white);
+  font-size: 0.875rem;
+  font-weight: 600;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  transition: transform 0.3s var(--ease-out), box-shadow 0.3s;
+  text-decoration: none;
+}
+
+.float-btn:hover {
+  transform: translateY(-3px) scale(1.03);
+  color: var(--color-white);
+}
+
+.float-btn-email {
+  background: linear-gradient(135deg, var(--color-green-dark), var(--color-green));
+}
+
+.float-btn-whatsapp {
+  background: #25D366;
+}
+
+.float-btn-label {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .float-btn-label { display: inline; }
+}
+
+@media (max-width: 767px) {
+  .floating-contact {
+    bottom: 1rem;
+    right: 1rem;
+    flex-direction: row;
+  }
+  .float-btn {
+    width: 3.25rem;
+    height: 3.25rem;
+    padding: 0;
+    justify-content: center;
+    border-radius: 50%;
+  }
+}
+
+/* Admin PDF preview */
+.studio-pdf-preview { margin-bottom: 0.75rem; }
+.studio-pdf-preview a { margin-right: 0.75rem; }
+

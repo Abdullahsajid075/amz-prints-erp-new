@@ -1,7 +1,8 @@
 (function ($) {
   'use strict';
 
-  var frame;
+  var galleryFrame;
+  var pdfFrame;
 
   function updateGalleryInput() {
     var ids = [];
@@ -14,20 +15,20 @@
   $('#studio-upload-gallery').on('click', function (e) {
     e.preventDefault();
 
-    if (frame) {
-      frame.open();
+    if (galleryFrame) {
+      galleryFrame.open();
       return;
     }
 
-    frame = wp.media({
+    galleryFrame = wp.media({
       title: 'Select Portfolio Images',
       button: { text: 'Add to Gallery' },
       multiple: true,
       library: { type: 'image' }
     });
 
-    frame.on('select', function () {
-      var selection = frame.state().get('selection');
+    galleryFrame.on('select', function () {
+      var selection = galleryFrame.state().get('selection');
       selection.each(function (attachment) {
         attachment = attachment.toJSON();
         var exists = $('#studio-gallery-preview li[data-id="' + attachment.id + '"]').length;
@@ -46,7 +47,7 @@
       updateGalleryInput();
     });
 
-    frame.open();
+    galleryFrame.open();
   });
 
   $(document).on('click', '.studio-remove-image', function () {
@@ -56,5 +57,39 @@
 
   $('#studio-gallery-preview').sortable({
     update: updateGalleryInput
+  });
+
+  /* PDF upload */
+  $('#studio-upload-pdf').on('click', function (e) {
+    e.preventDefault();
+
+    if (pdfFrame) {
+      pdfFrame.open();
+      return;
+    }
+
+    pdfFrame = wp.media({
+      title: 'Upload Project PDF',
+      button: { text: 'Use this PDF' },
+      multiple: false,
+      library: { type: 'application/pdf' }
+    });
+
+    pdfFrame.on('select', function () {
+      var attachment = pdfFrame.state().get('selection').first().toJSON();
+      $('#portfolio_pdf').val(attachment.id);
+      $('#studio-pdf-preview').html(
+        '<a href="' + attachment.url + '" target="_blank" rel="noopener">' + attachment.filename + '</a> ' +
+        '<button type="button" class="button studio-remove-pdf">Remove PDF</button>'
+      );
+    });
+
+    pdfFrame.open();
+  });
+
+  $(document).on('click', '.studio-remove-pdf', function (e) {
+    e.preventDefault();
+    $('#portfolio_pdf').val('');
+    $('#studio-pdf-preview').empty();
   });
 })(jQuery);

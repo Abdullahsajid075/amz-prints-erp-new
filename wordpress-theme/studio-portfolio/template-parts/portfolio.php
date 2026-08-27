@@ -40,16 +40,22 @@ $portfolio = new WP_Query( array(
 						$tags  = studio_get_portfolio_tags( get_the_ID() );
 						$terms = get_the_terms( get_the_ID(), 'portfolio_category' );
 						$category = ( $terms && ! is_wp_error( $terms ) ) ? $terms[0]->name : '';
+						$link     = studio_get_portfolio_link( get_the_ID() );
 						?>
 						<article class="portfolio-card fade-in">
-							<a href="<?php the_permalink(); ?>" class="portfolio-card-link">
+							<a href="<?php echo esc_url( $link['url'] ); ?>" class="portfolio-card-link" target="<?php echo esc_attr( $link['target'] ); ?>"<?php echo $link['is_pdf'] ? ' rel="noopener noreferrer"' : ''; ?>>
 								<div class="portfolio-card-image">
 									<?php if ( has_post_thumbnail() ) : ?>
 										<?php the_post_thumbnail( 'portfolio-card' ); ?>
 									<?php endif; ?>
 									<span class="portfolio-card-number"><?php echo esc_html( $number ); ?></span>
+									<?php if ( $link['is_pdf'] ) : ?>
+										<span class="portfolio-pdf-badge">PDF</span>
+									<?php endif; ?>
 									<div class="portfolio-card-overlay">
-										<span style="color:var(--color-gold);font-weight:600;"><?php esc_html_e( 'View Project →', 'studio-portfolio' ); ?></span>
+										<span style="color:var(--color-green-light);font-weight:600;">
+											<?php echo $link['is_pdf'] ? esc_html__( 'View PDF →', 'studio-portfolio' ) : esc_html__( 'View Project →', 'studio-portfolio' ); ?>
+										</span>
 									</div>
 								</div>
 								<div class="portfolio-card-body">
