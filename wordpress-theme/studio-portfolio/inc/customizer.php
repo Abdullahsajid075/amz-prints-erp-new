@@ -78,10 +78,10 @@ function studio_customizer_section_colors( $wp_customize ) {
 	) );
 
 	$colors = array(
-		'color_black' => array( 'label' => __( 'Background (Black)', 'studio-portfolio' ), 'default' => '#0F172A' ),
-		'color_green' => array( 'label' => __( 'Primary (Green)', 'studio-portfolio' ), 'default' => '#16A34A' ),
-		'color_light' => array( 'label' => __( 'Light Accent', 'studio-portfolio' ), 'default' => '#F0FDF4' ),
-		'color_white' => array( 'label' => __( 'Text (White)', 'studio-portfolio' ), 'default' => '#FFFFFF' ),
+		'color_black' => array( 'label' => __( 'Text (Dark)', 'studio-portfolio' ), 'default' => '#1A1A1A' ),
+		'color_green' => array( 'label' => __( 'Primary (Green)', 'studio-portfolio' ), 'default' => '#059669' ),
+		'color_light' => array( 'label' => __( 'Background (Light)', 'studio-portfolio' ), 'default' => '#F7FAF7' ),
+		'color_white' => array( 'label' => __( 'Background (White)', 'studio-portfolio' ), 'default' => '#FFFFFF' ),
 	);
 
 	foreach ( $colors as $id => $data ) {
@@ -144,10 +144,10 @@ function studio_customizer_section_hero( $wp_customize ) {
 		'sanitize_callback' => 'absint',
 	) );
 	$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'studio_hero_personal_photo', array(
-		'label'     => __( 'Your Personal Photo (Hero)', 'studio-portfolio' ),
-		'description' => __( 'Upload your photo to introduce yourself in the hero section.', 'studio-portfolio' ),
-		'section'   => $section,
-		'mime_type' => 'image',
+		'label'       => __( 'Your Personal Photo (Hero)', 'studio-portfolio' ),
+		'description' => __( 'Upload a PNG with transparent background for best results. Displayed openly — no box or frame.', 'studio-portfolio' ),
+		'section'     => $section,
+		'mime_type'   => 'image',
 	) ) );
 }
 
@@ -323,30 +323,37 @@ function studio_sanitize_checkbox( $value ) {
  * Output customizer colors as CSS variables.
  */
 function studio_portfolio_custom_css() {
-	$black = studio_get_option( 'color_black', '#0F172A' );
-	$green = studio_get_option( 'color_green', '#16A34A' );
-	$light = studio_get_option( 'color_light', '#F0FDF4' );
+	$text  = studio_get_option( 'color_black', '#1A1A1A' );
+	$green = studio_get_option( 'color_green', '#059669' );
+	$light = studio_get_option( 'color_light', '#F7FAF7' );
 	$white = studio_get_option( 'color_white', '#FFFFFF' );
 
 	$css = ":root {
-		--color-black: {$black};
-		--color-black-elevated: " . studio_adjust_brightness( $black, 8 ) . ";
+		--color-text: {$text};
+		--color-black: {$text};
+		--color-bg: {$white};
+		--color-bg-soft: {$light};
+		--color-bg-muted: " . studio_adjust_brightness( $light, -4 ) . ";
 		--color-green: {$green};
-		--color-green-light: " . studio_adjust_brightness( $green, 25 ) . ";
-		--color-green-dark: " . studio_adjust_brightness( $green, -25 ) . ";
+		--color-green-light: " . studio_adjust_brightness( $green, 20 ) . ";
+		--color-green-dark: " . studio_adjust_brightness( $green, -20 ) . ";
 		--color-light: {$light};
-		--color-light-muted: " . studio_adjust_brightness( $light, -8 ) . ";
 		--color-white: {$white};
 		--color-blue: {$green};
-		--color-blue-light: " . studio_adjust_brightness( $green, 25 ) . ";
-		--color-blue-dark: " . studio_adjust_brightness( $green, -25 ) . ";
+		--color-blue-light: " . studio_adjust_brightness( $green, 20 ) . ";
+		--color-blue-dark: " . studio_adjust_brightness( $green, -20 ) . ";
 		--color-gold: {$green};
-		--color-gold-light: " . studio_adjust_brightness( $green, 35 ) . ";
+		--color-gold-light: " . studio_adjust_brightness( $green, 25 ) . ";
 		--color-gold-dark: " . studio_adjust_brightness( $green, -20 ) . ";
-		--color-gold-soft: " . studio_hex_to_rgba( $green, 0.15 ) . ";
-	}";
+		--color-gold-soft: " . studio_hex_to_rgba( $green, 0.1 ) . ";
+		--color-black-elevated: {$light};
+		--color-black-overlay: " . studio_adjust_brightness( $light, -6 ) . ";
+		--color-white-muted: #5C5C5C;
+		--color-white-subtle: #8A8A8A;
+	}
+	body { background: {$white}; color: {$text}; }";
 
-	wp_add_inline_style( 'studio-portfolio-style', $css );
+	wp_add_inline_style( 'studio-portfolio-light', $css );
 }
 add_action( 'wp_enqueue_scripts', 'studio_portfolio_custom_css', 20 );
 

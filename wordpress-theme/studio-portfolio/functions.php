@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'STUDIO_PORTFOLIO_VERSION', '1.2.0' );
+define( 'STUDIO_PORTFOLIO_VERSION', '1.3.0' );
 define( 'STUDIO_PORTFOLIO_DIR', get_template_directory() );
 define( 'STUDIO_PORTFOLIO_URI', get_template_directory_uri() );
 
@@ -52,7 +52,7 @@ add_action( 'after_setup_theme', 'studio_portfolio_setup' );
 function studio_portfolio_scripts() {
 	wp_enqueue_style(
 		'studio-portfolio-fonts',
-		'https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&family=Syne:wght@400;500;600;700;800&display=swap',
+		'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&display=swap',
 		array(),
 		null
 	);
@@ -61,6 +61,13 @@ function studio_portfolio_scripts() {
 		'studio-portfolio-style',
 		get_stylesheet_uri(),
 		array( 'studio-portfolio-fonts' ),
+		STUDIO_PORTFOLIO_VERSION
+	);
+
+	wp_enqueue_style(
+		'studio-portfolio-light',
+		STUDIO_PORTFOLIO_URI . '/assets/css/light-minimal.css',
+		array( 'studio-portfolio-style' ),
 		STUDIO_PORTFOLIO_VERSION
 	);
 
