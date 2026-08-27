@@ -5,17 +5,10 @@
  * @package Studio_Portfolio
  */
 
-$items = array(
-	'Brand Identity',
-	'UI/UX Design',
-	'Design Systems',
-	'Packaging',
-	'Art Direction',
-	'Motion Design',
-	'Typography',
-	'Visual Identity',
-);
-$items = apply_filters( 'studio_marquee_items', $items );
+$items = studio_get_marquee_items();
+if ( empty( $items ) ) {
+	return;
+}
 ?>
 
 <section class="marquee-section" aria-hidden="true">

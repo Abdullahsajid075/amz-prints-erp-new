@@ -1,96 +1,75 @@
-# Studio Portfolio — WordPress Theme
+# Studio Portfolio — WordPress Theme v1.1.0
 
-A beautiful, eye-catching design portfolio WordPress theme with **blue, black, white, and gold** styling.
+Fully editable design portfolio theme for WordPress.
+
+## Download
+
+**Direct download (zip):**  
+https://github.com/Abdullahsajid075/amz-prints-erp-new/raw/cursor/design-portfolio-website-09e5/wordpress-theme/studio-portfolio.zip
+
+**Or browse files:**  
+https://github.com/Abdullahsajid075/amz-prints-erp-new/tree/cursor/design-portfolio-website-09e5/wordpress-theme/studio-portfolio
+
+---
+
+## Install
+
+1. Download `studio-portfolio.zip`
+2. WordPress Admin → **Appearance → Themes → Add New → Upload Theme**
+3. Choose the zip → **Install Now → Activate**
+4. **Settings → Permalinks → Save Changes**
+
+---
+
+## Edit Everything in WordPress
+
+### Appearance → Customize → Studio Portfolio
+
+| Panel | What you can edit |
+|-------|-------------------|
+| **Colors** | Black, Blue, Gold, White |
+| **Header** | Logo letter, nav labels, CTA button |
+| **Hero** | Title, description, buttons, featured card image |
+| **Marquee** | Scrolling skill tags (one per line) |
+| **Portfolio** | Section titles and scroll hint text |
+| **About** | Bio, stats, 4 services (icon, title, description) |
+| **Design System** | Section title and description |
+| **Contact** | Email, location, form button, social links |
+| **Footer** | Tagline |
+| **Show/Hide** | Toggle any homepage section on/off |
+
+### Also editable in WordPress Admin
+
+| Location | What |
+|----------|------|
+| **Appearance → Customize → Site Identity** | Site name, logo, tagline |
+| **Appearance → Menus** | Custom navigation menu |
+| **Portfolio → Add New** | Upload projects with images & gallery |
+| **Portfolio → Categories** | Project categories |
+
+---
+
+## Portfolio Upload (Backend)
+
+1. **Portfolio → Add New**
+2. **Featured Image** — main project photo
+3. **Portfolio Gallery → Upload / Add Images**
+4. Fill year, client, tags, project URL
+5. **Publish**
+
+---
 
 ## Features
 
-- **Portfolio Custom Post Type** — Manage projects from WordPress admin
-- **Backend Image Upload** — Featured image + gallery uploader with drag-to-reorder
-- **Hover Auto-Scroll** — Portfolio gallery auto-scrolls when you hover over it
-- **Design System** — Built-in showcase of colors, typography, and components
-- **Customizer** — Edit hero text, stats, contact info from Appearance → Customize
-- **Contact Form** — Built-in form sends to your email
-- **Responsive** — Mobile-first design
+- Blue, Black, White, Gold color theme
+- Portfolio hover auto-scroll
+- Fully editable via WordPress Customizer
+- No page builder required
+- Contact form built-in
 
-## Color Theme
-
-| Color | Hex | Usage |
-|-------|-----|-------|
-| Black | `#0A0A0F` | Background |
-| Blue | `#2563EB` | Primary accent |
-| White | `#FFFFFF` | Text |
-| Gold | `#D4AF37` | Highlights & CTAs |
-
-## Installation
-
-1. **Copy the theme** to your WordPress installation:
-   ```
-   wp-content/themes/studio-portfolio/
-   ```
-
-2. **Activate** in WordPress Admin → Appearance → Themes → **Studio Portfolio**
-
-3. **Set homepage**: Settings → Reading → "Your homepage displays" → **A static page** → select any page (or create "Home") and set **Homepage** to it. The theme uses `front-page.php` automatically.
-
-4. **Flush permalinks**: Settings → Permalinks → Save (registers portfolio URLs)
-
-## Adding Portfolio Items (Backend Upload)
-
-1. Go to **Portfolio → Add New** in WordPress admin
-2. Enter **Title** and **Description** (content editor)
-3. Set **Featured Image** (main project image) in the right sidebar
-4. Fill in **Portfolio Details** meta box:
-   - Display Number (01, 02...)
-   - Year, Client, Project URL
-   - Tags (comma-separated)
-5. Use **Portfolio Gallery** to upload additional images:
-   - Click **Upload / Add Images**
-   - Select multiple images from media library
-   - Drag to reorder, click × to remove
-6. Assign a **Portfolio Category**
-7. Set **Order** via Page Attributes → Order (lower = first)
-8. **Publish**
-
-## Customizer Options
-
-Appearance → Customize → **Portfolio Settings**:
-
-- Hero status, title lines, description
-- About title and text
-- Contact email and location
-- Stats (projects, clients, years, awards)
-
-## Portfolio Auto-Scroll
-
-The portfolio section on the homepage automatically scrolls horizontally when you **hover** over it. Users can also **drag** to scroll manually. Works on desktop and touch devices.
-
-## File Structure
-
-```
-studio-portfolio/
-├── style.css              # Theme styles + metadata
-├── functions.php          # Theme setup, enqueues
-├── front-page.php         # Homepage template
-├── header.php / footer.php
-├── single-portfolio.php   # Single project page
-├── inc/
-│   ├── portfolio-cpt.php  # Custom post type
-│   ├── portfolio-meta.php # Admin upload meta boxes
-│   └── contact-form.php   # Form handler
-├── template-parts/        # Section templates
-└── assets/
-    ├── js/main.js         # Auto-scroll, nav, animations
-    ├── js/admin.js        # Gallery uploader
-    └── css/admin.css      # Admin styles
-```
+---
 
 ## Requirements
 
 - WordPress 6.0+
 - PHP 7.4+
-
-## Development
-
-This theme is standalone — no build step required. Edit PHP templates and CSS directly.
-
-For local development, use [Local WP](https://localwp.com/), [MAMP](https://www.mamp.info/), or Docker with WordPress.

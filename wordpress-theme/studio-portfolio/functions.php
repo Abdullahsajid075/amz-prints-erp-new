@@ -9,9 +9,15 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'STUDIO_PORTFOLIO_VERSION', '1.0.0' );
+define( 'STUDIO_PORTFOLIO_VERSION', '1.1.0' );
 define( 'STUDIO_PORTFOLIO_DIR', get_template_directory() );
 define( 'STUDIO_PORTFOLIO_URI', get_template_directory_uri() );
+
+require_once STUDIO_PORTFOLIO_DIR . '/inc/helpers.php';
+require_once STUDIO_PORTFOLIO_DIR . '/inc/customizer.php';
+require_once STUDIO_PORTFOLIO_DIR . '/inc/portfolio-cpt.php';
+require_once STUDIO_PORTFOLIO_DIR . '/inc/portfolio-meta.php';
+require_once STUDIO_PORTFOLIO_DIR . '/inc/contact-form.php';
 
 /**
  * Theme setup.
@@ -28,6 +34,7 @@ function studio_portfolio_setup() {
 		'flex-height' => true,
 		'flex-width'  => true,
 	) );
+	add_theme_support( 'customize-selective-refresh-widgets' );
 
 	add_image_size( 'portfolio-card', 840, 630, true );
 	add_image_size( 'portfolio-hero', 1200, 800, true );
@@ -64,64 +71,35 @@ function studio_portfolio_scripts() {
 		STUDIO_PORTFOLIO_VERSION,
 		true
 	);
-
-	wp_localize_script( 'studio-portfolio-main', 'studioPortfolio', array(
-		'ajaxUrl' => admin_url( 'admin-ajax.php' ),
-		'homeUrl' => home_url( '/' ),
-	) );
 }
 add_action( 'wp_enqueue_scripts', 'studio_portfolio_scripts' );
 
 /**
- * Theme Customizer settings.
+ * Admin notice after theme activation.
  */
-function studio_portfolio_customize_register( $wp_customize ) {
-	$wp_customize->add_section( 'studio_portfolio_options', array(
-		'title'    => __( 'Portfolio Settings', 'studio-portfolio' ),
-		'priority' => 30,
-	) );
-
-	$fields = array(
-		'hero_status'       => array( 'label' => __( 'Hero Status Text', 'studio-portfolio' ), 'default' => 'Available for projects' ),
-		'hero_title_line1'  => array( 'label' => __( 'Hero Title Line 1', 'studio-portfolio' ), 'default' => 'Designing' ),
-		'hero_title_line2'  => array( 'label' => __( 'Hero Title Line 2 (gradient)', 'studio-portfolio' ), 'default' => 'experiences' ),
-		'hero_title_line3'  => array( 'label' => __( 'Hero Title Line 3', 'studio-portfolio' ), 'default' => 'that inspire' ),
-		'hero_description'  => array( 'label' => __( 'Hero Description', 'studio-portfolio' ), 'default' => "I'm a multidisciplinary designer crafting bold brand identities, intuitive interfaces, and visual systems that leave lasting impressions." ),
-		'about_title'       => array( 'label' => __( 'About Title', 'studio-portfolio' ), 'default' => 'Design is my language' ),
-		'about_text'        => array( 'label' => __( 'About Text', 'studio-portfolio' ), 'default' => 'With over 5 years of experience in visual design, I help startups and established brands create identities that resonate and interfaces that convert.' ),
-		'contact_email'     => array( 'label' => __( 'Contact Email', 'studio-portfolio' ), 'default' => 'hello@studio.design' ),
-		'contact_location'  => array( 'label' => __( 'Contact Location', 'studio-portfolio' ), 'default' => 'Available Worldwide · Remote' ),
-		'stat_projects'     => array( 'label' => __( 'Stat: Projects', 'studio-portfolio' ), 'default' => '50+' ),
-		'stat_clients'      => array( 'label' => __( 'Stat: Clients', 'studio-portfolio' ), 'default' => '30+' ),
-		'stat_experience'   => array( 'label' => __( 'Stat: Years', 'studio-portfolio' ), 'default' => '5' ),
-		'stat_awards'       => array( 'label' => __( 'Stat: Awards', 'studio-portfolio' ), 'default' => '12' ),
-	);
-
-	foreach ( $fields as $id => $field ) {
-		$wp_customize->add_setting( 'studio_' . $id, array(
-			'default'           => $field['default'],
-			'sanitize_callback' => 'sanitize_text_field',
-		) );
-
-		$wp_customize->add_control( 'studio_' . $id, array(
-			'label'   => $field['label'],
-			'section' => 'studio_portfolio_options',
-			'type'    => 'text',
-		) );
+function studio_portfolio_activation_notice() {
+	if ( get_transient( 'studio_portfolio_activated' ) ) {
+		delete_transient( 'studio_portfolio_activated' );
+		?>
+		<div class="notice notice-success is-dismissible">
+			<p>
+				<strong><?php esc_html_e( 'Studio Portfolio activated!', 'studio-portfolio' ); ?></strong>
+				<?php
+				printf(
+					/* translators: 1: customizer url, 2: portfolio url */
+					esc_html__( 'Edit your homepage content in %1$s or add projects under %2$s.', 'studio-portfolio' ),
+					'<a href="' . esc_url( admin_url( 'customize.php' ) ) . '">' . esc_html__( 'Appearance → Customize → Studio Portfolio', 'studio-portfolio' ) . '</a>',
+					'<a href="' . esc_url( admin_url( 'edit.php?post_type=portfolio' ) ) . '">' . esc_html__( 'Portfolio', 'studio-portfolio' ) . '</a>'
+				);
+				?>
+			</p>
+		</div>
+		<?php
 	}
 }
-add_action( 'customize_register', 'studio_portfolio_customize_register' );
+add_action( 'admin_notices', 'studio_portfolio_activation_notice' );
 
-/**
- * Helper: get theme mod with default.
- */
-function studio_get_option( $key, $default = '' ) {
-	return get_theme_mod( 'studio_' . $key, $default );
+function studio_portfolio_set_activation_transient() {
+	set_transient( 'studio_portfolio_activated', true, 30 );
 }
-
-/**
- * Include portfolio custom post type and admin.
- */
-require_once STUDIO_PORTFOLIO_DIR . '/inc/portfolio-cpt.php';
-require_once STUDIO_PORTFOLIO_DIR . '/inc/portfolio-meta.php';
-require_once STUDIO_PORTFOLIO_DIR . '/inc/contact-form.php';
+add_action( 'after_switch_theme', 'studio_portfolio_set_activation_transient' );

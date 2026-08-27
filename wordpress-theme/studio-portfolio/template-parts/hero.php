@@ -11,6 +11,9 @@ $latest = new WP_Query( array(
 	'orderby'        => 'menu_order date',
 	'order'          => 'ASC',
 ) );
+
+$hero_image_id = studio_get_option( 'hero_card_image', '' );
+$show_card     = studio_get_option( 'hero_show_card', true );
 ?>
 
 <section class="hero grid-bg">
@@ -25,34 +28,53 @@ $latest = new WP_Query( array(
 			</div>
 
 			<h1 class="hero-title display-xl">
-				<?php echo esc_html( studio_get_option( 'hero_title_line1', 'Designing' ) ); ?><br>
-				<span class="text-gradient"><?php echo esc_html( studio_get_option( 'hero_title_line2', 'experiences' ) ); ?></span><br>
-				<?php echo esc_html( studio_get_option( 'hero_title_line3', 'that inspire' ) ); ?>
+				<span class="hero-title-line1"><?php echo esc_html( studio_get_option( 'hero_title_line1', 'Designing' ) ); ?></span><br>
+				<span class="text-gradient hero-title-line2"><?php echo esc_html( studio_get_option( 'hero_title_line2', 'experiences' ) ); ?></span><br>
+				<span class="hero-title-line3"><?php echo esc_html( studio_get_option( 'hero_title_line3', 'that inspire' ) ); ?></span>
 			</h1>
 
-			<p class="hero-desc">
-				<?php echo esc_html( studio_get_option( 'hero_description', "I'm a multidisciplinary designer crafting bold brand identities, intuitive interfaces, and visual systems that leave lasting impressions." ) ); ?>
-			</p>
+			<p class="hero-desc"><?php echo esc_html( studio_get_option( 'hero_description', "I'm a multidisciplinary designer crafting bold brand identities, intuitive interfaces, and visual systems that leave lasting impressions." ) ); ?></p>
 
 			<div class="hero-actions">
-				<a href="#work" class="btn btn-primary btn-lg"><?php esc_html_e( 'View My Work', 'studio-portfolio' ); ?> →</a>
-				<a href="#contact" class="btn btn-outline btn-lg"><?php esc_html_e( 'Get in Touch', 'studio-portfolio' ); ?></a>
+				<a href="<?php echo esc_url( studio_get_option( 'hero_btn1_url', '#work' ) ); ?>" class="btn btn-primary btn-lg">
+					<?php echo esc_html( studio_get_option( 'hero_btn1_text', 'View My Work' ) ); ?> →
+				</a>
+				<a href="<?php echo esc_url( studio_get_option( 'hero_btn2_url', '#contact' ) ); ?>" class="btn btn-outline btn-lg">
+					<?php echo esc_html( studio_get_option( 'hero_btn2_text', 'Get in Touch' ) ); ?>
+				</a>
 			</div>
 		</div>
 
-		<?php if ( $latest->have_posts() ) : $latest->the_post(); ?>
+		<?php if ( $show_card ) : ?>
+			<?php
+			$card_title = '';
+			if ( $latest->have_posts() ) {
+				$latest->the_post();
+				$card_title = get_the_title();
+				wp_reset_postdata();
+			}
+			?>
 			<div class="hero-card glass">
 				<div class="hero-card-preview">
-					<?php if ( has_post_thumbnail() ) : ?>
-						<?php the_post_thumbnail( 'portfolio-card' ); ?>
+					<?php if ( $hero_image_id ) : ?>
+						<?php echo wp_get_attachment_image( $hero_image_id, 'portfolio-card' ); ?>
+					<?php elseif ( $latest->have_posts() ) : ?>
+						<?php $latest->the_post(); ?>
+						<?php if ( has_post_thumbnail() ) : ?>
+							<?php the_post_thumbnail( 'portfolio-card' ); ?>
+						<?php else : ?>
+							<span>Aa</span>
+						<?php endif; ?>
+						<?php wp_reset_postdata(); ?>
 					<?php else : ?>
 						<span>Aa</span>
 					<?php endif; ?>
 				</div>
-				<p class="section-label" style="margin-bottom:0.25rem;"><?php esc_html_e( 'Latest Project', 'studio-portfolio' ); ?></p>
-				<p style="font-family:var(--font-display);font-weight:600;font-size:1.125rem;"><?php the_title(); ?></p>
+				<p class="section-label" style="margin-bottom:0.25rem;"><?php echo esc_html( studio_get_option( 'hero_card_label', 'Latest Project' ) ); ?></p>
+				<?php if ( $card_title ) : ?>
+					<p style="font-family:var(--font-display);font-weight:600;font-size:1.125rem;"><?php echo esc_html( $card_title ); ?></p>
+				<?php endif; ?>
 			</div>
-			<?php wp_reset_postdata(); ?>
 		<?php endif; ?>
 
 		<div class="scroll-indicator">

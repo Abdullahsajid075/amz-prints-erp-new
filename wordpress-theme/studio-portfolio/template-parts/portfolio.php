@@ -16,10 +16,10 @@ $portfolio = new WP_Query( array(
 <section id="work" class="section portfolio-section">
 	<div class="container">
 		<div class="section-header fade-in">
-			<p class="section-label"><?php esc_html_e( 'Selected Work', 'studio-portfolio' ); ?></p>
-			<h2 class="display-md"><?php esc_html_e( 'Projects that speak louder than words', 'studio-portfolio' ); ?></h2>
+			<p class="section-label"><?php echo esc_html( studio_get_option( 'work_label', 'Selected Work' ) ); ?></p>
+			<h2 class="display-md"><?php echo esc_html( studio_get_option( 'work_title', 'Projects that speak louder than words' ) ); ?></h2>
 			<p class="text-muted" style="margin-top:1rem;font-size:1.125rem;">
-				<?php esc_html_e( 'Hover over the gallery to auto-scroll through my portfolio.', 'studio-portfolio' ); ?>
+				<?php echo esc_html( studio_get_option( 'work_description', 'Hover over the gallery to auto-scroll through my portfolio.' ) ); ?>
 			</p>
 		</div>
 	</div>
@@ -82,7 +82,7 @@ $portfolio = new WP_Query( array(
 
 		<div class="portfolio-scroll-hint">
 			<span class="hint-icon">→</span>
-			<span><?php esc_html_e( 'Hover to auto-scroll · Drag to explore', 'studio-portfolio' ); ?></span>
+			<span><?php echo esc_html( studio_get_option( 'work_hint', 'Hover to auto-scroll · Drag to explore' ) ); ?></span>
 		</div>
 	<?php else : ?>
 		<div class="container">
