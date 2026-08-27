@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Studio Portfolio — Local Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../style.css">
+  <style>
+    .fade-in { opacity: 0; transform: translateY(30px); transition: opacity 0.8s cubic-bezier(0.16,1,0.3,1), transform 0.8s cubic-bezier(0.16,1,0.3,1); }
+    .fade-in.visible { opacity: 1; transform: translateY(0); }
+    .portfolio-card-link { display: block; color: inherit; }
+    .demo-banner {
+      position: fixed; bottom: 1rem; right: 1rem; z-index: 9999;
+      background: linear-gradient(135deg, var(--color-blue), var(--color-gold-dark));
+      color: white; padding: 0.5rem 1rem; border-radius: 999px;
+      font-size: 0.75rem; font-family: var(--font-mono);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    }
+    .grad-1 { background: linear-gradient(135deg, #1E3A8A, #2563EB); }
+    .grad-2 { background: linear-gradient(135deg, #2563EB, #D4AF37); }
+    .grad-3 { background: linear-gradient(135deg, #B8960C, #1E3A8A); }
+    .grad-4 { background: linear-gradient(135deg, #3B82F6, #12121A); }
+    .grad-5 { background: linear-gradient(135deg, #D4AF37, #2563EB); }
+    .grad-6 { background: linear-gradient(135deg, #1A1A24, #F5C542); }
+  </style>
+</head>
+<body>
+
+<div class="demo-banner">LOCALHOST DEMO</div>
+
+<header class="site-header">
+  <div class="container header-inner">
+    <a href="#" class="site-logo">
+      <span class="logo-mark">S</span>
+      <span class="logo-text">Studio</span>
+    </a>
+    <nav class="main-nav">
+      <a href="#work">Work</a>
+      <a href="#about">About</a>
+      <a href="#design-system">System</a>
+      <a href="#contact">Contact</a>
+    </nav>
+    <div class="header-cta">
+      <a href="#contact" class="btn btn-gold btn-sm">Let's Talk</a>
+    </div>
+    <button class="nav-toggle" aria-label="Toggle menu"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+  </div>
+</header>
+
+<nav class="mobile-nav">
+  <div class="container">
+    <a href="#work">Work</a>
+    <a href="#about">About</a>
+    <a href="#design-system">System</a>
+    <a href="#contact">Contact</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero grid-bg">
+  <div class="hero-glow-blue"></div>
+  <div class="hero-glow-gold"></div>
+  <div class="container">
+    <div class="hero-content fade-in visible">
+      <div class="hero-status">
+        <span class="status-dot"></span>
+        <span class="section-label" style="margin:0;">Available for projects</span>
+      </div>
+      <h1 class="hero-title display-xl">
+        Designing<br>
+        <span class="text-gradient">experiences</span><br>
+        that inspire
+      </h1>
+      <p class="hero-desc">I'm a multidisciplinary designer crafting bold brand identities, intuitive interfaces, and visual systems that leave lasting impressions.</p>
+      <div class="hero-actions">
+        <a href="#work" class="btn btn-primary btn-lg">View My Work →</a>
+        <a href="#contact" class="btn btn-outline btn-lg">Get in Touch</a>
+      </div>
+    </div>
+    <div class="hero-card glass">
+      <div class="hero-card-preview grad-2"><span>Aa</span></div>
+      <p class="section-label" style="margin-bottom:0.25rem;">Latest Project</p>
+      <p style="font-family:var(--font-display);font-weight:600;font-size:1.125rem;">Nova Brand Identity</p>
+    </div>
+    <div class="scroll-indicator"><span>Scroll</span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg></div>
+  </div>
+</section>
+
+<!-- MARQUEE -->
+<section class="marquee-section" aria-hidden="true">
+  <div class="marquee-track">
+    <span class="marquee-item">Brand Identity<span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">UI/UX Design<span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">Design Systems<span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">Packaging<span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">Art Direction<span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">Motion Design<span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">Typography<span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">Visual Identity<span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">Brand Identity<span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">UI/UX Design<span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">Design Systems<span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">Packaging<span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">Art Direction<span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">Motion Design<span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">Typography<span class="marquee-sep">✦</span></span>
+    <span class="marquee-item">Visual Identity<span class="marquee-sep">✦</span></span>
+  </div>
+</section>
+
+<!-- PORTFOLIO (hover auto-scroll) -->
+<section id="work" class="section portfolio-section">
+  <div class="container">
+    <div class="section-header fade-in visible">
+      <p class="section-label">Selected Work</p>
+      <h2 class="display-md">Projects that speak louder than words</h2>
+      <p class="text-muted" style="margin-top:1rem;font-size:1.125rem;">Hover over the gallery to auto-scroll through my portfolio.</p>
+    </div>
+  </div>
+  <div class="portfolio-scroll-wrapper">
+    <div class="portfolio-scroll-container">
+      <div class="portfolio-scroll-track">
+        <article class="portfolio-card"><a href="#" class="portfolio-card-link"><div class="portfolio-card-image grad-1"><span class="portfolio-card-number">01</span><div class="portfolio-card-overlay"><span style="color:var(--color-gold);font-weight:600;">View Project →</span></div></div><div class="portfolio-card-body"><p class="portfolio-card-meta">Branding · 2025</p><h3 class="portfolio-card-title">Nova Brand Identity</h3><p class="portfolio-card-desc">Complete visual identity system for a tech startup.</p><div class="portfolio-card-tags"><span class="badge badge-blue">Logo</span><span class="badge badge-blue">Guidelines</span></div></div></a></article>
+        <article class="portfolio-card"><a href="#" class="portfolio-card-link"><div class="portfolio-card-image grad-2"><span class="portfolio-card-number">02</span><div class="portfolio-card-overlay"><span style="color:var(--color-gold);font-weight:600;">View Project →</span></div></div><div class="portfolio-card-body"><p class="portfolio-card-meta">UI/UX · 2025</p><h3 class="portfolio-card-title">Pulse Mobile App</h3><p class="portfolio-card-desc">Fitness tracking app with intuitive navigation and dark mode.</p><div class="portfolio-card-tags"><span class="badge badge-blue">Mobile</span><span class="badge badge-blue">Prototype</span></div></div></a></article>
+        <article class="portfolio-card"><a href="#" class="portfolio-card-link"><div class="portfolio-card-image grad-3"><span class="portfolio-card-number">03</span><div class="portfolio-card-overlay"><span style="color:var(--color-gold);font-weight:600;">View Project →</span></div></div><div class="portfolio-card-body"><p class="portfolio-card-meta">Packaging · 2024</p><h3 class="portfolio-card-title">Artisan Coffee Co.</h3><p class="portfolio-card-desc">Premium coffee packaging with hand-drawn illustrations.</p><div class="portfolio-card-tags"><span class="badge badge-blue">Print</span><span class="badge badge-blue">Packaging</span></div></div></a></article>
+        <article class="portfolio-card"><a href="#" class="portfolio-card-link"><div class="portfolio-card-image grad-4"><span class="portfolio-card-number">04</span><div class="portfolio-card-overlay"><span style="color:var(--color-gold);font-weight:600;">View Project →</span></div></div><div class="portfolio-card-body"><p class="portfolio-card-meta">Campaign · 2024</p><h3 class="portfolio-card-title">Echo Music Festival</h3><p class="portfolio-card-desc">Bold festival campaign spanning posters and social media.</p><div class="portfolio-card-tags"><span class="badge badge-blue">Poster</span><span class="badge badge-blue">Social</span></div></div></a></article>
+        <article class="portfolio-card"><a href="#" class="portfolio-card-link"><div class="portfolio-card-image grad-5"><span class="portfolio-card-number">05</span><div class="portfolio-card-overlay"><span style="color:var(--color-gold);font-weight:600;">View Project →</span></div></div><div class="portfolio-card-body"><p class="portfolio-card-meta">UI/UX · 2024</p><h3 class="portfolio-card-title">Meridian Dashboard</h3><p class="portfolio-card-desc">Analytics dashboard redesign focused on clarity.</p><div class="portfolio-card-tags"><span class="badge badge-blue">Web App</span><span class="badge badge-blue">Data Viz</span></div></div></a></article>
+        <article class="portfolio-card"><a href="#" class="portfolio-card-link"><div class="portfolio-card-image grad-6"><span class="portfolio-card-number">06</span><div class="portfolio-card-overlay"><span style="color:var(--color-gold);font-weight:600;">View Project →</span></div></div><div class="portfolio-card-body"><p class="portfolio-card-meta">Branding · 2023</p><h3 class="portfolio-card-title">Forma Architecture</h3><p class="portfolio-card-desc">Minimalist identity for an architecture firm.</p><div class="portfolio-card-tags"><span class="badge badge-blue">Logo</span><span class="badge badge-blue">Web</span></div></div></a></article>
+      </div>
+    </div>
+  </div>
+  <div class="portfolio-scroll-hint"><span class="hint-icon">→</span><span>Hover to auto-scroll · Drag to explore</span></div>
+</section>
+
+<!-- ABOUT -->
+<section id="about" class="section about-section">
+  <div class="container">
+    <div class="about-grid">
+      <div class="fade-in visible">
+        <div class="section-header"><p class="section-label">About Me</p><h2 class="display-md">Design is my language</h2></div>
+        <div class="about-text"><p class="lead">With over 5 years of experience in visual design, I help startups and established brands create identities that resonate.</p></div>
+        <div class="stats-grid">
+          <div class="stat-card"><p class="stat-value text-gradient-gold">50+</p><p class="text-muted">Projects Delivered</p></div>
+          <div class="stat-card"><p class="stat-value text-gradient">30+</p><p class="text-muted">Happy Clients</p></div>
+          <div class="stat-card"><p class="stat-value text-gradient-gold">5</p><p class="text-muted">Years Experience</p></div>
+          <div class="stat-card"><p class="stat-value text-gradient">12</p><p class="text-muted">Awards Won</p></div>
+        </div>
+      </div>
+      <div class="fade-in visible">
+        <p class="section-label">What I Do</p>
+        <h3 class="display-md" style="font-size:1.75rem;margin-bottom:2rem;">Services tailored to your vision</h3>
+        <div class="service-card"><div class="service-icon">🎨</div><div><h4 class="service-title">Brand Identity</h4><p class="service-desc">Logos, visual systems, and brand guidelines.</p></div></div>
+        <div class="service-card"><div class="service-icon">📐</div><div><h4 class="service-title">UI/UX Design</h4><p class="service-desc">Intuitive interfaces for web and mobile.</p></div></div>
+        <div class="service-card"><div class="service-icon">🧩</div><div><h4 class="service-title">Design Systems</h4><p class="service-desc">Scalable component libraries and tokens.</p></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DESIGN SYSTEM -->
+<section id="design-system" class="section design-system-section">
+  <div class="container">
+    <div class="section-header center fade-in visible">
+      <p class="section-label">Design System</p>
+      <h2 class="display-md">Built with intention</h2>
+      <p class="text-muted" style="margin-top:1rem;">Blue, black, white, and gold — a token-based system.</p>
+    </div>
+    <div class="color-grid">
+      <div class="color-swatch"><div class="color-swatch-preview" style="background:#0A0A0F"></div><div class="color-swatch-info"><p class="color-swatch-name">Black</p><p class="color-swatch-hex">#0A0A0F</p></div></div>
+      <div class="color-swatch"><div class="color-swatch-preview" style="background:#2563EB"></div><div class="color-swatch-info"><p class="color-swatch-name">Blue</p><p class="color-swatch-hex">#2563EB</p></div></div>
+      <div class="color-swatch"><div class="color-swatch-preview" style="background:#FFFFFF"></div><div class="color-swatch-info"><p class="color-swatch-name">White</p><p class="color-swatch-hex">#FFFFFF</p></div></div>
+      <div class="color-swatch"><div class="color-swatch-preview" style="background:#D4AF37"></div><div class="color-swatch-info"><p class="color-swatch-name">Gold</p><p class="color-swatch-hex">#D4AF37</p></div></div>
+    </div>
+    <div class="component-showcase" style="margin-top:2rem;">
+      <p class="component-label">Buttons</p>
+      <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+        <span class="btn btn-primary btn-sm">Primary</span>
+        <span class="btn btn-gold btn-sm">Gold</span>
+        <span class="btn btn-outline btn-sm">Outline</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CONTACT -->
+<section id="contact" class="section contact-section">
+  <div class="contact-glow"></div>
+  <div class="container">
+    <div class="contact-grid">
+      <div class="fade-in visible">
+        <div class="section-header"><p class="section-label">Get in Touch</p><h2 class="display-md">Let's create something amazing together</h2></div>
+        <div class="contact-info-item"><div class="contact-icon">✉</div><div><p class="text-muted" style="font-size:0.875rem;">Email</p><a href="mailto:hello@studio.design" style="color:var(--color-gold);">hello@studio.design</a></div></div>
+      </div>
+      <div class="contact-form fade-in visible">
+        <div class="form-group"><label class="form-label">Name</label><input class="form-input" placeholder="Your name"></div>
+        <div class="form-group"><label class="form-label">Email</label><input class="form-input" placeholder="you@email.com"></div>
+        <div class="form-group"><label class="form-label">Message</label><textarea class="form-textarea" placeholder="Tell me about your project..."></textarea></div>
+        <button class="btn btn-gold btn-lg" style="width:100%;">Send Message →</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container footer-inner">
+    <div class="site-logo"><span class="logo-mark">S</span><span class="logo-text">Studio</span></div>
+    <p class="footer-copy">© 2026 Studio. Crafted with passion.</p>
+    <div class="footer-links"><a href="#">Dribbble</a><a href="#">Behance</a><a href="#">LinkedIn</a></div>
+  </div>
+</footer>
+
+<script src="../assets/js/main.js"></script>
+</body>
+</html>
