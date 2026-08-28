@@ -53,6 +53,24 @@ Customize WhatsApp number under **Customizer → Schedule Meeting**.
 
 ---
 
+## Troubleshooting — pages not working?
+
+1. **Settings → Permalinks → Save Changes** (required once after install/update)
+2. **Settings → Reading** → "A static page" → Homepage = **Home**
+3. **Appearance → Customize → Pages Setup** → verify all pages are assigned
+4. If still broken: **Appearance → Themes** → switch away and back to Studio Portfolio
+
+Page URLs:
+- `/` — Home
+- `/portfolio/` — Portfolio page
+- `/about-me/` — About Me
+- `/how-i-work/` — How I Work
+- `/schedule-meeting/` — Schedule Meeting
+
+Individual projects use `/project/your-project-name/` (no conflict with Portfolio page).
+
+---
+
 ## Download
 
 https://github.com/Abdullahsajid075/amz-prints-erp-new/raw/cursor/design-portfolio-website-09e5/wordpress-theme/studio-portfolio.zip
