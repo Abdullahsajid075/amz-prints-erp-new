@@ -10,96 +10,268 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
+ * Map theme mod keys to page templates.
+ *
+ * @return array
+ */
+function studio_get_page_template_map() {
+	return array(
+		'portfolio_page_id'  => 'page-templates/page-portfolio.php',
+		'work_page_id'       => 'page-templates/page-portfolio.php',
+		'about_page_id'      => 'page-templates/page-about.php',
+		'how_i_work_page_id' => 'page-templates/page-how-i-work.php',
+		'schedule_page_id'   => 'page-templates/page-schedule-meeting.php',
+	);
+}
+
+/**
+ * Map theme mod keys to default page slugs.
+ *
+ * @return array
+ */
+function studio_get_page_slug_map() {
+	return array(
+		'portfolio_page_id'  => 'portfolio',
+		'work_page_id'       => 'portfolio',
+		'about_page_id'      => 'about-me',
+		'how_i_work_page_id' => 'how-i-work',
+		'schedule_page_id'   => 'schedule-meeting',
+	);
+}
+
+/**
+ * Find a published page using a theme template.
+ *
+ * @param string $template Template path relative to theme root.
+ * @return int Page ID or 0.
+ */
+function studio_find_page_by_template( $template ) {
+	$pages = get_posts(
+		array(
+			'post_type'      => 'page',
+			'posts_per_page' => 1,
+			'post_status'    => 'publish',
+			'meta_key'       => '_wp_page_template',
+			'meta_value'     => $template,
+			'fields'         => 'ids',
+		)
+	);
+	return ! empty( $pages[0] ) ? (int) $pages[0] : 0;
+}
+
+/**
+ * Resolve and cache a page ID for a theme mod key.
+ *
+ * @param string $key Theme mod key without studio_ prefix.
+ * @return int
+ */
+function studio_resolve_page_id( $key ) {
+	$page_id = (int) studio_get_option( $key, 0 );
+	if ( $page_id && 'publish' === get_post_status( $page_id ) ) {
+		return $page_id;
+	}
+
+	$templates = studio_get_page_template_map();
+	if ( isset( $templates[ $key ] ) ) {
+		$page_id = studio_find_page_by_template( $templates[ $key ] );
+		if ( $page_id ) {
+			set_theme_mod( 'studio_' . $key, $page_id );
+			return $page_id;
+		}
+	}
+
+	$slugs = studio_get_page_slug_map();
+	if ( isset( $slugs[ $key ] ) ) {
+		$page = get_page_by_path( $slugs[ $key ] );
+		if ( $page && 'publish' === $page->post_status ) {
+			set_theme_mod( 'studio_' . $key, $page->ID );
+			if ( isset( $templates[ $key ] ) ) {
+				update_post_meta( $page->ID, '_wp_page_template', $templates[ $key ] );
+			}
+			return (int) $page->ID;
+		}
+	}
+
+	return 0;
+}
+
+/**
  * Get permalink for a theme-assigned page.
  *
- * @param string $key     Theme mod key without studio_ prefix.
+ * @param string $key      Theme mod key without studio_ prefix.
  * @param string $fallback Fallback URL.
  * @return string
  */
 function studio_get_page_url( $key, $fallback = '#' ) {
-	$page_id = (int) studio_get_option( $key, 0 );
-	if ( $page_id && 'publish' === get_post_status( $page_id ) ) {
+	$page_id = studio_resolve_page_id( $key );
+	if ( $page_id ) {
 		return get_permalink( $page_id );
 	}
+
+	$slugs = studio_get_page_slug_map();
+	if ( isset( $slugs[ $key ] ) ) {
+		return home_url( '/' . $slugs[ $key ] . '/' );
+	}
+
 	return $fallback;
 }
 
 /**
- * Create default pages on theme activation.
+ * Ensure Home is set as the static front page.
  */
-function studio_create_default_pages() {
-	$pages = array(
-		'portfolio' => array(
-			'title'    => __( 'Portfolio', 'studio-portfolio' ),
-			'template' => 'page-templates/page-portfolio.php',
-			'mod'      => 'portfolio_page_id',
-		),
-		'about'     => array(
-			'title'    => __( 'About Me', 'studio-portfolio' ),
-			'template' => 'page-templates/page-about.php',
-			'mod'      => 'about_page_id',
-		),
-		'how_i_work' => array(
-			'title'    => __( 'How I Work', 'studio-portfolio' ),
-			'template' => 'page-templates/page-how-i-work.php',
-			'mod'      => 'how_i_work_page_id',
-		),
-		'schedule'  => array(
-			'title'    => __( 'Schedule Meeting', 'studio-portfolio' ),
-			'template' => 'page-templates/page-schedule-meeting.php',
-			'mod'      => 'schedule_page_id',
-		),
-	);
-
-	foreach ( $pages as $data ) {
-		$existing = (int) studio_get_option( $data['mod'], 0 );
-		if ( $existing && get_post( $existing ) ) {
-			continue;
-		}
-
-		$page_id = wp_insert_post(
+function studio_ensure_home_page() {
+	$home = get_page_by_path( 'home' );
+	if ( ! $home ) {
+		$home_id = wp_insert_post(
 			array(
-				'post_title'  => $data['title'],
+				'post_title'  => 'Home',
+				'post_name'   => 'home',
 				'post_status' => 'publish',
 				'post_type'   => 'page',
 			),
 			true
 		);
+		if ( is_wp_error( $home_id ) ) {
+			return;
+		}
+		$home = get_post( $home_id );
+	}
 
-		if ( is_wp_error( $page_id ) ) {
+	if ( $home && 'publish' === $home->post_status ) {
+		update_option( 'page_on_front', $home->ID );
+		update_option( 'show_on_front', 'page' );
+	}
+}
+
+/**
+ * Create or repair all required site pages.
+ *
+ * @param bool $force Recreate links even when mods exist but pages are missing.
+ */
+function studio_create_default_pages( $force = false ) {
+	$pages = array(
+		array(
+			'mod'      => 'portfolio_page_id',
+			'title'    => __( 'Portfolio', 'studio-portfolio' ),
+			'slug'     => 'portfolio',
+			'template' => 'page-templates/page-portfolio.php',
+		),
+		array(
+			'mod'      => 'about_page_id',
+			'title'    => __( 'About Me', 'studio-portfolio' ),
+			'slug'     => 'about-me',
+			'template' => 'page-templates/page-about.php',
+		),
+		array(
+			'mod'      => 'how_i_work_page_id',
+			'title'    => __( 'How I Work', 'studio-portfolio' ),
+			'slug'     => 'how-i-work',
+			'template' => 'page-templates/page-how-i-work.php',
+		),
+		array(
+			'mod'      => 'schedule_page_id',
+			'title'    => __( 'Schedule Meeting', 'studio-portfolio' ),
+			'slug'     => 'schedule-meeting',
+			'template' => 'page-templates/page-schedule-meeting.php',
+		),
+	);
+
+	foreach ( $pages as $data ) {
+		$page_id = (int) studio_get_option( $data['mod'], 0 );
+
+		if ( ! $force && $page_id && get_post( $page_id ) && 'publish' === get_post_status( $page_id ) ) {
+			update_post_meta( $page_id, '_wp_page_template', $data['template'] );
 			continue;
 		}
 
-		update_post_meta( $page_id, '_wp_page_template', $data['template'] );
-		set_theme_mod( 'studio_' . $data['mod'], $page_id );
-	}
+		if ( ! $page_id || ! get_post( $page_id ) ) {
+			$page_id = studio_find_page_by_template( $data['template'] );
+		}
 
-	// Legacy alias: portfolio page also stored as work_page_id.
-	$portfolio_id = (int) studio_get_option( 'portfolio_page_id', 0 );
-	if ( $portfolio_id ) {
-		set_theme_mod( 'studio_work_page_id', $portfolio_id );
-	}
+		if ( ! $page_id ) {
+			$existing = get_page_by_path( $data['slug'] );
+			if ( $existing ) {
+				$page_id = (int) $existing->ID;
+			}
+		}
 
-	// Set static front page if not configured.
-	if ( 'page' !== get_option( 'show_on_front' ) ) {
-		$home = get_page_by_title( 'Home' );
-		if ( ! $home ) {
-			$home_id = wp_insert_post(
+		if ( ! $page_id ) {
+			$page_id = wp_insert_post(
 				array(
-					'post_title'  => 'Home',
+					'post_title'  => $data['title'],
+					'post_name'   => $data['slug'],
 					'post_status' => 'publish',
 					'post_type'   => 'page',
 				),
 				true
 			);
-			if ( ! is_wp_error( $home_id ) ) {
-				update_option( 'page_on_front', $home_id );
-				update_option( 'show_on_front', 'page' );
+			if ( is_wp_error( $page_id ) ) {
+				continue;
 			}
 		}
+
+		update_post_meta( $page_id, '_wp_page_template', $data['template'] );
+		set_theme_mod( 'studio_' . $data['mod'], (int) $page_id );
+	}
+
+	$portfolio_id = (int) studio_get_option( 'portfolio_page_id', 0 );
+	if ( $portfolio_id ) {
+		set_theme_mod( 'studio_work_page_id', $portfolio_id );
+	}
+
+	studio_ensure_home_page();
+}
+
+/**
+ * Run page setup on theme activation.
+ */
+function studio_on_theme_activation() {
+	studio_create_default_pages( true );
+	flush_rewrite_rules();
+	update_option( 'studio_pages_setup_version', STUDIO_PORTFOLIO_VERSION );
+}
+add_action( 'after_switch_theme', 'studio_on_theme_activation', 20 );
+
+/**
+ * Auto-repair pages after theme update (without requiring re-activation).
+ */
+function studio_maybe_setup_site_pages() {
+	if ( get_option( 'studio_pages_setup_version' ) === STUDIO_PORTFOLIO_VERSION ) {
+		return;
+	}
+
+	studio_create_default_pages( true );
+	flush_rewrite_rules();
+	update_option( 'studio_pages_setup_version', STUDIO_PORTFOLIO_VERSION );
+}
+add_action( 'init', 'studio_maybe_setup_site_pages', 20 );
+
+/**
+ * Admin notice when pages are missing.
+ */
+function studio_missing_pages_admin_notice() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		return;
+	}
+
+	$required = array( 'portfolio_page_id', 'about_page_id', 'how_i_work_page_id', 'schedule_page_id' );
+	foreach ( $required as $key ) {
+		if ( studio_resolve_page_id( $key ) ) {
+			continue;
+		}
+		?>
+		<div class="notice notice-warning">
+			<p>
+				<strong><?php esc_html_e( 'Studio Portfolio:', 'studio-portfolio' ); ?></strong>
+				<?php esc_html_e( 'Some pages are missing. Saving Permalinks or re-activating the theme will fix this.', 'studio-portfolio' ); ?>
+				<a href="<?php echo esc_url( admin_url( 'options-permalink.php' ) ); ?>"><?php esc_html_e( 'Go to Permalinks →', 'studio-portfolio' ); ?></a>
+			</p>
+		</div>
+		<?php
+		return;
 	}
 }
-add_action( 'after_switch_theme', 'studio_create_default_pages', 20 );
+add_action( 'admin_notices', 'studio_missing_pages_admin_notice' );
 
 /**
  * Build portfolio query args.
@@ -150,7 +322,7 @@ function studio_get_portfolio_query_args( $args = array() ) {
  * @return array
  */
 function studio_get_how_i_work_blocks() {
-	$keys = array( 'software', 'create', 'innovation', 'redesign', 'client_mind', 'presentation' );
+	$keys   = array( 'software', 'create', 'innovation', 'redesign', 'client_mind', 'presentation' );
 	$blocks = array();
 
 	foreach ( $keys as $key ) {
@@ -188,3 +360,29 @@ function studio_get_about_awards() {
 		"Best Brand Design — Design Awards 2024\nUI/UX Excellence — Creative Summit 2023\nFeatured Designer — Behance 2022"
 	);
 }
+
+/**
+ * Give the Portfolio PAGE priority over the portfolio CPT at /portfolio/.
+ *
+ * @param WP_Query $query Query.
+ */
+function studio_portfolio_page_query_fix( $query ) {
+	if ( is_admin() || ! $query->is_main_query() ) {
+		return;
+	}
+
+	if ( ! $query->is_page() ) {
+		return;
+	}
+
+	$pagename = $query->get( 'pagename' );
+	if ( ! $pagename && $query->get( 'page_id' ) ) {
+		$page = get_post( (int) $query->get( 'page_id' ) );
+		$pagename = $page ? $page->post_name : '';
+	}
+
+	if ( 'portfolio' === $pagename || 'work' === $pagename ) {
+		$query->set( 'post_type', 'page' );
+	}
+}
+add_action( 'pre_get_posts', 'studio_portfolio_page_query_fix' );

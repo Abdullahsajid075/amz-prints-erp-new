@@ -36,9 +36,12 @@ function studio_register_portfolio_cpt() {
 		'menu_icon'          => 'dashicons-art',
 		'menu_position'      => 5,
 		'query_var'          => true,
-		'rewrite'            => array( 'slug' => 'portfolio' ),
+		'rewrite'            => array(
+			'slug'       => 'project',
+			'with_front' => false,
+		),
 		'capability_type'    => 'post',
-		'has_archive'        => true,
+		'has_archive'        => false,
 		'hierarchical'       => false,
 		'supports'           => array( 'title', 'editor', 'thumbnail', 'excerpt', 'page-attributes' ),
 		'show_in_rest'       => true,
@@ -128,5 +131,7 @@ function studio_portfolio_activation() {
 			wp_insert_term( $cat, 'portfolio_category' );
 		}
 	}
+
+	delete_option( 'studio_pages_setup_version' );
 }
 add_action( 'after_switch_theme', 'studio_portfolio_activation' );

@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'STUDIO_PORTFOLIO_VERSION', '2.0.0' );
+define( 'STUDIO_PORTFOLIO_VERSION', '2.0.1' );
 define( 'STUDIO_PORTFOLIO_DIR', get_template_directory() );
 define( 'STUDIO_PORTFOLIO_URI', get_template_directory_uri() );
 
@@ -121,12 +121,13 @@ function studio_portfolio_activation_notice() {
 		<div class="notice notice-success is-dismissible">
 			<p>
 				<strong><?php esc_html_e( 'Studio Portfolio activated!', 'studio-portfolio' ); ?></strong>
+				<?php esc_html_e( 'Pages created: Home, Portfolio, About Me, How I Work, Schedule Meeting.', 'studio-portfolio' ); ?>
 				<?php
 				printf(
-					/* translators: 1: customizer url, 2: portfolio url */
-					esc_html__( 'Edit your homepage content in %1$s or add projects under %2$s.', 'studio-portfolio' ),
-					'<a href="' . esc_url( admin_url( 'customize.php' ) ) . '">' . esc_html__( 'Appearance → Customize → Studio Portfolio', 'studio-portfolio' ) . '</a>',
-					'<a href="' . esc_url( admin_url( 'edit.php?post_type=portfolio' ) ) . '">' . esc_html__( 'Portfolio', 'studio-portfolio' ) . '</a>'
+					/* translators: 1: permalinks url, 2: customizer url */
+					esc_html__( 'Important: visit %1$s and click Save. Then edit content in %2$s.', 'studio-portfolio' ),
+					'<a href="' . esc_url( admin_url( 'options-permalink.php' ) ) . '">' . esc_html__( 'Settings → Permalinks', 'studio-portfolio' ) . '</a>',
+					'<a href="' . esc_url( admin_url( 'customize.php' ) ) . '">' . esc_html__( 'Appearance → Customize', 'studio-portfolio' ) . '</a>'
 				);
 				?>
 			</p>
