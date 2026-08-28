@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { invoicesAPI } from '@/services/api';
 import { notifyOrderEvent } from '@/services/notifications';
 import { formatCurrency, formatDate } from '@/utils/helpers';
+import { documentFileName, printWithDocumentTitle } from '@/utils/printHelpers';
 import { useBrand } from '@/context/BrandContext';
 import { ArrowLeft, Printer, Copy, Download, CheckCircle2, Edit } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
@@ -43,7 +44,15 @@ const InvoiceView = ({ isPublic = false }) => {
     load();
   }, [load]);
 
-  const handlePrint = () => window.print();
+  const handlePrint = () => {
+    printWithDocumentTitle(
+      documentFileName({
+        docType: 'Invoice',
+        customerName: invoice.customerName,
+        orderNumber: invoice.orderId || invoice.invoiceNumber,
+      })
+    );
+  };
 
   const copyShareLink = () => {
     const link = `${window.location.origin}/invoice/${invoice.shareToken}`;
@@ -300,20 +309,6 @@ const InvoiceView = ({ isPublic = false }) => {
 
         <div className="px-8 pb-6 inv-section grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-3">
-            {showQR && (
-              <div className={`p-3 ${template === 'modern' ? 'rounded-xl bg-gray-50' : 'rounded-md border border-dashed border-orange-200 bg-orange-50'}`}>
-                <p className="text-[10px] uppercase tracking-wider font-semibold mb-1.5" style={{ color: accent }}>Scan to Verify</p>
-                <div className="flex gap-2.5 items-start">
-                  <div className="bg-white p-1.5 rounded border border-gray-200 shrink-0">
-                    <QRCodeSVG value={verifyUrl} size={72} level="M" fgColor="#2E2E2E" />
-                  </div>
-                  <div className="text-[11px] text-gray-600 leading-snug">
-                    <p className="font-semibold mb-0.5" style={{ color: '#2E2E2E' }}>Verify Authenticity</p>
-                    <p>Scan to view the digital copy of this invoice.</p>
-                  </div>
-                </div>
-              </div>
-            )}
             {invoice.notes && (
               <div>
                 <p className="text-[10px] uppercase tracking-wider font-semibold mb-1 text-gray-700">Notes</p>
@@ -405,6 +400,25 @@ const InvoiceView = ({ isPublic = false }) => {
             </div>
           )}
         </div>
+
+        {showQR && (
+          <div className={`px-8 pb-5 inv-section inv-verify-block border-t ${template === 'minimal' ? 'border-gray-300' : 'border-orange-100'} pt-4 text-center`}>
+            <p className="text-xs uppercase tracking-wider font-bold mb-3" style={{ color: accent }}>
+              Invoice Verification
+            </p>
+            <div className="inline-flex flex-col items-center gap-2">
+              <div className={`bg-white p-2.5 rounded-lg border-2 ${template === 'minimal' ? 'border-gray-300' : 'border-orange-200'}`}>
+                <QRCodeSVG value={verifyUrl} size={108} level="M" fgColor="#2E2E2E" />
+              </div>
+              <p className="inv-verify-code text-xl font-extrabold tracking-[0.14em]" style={{ color: '#2E2E2E' }}>
+                {invoice.shareToken}
+              </p>
+              <p className="text-xs text-gray-600 max-w-sm">
+                Scan the QR code or use the verification code above to confirm this invoice online.
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="p-2.5 text-center border-t border-gray-100 invoice-print-footer" style={{ backgroundColor: template === 'bold' ? accent : '#F5F7FB' }}>
           <p className={`text-[10px] ${template === 'bold' ? 'text-white' : 'text-gray-500'}`}>

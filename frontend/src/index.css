@@ -358,6 +358,19 @@ code {
     width: 56px !important;
     height: 56px !important;
   }
+  .invoice-container .inv-verify-block {
+    padding-top: 8px !important;
+    padding-bottom: 6px !important;
+  }
+  .invoice-container .inv-verify-block svg {
+    width: 92px !important;
+    height: 92px !important;
+  }
+  .invoice-container .inv-verify-code {
+    font-size: 15px !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.12em !important;
+  }
   .invoice-container .gap-8 { gap: 0.6rem !important; }
   .invoice-container .gap-6 { gap: 0.45rem !important; }
   .invoice-container .gap-4 { gap: 0.4rem !important; }
@@ -389,6 +402,13 @@ code {
   }
   .invoice-fit-one-page .inv-total {
     font-size: 12px !important;
+  }
+  .invoice-fit-one-page .inv-verify-block svg {
+    width: 78px !important;
+    height: 78px !important;
+  }
+  .invoice-fit-one-page .inv-verify-code {
+    font-size: 13px !important;
   }
   .invoice-fit-one-page .gap-8,
   .invoice-fit-one-page .gap-6,

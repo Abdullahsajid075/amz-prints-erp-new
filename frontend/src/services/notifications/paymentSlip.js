@@ -1,7 +1,7 @@
 /**
  * Pocket-size payment receipt (Cash In / Cash Out) — black, short, with barcode.
  */
-import { barcodeBlock, moneyPKR, printHtml, printOnLoadScript } from '@/utils/printHelpers';
+import { barcodeBlock, moneyPKR, printHtml, printOnLoadScript, documentFileName } from '@/utils/printHelpers';
 
 export function printPaymentSlip(payment = {}, company = {}) {
   const rawType = String(payment.type || payment.recordtype || '').toLowerCase();
@@ -17,11 +17,16 @@ export function printPaymentSlip(payment = {}, company = {}) {
   const date = payment.date || new Date().toISOString().slice(0, 10);
   const time = payment.time || new Date().toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' });
   const txn = String(payment.reference || payment.refId || payment.id || `TXN-${Date.now().toString().slice(-8)}`);
+  const printTitle = documentFileName({
+    docType: isIn ? 'Receipt' : 'Voucher',
+    customerName: payment.party || payment.customerName,
+    orderNumber: payment.orderId || payment.reference || txn,
+  });
 
   const html = `<!DOCTYPE html>
 <html>
 <head>
-  <title>${title} — ${txn}</title>
+  <title>${printTitle}</title>
   <style>
     @page { size: 80mm auto; margin: 2.5mm; }
     * { box-sizing: border-box; }

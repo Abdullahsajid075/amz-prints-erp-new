@@ -116,8 +116,9 @@ export default function CustomerPicker({
       toast.error('Customer phone is required');
       return;
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(draft.email || '').trim())) {
-      toast.error('Customer email is required for email notifications');
+    const emailTrim = String(draft.email || '').trim();
+    if (emailTrim && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) {
+      toast.error('Enter a valid email address');
       return;
     }
     setSaving(true);
@@ -125,7 +126,7 @@ export default function CustomerPicker({
       const res = await customersAPI.create({
         name: draft.name.trim(),
         phone: draft.phone.trim(),
-        email: draft.email.trim(),
+        email: emailTrim,
         address: draft.address.trim(),
       });
       const c = res.data || {};
@@ -259,7 +260,7 @@ export default function CustomerPicker({
 
         {customerId ? (
           <div className="mt-2">
-            <Label className="text-xs">Customer email * (for notifications)</Label>
+            <Label className="text-xs">Customer email (optional)</Label>
             <Input
               type="email"
               className="mt-1 h-9"
@@ -274,8 +275,8 @@ export default function CustomerPicker({
                 customerAddress,
               })}
             />
-            {!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(customerEmail || '').trim()) ? (
-              <p className="mt-1 text-xs text-amber-700">Email required to send order / payment / invoice emails.</p>
+            {String(customerEmail || '').trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(customerEmail || '').trim()) ? (
+              <p className="mt-1 text-xs text-amber-700">Enter a valid email if you add one.</p>
             ) : null}
           </div>
         ) : null}
@@ -306,7 +307,7 @@ export default function CustomerPicker({
                 />
               </div>
               <div>
-                <Label>Email *</Label>
+                <Label>Email (optional)</Label>
                 <Input
                   type="email"
                   value={draft.email}
@@ -343,7 +344,7 @@ export default function CustomerPicker({
   );
 }
 
-export function requireCustomer(form, { requireEmail = true } = {}) {
+export function requireCustomer(form, { requireEmail = false } = {}) {
   if (!form?.customerId) {
     toast.error('Please select or add a customer first');
     return false;
@@ -355,6 +356,10 @@ export function requireCustomer(form, { requireEmail = true } = {}) {
   const email = String(form.customerEmail || form.partyEmail || form.email || '').trim();
   if (requireEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     toast.error('Customer email is required for email notifications');
+    return false;
+  }
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    toast.error('Enter a valid customer email');
     return false;
   }
   return true;

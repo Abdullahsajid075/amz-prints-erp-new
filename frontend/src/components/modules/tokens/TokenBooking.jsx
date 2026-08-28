@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { tokensAPI, customersAPI, debugAPI } from '@/services/api';
 import { notifyTokenEvent } from '@/services/notifications';
+import { documentFileName } from '@/utils/printHelpers';
 import { toast } from 'sonner';
 import {
   Ticket, Printer, Monitor, Search, Plus, XCircle,
@@ -44,11 +45,16 @@ function buildWhatsAppUrl(phone, text) {
 }
 
 function printToken(token) {
+  const printTitle = documentFileName({
+    docType: 'Token',
+    customerName: token.customerName,
+    orderNumber: token.tokenNo,
+  });
   const html = `
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Token ${token.tokenNo}</title>
+  <title>${printTitle}</title>
   <style>
     @page { size: 80mm auto; margin: 4mm; }
     body { font-family: Arial, sans-serif; width: 72mm; margin: 0; color: #000; }
@@ -228,8 +234,9 @@ const TokenBooking = () => {
       toast.error('Customer name and phone are required');
       return;
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(form.customerEmail || '').trim())) {
-      toast.error('Customer email is required for email notifications');
+    const emailTrim = String(form.customerEmail || '').trim();
+    if (emailTrim && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) {
+      toast.error('Enter a valid email address');
       return;
     }
     if (!form.service) {
@@ -249,8 +256,8 @@ const TokenBooking = () => {
       const res = await tokensAPI.create({
         customerName: form.customerName.trim(),
         customerPhone: form.customerPhone.trim(),
-        customerEmail: form.customerEmail.trim(),
-        email: form.customerEmail.trim(),
+        customerEmail: emailTrim,
+        email: emailTrim,
         counterName,
         service: form.service,
         serviceNote: form.serviceNote,
@@ -427,7 +434,7 @@ const TokenBooking = () => {
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <Label>Customer Email * (notifications from amazonprinting@gmail.com)</Label>
+                  <Label>Customer Email (optional)</Label>
                   <Input
                     type="email"
                     value={form.customerEmail}

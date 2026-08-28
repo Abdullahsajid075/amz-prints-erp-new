@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { ordersAPI, invoicesAPI, settingsAPI } from '@/services/api';
 import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
+import { documentFileName } from '@/utils/printHelpers';
 import { ORDER_STATUS } from '@/utils/constants';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
@@ -314,9 +315,14 @@ const OrdersList = () => {
           <td style="text-align:right">${formatCurrency(p.rate)}</td>
           <td style="text-align:right">${formatCurrency((p.quantity || 0) * (p.rate || 0))}</td>
         </tr>`).join('');
+      const printTitle = documentFileName({
+        docType: 'Order',
+        customerName: full.customerName,
+        orderNumber: full.orderId,
+      });
       const win = window.open('', '_blank', 'width=900,height=1100');
       if (!win) { toast.error('Popup blocked — please allow popups to print'); return; }
-      win.document.write(`<!doctype html><html><head><title>Order ${full.orderId}</title>
+      win.document.write(`<!doctype html><html><head><title>${printTitle}</title>
         <style>
           @page { size: A4; margin: 12mm; }
           body { font-family: 'Poppins', system-ui, sans-serif; color: #1F2937; margin: 0; }

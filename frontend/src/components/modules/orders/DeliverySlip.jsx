@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ordersAPI } from '@/services/api';
 import { formatCurrency, formatDate } from '@/utils/helpers';
-import { barcodeBlock, openPrintWindow, printOnLoadScript, moneyPKR } from '@/utils/printHelpers';
+import { barcodeBlock, openPrintWindow, printOnLoadScript, moneyPKR, documentFileName } from '@/utils/printHelpers';
 import { useBrand } from '@/context/BrandContext';
 import { ArrowLeft, Printer, Save } from 'lucide-react';
 import { toast } from 'sonner';
@@ -68,10 +68,16 @@ const DeliverySlip = () => {
       )
       .join('');
 
+    const printTitle = documentFileName({
+      docType: 'Delivery',
+      customerName: order.customerName,
+      orderNumber: order.orderId,
+    });
+
     const html = `<!DOCTYPE html>
 <html>
 <head>
-  <title>Delivery ${order.orderId || ''}</title>
+  <title>${printTitle}</title>
   <style>
     @page { size: A5; margin: 10mm; }
     * { box-sizing: border-box; }

@@ -8,7 +8,7 @@ import { applyServerNotificationHint, openWhatsAppChat } from '@/services/notifi
 import { formatCurrency } from '@/utils/helpers';
 import { customerMatchesQuery } from '@/utils/customerSearch';
 import { productMatchesQuery } from '@/utils/productSearch';
-import { barcodeBlock, openPrintWindow, printOnLoadScript, POS_MAJOR_SERVICES } from '@/utils/printHelpers';
+import { barcodeBlock, openPrintWindow, printOnLoadScript, POS_MAJOR_SERVICES, documentFileName } from '@/utils/printHelpers';
 import { useBrand } from '@/context/BrandContext';
 import { Search, Plus, Minus, Trash2, Printer, ShoppingCart, FileSpreadsheet, PackagePlus, UserPlus, Package, Wrench } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
@@ -218,6 +218,11 @@ const POS = () => {
       ? `<img src="${company.logo}" alt="logo" style="max-height:42px;max-width:140px;display:block;margin:0 auto 4px;filter:grayscale(1);" />`
       : '';
     const code = sale.orderId || sale.id || `POS-${Date.now().toString().slice(-6)}`;
+    const printTitle = documentFileName({
+      docType: 'POS',
+      customerName: sale.customerName,
+      orderNumber: code,
+    });
     const rows = (sale.products || [])
       .map(
         (p) =>
@@ -225,7 +230,7 @@ const POS = () => {
       )
       .join('');
     const services = POS_MAJOR_SERVICES.map((s) => `<li>${s}</li>`).join('');
-    const html = `<!DOCTYPE html><html><head><title>POS ${code}</title>
+    const html = `<!DOCTYPE html><html><head><title>${printTitle}</title>
       <style>
         @page { size: 80mm auto; margin: 3mm; }
         body { font-family: Arial, Helvetica, sans-serif; width: 72mm; margin: 0; color: #000; font-size: 11px; }

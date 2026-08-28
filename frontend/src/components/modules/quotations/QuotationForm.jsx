@@ -11,6 +11,7 @@ import { applyServerNotificationHint, notifyOrderEvent, openWhatsAppChat } from 
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { formatCurrency } from '@/utils/helpers';
+import { documentFileName, printWithDocumentTitle } from '@/utils/printHelpers';
 import { useBrand } from '@/context/BrandContext';
 import { ArrowLeft, Plus, Trash2, Save, ShoppingCart, Printer, FileText, PackagePlus } from 'lucide-react';
 import { toast } from 'sonner';
@@ -121,10 +122,15 @@ const QuotationForm = ({ printMode = false }) => {
 
   useEffect(() => {
     if (printMode && !loading && form.id) {
-      const t = setTimeout(() => window.print(), 400);
+      const title = documentFileName({
+        docType: 'Quotation',
+        customerName: form.customerName,
+        orderNumber: form.orderId,
+      });
+      const t = setTimeout(() => printWithDocumentTitle(title), 400);
       return () => clearTimeout(t);
     }
-  }, [printMode, loading, form.id]);
+  }, [printMode, loading, form.id, form.customerName, form.orderId]);
 
   const setLine = (index, field, value) => {
     setForm((prev) => {
@@ -444,7 +450,15 @@ const QuotationForm = ({ printMode = false }) => {
 
         <div className="no-print mt-6 flex gap-2 px-2 pb-4">
           <Button variant="outline" onClick={() => navigate(`/quotations/${quotationId}/edit`)}>Back</Button>
-          <Button onClick={() => window.print()} className="text-white" style={{ backgroundColor: accent }}>
+          <Button
+            onClick={() => printWithDocumentTitle(documentFileName({
+              docType: 'Quotation',
+              customerName: form.customerName,
+              orderNumber: form.orderId,
+            }))}
+            className="text-white"
+            style={{ backgroundColor: accent }}
+          >
             <Printer className="h-4 w-4 mr-2" />Print
           </Button>
         </div>

@@ -109,3 +109,45 @@ export function printOnLoadScript(delay = 450) {
     <\/script>
   `;
 }
+
+/** Safe filename segment for PDF / print downloads. */
+export function slugFilePart(value, maxLen = 36) {
+  return String(value || '')
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, maxLen) || '';
+}
+
+/** e.g. Invoice-Ali-Hassan-ORD-2026-001 */
+export function documentFileName({
+  docType = 'Document',
+  customerName = '',
+  orderNumber = '',
+  invoiceNumber = '',
+  fallback = '',
+} = {}) {
+  const type = slugFilePart(docType, 24) || 'Document';
+  const name = slugFilePart(customerName, 32) || 'Customer';
+  const ref = slugFilePart(orderNumber || invoiceNumber || fallback, 32) || 'ref';
+  return `${type}-${name}-${ref}`;
+}
+
+/** Sets document.title before print so Save as PDF uses a useful name. */
+export function printWithDocumentTitle(title, printFn = () => window.print()) {
+  if (typeof document === 'undefined') {
+    printFn();
+    return;
+  }
+  const prev = document.title;
+  const safe = String(title || 'Document').trim() || 'Document';
+  document.title = safe;
+  const restore = () => {
+    document.title = prev;
+  };
+  window.addEventListener('afterprint', restore, { once: true });
+  setTimeout(restore, 5000);
+  printFn();
+}
