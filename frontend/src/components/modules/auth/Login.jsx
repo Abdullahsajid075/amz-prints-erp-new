@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Lock, Mail, AlertCircle } from 'lucide-react';
+import { Lock, Mail, AlertCircle, Package } from 'lucide-react';
 import { authAPI } from '@/services/api';
 import { tokenStorage } from '@/services/tokenStorage';
 import { clearGasCache } from '@/services/gasClient';
@@ -35,7 +36,7 @@ function readFrozenBrand() {
 
 /**
  * Standalone login page — NOT under BrandProvider / AuthProvider.
- * Order tracking is public via /track link only (not on login).
+ * Customers can track orders without login via /track (linked below).
  */
 const Login = () => {
   const { company, primary } = useMemo(() => readFrozenBrand(), []);
@@ -212,6 +213,20 @@ const Login = () => {
               {loginLoading ? 'Signing in...' : 'Sign In'}
             </Button>
           </form>
+
+          <div className="mt-6 pt-5 border-t border-slate-200/80">
+            <Link
+              to="/track"
+              className="flex items-center justify-center gap-2 w-full h-11 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-ink hover:bg-slate-50 transition-colors"
+              data-testid="login-track-order-link"
+            >
+              <Package className="h-4 w-4" style={{ color: accent }} />
+              Track your order
+            </Link>
+            <p className="mt-2 text-center text-xs text-slate-500">
+              No login needed — use Order ID or Tracking Number
+            </p>
+          </div>
         </div>
       </section>
     </div>

@@ -609,7 +609,7 @@ const InvoiceForm = () => {
                       {catalog.map((p) => (
                         <SelectItem key={p.id} value={String(p.id)}>
                           {String(p.productType || '').toLowerCase() === 'service' ? 'Svc · ' : ''}
-                          {p.name} · {formatCurrency(p.rate || p.basePrice)}
+                          {p.name}
                         </SelectItem>
                       ))}
                     </SelectContent>

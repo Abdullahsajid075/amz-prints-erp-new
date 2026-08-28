@@ -233,9 +233,9 @@ code {
   100% { background-position: -200% 0; }
 }
 
-/* Print styles for invoice / quotation — header & footer on every page */
+/* Print styles for invoice / quotation — fit A4, compact chrome, strong totals */
 @media print {
-  @page { size: A4; margin: 12mm 10mm 14mm 10mm; }
+  @page { size: A4; margin: 10mm 9mm 12mm 9mm; }
   .no-print, nav, aside, .invoice-container ~ * { display: none !important; }
   body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .invoice-container {
@@ -244,8 +244,9 @@ code {
     margin: 0 !important;
     padding: 0 !important;
     max-width: 100% !important;
-    font-size: 11px !important;
-    line-height: 1.35 !important;
+    width: 100% !important;
+    font-size: 10.5px !important;
+    line-height: 1.3 !important;
   }
   .invoice-container thead { display: table-header-group; }
   .invoice-container tfoot { display: table-footer-group; }
@@ -256,82 +257,146 @@ code {
   .invoice-print-footer {
     position: static;
     text-align: center;
-    font-size: 9px;
+    font-size: 8.5px !important;
     color: #666;
-    padding: 4px 0;
+    padding: 3px 0 !important;
     border-top: 1px solid #e5e7eb;
-    background: white;
+    background: white !important;
   }
-  .invoice-container .p-8 { padding: 10px 0 !important; }
-  .invoice-container .p-4 { padding: 6px 0 !important; }
-  .invoice-container table { font-size: 10.5px !important; }
-  .invoice-container table th, .invoice-container table td { padding: 5px 6px !important; }
-  .invoice-container h1 { font-size: 18px !important; }
-  .invoice-container .text-3xl { font-size: 18px !important; }
-  .invoice-container .text-2xl { font-size: 14px !important; }
-  .invoice-container .text-xl { font-size: 12px !important; }
-  .invoice-container .h-24 { height: 60px !important; }
-  .invoice-container .w-20, .invoice-container .h-20 { width: 52px !important; height: 52px !important; }
-  .invoice-container .w-32, .invoice-container .h-32 { width: 84px !important; height: 84px !important; }
-  main, .App { padding: 0 !important; margin: 0 !important; }
-
-  /* ≤10 lines: force compact single A4 page */
-  .invoice-fit-one-page {
-    font-size: 10px !important;
-    line-height: 1.25 !important;
+  .invoice-container .p-8,
+  .invoice-container .p-6,
+  .invoice-container .px-8 {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
   }
-  .invoice-fit-one-page .p-8,
-  .invoice-fit-one-page .px-8,
-  .invoice-fit-one-page .pb-8 {
-    padding: 6px 0 !important;
+  .invoice-container .p-8,
+  .invoice-container .p-6 {
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
   }
-  .invoice-fit-one-page .p-4 {
+  .invoice-container .pb-8,
+  .invoice-container .pb-6,
+  .invoice-container .pb-4 {
+    padding-bottom: 6px !important;
+  }
+  .invoice-container .p-4,
+  .invoice-container .p-3 {
     padding: 4px 0 !important;
   }
-  .invoice-fit-one-page table {
-    font-size: 9.5px !important;
+  .invoice-container .inv-section {
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
   }
-  .invoice-fit-one-page table th,
-  .invoice-fit-one-page table td {
-    padding: 3px 4px !important;
+  .invoice-container .inv-logo {
+    height: 36px !important;
+    width: auto !important;
+    max-width: 90px !important;
   }
-  .invoice-fit-one-page h1,
-  .invoice-fit-one-page .text-3xl {
-    font-size: 16px !important;
+  .invoice-container .inv-logo.w-11,
+  .invoice-container .inv-logo.h-11 {
+    width: 36px !important;
+    height: 36px !important;
   }
-  .invoice-fit-one-page .text-2xl {
-    font-size: 13px !important;
+  .invoice-container .inv-brand-name,
+  .invoice-container h1 {
+    font-size: 14px !important;
+    line-height: 1.2 !important;
   }
-  .invoice-fit-one-page .text-xl {
+  .invoice-container .inv-doc-no {
+    font-size: 12px !important;
+  }
+  .invoice-container .inv-customer {
     font-size: 11px !important;
   }
-  .invoice-fit-one-page .h-24 {
-    height: 44px !important;
+  .invoice-container .inv-muted,
+  .invoice-container .inv-muted p {
+    font-size: 8.5px !important;
   }
-  .invoice-fit-one-page .w-20,
-  .invoice-fit-one-page .h-20 {
-    width: 44px !important;
-    height: 44px !important;
+  .invoice-container .inv-table {
+    font-size: 9.5px !important;
   }
-  .invoice-fit-one-page .w-32,
-  .invoice-fit-one-page .h-32 {
-    width: 64px !important;
-    height: 64px !important;
+  .invoice-container .inv-table th,
+  .invoice-container .inv-table td {
+    padding: 3px 4px !important;
   }
-  .invoice-fit-one-page .gap-8 {
-    gap: 0.75rem !important;
+  .invoice-container .inv-total {
+    font-size: 13px !important;
   }
-  .invoice-fit-one-page .gap-6 {
-    gap: 0.5rem !important;
+  .invoice-container .inv-total-row,
+  .invoice-container .inv-balance-row {
+    padding-top: 5px !important;
+    padding-bottom: 5px !important;
   }
-  .invoice-fit-one-page .mt-4 {
-    margin-top: 0.35rem !important;
+  .invoice-container .text-3xl,
+  .invoice-container .text-4xl,
+  .invoice-container .text-2xl,
+  .invoice-container .text-xl {
+    font-size: 13px !important;
   }
-  .invoice-fit-one-page .space-y-4 > :not([hidden]) ~ :not([hidden]) {
-    margin-top: 0.4rem !important;
+  .invoice-container .text-lg {
+    font-size: 11px !important;
   }
-  .invoice-fit-one-page .space-y-2 > :not([hidden]) ~ :not([hidden]) {
-    margin-top: 0.2rem !important;
+  .invoice-container .h-24,
+  .invoice-container .h-16 {
+    height: 48px !important;
+  }
+  .invoice-container .w-32,
+  .invoice-container .h-32,
+  .invoice-container .w-20,
+  .invoice-container .h-20 {
+    width: 56px !important;
+    height: 56px !important;
+  }
+  .invoice-container img.h-16,
+  .invoice-container img.h-24,
+  .invoice-container img.max-h-14,
+  .invoice-container img.max-h-20 {
+    max-height: 44px !important;
+    height: auto !important;
+  }
+  .invoice-container svg {
+    width: 56px !important;
+    height: 56px !important;
+  }
+  .invoice-container .gap-8 { gap: 0.6rem !important; }
+  .invoice-container .gap-6 { gap: 0.45rem !important; }
+  .invoice-container .gap-4 { gap: 0.4rem !important; }
+  main, .App { padding: 0 !important; margin: 0 !important; }
+
+  /* <=10 lines: keep on one A4 page */
+  .invoice-fit-one-page {
+    font-size: 9.5px !important;
+    line-height: 1.22 !important;
+  }
+  .invoice-fit-one-page .inv-section {
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+  }
+  .invoice-fit-one-page .inv-logo {
+    height: 30px !important;
+    max-width: 78px !important;
+  }
+  .invoice-fit-one-page .inv-brand-name,
+  .invoice-fit-one-page h1 {
+    font-size: 13px !important;
+  }
+  .invoice-fit-one-page .inv-table {
+    font-size: 9px !important;
+  }
+  .invoice-fit-one-page .inv-table th,
+  .invoice-fit-one-page .inv-table td {
+    padding: 2px 3px !important;
+  }
+  .invoice-fit-one-page .inv-total {
+    font-size: 12px !important;
+  }
+  .invoice-fit-one-page .gap-8,
+  .invoice-fit-one-page .gap-6,
+  .invoice-fit-one-page .gap-4 {
+    gap: 0.35rem !important;
+  }
+  .invoice-fit-one-page .space-y-3 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.3rem !important;
   }
   .invoice-fit-one-page {
     page-break-after: avoid !important;

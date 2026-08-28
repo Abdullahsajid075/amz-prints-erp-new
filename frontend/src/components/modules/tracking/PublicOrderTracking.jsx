@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -99,10 +99,16 @@ const PublicOrderTracking = () => {
               {(companyName || 'A').charAt(0)}
             </div>
           )}
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h1 className="text-lg font-bold truncate" style={{ color: '#2E2E2E' }}>{companyName}</h1>
             <p className="text-xs text-gray-500">Order Tracking · No login required</p>
           </div>
+          <Link
+            to="/login"
+            className="text-xs font-semibold text-gray-500 hover:text-gray-800 shrink-0"
+          >
+            Staff login
+          </Link>
         </div>
       </header>
 

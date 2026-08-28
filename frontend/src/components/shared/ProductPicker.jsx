@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { formatCurrency } from '@/utils/helpers';
 import { productMatchesQuery } from '@/utils/productSearch';
 import { Search, ChevronDown, X } from 'lucide-react';
 
@@ -112,12 +111,10 @@ export default function ProductPicker({
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => pick(p)}
               >
-                <span className="font-medium">
+                <span className="font-medium truncate block">
                   {isSvc ? 'Svc · ' : ''}
                   {p.name}
                 </span>
-                <span className="text-gray-500"> · {formatCurrency(p.rate || p.basePrice)}</span>
-                {p.category ? <span className="text-gray-400 text-xs"> · {p.category}</span> : null}
               </button>
             );
           })}
