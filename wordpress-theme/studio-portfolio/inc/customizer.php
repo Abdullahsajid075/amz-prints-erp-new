@@ -16,8 +16,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 function studio_portfolio_customize_register( $wp_customize ) {
 	$wp_customize->add_panel( 'studio_portfolio_panel', array(
-		'title'       => __( 'Personal Brand Portfolio', 'studio-portfolio' ),
-		'description' => __( 'Edit your photo, story, colors, contact buttons, and all homepage content.', 'studio-portfolio' ),
+		'title'       => __( 'Studio Portfolio — Full Site', 'studio-portfolio' ),
+		'description' => __( 'Customize every page: Home, Portfolio, About, How I Work, Schedule Meeting.', 'studio-portfolio' ),
 		'priority'    => 10,
 	) );
 
@@ -108,15 +108,16 @@ function studio_customizer_section_pages( $wp_customize ) {
 	$section = 'studio_pages';
 	$wp_customize->add_section( $section, array(
 		'title'       => __( 'Pages Setup', 'studio-portfolio' ),
-		'description' => __( 'Assign separate pages for Work, About, and Contact. Pages are auto-created on theme activation.', 'studio-portfolio' ),
+		'description' => __( 'Assign pages for Portfolio, About, How I Work, and Schedule Meeting. Auto-created on theme activation.', 'studio-portfolio' ),
 		'panel'       => 'studio_portfolio_panel',
 		'priority'    => 12,
 	) );
 
 	$page_controls = array(
-		'work_page_id'    => __( 'Work Page', 'studio-portfolio' ),
-		'about_page_id'   => __( 'About Page', 'studio-portfolio' ),
-		'contact_page_id' => __( 'Contact Page', 'studio-portfolio' ),
+		'portfolio_page_id'  => __( 'Portfolio Page', 'studio-portfolio' ),
+		'about_page_id'      => __( 'About Me Page', 'studio-portfolio' ),
+		'how_i_work_page_id' => __( 'How I Work Page', 'studio-portfolio' ),
+		'schedule_page_id'   => __( 'Schedule Meeting Page', 'studio-portfolio' ),
 	);
 
 	foreach ( $page_controls as $id => $label ) {
@@ -144,11 +145,10 @@ function studio_customizer_section_header( $wp_customize ) {
 	) );
 
 	studio_add_text( $wp_customize, $section, 'logo_letter', __( 'Logo Letter (if no logo image)', 'studio-portfolio' ), 'S' );
-	studio_add_text( $wp_customize, $section, 'header_cta_text', __( 'Header Button Text', 'studio-portfolio' ), "Let's Talk" );
-	studio_add_text( $wp_customize, $section, 'header_cta_url', __( 'Header Button URL', 'studio-portfolio' ), '#contact' );
-	studio_add_text( $wp_customize, $section, 'nav_work', __( 'Nav: Work Label', 'studio-portfolio' ), 'Work' );
-	studio_add_text( $wp_customize, $section, 'nav_about', __( 'Nav: About Label', 'studio-portfolio' ), 'About' );
-	studio_add_text( $wp_customize, $section, 'nav_contact', __( 'Nav: Contact Label', 'studio-portfolio' ), 'Contact' );
+	studio_add_text( $wp_customize, $section, 'nav_home', __( 'Nav: Home', 'studio-portfolio' ), 'Home' );
+	studio_add_text( $wp_customize, $section, 'nav_portfolio', __( 'Nav: Portfolio', 'studio-portfolio' ), 'Portfolio' );
+	studio_add_text( $wp_customize, $section, 'nav_about', __( 'Nav: About', 'studio-portfolio' ), 'About' );
+	studio_add_text( $wp_customize, $section, 'nav_how_i_work', __( 'Nav: How I Work', 'studio-portfolio' ), 'How I Work' );
 }
 
 /**

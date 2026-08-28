@@ -1,71 +1,55 @@
-# Studio Portfolio v1.6.0
+# Studio Portfolio v2.0 — Full Site Reset
 
-## Multi-page portfolio site
+Professional multi-page portfolio theme — fully customizable via **Appearance → Customize**.
 
-The theme now uses **separate pages** for Home, Work, About, and Contact — each editable in the Customizer.
+## Pages
 
-### Auto-created pages (on theme activation)
-- **Work** — full portfolio grid with category filters
-- **About** — full about story
-- **Contact** — contact form & info
+| Page | What it shows |
+|------|---------------|
+| **Home** | Hero + About preview + Services + Featured portfolio |
+| **Portfolio** | Category tabs on top → filtered gallery below, hover auto-scroll, PDF thumbnails |
+| **About Me** | Experience, Education, Goals, Awards, Services |
+| **How I Work** | Software, Design process, Innovation, Redesign, Client mind-reading, Presentation |
+| **Schedule Meeting** | Booking form → sends to WhatsApp **+923471136415** |
 
-Assign or change pages under **Appearance → Customize → Pages Setup**.
-
----
-
-## Homepage — featured portfolio
-
-1. **Portfolio → Edit** any project
-2. Check **Show on Homepage**
-3. Set **Featured Image** (visible directly on home screen)
-4. For PDF projects: upload **PDF Preview Thumbnail** — shown on hover
-
-Homepage shows featured projects in a **bigger horizontal gallery** with **hover auto-scroll**.
-
-Customize under **Appearance → Customize → Homepage — Featured Portfolio**:
-- Section text, max project count, "View All Work" button
+Pages auto-create on theme activation. Assign under **Customizer → Pages Setup**.
 
 ---
 
-## Work page (separate)
+## Setup
 
-Full portfolio with:
-- **Bigger cards** with **category badges**
-- **Category filter buttons** (All, Branding, UI/UX, etc.)
-- All projects (not just featured)
-
-Customize under **Appearance → Customize → Work Page**.
-
-Page template: **Work Page**
+1. Upload & activate theme
+2. **Settings → Reading** → Static page → select **Home**
+3. **Settings → Permalinks** → Save (flush URLs)
+4. **Appearance → Customize** → edit all content
 
 ---
 
-## PDF projects
+## Portfolio
 
-1. Upload **Featured Image** or **PDF Preview Thumbnail**
-2. Upload **Project PDF**
-3. On hover: thumbnail preview zooms with "View PDF →"
-4. Click opens PDF in new tab
+- **Portfolio → Edit** → check **Show on Homepage** for home preview
+- Upload **Featured Image** + **PDF Preview Thumbnail** for PDF projects
+- Assign **Categories** (Branding, UI/UX, etc.)
 
----
-
-## Customizer sections (every page)
-
-| Section | Edits |
-|---------|-------|
-| Pages Setup | Work, About, Contact page assignment |
-| Homepage — Featured Portfolio | Home gallery text & count |
-| Work Page | Full work page text & category filter |
-| About Section / About Page | Full about content |
-| Contact Section / Contact Page | Contact info & form |
-| Header & Navigation | Menu labels, CTA button |
-| Show / Hide Sections | What appears on homepage |
+**Portfolio page:** click category tab → relevant projects appear below. Hover gallery to auto-scroll.
 
 ---
 
-## Elementor
+## Schedule Meeting
 
-All widgets still work. Portfolio widget has **Homepage Featured** or **Full Work Page** display mode.
+Menu button **Schedule Meeting** → form with name, email, phone, date, time, platform, message → opens WhatsApp with details pre-filled.
+
+Customize WhatsApp number under **Customizer → Schedule Meeting**.
+
+---
+
+## Customizer sections
+
+- Colors, Pages Setup, Header & Navigation
+- Hero, Home Page, Portfolio Page
+- About Me Page, About Section
+- How I Work Page, Schedule Meeting
+- Services, Footer, Floating buttons
 
 ---
 

@@ -8,7 +8,7 @@
 <body <?php body_class(); ?>>
 <?php wp_body_open(); ?>
 
-<header class="site-header">
+<header class="site-header premium-header">
 	<div class="container header-inner">
 		<a href="<?php echo esc_url( home_url( '/' ) ); ?>" class="site-logo">
 			<?php if ( has_custom_logo() ) : ?>
@@ -22,8 +22,8 @@
 		<?php studio_render_nav( 'main-nav' ); ?>
 
 		<div class="header-cta">
-			<a href="<?php echo esc_url( studio_get_option( 'header_cta_url', studio_get_page_url( 'contact_page_id', '#contact' ) ) ); ?>" class="btn btn-gold btn-sm">
-				<?php echo esc_html( studio_get_option( 'header_cta_text', "Let's Talk" ) ); ?>
+			<a href="<?php echo esc_url( studio_get_page_url( 'schedule_page_id', '#' ) ); ?>" class="btn btn-gold btn-sm btn-schedule">
+				<?php echo esc_html( studio_get_option( 'nav_schedule', 'Schedule Meeting' ) ); ?>
 			</a>
 		</div>
 
@@ -49,12 +49,13 @@
 			) );
 			?>
 		<?php else : ?>
-			<a href="<?php echo esc_url( studio_get_page_url( 'work_page_id', '#work' ) ); ?>"><?php echo esc_html( studio_get_option( 'nav_work', 'Work' ) ); ?></a>
+			<a href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php echo esc_html( studio_get_option( 'nav_home', 'Home' ) ); ?></a>
+			<a href="<?php echo esc_url( studio_get_page_url( 'portfolio_page_id', studio_get_page_url( 'work_page_id', '#portfolio' ) ) ); ?>"><?php echo esc_html( studio_get_option( 'nav_portfolio', 'Portfolio' ) ); ?></a>
 			<a href="<?php echo esc_url( studio_get_page_url( 'about_page_id', '#about' ) ); ?>"><?php echo esc_html( studio_get_option( 'nav_about', 'About' ) ); ?></a>
-			<a href="<?php echo esc_url( studio_get_page_url( 'contact_page_id', '#contact' ) ); ?>"><?php echo esc_html( studio_get_option( 'nav_contact', 'Contact' ) ); ?></a>
+			<a href="<?php echo esc_url( studio_get_page_url( 'how_i_work_page_id', '#how-i-work' ) ); ?>"><?php echo esc_html( studio_get_option( 'nav_how_i_work', 'How I Work' ) ); ?></a>
 		<?php endif; ?>
-		<a href="<?php echo esc_url( studio_get_option( 'header_cta_url', studio_get_page_url( 'contact_page_id', '#contact' ) ) ); ?>" class="btn btn-gold" style="margin-top:2rem;display:inline-flex;">
-			<?php echo esc_html( studio_get_option( 'header_cta_text', "Let's Talk" ) ); ?>
+		<a href="<?php echo esc_url( studio_get_page_url( 'schedule_page_id', '#' ) ); ?>" class="btn btn-gold btn-schedule" style="margin-top:2rem;display:inline-flex;">
+			<?php echo esc_html( studio_get_option( 'nav_schedule', 'Schedule Meeting' ) ); ?>
 		</a>
 	</div>
 </nav>

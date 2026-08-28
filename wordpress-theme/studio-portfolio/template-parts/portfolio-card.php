@@ -17,6 +17,7 @@ if ( ! $post_id ) {
 $number    = $card['number'] ?? '01';
 $size      = $card['size'] ?? 'portfolio-card-large';
 $large     = ! empty( $card['large'] );
+$premium   = ! empty( $card['premium'] );
 $thumb_id  = studio_get_portfolio_thumbnail_id( $post_id );
 $year      = get_post_meta( $post_id, '_portfolio_year', true );
 $tags      = studio_get_portfolio_tags( $post_id );
@@ -32,6 +33,9 @@ if ( $large ) {
 }
 if ( $link['is_pdf'] ) {
 	$card_classes[] = 'is-pdf';
+}
+if ( $premium ) {
+	$card_classes[] = 'portfolio-card-premium';
 }
 ?>
 

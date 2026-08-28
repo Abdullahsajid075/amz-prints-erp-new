@@ -221,16 +221,20 @@ function studio_render_nav( $class = 'main-nav' ) {
 
 	$links = array(
 		array(
-			'label' => studio_get_option( 'nav_work', __( 'Work', 'studio-portfolio' ) ),
-			'url'   => studio_get_page_url( 'work_page_id', '#work' ),
+			'label' => studio_get_option( 'nav_home', __( 'Home', 'studio-portfolio' ) ),
+			'url'   => home_url( '/' ),
+		),
+		array(
+			'label' => studio_get_option( 'nav_portfolio', __( 'Portfolio', 'studio-portfolio' ) ),
+			'url'   => studio_get_page_url( 'portfolio_page_id', studio_get_page_url( 'work_page_id', '#portfolio' ) ),
 		),
 		array(
 			'label' => studio_get_option( 'nav_about', __( 'About', 'studio-portfolio' ) ),
 			'url'   => studio_get_page_url( 'about_page_id', '#about' ),
 		),
 		array(
-			'label' => studio_get_option( 'nav_contact', __( 'Contact', 'studio-portfolio' ) ),
-			'url'   => studio_get_page_url( 'contact_page_id', '#contact' ),
+			'label' => studio_get_option( 'nav_how_i_work', __( 'How I Work', 'studio-portfolio' ) ),
+			'url'   => studio_get_page_url( 'how_i_work_page_id', '#how-i-work' ),
 		),
 	);
 	?>

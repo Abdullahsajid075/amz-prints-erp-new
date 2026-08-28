@@ -111,7 +111,41 @@
     }, { passive: true });
   });
 
-  /* ── Work page category filter ── */
+  /* ── Portfolio category tabs (portfolio page) ── */
+  document.querySelectorAll('.portfolio-category-tabs').forEach(function (filterBar) {
+    var section = filterBar.closest('.portfolio-section');
+    var cards = section ? section.querySelectorAll('.portfolio-card') : [];
+    var track = section ? section.querySelector('.portfolio-scroll-track') : null;
+
+    filterBar.querySelectorAll('.portfolio-tab-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var filter = btn.getAttribute('data-filter');
+
+        filterBar.querySelectorAll('.portfolio-tab-btn').forEach(function (b) {
+          b.classList.remove('is-active');
+          b.setAttribute('aria-selected', 'false');
+        });
+        btn.classList.add('is-active');
+        btn.setAttribute('aria-selected', 'true');
+
+        cards.forEach(function (card) {
+          if (filter === 'all') {
+            card.classList.remove('is-hidden');
+            return;
+          }
+          var cats = (card.getAttribute('data-categories') || '').split(/\s+/);
+          card.classList.toggle('is-hidden', cats.indexOf(filter) === -1);
+        });
+
+        if (track) {
+          var container = section.querySelector('.portfolio-scroll-container');
+          if (container) container.scrollLeft = 0;
+        }
+      });
+    });
+  });
+
+  /* ── Legacy work page filter buttons ── */
   document.querySelectorAll('.portfolio-category-filter').forEach(function (filterBar) {
     var cards = filterBar.closest('.portfolio-section') ?
       filterBar.closest('.portfolio-section').querySelectorAll('.portfolio-card') : [];

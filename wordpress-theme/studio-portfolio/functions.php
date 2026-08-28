@@ -9,12 +9,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'STUDIO_PORTFOLIO_VERSION', '1.6.0' );
+define( 'STUDIO_PORTFOLIO_VERSION', '2.0.0' );
 define( 'STUDIO_PORTFOLIO_DIR', get_template_directory() );
 define( 'STUDIO_PORTFOLIO_URI', get_template_directory_uri() );
 
 require_once STUDIO_PORTFOLIO_DIR . '/inc/helpers.php';
 require_once STUDIO_PORTFOLIO_DIR . '/inc/customizer.php';
+require_once STUDIO_PORTFOLIO_DIR . '/inc/customizer-site.php';
 require_once STUDIO_PORTFOLIO_DIR . '/inc/portfolio-cpt.php';
 require_once STUDIO_PORTFOLIO_DIR . '/inc/portfolio-meta.php';
 require_once STUDIO_PORTFOLIO_DIR . '/inc/contact-form.php';
@@ -85,9 +86,24 @@ function studio_portfolio_scripts() {
 		STUDIO_PORTFOLIO_VERSION
 	);
 
+	wp_enqueue_style(
+		'studio-portfolio-premium',
+		STUDIO_PORTFOLIO_URI . '/assets/css/premium.css',
+		array( 'studio-portfolio-portfolio' ),
+		STUDIO_PORTFOLIO_VERSION
+	);
+
 	wp_enqueue_script(
 		'studio-portfolio-main',
 		STUDIO_PORTFOLIO_URI . '/assets/js/main.js',
+		array(),
+		STUDIO_PORTFOLIO_VERSION,
+		true
+	);
+
+	wp_enqueue_script(
+		'studio-portfolio-meeting',
+		STUDIO_PORTFOLIO_URI . '/assets/js/meeting.js',
 		array(),
 		STUDIO_PORTFOLIO_VERSION,
 		true

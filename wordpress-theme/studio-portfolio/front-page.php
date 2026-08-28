@@ -1,6 +1,6 @@
 <?php
 /**
- * Front page — theme sections OR full Elementor page
+ * Front page — Home overview: About, Services, Portfolio preview
  *
  * @package Studio_Portfolio
  */
@@ -22,26 +22,21 @@ if ( $front_id && studio_is_elementor_page( $front_id ) ) {
 	<?php
 } else {
 	get_template_part( 'template-parts/hero' );
-
-	if ( studio_section_enabled( 'marquee' ) ) {
-		get_template_part( 'template-parts/marquee' );
-	}
-	if ( studio_section_enabled( 'portfolio' ) ) {
-		get_template_part(
-			'template-parts/portfolio',
-			null,
-			array( 'mode' => 'home' )
-		);
-	}
-	if ( studio_section_enabled( 'about' ) ) {
-		get_template_part( 'template-parts/about' );
-	}
-	if ( studio_section_enabled( 'design_system' ) ) {
-		get_template_part( 'template-parts/design-system' );
-	}
-	if ( studio_section_enabled( 'contact' ) ) {
-		get_template_part( 'template-parts/contact' );
-	}
+	get_template_part( 'template-parts/home-about-preview' );
+	get_template_part( 'template-parts/home-services' );
+	get_template_part(
+		'template-parts/portfolio',
+		null,
+		array(
+			'mode'           => 'home',
+			'work_label'     => studio_get_option( 'home_portfolio_label', 'Selected Work' ),
+			'work_title'     => studio_get_option( 'home_portfolio_title', 'Recent projects' ),
+			'work_description' => '',
+			'show_view_all'  => true,
+			'view_all_text'  => studio_get_option( 'home_portfolio_btn', 'View Full Portfolio →' ),
+			'view_all_url'   => studio_get_page_url( 'portfolio_page_id', studio_get_page_url( 'work_page_id', '#portfolio' ) ),
+		)
+	);
 }
 
 get_footer();
