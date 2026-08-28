@@ -10,11 +10,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { customersAPI } from '@/services/api';
+import { notifyBalanceReminder } from '@/services/notifications';
 import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
 import { customerMatchesQuery } from '@/utils/customerSearch';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
 import { Plus, Search, Edit, Trash2, User, Phone, Mail, MapPin, FileText, Receipt, CreditCard, TrendingUp, X, Save, BookOpen, Bell, Kanban } from 'lucide-react';
+import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
 
 const CUSTOMER_SORT_OPTS = [
@@ -42,6 +44,7 @@ const Customers = () => {
   const [ledgerOpen, setLedgerOpen] = useState(false);
   const [ledger, setLedger] = useState(null);
   const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [balanceSending, setBalanceSending] = useState(false);
 
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
@@ -106,6 +109,37 @@ const Customers = () => {
     if (!window.confirm('Delete this customer?')) return;
     try { await customersAPI.delete(id); toast.success('Deleted'); fetchCustomers(); }
     catch (err) { console.error(err); toast.error('Failed to delete'); }
+  };
+
+  const sendBalanceRequest = async () => {
+    if (!ledger?.customer || !(Number(ledger.outstanding) > 0)) {
+      toast.error('No outstanding balance to request');
+      return;
+    }
+    const customer = ledger.customer;
+    if (!customer.phone && !customer.email) {
+      toast.error('Customer needs phone (WhatsApp) or email');
+      return;
+    }
+    setBalanceSending(true);
+    try {
+      const result = await notifyBalanceReminder(customer, ledger, { openWhatsApp: true, sendEmail: true });
+      if (result?.whatsappOpened) {
+        toast.message('WhatsApp opened — tap Send to request remaining balance');
+      }
+      if (result?.emailSent) {
+        toast.success(`Balance reminder email sent to ${customer.email}`);
+      } else if (result?.results?.email?.reason === 'missing_email') {
+        toast.message('No customer email — WhatsApp only');
+      } else if (!result?.whatsappOpened && !result?.emailSent) {
+        toast.error('Could not open WhatsApp or email — check customer contact details');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to send balance request');
+    } finally {
+      setBalanceSending(false);
+    }
   };
 
   return (
@@ -266,6 +300,24 @@ const Customers = () => {
                     <p className={`text-lg font-bold ${ledger.outstanding > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>{formatCurrency(ledger.outstanding)}</p>
                   </div>
                 </div>
+                {ledger.outstanding > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      className="text-white"
+                      style={{ backgroundColor: '#F26522' }}
+                      disabled={balanceSending}
+                      onClick={sendBalanceRequest}
+                      data-testid="send-balance-request"
+                    >
+                      <WhatsAppIcon className="h-4 w-4 mr-2" />
+                      {balanceSending ? 'Sending…' : 'Request remaining balance'}
+                    </Button>
+                    <p className="text-xs text-gray-500 self-center">
+                      Opens WhatsApp and sends email (if customer email is on file).
+                    </p>
+                  </div>
+                )}
                 <Tabs defaultValue="invoices">
                   <TabsList className="grid grid-cols-3 w-full">
                     <TabsTrigger value="invoices"><Receipt className="h-3 w-3 mr-1" />Invoices ({ledger.invoices.length})</TabsTrigger>

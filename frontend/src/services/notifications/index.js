@@ -49,6 +49,10 @@ function mergeNotificationSettings(raw = {}) {
     emailDelivered: truthy(raw.emailDelivered, true),
     emailPayment: truthy(raw.emailPayment, true),
     emailToken: truthy(raw.emailToken, true),
+    dailyRemindersEnabled: truthy(raw.dailyRemindersEnabled, true),
+    emailPaymentReminder: truthy(raw.emailPaymentReminder, true),
+    emailOrderStatusReminder: truthy(raw.emailOrderStatusReminder, true),
+    dailyReminderHour: Number(raw.dailyReminderHour) || 9,
     smsEnabled: truthy(raw.smsEnabled, false),
     autoOpenWhatsApp: truthy(raw.autoOpenWhatsApp, true),
     whatsappTemplates: { ...DEFAULT_WHATSAPP_TEMPLATES, ...(raw.whatsappTemplates || {}) },
@@ -93,6 +97,9 @@ function shouldSendEmail(notifications, event, status) {
   if (event === 'invoice' || event === 'invoice_generated') return notifications.emailInvoice;
   if (event === 'payment_received' || event === 'payment_sent' || event === 'payment') {
     return notifications.emailPayment !== false;
+  }
+  if (event === 'payment_reminder' || event === 'balance_reminder') {
+    return notifications.emailPaymentReminder !== false && notifications.emailPayment !== false;
   }
   if (event === 'token_booked' || event === 'token_called' || event === 'token') {
     return notifications.emailToken !== false;
@@ -174,7 +181,7 @@ export async function notifyOrderEvent({
 
   // Ensure invoice link appears for invoice / reminder messages
   if (
-    (event === 'invoice' || event === 'invoice_generated' || event === 'payment_reminder' || event === 'reminder')
+    (event === 'invoice' || event === 'invoice_generated' || event === 'payment_reminder' || event === 'balance_reminder' || event === 'reminder')
     && vars.invoice_url
     && !String(vars.invoice_url).includes('undefined')
   ) {
@@ -216,6 +223,8 @@ export async function notifyOrderEvent({
         ? 'created'
         : (event === 'invoice' || event === 'invoice_generated')
           ? 'invoice_generated'
+          : event === 'payment_reminder' || event === 'balance_reminder'
+            ? event
           : event === 'quotation'
             ? 'quotation'
             : (event === 'payment_received' || event === 'payment_sent'
@@ -262,6 +271,43 @@ export async function notifyOrderEvent({
     emailSent: !!(results.email?.ok),
     emailError,
   };
+}
+
+export async function notifyBalanceReminder(customer, ledger, options = {}) {
+  if (!customer || !(Number(ledger?.outstanding) > 0)) {
+    return { ok: false, reason: 'no_balance' };
+  }
+  const openInvoice = (ledger.invoices || []).find((inv) => {
+    const bal = Math.max(0, Number(inv.totalAmount || 0) + Number(inv.previousBalance || 0) - Number(inv.paidAmount || 0));
+    return bal > 0;
+  });
+  const linkedOrder = ledger.orders?.[0];
+  return notifyOrderEvent({
+    event: 'balance_reminder',
+    customer,
+    order: {
+      customerName: customer.name,
+      customerPhone: customer.phone,
+      customerEmail: customer.email,
+      orderId: openInvoice?.orderId || linkedOrder?.orderId || linkedOrder?.id || '',
+      totalAmount: ledger.outstanding,
+      balanceAmount: ledger.outstanding,
+    },
+    invoice: openInvoice ? {
+      ...openInvoice,
+      balanceAmount: ledger.outstanding,
+      balance: ledger.outstanding,
+    } : {
+      customerName: customer.name,
+      customerPhone: customer.phone,
+      customerEmail: customer.email,
+      totalAmount: ledger.outstanding,
+      balanceAmount: ledger.outstanding,
+      balance: ledger.outstanding,
+    },
+    openWhatsApp: options.openWhatsApp !== false,
+    sendEmail: options.sendEmail !== false,
+  });
 }
 
 /** Notify + helpers for Cash In / Cash Out. */

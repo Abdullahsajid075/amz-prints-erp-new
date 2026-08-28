@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
-import { settingsAPI, usersAPI, employeesAPI } from '@/services/api';
+import { settingsAPI, usersAPI, employeesAPI, notificationsAPI } from '@/services/api';
 import { clearGasCache } from '@/services/gasClient';
 import { useBrand } from '@/context/BrandContext';
 import {
@@ -49,6 +49,10 @@ const defaultSettings = {
     emailDelivered: true,
     emailPayment: true,
     emailToken: true,
+    dailyRemindersEnabled: true,
+    emailPaymentReminder: true,
+    emailOrderStatusReminder: true,
+    dailyReminderHour: 9,
     smsEnabled: false,
     whatsappEnabled: true,
     autoOpenWhatsApp: true,
@@ -173,6 +177,21 @@ const Settings = () => {
   const [userForm, setUserForm] = useState(emptyUser);
   const [editingUserId, setEditingUserId] = useState(null);
   const [usersLoading, setUsersLoading] = useState(false);
+  const [reminderStatus, setReminderStatus] = useState(null);
+  const [reminderBusy, setReminderBusy] = useState(false);
+
+  const loadReminderStatus = useCallback(async () => {
+    try {
+      const res = await notificationsAPI.getReminderStatus();
+      setReminderStatus(res.data || res);
+    } catch {
+      setReminderStatus(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadReminderStatus();
+  }, [loadReminderStatus]);
 
   const loadSettings = useCallback(async () => {
     try {
@@ -923,6 +942,9 @@ const Settings = () => {
                 { k: 'emailInvoice', l: 'Email when invoice generated' },
                 { k: 'emailPayment', l: 'Email on payment (Cash In / Cash Out)' },
                 { k: 'emailToken', l: 'Email on token booked / called' },
+                { k: 'dailyRemindersEnabled', l: 'Daily morning reminders (automatic)' },
+                { k: 'emailPaymentReminder', l: 'Morning payment reminder emails' },
+                { k: 'emailOrderStatusReminder', l: 'Morning order status reminder emails' },
                 { k: 'smsEnabled', l: 'SMS notifications (future — reserved)' },
               ].map((o) => (
                 <div key={o.k} className="flex items-center justify-between gap-4">
@@ -938,13 +960,88 @@ const Settings = () => {
 
           <Card>
             <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5" />Daily morning reminders</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-xs text-gray-600">
+                Every morning (Pakistan time), the system emails customers about unpaid invoices and active order updates.
+                WhatsApp cannot be sent fully automatically — use the customer ledger button for manual WhatsApp balance requests.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md">
+                <div>
+                  <Label className="text-xs">Reminder hour (24h, Asia/Karachi)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={23}
+                    value={settings.notifications.dailyReminderHour ?? 9}
+                    onChange={(e) => update('notifications', 'dailyReminderHour', parseInt(e.target.value, 10) || 9)}
+                  />
+                </div>
+                <div className="text-xs text-gray-500 self-end pb-2">
+                  {reminderStatus?.triggerInstalled
+                    ? `Scheduled daily at ${reminderStatus.scheduledHour ?? 9}:00`
+                    : 'Trigger not installed yet'}
+                  {reminderStatus?.lastRun ? (
+                    <p className="mt-1">Last run: {new Date(reminderStatus.lastRun).toLocaleString()}</p>
+                  ) : null}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={reminderBusy}
+                  onClick={async () => {
+                    setReminderBusy(true);
+                    try {
+                      await notificationsAPI.installReminderTrigger();
+                      toast.success('Daily 9 AM reminder trigger installed in Apps Script');
+                      loadReminderStatus();
+                    } catch (err) {
+                      toast.error(err?.response?.data?.message || 'Failed to install trigger — redeploy Code.gs first');
+                    } finally {
+                      setReminderBusy(false);
+                    }
+                  }}
+                >
+                  Enable daily schedule
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={reminderBusy}
+                  onClick={async () => {
+                    setReminderBusy(true);
+                    try {
+                      const res = await notificationsAPI.runDailyReminders();
+                      const data = res.data || res;
+                      const pay = data.report?.paymentReminders?.length || 0;
+                      const ord = data.report?.orderReminders?.length || 0;
+                      toast.success(`Morning reminders ran — ${pay} payment, ${ord} order emails attempted`);
+                      loadReminderStatus();
+                    } catch (err) {
+                      toast.error(err?.response?.data?.message || 'Failed to run reminders');
+                    } finally {
+                      setReminderBusy(false);
+                    }
+                  }}
+                >
+                  Run reminders now
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle className="flex items-center gap-2"><WhatsAppIcon className="h-5 w-5 text-green-600" />WhatsApp message templates</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-xs text-gray-500">
                 Placeholders: {'{Customer Name}'}, {'{Order Number}'}, {'{Tracking Number}'}, {'{Status}'}, {'{Company Name}'}
               </p>
-              {['quotation', 'created', 'Order Received', 'Designing', 'Proof Approval', 'Printing', 'Finishing', 'Packing', 'Ready', 'Delivered', 'Cancelled', 'status', 'invoice_generated', 'payment_received', 'payment_sent'].map((key) => {
+              {['quotation', 'created', 'Order Received', 'Designing', 'Proof Approval', 'Printing', 'Finishing', 'Packing', 'Ready', 'Delivered', 'Cancelled', 'status', 'invoice_generated', 'payment_reminder', 'balance_reminder', 'payment_received', 'payment_sent'].map((key) => {
                 const templates = {
                   ...DEFAULT_WHATSAPP_TEMPLATES,
                   ...(settings.notifications.whatsappTemplates || {}),
@@ -955,6 +1052,8 @@ const Settings = () => {
                   'Order Received': 'Order Received',
                   status: 'Generic status update',
                   invoice_generated: 'Invoice Generated',
+                  payment_reminder: 'Payment Reminder',
+                  balance_reminder: 'Outstanding Balance Request',
                   payment_received: 'Payment Received (Cash In)',
                   payment_sent: 'Payment Sent (Cash Out)',
                 };

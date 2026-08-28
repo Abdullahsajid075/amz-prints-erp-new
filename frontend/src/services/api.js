@@ -158,6 +158,10 @@ export const usersAPI = {
 export const notificationsAPI = {
   sendEmail: (data) => gasRequest('POST', '/notifications/email', withToken({ data })),
   test: (data) => gasRequest('POST', '/notifications/test', withToken({ data })),
+  getReminderStatus: () => gasRequest('GET', '/notifications/reminders/status', withToken()),
+  runDailyReminders: () => gasRequest('POST', '/notifications/reminders/run', withToken({ data: {} })),
+  installReminderTrigger: () => gasRequest('POST', '/notifications/reminders/trigger/install', withToken({ data: {} })),
+  removeReminderTrigger: () => gasRequest('POST', '/notifications/reminders/trigger/remove', withToken({ data: {} })),
 };
 
 export const trackPublic = (id) =>

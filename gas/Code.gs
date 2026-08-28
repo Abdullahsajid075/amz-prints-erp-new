@@ -1082,6 +1082,10 @@ function getNotificationSettings_() {
     emailDelivered: isNotifyOn_(n.emailDelivered != null ? n.emailDelivered : true),
     emailPayment: isNotifyOn_(n.emailPayment != null ? n.emailPayment : true),
     emailToken: isNotifyOn_(n.emailToken != null ? n.emailToken : true),
+    dailyRemindersEnabled: isNotifyOn_(n.dailyRemindersEnabled != null ? n.dailyRemindersEnabled : true),
+    emailPaymentReminder: isNotifyOn_(n.emailPaymentReminder != null ? n.emailPaymentReminder : true),
+    emailOrderStatusReminder: isNotifyOn_(n.emailOrderStatusReminder != null ? n.emailOrderStatusReminder : true),
+    dailyReminderHour: Number(n.dailyReminderHour != null ? n.dailyReminderHour : 9) || 9,
     whatsappTemplates: (n.whatsappTemplates && typeof n.whatsappTemplates === 'object') ? n.whatsappTemplates : {},
     emailSubjects: (n.emailSubjects && typeof n.emailSubjects === 'object') ? n.emailSubjects : {},
   };
@@ -1366,6 +1370,253 @@ function withNotifications_(apiOrder, event, extras) {
   return result;
 }
 
+/** --- Daily morning reminders (payment + order status) --- */
+
+function reminderTodayKey_(prefix, id) {
+  var today = Utilities.formatDate(new Date(), 'Asia/Karachi', 'yyyy-MM-dd');
+  return String(prefix || 'rem') + '_' + today + '_' + String(id || '').trim();
+}
+
+function wasReminderSentToday_(key) {
+  if (!key) return false;
+  return PropertiesService.getScriptProperties().getProperty('rem_' + key) === '1';
+}
+
+function markReminderSent_(key) {
+  if (!key) return;
+  PropertiesService.getScriptProperties().setProperty('rem_' + key, '1');
+}
+
+function orderDesignApproved_(orderApi) {
+  var s = String(orderApi.status || '').trim().toLowerCase();
+  if (!s) return false;
+  if (/design\s*approved|proof\s*approved|approved/.test(s) && !/proof\s*approval/.test(s)) return true;
+  return ['printing', 'finishing', 'packing', 'ready', 'delivered', 'completed', 'complete'].some(function (stage) {
+    return s === stage || s.indexOf(stage) === 0;
+  });
+}
+
+function invoiceBalanceDue_(invApi) {
+  return Math.max(0,
+    Number(invApi.totalAmount || 0)
+    + Number(invApi.previousBalance || 0)
+    - Number(invApi.paidAmount || 0)
+  );
+}
+
+function defaultPaymentReminderBody_(vars) {
+  return ''
+    + 'Dear ' + (vars['Customer Name'] || 'Customer') + ',\n\n'
+    + 'Payment reminder for invoice ' + (vars['Invoice Number'] || '') + '.\n\n'
+    + (vars['Invoice Link'] ? ('Invoice: ' + vars['Invoice Link'] + '\n\n') : '')
+    + 'Total: ' + (vars.Amount || '') + '\n'
+    + 'Paid: ' + (vars['Paid Amount'] || '0') + '\n'
+    + 'Pending balance: ' + (vars['Balance Due'] || vars.Amount || '') + '\n\n'
+    + 'Kindly arrange payment soon. Thank you — Amazon Printing Services.\n\n'
+    + '📍 King Road, Mandi Bahauddin\n🌐 amzprints.com';
+}
+
+function defaultBalanceReminderBody_(vars) {
+  return ''
+    + 'Dear ' + (vars['Customer Name'] || 'Customer') + ',\n\n'
+    + 'This is a friendly reminder regarding your outstanding balance with Amazon Printing Services.\n\n'
+    + 'Total outstanding: ' + (vars['Balance Due'] || vars.Amount || '') + '\n\n'
+    + 'Please arrange payment at your earliest convenience. If you have already paid, kindly share the payment reference.\n\n'
+    + 'Thank you.\nAmazon Printing Services';
+}
+
+function buildOrderReminderBody_(orderApi, company, reminderType) {
+  var name = orderApi.customerName || 'Customer';
+  var oid = orderApi.orderId || orderApi.id || '';
+  var status = orderApi.status || '';
+  if (reminderType === 'approval') {
+    return 'Dear ' + name + ',\n\nYour order *' + oid + '* is waiting for design/proof approval.\n\nPlease review and approve so we can start production.\n\nThank you,\n' + (company.name || 'Amazon Printing Services');
+  }
+  if (reminderType === 'advance') {
+    return 'Dear ' + name + ',\n\nSoft reminder — advance payment for order *' + oid + '* is still pending.\n\nPlease pay the advance so we can continue your order.\n\nThank you,\n' + (company.name || 'Amazon Printing Services');
+  }
+  var trackNo = orderApi.trackingNumber || '';
+  var trackUrl = trackNo ? ('https://erp.amzprints.com/track/' + encodeURIComponent(trackNo)) : '';
+  return 'Dear ' + name + ',\n\nYour order *' + oid + '* status: *' + status + '*.\n\n'
+    + (trackNo ? ('Tracking: ' + trackNo + '\n') : '')
+    + (trackUrl ? ('Track online: ' + trackUrl + '\n\n') : '\n')
+    + 'Thank you for choosing ' + (company.name || 'Amazon Printing Services') + '.';
+}
+
+function sendDailyPaymentReminderForInvoice_(invApi, company, settings, report) {
+  var balance = invoiceBalanceDue_(invApi);
+  if (!(balance > 0) || String(invApi.status || '').toLowerCase() === 'paid') return;
+  var key = reminderTodayKey_('pay_inv', invApi.id || invApi.invoiceNumber);
+  if (wasReminderSentToday_(key)) return;
+
+  var orderApi = {
+    customerName: invApi.customerName,
+    customerEmail: invApi.customerEmail,
+    customerPhone: invApi.customerPhone,
+    customerId: invApi.customerId,
+    orderId: invApi.orderId,
+  };
+  var prefs = findCustomerPrefs_(orderApi);
+  if (!prefs.notifyEmail) return;
+  var emailTo = String(invApi.customerEmail || prefs.email || '').trim();
+  if (!isValidEmail_(emailTo)) return;
+
+  var invoiceUrl = invApi.shareToken
+    ? ('https://erp.amzprints.com/invoice/' + encodeURIComponent(String(invApi.shareToken)))
+    : '';
+  var vars = buildNotifyVars_(orderApi, company, {
+    invoiceNumber: invApi.invoiceNumber,
+    amount: balance,
+    trackUrl: invoiceUrl,
+  });
+  vars['Invoice Number'] = invApi.invoiceNumber || '';
+  vars['Invoice Link'] = invoiceUrl;
+  vars['Balance Due'] = String(balance);
+  vars['Paid Amount'] = String(invApi.paidAmount || 0);
+  vars.Amount = String(invApi.totalAmount || balance);
+
+  var templates = settings.whatsappTemplates || {};
+  var tpl = templates.payment_reminder || defaultPaymentReminderBody_(vars);
+  var text = fillNotifyTemplate_(tpl, vars);
+  if (!text) text = defaultPaymentReminderBody_(vars);
+  var subjects = settings.emailSubjects || {};
+  var subject = fillNotifyTemplate_(
+    subjects.payment_reminder || 'Payment Reminder — {Invoice Number} | {Company Name}',
+    vars
+  );
+  var result = sendMailSafe_(emailTo, subject, buildOrderEmailHtml_(orderApi, company, text), text);
+  if (result.ok) markReminderSent_(key);
+  report.paymentReminders.push({
+    invoice: invApi.invoiceNumber,
+    orderId: invApi.orderId,
+    to: emailTo,
+    ok: !!result.ok,
+    error: result.error || '',
+  });
+}
+
+function sendDailyOrderReminder_(orderApi, company, settings, report) {
+  var status = String(orderApi.status || '').trim();
+  if (!status || /delivered|completed|cancelled/i.test(status)) return;
+
+  var reminderType = 'status';
+  if (/proof\s*approval/i.test(status) && !orderDesignApproved_(orderApi)) reminderType = 'approval';
+  else if (Number(orderApi.advancePayment || 0) <= 0) reminderType = 'advance';
+
+  var key = reminderTodayKey_('ord_' + reminderType, orderApi.id || orderApi.orderId);
+  if (wasReminderSentToday_(key)) return;
+
+  var prefs = findCustomerPrefs_(orderApi);
+  if (!prefs.notifyEmail) return;
+  var emailTo = String(orderApi.customerEmail || prefs.email || '').trim();
+  if (!isValidEmail_(emailTo)) return;
+
+  var text = buildOrderReminderBody_(orderApi, company, reminderType);
+  var vars = buildNotifyVars_(orderApi, company, {});
+  var subject = fillNotifyTemplate_(
+    (settings.emailSubjects || {}).status || 'Order Update — {Order Number} | {Company Name}',
+    vars
+  );
+  var result = sendMailSafe_(emailTo, subject, buildOrderEmailHtml_(orderApi, company, text), text);
+  if (result.ok) markReminderSent_(key);
+  report.orderReminders.push({
+    orderId: orderApi.orderId,
+    status: status,
+    type: reminderType,
+    to: emailTo,
+    ok: !!result.ok,
+    error: result.error || '',
+  });
+}
+
+/** Time-based entry point — install with installDailyReminderTrigger_(). */
+function runDailyMorningReminders() {
+  var settings = getNotificationSettings_();
+  if (!isNotifyOn_(settings.dailyRemindersEnabled)) {
+    return { ok: true, skipped: true, reason: 'daily_reminders_disabled' };
+  }
+
+  var company = getCompanyForNotify_();
+  var report = { paymentReminders: [], orderReminders: [], errors: [] };
+
+  if (isNotifyOn_(settings.emailPaymentReminder)) {
+    try {
+      getSheetRows_(SHEET_NAMES.INVOICES).forEach(function (row) {
+        try {
+          sendDailyPaymentReminderForInvoice_(toApiInvoice_(row), company, settings, report);
+        } catch (eInv) {
+          report.errors.push({ type: 'invoice', id: row.id, error: String(eInv.message || eInv) });
+        }
+      });
+    } catch (ePay) {
+      report.errors.push({ type: 'invoices_sheet', error: String(ePay.message || ePay) });
+    }
+  }
+
+  if (isNotifyOn_(settings.emailOrderStatusReminder)) {
+    try {
+      getSheetRows_(SHEET_NAMES.ORDERS).forEach(function (row) {
+        var dt = String(row.doctype || 'Order').toLowerCase();
+        if (dt === 'quotation' || dt === 'pos') return;
+        try {
+          sendDailyOrderReminder_(toApiOrder_(row), company, settings, report);
+        } catch (eOrd) {
+          report.errors.push({ type: 'order', id: row.id, error: String(eOrd.message || eOrd) });
+        }
+      });
+    } catch (eOrdSheet) {
+      report.errors.push({ type: 'orders_sheet', error: String(eOrdSheet.message || eOrdSheet) });
+    }
+  }
+
+  var props = PropertiesService.getScriptProperties();
+  props.setProperty('lastDailyReminderRun', new Date().toISOString());
+  props.setProperty('lastDailyReminderReport', JSON.stringify(report));
+  return { ok: true, ranAt: props.getProperty('lastDailyReminderRun'), report: report };
+}
+
+function removeDailyReminderTriggers_() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction && t.getHandlerFunction() === 'runDailyMorningReminders') {
+      ScriptApp.deleteTrigger(t);
+    }
+  });
+}
+
+function installDailyReminderTrigger_() {
+  removeDailyReminderTriggers_();
+  var settings = getNotificationSettings_();
+  var hour = Math.min(23, Math.max(0, Number(settings.dailyReminderHour != null ? settings.dailyReminderHour : 9) || 9));
+  ScriptApp.newTrigger('runDailyMorningReminders')
+    .timeBased()
+    .everyDays(1)
+    .atHour(hour)
+    .nearMinute(0)
+    .inTimezone('Asia/Karachi')
+    .create();
+  PropertiesService.getScriptProperties().setProperty('dailyReminderTriggerHour', String(hour));
+  return { ok: true, hour: hour, timezone: 'Asia/Karachi' };
+}
+
+function getDailyReminderStatus_() {
+  var props = PropertiesService.getScriptProperties();
+  var triggers = ScriptApp.getProjectTriggers().filter(function (t) {
+    return t.getHandlerFunction && t.getHandlerFunction() === 'runDailyMorningReminders';
+  });
+  var lastReport = null;
+  try {
+    lastReport = JSON.parse(props.getProperty('lastDailyReminderReport') || 'null');
+  } catch (e) { lastReport = null; }
+  return {
+    triggerInstalled: triggers.length > 0,
+    triggerCount: triggers.length,
+    scheduledHour: Number(props.getProperty('dailyReminderTriggerHour') || getNotificationSettings_().dailyReminderHour || 9),
+    timezone: 'Asia/Karachi',
+    lastRun: props.getProperty('lastDailyReminderRun') || '',
+    lastReport: lastReport,
+  };
+}
+
 function handleNotifications_(path, method, body) {
   if (method === 'POST' && path === '/notifications/test') {
     var channel = String(body.channel || 'email').toLowerCase();
@@ -1407,6 +1658,23 @@ function handleNotifications_(path, method, body) {
       return { ok: false, reason: 'missing_email', error: 'Customer email is required for email notifications' };
     }
     return sendMailSafe_(toAddr, body.subject || 'Notification', html2, text);
+  }
+
+  if (method === 'GET' && path === '/notifications/reminders/status') {
+    return getDailyReminderStatus_();
+  }
+
+  if (method === 'POST' && path === '/notifications/reminders/run') {
+    return runDailyMorningReminders();
+  }
+
+  if (method === 'POST' && path === '/notifications/reminders/trigger/install') {
+    return installDailyReminderTrigger_();
+  }
+
+  if (method === 'POST' && path === '/notifications/reminders/trigger/remove') {
+    removeDailyReminderTriggers_();
+    return { ok: true, removed: true };
   }
 
   throw new Error('Not found');

@@ -183,6 +183,19 @@ Kindly arrange payment soon. Thank you — *Amazon Printing Services*.
 📍 King Road, Mandi Bahauddin
 🌐 amzprints.com`,
 
+  balance_reminder: `Dear *{CustomerName}*,
+
+This is a friendly reminder regarding your outstanding balance with *Amazon Printing Services*.
+
+*Total outstanding: {balance_due}*
+
+Please arrange payment at your earliest convenience. If you have already paid, kindly share the payment reference.
+
+Thank you.
+
+📍 King Road, Mandi Bahauddin
+🌐 amzprints.com`,
+
   payment_received: `Dear *{CustomerName}*,
 
 We have received your payment of *{payment_amount}*.
@@ -239,6 +252,7 @@ export const DEFAULT_EMAIL_SUBJECTS = {
   invoice: 'Invoice {invoice_number} | Amazon Printing Services',
   invoice_generated: 'Invoice {invoice_number} | Amazon Printing Services',
   payment_reminder: 'Payment Reminder — {invoice_number}',
+  balance_reminder: 'Outstanding Balance — {CustomerName}',
   payment_received: 'Payment Received — {payment_amount} | Amazon Printing Services',
   payment_sent: 'Payment Sent — {payment_amount} | Amazon Printing Services',
   token_booked: 'Token Booked — {OrderNo} | Amazon Printing Services',
@@ -341,6 +355,9 @@ export function resolveWhatsAppTemplate(templates, event, status) {
   }
   if (event === 'payment_reminder' || event === 'reminder') {
     return t.payment_reminder || DEFAULT_WHATSAPP_TEMPLATES.payment_reminder;
+  }
+  if (event === 'balance_reminder') {
+    return t.balance_reminder || DEFAULT_WHATSAPP_TEMPLATES.balance_reminder;
   }
   if (event === 'payment_received') {
     return t.payment_received || DEFAULT_WHATSAPP_TEMPLATES.payment_received;
