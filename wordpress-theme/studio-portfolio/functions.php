@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'STUDIO_PORTFOLIO_VERSION', '1.3.0' );
+define( 'STUDIO_PORTFOLIO_VERSION', '1.4.0' );
 define( 'STUDIO_PORTFOLIO_DIR', get_template_directory() );
 define( 'STUDIO_PORTFOLIO_URI', get_template_directory_uri() );
 
@@ -18,6 +18,8 @@ require_once STUDIO_PORTFOLIO_DIR . '/inc/customizer.php';
 require_once STUDIO_PORTFOLIO_DIR . '/inc/portfolio-cpt.php';
 require_once STUDIO_PORTFOLIO_DIR . '/inc/portfolio-meta.php';
 require_once STUDIO_PORTFOLIO_DIR . '/inc/contact-form.php';
+require_once STUDIO_PORTFOLIO_DIR . '/inc/shortcodes.php';
+require_once STUDIO_PORTFOLIO_DIR . '/inc/elementor.php';
 
 /**
  * Theme setup.
@@ -35,6 +37,9 @@ function studio_portfolio_setup() {
 		'flex-width'  => true,
 	) );
 	add_theme_support( 'customize-selective-refresh-widgets' );
+	add_theme_support( 'align-wide' );
+	add_theme_support( 'responsive-embeds' );
+	add_theme_support( 'editor-styles' );
 
 	add_image_size( 'portfolio-card', 840, 630, true );
 	add_image_size( 'portfolio-hero', 1200, 800, true );

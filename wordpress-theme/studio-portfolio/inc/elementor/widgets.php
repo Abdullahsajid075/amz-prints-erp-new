@@ -18,8 +18,40 @@ abstract class Studio_Portfolio_Elementor_Widget_Base extends \Elementor\Widget_
 		return array( 'studio-portfolio' );
 	}
 
-	protected function render_template_part( $slug ) {
-		get_template_part( 'template-parts/' . $slug );
+	/**
+	 * Render a template part with optional overrides.
+	 *
+	 * @param string $slug Template part slug.
+	 * @param array  $args Optional template arguments.
+	 */
+	protected function render_template_part( $slug, $args = array() ) {
+		get_template_part( 'template-parts/' . $slug, null, $args );
+	}
+
+	/**
+	 * Parse textarea lines into a trimmed array.
+	 *
+	 * @param string $value Multiline string.
+	 * @return array
+	 */
+	protected function parse_textarea_lines( $value ) {
+		if ( empty( $value ) ) {
+			return array();
+		}
+		return array_values( array_filter( array_map( 'trim', preg_split( '/\r\n|\r|\n/', $value ) ) ) );
+	}
+
+	/**
+	 * Get URL from Elementor URL control value.
+	 *
+	 * @param array|string $setting URL control value.
+	 * @return string
+	 */
+	protected function get_url_from_setting( $setting ) {
+		if ( is_array( $setting ) && ! empty( $setting['url'] ) ) {
+			return $setting['url'];
+		}
+		return is_string( $setting ) ? $setting : '#';
 	}
 }
 
