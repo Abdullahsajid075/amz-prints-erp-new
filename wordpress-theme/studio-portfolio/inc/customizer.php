@@ -162,6 +162,33 @@ function studio_customizer_section_marquee( $wp_customize ) {
 	) );
 
 	studio_add_text( $wp_customize, $section, 'marquee_items', __( 'Marquee Items (one per line)', 'studio-portfolio' ), "Brand Identity\nUI/UX Design\nDesign Systems\nPackaging\nArt Direction\nMotion Design\nTypography\nVisual Identity", 'textarea' );
+
+	$marquee_colors = array(
+		'marquee_text_color' => array(
+			'label'   => __( 'Marquee Text Color', 'studio-portfolio' ),
+			'default' => '#B8B8B8',
+		),
+		'marquee_sep_color'  => array(
+			'label'   => __( 'Marquee Separator (✦) Color', 'studio-portfolio' ),
+			'default' => '#059669',
+		),
+		'marquee_bg_color'   => array(
+			'label'   => __( 'Marquee Background Color', 'studio-portfolio' ),
+			'default' => '#F7FAF7',
+		),
+	);
+
+	foreach ( $marquee_colors as $id => $data ) {
+		$wp_customize->add_setting( 'studio_' . $id, array(
+			'default'           => $data['default'],
+			'sanitize_callback' => 'sanitize_hex_color',
+			'transport'         => 'refresh',
+		) );
+		$wp_customize->add_control( new WP_Customize_Color_Control( $wp_customize, 'studio_' . $id, array(
+			'label'   => $data['label'],
+			'section' => $section,
+		) ) );
+	}
 }
 
 /**
@@ -328,6 +355,10 @@ function studio_portfolio_custom_css() {
 	$light = studio_get_option( 'color_light', '#F7FAF7' );
 	$white = studio_get_option( 'color_white', '#FFFFFF' );
 
+	$marquee_text = studio_get_option( 'marquee_text_color', '#B8B8B8' );
+	$marquee_sep  = studio_get_option( 'marquee_sep_color', '#059669' );
+	$marquee_bg   = studio_get_option( 'marquee_bg_color', '#F7FAF7' );
+
 	$css = ":root {
 		--color-text: {$text};
 		--color-black: {$text};
@@ -350,8 +381,14 @@ function studio_portfolio_custom_css() {
 		--color-black-overlay: " . studio_adjust_brightness( $light, -6 ) . ";
 		--color-white-muted: #5C5C5C;
 		--color-white-subtle: #8A8A8A;
+		--marquee-text-color: {$marquee_text};
+		--marquee-sep-color: {$marquee_sep};
+		--marquee-bg-color: {$marquee_bg};
 	}
-	body { background: {$white}; color: {$text}; }";
+	body { background: {$white}; color: {$text}; }
+	.marquee-section { background: {$marquee_bg}; }
+	.marquee-item { color: {$marquee_text}; }
+	.marquee-sep { color: {$marquee_sep}; }";
 
 	wp_add_inline_style( 'studio-portfolio-light', $css );
 }

@@ -413,15 +413,19 @@ body {
 /* ── Marquee — light ── */
 .marquee-section {
   border-color: var(--color-border);
+  background: var(--marquee-bg-color, var(--color-bg-soft));
 }
 
 .marquee-item {
-  color: rgba(0, 0, 0, 0.08);
+  color: var(--marquee-text-color, rgba(0, 0, 0, 0.08));
   font-family: var(--font-display);
   font-weight: 500;
 }
 
-.marquee-sep { color: var(--color-green); opacity: 0.4; }
+.marquee-sep {
+  color: var(--marquee-sep-color, var(--color-green));
+  opacity: 1;
+}
 
 /* ── Portfolio — minimal cards ── */
 .portfolio-card {
