@@ -114,6 +114,8 @@ add_action( 'wp_dashboard_setup', 'studio_dashboard_customize_widget' );
  */
 function studio_dashboard_customize_widget_render() {
 	$sections = array(
+		array( 'label' => __( 'Load Demo Content', 'studio-portfolio' ), 'section' => 'studio-portfolio-demo', 'url' => admin_url( 'admin.php?page=studio-portfolio-demo' ) ),
+		array( 'label' => __( 'Marquee Banner', 'studio-portfolio' ), 'section' => 'studio_marquee' ),
 		array( 'label' => __( 'Colors & Hero', 'studio-portfolio' ), 'section' => 'studio_colors' ),
 		array( 'label' => __( 'Home Page', 'studio-portfolio' ), 'section' => 'studio_home_page' ),
 		array( 'label' => __( 'Portfolio Page', 'studio-portfolio' ), 'section' => 'studio_portfolio_page' ),
@@ -126,7 +128,11 @@ function studio_dashboard_customize_widget_render() {
 	echo '<p>' . esc_html__( 'Click a section to customize your site:', 'studio-portfolio' ) . '</p>';
 	echo '<ul style="margin:0;padding-left:1.2em;">';
 	foreach ( $sections as $item ) {
-		$url = add_query_arg( 'autofocus[section]', $item['section'], admin_url( 'customize.php' ) );
+		if ( ! empty( $item['url'] ) ) {
+			$url = $item['url'];
+		} else {
+			$url = add_query_arg( 'autofocus[section]', $item['section'], admin_url( 'customize.php' ) );
+		}
 		printf(
 			'<li style="margin-bottom:6px;"><a href="%s"><strong>%s</strong></a></li>',
 			esc_url( $url ),

@@ -16,7 +16,16 @@
 
 $items = isset( $args['items'] ) ? $args['items'] : studio_get_marquee_items();
 if ( empty( $items ) ) {
-	return;
+	$items = array(
+		'Brand Identity',
+		'UI/UX Design',
+		'Logo Design',
+		'Packaging',
+		'Social Media',
+		'Web Design',
+		'Print Design',
+		'Motion Graphics',
+	);
 }
 
 $text_color = isset( $args['text_color'] ) ? $args['text_color'] : studio_get_option( 'marquee_text_color', '#B8B8B8' );

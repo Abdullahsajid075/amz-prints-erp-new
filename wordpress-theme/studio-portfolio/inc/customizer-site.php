@@ -40,12 +40,32 @@ function studio_customizer_home_page( $wp_customize ) {
 	studio_add_text( $wp_customize, $section, 'home_about_text', __( 'About Preview — Text', 'studio-portfolio' ), 'I help businesses stand out with thoughtful design — from brand identity to digital experiences.', 'textarea' );
 	studio_add_text( $wp_customize, $section, 'home_about_btn', __( 'About Preview — Button Text', 'studio-portfolio' ), 'Read My Full Story →' );
 
+	$wp_customize->add_setting( 'studio_home_about_photo', array(
+		'default'           => '',
+		'sanitize_callback' => 'absint',
+		'transport'         => 'refresh',
+	) );
+	$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'studio_home_about_photo', array(
+		'label'       => __( 'About Section Photo (Home Page)', 'studio-portfolio' ),
+		'description' => __( 'Separate from Hero photo — shown in the About preview on homepage.', 'studio-portfolio' ),
+		'section'     => $section,
+		'mime_type'   => 'image',
+	) ) );
+
+	studio_add_checkbox( $wp_customize, $section, 'show_marquee_home', __( 'Show Marquee Banner on Home', 'studio-portfolio' ), true );
+
 	studio_add_text( $wp_customize, $section, 'home_services_label', __( 'Services — Label', 'studio-portfolio' ), 'What I Offer' );
 	studio_add_text( $wp_customize, $section, 'home_services_title', __( 'Services — Title', 'studio-portfolio' ), 'Premium design services' );
 
 	studio_add_text( $wp_customize, $section, 'home_portfolio_label', __( 'Portfolio Preview — Label', 'studio-portfolio' ), 'Selected Work' );
 	studio_add_text( $wp_customize, $section, 'home_portfolio_title', __( 'Portfolio Preview — Title', 'studio-portfolio' ), 'Recent projects' );
 	studio_add_text( $wp_customize, $section, 'home_portfolio_btn', __( 'Portfolio Preview — Button', 'studio-portfolio' ), 'View Full Portfolio →' );
+
+	studio_add_text( $wp_customize, $section, 'home_cta_label', __( 'CTA Band — Label', 'studio-portfolio' ), 'Let\'s Work Together' );
+	studio_add_text( $wp_customize, $section, 'home_cta_title', __( 'CTA Band — Title', 'studio-portfolio' ), 'Ready to start your next project?' );
+	studio_add_text( $wp_customize, $section, 'home_cta_text', __( 'CTA Band — Text', 'studio-portfolio' ), 'Book a free consultation — I\'ll reply on WhatsApp within 24 hours.', 'textarea' );
+	studio_add_text( $wp_customize, $section, 'home_cta_btn', __( 'CTA Band — Primary Button', 'studio-portfolio' ), 'Schedule Meeting →' );
+	studio_add_text( $wp_customize, $section, 'home_cta_btn2', __( 'CTA Band — Secondary Button', 'studio-portfolio' ), 'View Portfolio' );
 }
 
 /**

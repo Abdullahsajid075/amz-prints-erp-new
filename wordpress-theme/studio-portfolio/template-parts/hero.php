@@ -66,10 +66,10 @@ $photo_caption  = isset( $args['photo_caption'] ) ? $args['photo_caption'] : stu
 				<p class="hero-desc"><?php echo esc_html( isset( $args['description'] ) ? $args['description'] : studio_get_option( 'hero_description', 'Welcome to my personal portfolio. Here I share my work, my story, and everything about my creative journey.' ) ); ?></p>
 
 				<div class="hero-actions">
-					<a href="<?php echo esc_url( isset( $args['btn1_url'] ) ? $args['btn1_url'] : studio_get_option( 'hero_btn1_url', '#work' ) ); ?>" class="btn btn-primary btn-lg">
+					<a href="<?php echo esc_url( isset( $args['btn1_url'] ) ? $args['btn1_url'] : studio_get_option( 'hero_btn1_url', studio_get_page_url( 'portfolio_page_id', '#portfolio' ) ) ); ?>" class="btn btn-primary btn-lg">
 						<?php echo esc_html( isset( $args['btn1_text'] ) ? $args['btn1_text'] : studio_get_option( 'hero_btn1_text', 'View My Work' ) ); ?>
 					</a>
-					<a href="<?php echo esc_url( isset( $args['btn2_url'] ) ? $args['btn2_url'] : studio_get_option( 'hero_btn2_url', '#about' ) ); ?>" class="btn btn-outline btn-lg">
+					<a href="<?php echo esc_url( isset( $args['btn2_url'] ) ? $args['btn2_url'] : studio_get_option( 'hero_btn2_url', studio_get_page_url( 'about_page_id', '#about-me' ) ) ); ?>" class="btn btn-outline btn-lg">
 						<?php echo esc_html( isset( $args['btn2_text'] ) ? $args['btn2_text'] : studio_get_option( 'hero_btn2_text', 'About Me' ) ); ?>
 					</a>
 				</div>

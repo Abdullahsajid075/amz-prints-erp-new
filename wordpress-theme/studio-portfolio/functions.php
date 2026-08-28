@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'STUDIO_PORTFOLIO_VERSION', '2.0.2' );
+define( 'STUDIO_PORTFOLIO_VERSION', '2.2.0' );
 define( 'STUDIO_PORTFOLIO_DIR', get_template_directory() );
 define( 'STUDIO_PORTFOLIO_URI', get_template_directory_uri() );
 
@@ -23,6 +23,7 @@ require_once STUDIO_PORTFOLIO_DIR . '/inc/shortcodes.php';
 require_once STUDIO_PORTFOLIO_DIR . '/inc/elementor.php';
 require_once STUDIO_PORTFOLIO_DIR . '/inc/page-setup.php';
 require_once STUDIO_PORTFOLIO_DIR . '/inc/admin-customize-link.php';
+require_once STUDIO_PORTFOLIO_DIR . '/inc/dummy-content.php';
 
 /**
  * Theme setup.
@@ -122,13 +123,13 @@ function studio_portfolio_activation_notice() {
 		<div class="notice notice-success is-dismissible">
 			<p>
 				<strong><?php esc_html_e( 'Studio Portfolio activated!', 'studio-portfolio' ); ?></strong>
-				<?php esc_html_e( 'Pages created: Home, Portfolio, About Me, How I Work, Schedule Meeting.', 'studio-portfolio' ); ?>
+				<?php esc_html_e( 'Demo content, pages, and portfolio samples were loaded automatically.', 'studio-portfolio' ); ?>
 				<?php
 				printf(
-					/* translators: 1: permalinks url, 2: customizer url */
-					esc_html__( 'Important: visit %1$s and click Save. Then edit content in %2$s.', 'studio-portfolio' ),
+					/* translators: 1: permalinks url, 2: admin menu */
+					esc_html__( 'Important: visit %1$s and click Save. Then edit everything in %2$s → Customize Theme or Load Demo Content.', 'studio-portfolio' ),
 					'<a href="' . esc_url( admin_url( 'options-permalink.php' ) ) . '">' . esc_html__( 'Settings → Permalinks', 'studio-portfolio' ) . '</a>',
-					'<a href="' . esc_url( admin_url( 'customize.php' ) ) . '">' . esc_html__( 'Appearance → Customize', 'studio-portfolio' ) . '</a>'
+					'<a href="' . esc_url( admin_url( 'admin.php?page=studio-portfolio' ) ) . '">' . esc_html__( 'Studio Portfolio', 'studio-portfolio' ) . '</a>'
 				);
 				?>
 			</p>

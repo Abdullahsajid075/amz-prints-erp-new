@@ -414,12 +414,13 @@ body {
 .marquee-section {
   border-color: var(--color-border);
   background: var(--marquee-bg-color, var(--color-bg-soft));
+  overflow: hidden;
 }
 
 .marquee-item {
-  color: var(--marquee-text-color, rgba(0, 0, 0, 0.08));
+  color: var(--marquee-text-color, #6B7280);
   font-family: var(--font-display);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .marquee-sep {
