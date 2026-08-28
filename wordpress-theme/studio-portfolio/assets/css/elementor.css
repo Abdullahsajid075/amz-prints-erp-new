@@ -31,6 +31,13 @@
 .elementor-widget-studio_marquee,
 .elementor-widget-studio_portfolio,
 .elementor-widget-studio_about,
-.elementor-widget-studio_contact {
+.elementor-widget-studio_contact,
+.elementor-widget-studio_design_system,
+.elementor-widget-studio_floating_contact {
   width: 100%;
+}
+
+.elementor-widget-studio_floating_contact .floating-contact {
+  position: fixed;
+  z-index: 9999;
 }

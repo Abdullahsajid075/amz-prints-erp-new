@@ -3,97 +3,68 @@
  * About section — full personal story
  *
  * @package Studio_Portfolio
+ *
+ * @var array $args Optional Elementor overrides.
  */
 
-$story_blocks = array(
-	array(
-		'key'   => 'about_experience',
-		'icon'  => '💼',
-		'title' => studio_get_option( 'about_experience_title', __( 'Experience', 'studio-portfolio' ) ),
-		'content' => studio_get_option( 'about_experience', '' ),
-	),
-	array(
-		'key'   => 'about_education',
-		'icon'  => '🎓',
-		'title' => studio_get_option( 'about_education_title', __( 'Education', 'studio-portfolio' ) ),
-		'content' => studio_get_option( 'about_education', '' ),
-	),
-	array(
-		'key'   => 'about_companies',
-		'icon'  => '🏢',
-		'title' => studio_get_option( 'about_companies_title', __( 'Companies & Brands', 'studio-portfolio' ) ),
-		'content' => studio_get_option( 'about_companies', '' ),
-	),
-	array(
-		'key'   => 'about_goal',
-		'icon'  => '🎯',
-		'title' => studio_get_option( 'about_goal_title', __( 'My Goal', 'studio-portfolio' ) ),
-		'content' => studio_get_option( 'about_goal', '' ),
-	),
-	array(
-		'key'   => 'about_struggles',
-		'icon'  => '💪',
-		'title' => studio_get_option( 'about_struggles_title', __( 'My Journey & Struggles', 'studio-portfolio' ) ),
-		'content' => studio_get_option( 'about_struggles', '' ),
-	),
-);
+$args         = isset( $args ) ? $args : array();
+$story_blocks = studio_get_about_story_blocks( $args );
+$stats        = studio_get_about_stats( $args );
+$services     = studio_get_services( $args );
+$about_intro  = studio_template_arg( $args, 'about_text', 'about_text', '' );
+$about_close  = studio_template_arg( $args, 'about_text2', 'about_text2', '' );
+$show_stats   = studio_template_arg( $args, 'show_stats', '', true );
+$show_story   = studio_template_arg( $args, 'show_story', '', true );
+$show_services = studio_template_arg( $args, 'show_services', '', true );
 ?>
 
 <section id="about" class="section about-section">
 	<div class="container">
 		<div class="section-header center fade-in">
-			<p class="section-label"><?php echo esc_html( studio_get_option( 'about_label', 'About Me' ) ); ?></p>
-			<h2 class="display-md about-title"><?php echo esc_html( studio_get_option( 'about_title', 'Everything about me' ) ); ?></h2>
-			<?php if ( studio_get_option( 'about_text', '' ) ) : ?>
+			<p class="section-label"><?php echo esc_html( studio_template_arg( $args, 'about_label', 'about_label', 'About Me' ) ); ?></p>
+			<h2 class="display-md about-title"><?php echo esc_html( studio_template_arg( $args, 'about_title', 'about_title', 'Everything about me' ) ); ?></h2>
+			<?php if ( $about_intro ) : ?>
 				<p class="text-muted about-intro" style="margin-top:1rem;font-size:1.125rem;max-width:720px;margin-left:auto;margin-right:auto;">
-					<?php echo esc_html( studio_get_option( 'about_text', '' ) ); ?>
+					<?php echo esc_html( $about_intro ); ?>
 				</p>
 			<?php endif; ?>
 		</div>
 
-		<div class="stats-grid fade-in" style="margin-bottom:3rem;">
-			<div class="stat-card">
-				<p class="stat-value text-gradient"><?php echo esc_html( studio_get_option( 'stat_projects', '50+' ) ); ?></p>
-				<p class="text-muted"><?php echo esc_html( studio_get_option( 'stat_projects_label', 'Projects' ) ); ?></p>
-			</div>
-			<div class="stat-card">
-				<p class="stat-value text-gradient"><?php echo esc_html( studio_get_option( 'stat_clients', '30+' ) ); ?></p>
-				<p class="text-muted"><?php echo esc_html( studio_get_option( 'stat_clients_label', 'Clients' ) ); ?></p>
-			</div>
-			<div class="stat-card">
-				<p class="stat-value text-gradient"><?php echo esc_html( studio_get_option( 'stat_experience', '5' ) ); ?></p>
-				<p class="text-muted"><?php echo esc_html( studio_get_option( 'stat_experience_label', 'Years Experience' ) ); ?></p>
-			</div>
-			<div class="stat-card">
-				<p class="stat-value text-gradient"><?php echo esc_html( studio_get_option( 'stat_awards', '12' ) ); ?></p>
-				<p class="text-muted"><?php echo esc_html( studio_get_option( 'stat_awards_label', 'Achievements' ) ); ?></p>
-			</div>
-		</div>
-
-		<div class="about-story-grid fade-in">
-			<?php foreach ( $story_blocks as $block ) : ?>
-				<?php if ( empty( $block['content'] ) ) continue; ?>
-				<div class="about-story-card">
-					<div class="about-story-icon"><?php echo esc_html( $block['icon'] ); ?></div>
-					<h3 class="about-story-title"><?php echo esc_html( $block['title'] ); ?></h3>
-					<div class="about-story-content"><?php echo nl2br( esc_html( $block['content'] ) ); ?></div>
-				</div>
-			<?php endforeach; ?>
-		</div>
-
-		<?php if ( studio_get_option( 'about_text2', '' ) ) : ?>
-			<div class="about-closing glass fade-in">
-				<p><?php echo nl2br( esc_html( studio_get_option( 'about_text2', '' ) ) ); ?></p>
+		<?php if ( $show_stats && ! empty( $stats ) ) : ?>
+			<div class="stats-grid fade-in" style="margin-bottom:3rem;">
+				<?php foreach ( $stats as $stat ) : ?>
+					<?php if ( empty( $stat['value'] ) && empty( $stat['label'] ) ) continue; ?>
+					<div class="stat-card">
+						<p class="stat-value text-gradient"><?php echo esc_html( $stat['value'] ); ?></p>
+						<p class="text-muted"><?php echo esc_html( $stat['label'] ); ?></p>
+					</div>
+				<?php endforeach; ?>
 			</div>
 		<?php endif; ?>
 
-		<?php
-		$services = studio_get_services();
-		if ( ! empty( $services ) ) :
-			?>
+		<?php if ( $show_story ) : ?>
+			<div class="about-story-grid fade-in">
+				<?php foreach ( $story_blocks as $block ) : ?>
+					<?php if ( empty( $block['content'] ) ) continue; ?>
+					<div class="about-story-card">
+						<div class="about-story-icon"><?php echo esc_html( $block['icon'] ); ?></div>
+						<h3 class="about-story-title"><?php echo esc_html( $block['title'] ); ?></h3>
+						<div class="about-story-content"><?php echo nl2br( esc_html( $block['content'] ) ); ?></div>
+					</div>
+				<?php endforeach; ?>
+			</div>
+		<?php endif; ?>
+
+		<?php if ( $about_close ) : ?>
+			<div class="about-closing glass fade-in">
+				<p><?php echo nl2br( esc_html( $about_close ) ); ?></p>
+			</div>
+		<?php endif; ?>
+
+		<?php if ( $show_services && ! empty( $services ) ) : ?>
 			<div class="about-services fade-in" style="margin-top:4rem;">
-				<p class="section-label"><?php echo esc_html( studio_get_option( 'services_label', 'What I Do' ) ); ?></p>
-				<h3 class="display-md" style="font-size:1.75rem;margin-bottom:2rem;"><?php echo esc_html( studio_get_option( 'services_title', 'My Skills & Services' ) ); ?></h3>
+				<p class="section-label"><?php echo esc_html( studio_template_arg( $args, 'services_label', 'services_label', 'What I Do' ) ); ?></p>
+				<h3 class="display-md" style="font-size:1.75rem;margin-bottom:2rem;"><?php echo esc_html( studio_template_arg( $args, 'services_title', 'services_title', 'My Skills & Services' ) ); ?></h3>
 				<div class="services-grid">
 					<?php foreach ( $services as $service ) : ?>
 						<div class="service-card">

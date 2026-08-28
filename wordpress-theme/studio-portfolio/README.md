@@ -1,37 +1,31 @@
-# Studio Portfolio v1.4.0
+# Studio Portfolio v1.5.0
 
-## Marquee Color Options
+## Fully Editable with Elementor
 
-**Appearance → Customize → Marquee Banner**
-- Marquee Text Color
-- Marquee Separator (✦) Color
-- Marquee Background Color
+Every homepage section has a dedicated **Studio Portfolio** widget with inline text, color, image, and repeater controls — no Customizer required when using Elementor.
 
----
+### Setup
+1. Install **Elementor** (Plugins → Add New)
+2. **Settings → Reading** → set a static page as Homepage
+3. **Pages → Edit Home** → **Edit with Elementor**
+4. Search **Studio Portfolio** in the widget panel
 
-## Elementor Compatibility
+### Studio Portfolio Widgets
 
-### Install Elementor
-1. **Plugins → Add New** → search **Elementor**
-2. Install & Activate
+| Widget | What you can edit in Elementor |
+|--------|-------------------------------|
+| **Hero Section** | Photo, status, name, title lines, role, description, buttons, caption |
+| **Marquee Banner** | Items (one per line), text color, separator color, background color |
+| **Portfolio Gallery** | Section text, category filter, project count, sort order |
+| **About Section** | Intro, stats (repeater), story blocks (repeater), services (repeater) |
+| **Design System** | Section text, color palette (repeater), button showcase toggle |
+| **Contact Section** | Section text, email, location, social links (repeater), form toggle |
+| **Floating Contact Buttons** | Email, WhatsApp number & message, show/hide |
 
-### Edit homepage with Elementor
-1. **Settings → Reading** → set a static page as Homepage
-2. **Pages → Edit Home** → click **Edit with Elementor**
-3. Build your page visually
+You can also use any standard Elementor widgets (Heading, Text, Image, etc.) — the theme styles them to match.
 
-When the homepage is built with Elementor, the theme uses your Elementor layout instead of default sections.
-
-### Theme widgets in Elementor
-Search **Studio Portfolio** in the Elementor widget panel:
-
-| Widget | Description |
-|--------|-------------|
-| Hero Section | Personal photo hero |
-| Marquee Banner | Scrolling text |
-| Portfolio Gallery | Your projects |
-| About Section | Full about story |
-| Contact Section | Contact form |
+### Page templates
+- **Elementor Full Width** — full-width layout with theme header/footer
 
 ### Shortcodes (Elementor Shortcode widget)
 ```
@@ -40,10 +34,15 @@ Search **Studio Portfolio** in the Elementor widget panel:
 [studio_portfolio]
 [studio_about]
 [studio_contact]
+[studio_design_system]
+[studio_floating_contact]
 ```
 
-### Page templates
-- **Elementor Full Width** — full-width Elementor page with theme header/footer
+### Customizer (optional fallback)
+**Appearance → Customize → Personal Brand Portfolio** still works when not using Elementor.
+
+### Portfolio projects
+Add/edit projects under **Portfolio** in WordPress admin (images, PDF, categories).
 
 ---
 

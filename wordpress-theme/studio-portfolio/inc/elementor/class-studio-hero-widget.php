@@ -108,6 +108,15 @@ class Studio_Hero_Widget extends Studio_Portfolio_Elementor_Widget_Base {
 		);
 
 		$this->add_control(
+			'hero_photo_caption',
+			array(
+				'label'   => __( 'Photo Caption', 'studio-portfolio' ),
+				'type'    => \Elementor\Controls_Manager::TEXT,
+				'default' => __( 'Nice to meet you!', 'studio-portfolio' ),
+			)
+		);
+
+		$this->add_control(
 			'hero_btn1_text',
 			array(
 				'label'   => __( 'Primary Button Text', 'studio-portfolio' ),
@@ -169,6 +178,7 @@ class Studio_Hero_Widget extends Studio_Portfolio_Elementor_Widget_Base {
 				'btn1_url'       => $this->get_url_from_setting( $settings['hero_btn1_url'] ),
 				'btn2_text'      => $settings['hero_btn2_text'],
 				'btn2_url'       => $this->get_url_from_setting( $settings['hero_btn2_url'] ),
+				'photo_caption'  => $settings['hero_photo_caption'],
 			)
 		);
 	}

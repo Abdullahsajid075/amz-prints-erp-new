@@ -21,6 +21,25 @@ function studio_get_option( $key, $default = '' ) {
 }
 
 /**
+ * Resolve template argument with Customizer fallback.
+ *
+ * @param array  $args        Template args from Elementor widget.
+ * @param string $key         Arg key.
+ * @param string $option_key  Customizer key without studio_ prefix.
+ * @param mixed  $default     Default when neither arg nor option is set.
+ * @return mixed
+ */
+function studio_template_arg( $args, $key, $option_key = '', $default = '' ) {
+	if ( is_array( $args ) && array_key_exists( $key, $args ) && '' !== $args[ $key ] && null !== $args[ $key ] ) {
+		return $args[ $key ];
+	}
+	if ( $option_key ) {
+		return studio_get_option( $option_key, $default );
+	}
+	return $default;
+}
+
+/**
  * Get textarea setting as trimmed lines.
  *
  * @param string $key     Setting key.
@@ -38,9 +57,14 @@ function studio_get_lines( $key, $default = '' ) {
 /**
  * Get configured services.
  *
+ * @param array $args Optional Elementor overrides.
  * @return array
  */
-function studio_get_services() {
+function studio_get_services( $args = array() ) {
+	if ( ! empty( $args['services'] ) && is_array( $args['services'] ) ) {
+		return $args['services'];
+	}
+
 	$services = array();
 	for ( $i = 1; $i <= 4; $i++ ) {
 		$title = studio_get_option( "service_{$i}_title", '' );
@@ -79,9 +103,14 @@ function studio_get_marquee_items() {
 /**
  * Get social links for footer/contact.
  *
+ * @param array $args Optional Elementor overrides.
  * @return array
  */
-function studio_get_social_links() {
+function studio_get_social_links( $args = array() ) {
+	if ( ! empty( $args['social_links'] ) && is_array( $args['social_links'] ) ) {
+		return $args['social_links'];
+	}
+
 	$links = array();
 	for ( $i = 1; $i <= 4; $i++ ) {
 		$label = studio_get_option( "social_{$i}_label", '' );
@@ -102,6 +131,77 @@ function studio_get_social_links() {
 		);
 	}
 	return $links;
+}
+
+/**
+ * Get about story blocks.
+ *
+ * @param array $args Optional Elementor overrides.
+ * @return array
+ */
+function studio_get_about_story_blocks( $args = array() ) {
+	if ( ! empty( $args['story_blocks'] ) && is_array( $args['story_blocks'] ) ) {
+		return $args['story_blocks'];
+	}
+
+	return array(
+		array(
+			'icon'    => '💼',
+			'title'   => studio_get_option( 'about_experience_title', __( 'Experience', 'studio-portfolio' ) ),
+			'content' => studio_get_option( 'about_experience', '' ),
+		),
+		array(
+			'icon'    => '🎓',
+			'title'   => studio_get_option( 'about_education_title', __( 'Education', 'studio-portfolio' ) ),
+			'content' => studio_get_option( 'about_education', '' ),
+		),
+		array(
+			'icon'    => '🏢',
+			'title'   => studio_get_option( 'about_companies_title', __( 'Companies & Brands', 'studio-portfolio' ) ),
+			'content' => studio_get_option( 'about_companies', '' ),
+		),
+		array(
+			'icon'    => '🎯',
+			'title'   => studio_get_option( 'about_goal_title', __( 'My Goal', 'studio-portfolio' ) ),
+			'content' => studio_get_option( 'about_goal', '' ),
+		),
+		array(
+			'icon'    => '💪',
+			'title'   => studio_get_option( 'about_struggles_title', __( 'My Journey & Struggles', 'studio-portfolio' ) ),
+			'content' => studio_get_option( 'about_struggles', '' ),
+		),
+	);
+}
+
+/**
+ * Get about stats.
+ *
+ * @param array $args Optional Elementor overrides.
+ * @return array
+ */
+function studio_get_about_stats( $args = array() ) {
+	if ( ! empty( $args['stats'] ) && is_array( $args['stats'] ) ) {
+		return $args['stats'];
+	}
+
+	return array(
+		array(
+			'value' => studio_get_option( 'stat_projects', '50+' ),
+			'label' => studio_get_option( 'stat_projects_label', __( 'Projects', 'studio-portfolio' ) ),
+		),
+		array(
+			'value' => studio_get_option( 'stat_clients', '30+' ),
+			'label' => studio_get_option( 'stat_clients_label', __( 'Clients', 'studio-portfolio' ) ),
+		),
+		array(
+			'value' => studio_get_option( 'stat_experience', '5' ),
+			'label' => studio_get_option( 'stat_experience_label', __( 'Years Experience', 'studio-portfolio' ) ),
+		),
+		array(
+			'value' => studio_get_option( 'stat_awards', '12' ),
+			'label' => studio_get_option( 'stat_awards_label', __( 'Achievements', 'studio-portfolio' ) ),
+		),
+	);
 }
 
 /**

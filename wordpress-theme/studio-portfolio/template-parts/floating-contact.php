@@ -3,19 +3,24 @@
  * Floating Email & WhatsApp contact buttons
  *
  * @package Studio_Portfolio
+ *
+ * @var array $args Optional Elementor overrides.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! studio_get_option( 'show_float_buttons', true ) ) {
+$args = isset( $args ) ? $args : array();
+
+$show = studio_template_arg( $args, 'show_float_buttons', 'show_float_buttons', true );
+if ( ! $show ) {
 	return;
 }
 
-$email    = studio_get_option( 'contact_email', '' );
-$whatsapp = studio_get_option( 'whatsapp_number', '' );
-$wa_msg   = studio_get_option( 'whatsapp_message', 'Hello! I found your portfolio and would like to connect.' );
+$email    = studio_template_arg( $args, 'contact_email', 'contact_email', '' );
+$whatsapp = studio_template_arg( $args, 'whatsapp_number', 'whatsapp_number', '' );
+$wa_msg   = studio_template_arg( $args, 'whatsapp_message', 'whatsapp_message', 'Hello! I found your portfolio and would like to connect.' );
 
 if ( empty( $email ) && empty( $whatsapp ) ) {
 	return;

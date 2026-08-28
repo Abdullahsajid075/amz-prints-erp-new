@@ -3,23 +3,40 @@
  * Portfolio section with hover auto-scroll
  *
  * @package Studio_Portfolio
+ *
+ * @var array $args Optional Elementor overrides.
  */
 
-$portfolio = new WP_Query( array(
+$args = isset( $args ) ? $args : array();
+
+$query_args = array(
 	'post_type'      => 'portfolio',
-	'posts_per_page' => -1,
-	'orderby'        => 'menu_order',
-	'order'          => 'ASC',
-) );
+	'posts_per_page' => (int) studio_template_arg( $args, 'posts_per_page', '', -1 ),
+	'orderby'        => studio_template_arg( $args, 'orderby', '', 'menu_order' ),
+	'order'          => studio_template_arg( $args, 'order', '', 'ASC' ),
+);
+
+$category = studio_template_arg( $args, 'category', '', '' );
+if ( $category ) {
+	$query_args['tax_query'] = array(
+		array(
+			'taxonomy' => 'portfolio_category',
+			'field'    => 'slug',
+			'terms'    => sanitize_title( $category ),
+		),
+	);
+}
+
+$portfolio = new WP_Query( $query_args );
 ?>
 
 <section id="work" class="section portfolio-section">
 	<div class="container">
 		<div class="section-header fade-in">
-			<p class="section-label"><?php echo esc_html( studio_get_option( 'work_label', 'Selected Work' ) ); ?></p>
-			<h2 class="display-md"><?php echo esc_html( studio_get_option( 'work_title', 'Projects that speak louder than words' ) ); ?></h2>
+			<p class="section-label"><?php echo esc_html( studio_template_arg( $args, 'work_label', 'work_label', 'Selected Work' ) ); ?></p>
+			<h2 class="display-md"><?php echo esc_html( studio_template_arg( $args, 'work_title', 'work_title', 'Projects that speak louder than words' ) ); ?></h2>
 			<p class="text-muted" style="margin-top:1rem;font-size:1.125rem;">
-				<?php echo esc_html( studio_get_option( 'work_description', 'Hover over the gallery to auto-scroll through my portfolio.' ) ); ?>
+				<?php echo esc_html( studio_template_arg( $args, 'work_description', 'work_description', 'Hover over the gallery to auto-scroll through my portfolio.' ) ); ?>
 			</p>
 		</div>
 	</div>
@@ -39,8 +56,8 @@ $portfolio = new WP_Query( array(
 						$year  = get_post_meta( get_the_ID(), '_portfolio_year', true );
 						$tags  = studio_get_portfolio_tags( get_the_ID() );
 						$terms = get_the_terms( get_the_ID(), 'portfolio_category' );
-						$category = ( $terms && ! is_wp_error( $terms ) ) ? $terms[0]->name : '';
-						$link     = studio_get_portfolio_link( get_the_ID() );
+						$category_name = ( $terms && ! is_wp_error( $terms ) ) ? $terms[0]->name : '';
+						$link          = studio_get_portfolio_link( get_the_ID() );
 						?>
 						<article class="portfolio-card fade-in">
 							<a href="<?php echo esc_url( $link['url'] ); ?>" class="portfolio-card-link" target="<?php echo esc_attr( $link['target'] ); ?>"<?php echo $link['is_pdf'] ? ' rel="noopener noreferrer"' : ''; ?>>
@@ -60,7 +77,7 @@ $portfolio = new WP_Query( array(
 								</div>
 								<div class="portfolio-card-body">
 									<p class="portfolio-card-meta">
-										<?php echo esc_html( $category ); ?>
+										<?php echo esc_html( $category_name ); ?>
 										<?php if ( $year ) echo ' · ' . esc_html( $year ); ?>
 									</p>
 									<h3 class="portfolio-card-title"><?php the_title(); ?></h3>
@@ -88,7 +105,7 @@ $portfolio = new WP_Query( array(
 
 		<div class="portfolio-scroll-hint">
 			<span class="hint-icon">→</span>
-			<span><?php echo esc_html( studio_get_option( 'work_hint', 'Hover to auto-scroll · Drag to explore' ) ); ?></span>
+			<span><?php echo esc_html( studio_template_arg( $args, 'work_hint', 'work_hint', 'Hover to auto-scroll · Drag to explore' ) ); ?></span>
 		</div>
 	<?php else : ?>
 		<div class="container">
