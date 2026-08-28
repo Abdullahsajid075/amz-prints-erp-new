@@ -22,7 +22,7 @@
 		<?php studio_render_nav( 'main-nav' ); ?>
 
 		<div class="header-cta">
-			<a href="<?php echo esc_url( studio_get_option( 'header_cta_url', '#contact' ) ); ?>" class="btn btn-gold btn-sm">
+			<a href="<?php echo esc_url( studio_get_option( 'header_cta_url', studio_get_page_url( 'contact_page_id', '#contact' ) ) ); ?>" class="btn btn-gold btn-sm">
 				<?php echo esc_html( studio_get_option( 'header_cta_text', "Let's Talk" ) ); ?>
 			</a>
 		</div>
@@ -49,12 +49,11 @@
 			) );
 			?>
 		<?php else : ?>
-			<a href="#work"><?php echo esc_html( studio_get_option( 'nav_work', 'Work' ) ); ?></a>
-			<a href="#about"><?php echo esc_html( studio_get_option( 'nav_about', 'About' ) ); ?></a>
-			<a href="#design-system"><?php echo esc_html( studio_get_option( 'nav_system', 'System' ) ); ?></a>
-			<a href="#contact"><?php echo esc_html( studio_get_option( 'nav_contact', 'Contact' ) ); ?></a>
+			<a href="<?php echo esc_url( studio_get_page_url( 'work_page_id', '#work' ) ); ?>"><?php echo esc_html( studio_get_option( 'nav_work', 'Work' ) ); ?></a>
+			<a href="<?php echo esc_url( studio_get_page_url( 'about_page_id', '#about' ) ); ?>"><?php echo esc_html( studio_get_option( 'nav_about', 'About' ) ); ?></a>
+			<a href="<?php echo esc_url( studio_get_page_url( 'contact_page_id', '#contact' ) ); ?>"><?php echo esc_html( studio_get_option( 'nav_contact', 'Contact' ) ); ?></a>
 		<?php endif; ?>
-		<a href="<?php echo esc_url( studio_get_option( 'header_cta_url', '#contact' ) ); ?>" class="btn btn-gold" style="margin-top:2rem;display:inline-flex;">
+		<a href="<?php echo esc_url( studio_get_option( 'header_cta_url', studio_get_page_url( 'contact_page_id', '#contact' ) ) ); ?>" class="btn btn-gold" style="margin-top:2rem;display:inline-flex;">
 			<?php echo esc_html( studio_get_option( 'header_cta_text', "Let's Talk" ) ); ?>
 		</a>
 	</div>

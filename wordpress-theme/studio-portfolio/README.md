@@ -1,48 +1,71 @@
-# Studio Portfolio v1.5.0
+# Studio Portfolio v1.6.0
 
-## Fully Editable with Elementor
+## Multi-page portfolio site
 
-Every homepage section has a dedicated **Studio Portfolio** widget with inline text, color, image, and repeater controls — no Customizer required when using Elementor.
+The theme now uses **separate pages** for Home, Work, About, and Contact — each editable in the Customizer.
 
-### Setup
-1. Install **Elementor** (Plugins → Add New)
-2. **Settings → Reading** → set a static page as Homepage
-3. **Pages → Edit Home** → **Edit with Elementor**
-4. Search **Studio Portfolio** in the widget panel
+### Auto-created pages (on theme activation)
+- **Work** — full portfolio grid with category filters
+- **About** — full about story
+- **Contact** — contact form & info
 
-### Studio Portfolio Widgets
+Assign or change pages under **Appearance → Customize → Pages Setup**.
 
-| Widget | What you can edit in Elementor |
-|--------|-------------------------------|
-| **Hero Section** | Photo, status, name, title lines, role, description, buttons, caption |
-| **Marquee Banner** | Items (one per line), text color, separator color, background color |
-| **Portfolio Gallery** | Section text, category filter, project count, sort order |
-| **About Section** | Intro, stats (repeater), story blocks (repeater), services (repeater) |
-| **Design System** | Section text, color palette (repeater), button showcase toggle |
-| **Contact Section** | Section text, email, location, social links (repeater), form toggle |
-| **Floating Contact Buttons** | Email, WhatsApp number & message, show/hide |
+---
 
-You can also use any standard Elementor widgets (Heading, Text, Image, etc.) — the theme styles them to match.
+## Homepage — featured portfolio
 
-### Page templates
-- **Elementor Full Width** — full-width layout with theme header/footer
+1. **Portfolio → Edit** any project
+2. Check **Show on Homepage**
+3. Set **Featured Image** (visible directly on home screen)
+4. For PDF projects: upload **PDF Preview Thumbnail** — shown on hover
 
-### Shortcodes (Elementor Shortcode widget)
-```
-[studio_hero]
-[studio_marquee]
-[studio_portfolio]
-[studio_about]
-[studio_contact]
-[studio_design_system]
-[studio_floating_contact]
-```
+Homepage shows featured projects in a **bigger horizontal gallery** with **hover auto-scroll**.
 
-### Customizer (optional fallback)
-**Appearance → Customize → Personal Brand Portfolio** still works when not using Elementor.
+Customize under **Appearance → Customize → Homepage — Featured Portfolio**:
+- Section text, max project count, "View All Work" button
 
-### Portfolio projects
-Add/edit projects under **Portfolio** in WordPress admin (images, PDF, categories).
+---
+
+## Work page (separate)
+
+Full portfolio with:
+- **Bigger cards** with **category badges**
+- **Category filter buttons** (All, Branding, UI/UX, etc.)
+- All projects (not just featured)
+
+Customize under **Appearance → Customize → Work Page**.
+
+Page template: **Work Page**
+
+---
+
+## PDF projects
+
+1. Upload **Featured Image** or **PDF Preview Thumbnail**
+2. Upload **Project PDF**
+3. On hover: thumbnail preview zooms with "View PDF →"
+4. Click opens PDF in new tab
+
+---
+
+## Customizer sections (every page)
+
+| Section | Edits |
+|---------|-------|
+| Pages Setup | Work, About, Contact page assignment |
+| Homepage — Featured Portfolio | Home gallery text & count |
+| Work Page | Full work page text & category filter |
+| About Section / About Page | Full about content |
+| Contact Section / Contact Page | Contact info & form |
+| Header & Navigation | Menu labels, CTA button |
+| Show / Hide Sections | What appears on homepage |
+
+---
+
+## Elementor
+
+All widgets still work. Portfolio widget has **Homepage Featured** or **Full Work Page** display mode.
 
 ---
 

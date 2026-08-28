@@ -1,0 +1,218 @@
+/**
+ * Portfolio — bigger cards, categories, PDF hover preview, work page grid
+ */
+
+.portfolio-section-home {
+  background: var(--color-bg-soft);
+}
+
+.portfolio-section-work {
+  background: var(--color-bg);
+  padding-bottom: 5rem;
+}
+
+.portfolio-section-desc {
+  margin-top: 1rem;
+  font-size: 1.125rem;
+  max-width: 720px;
+}
+
+.portfolio-section-work .portfolio-section-desc {
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
+}
+
+/* Bigger scroll cards on homepage */
+.portfolio-section-home .portfolio-card,
+.portfolio-card-lg {
+  flex: 0 0 min(88vw, 520px);
+  width: min(88vw, 520px);
+}
+
+@media (min-width: 768px) {
+  .portfolio-section-home .portfolio-card,
+  .portfolio-card-lg {
+    flex: 0 0 560px;
+    width: 560px;
+  }
+}
+
+.portfolio-card-image {
+  aspect-ratio: 4 / 3.2;
+}
+
+.portfolio-card-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.55s var(--ease-out, ease);
+}
+
+.portfolio-card-placeholder {
+  width: 100%;
+  height: 100%;
+  min-height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-muted);
+  color: var(--color-text-subtle);
+  font-size: 0.95rem;
+}
+
+/* Category badges */
+.portfolio-category-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.badge-category {
+  background: var(--color-green-soft, rgba(5, 150, 105, 0.1));
+  color: var(--color-green-dark);
+  border: 1px solid rgba(5, 150, 105, 0.2);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.35rem 0.65rem;
+}
+
+.portfolio-card-lg .portfolio-card-title {
+  font-size: 1.625rem;
+}
+
+.portfolio-card-lg .portfolio-card-body {
+  padding: 1.75rem;
+}
+
+/* PDF hover thumbnail preview */
+.portfolio-card.is-pdf .portfolio-pdf-hover-preview {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1.25rem;
+  background: rgba(255, 255, 255, 0.94);
+  opacity: 0;
+  transform: scale(1.04);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.portfolio-card.is-pdf:hover .portfolio-pdf-hover-preview {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.portfolio-pdf-preview-img {
+  max-width: 78%;
+  max-height: 68%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+  border: 1px solid var(--color-border);
+}
+
+.portfolio-pdf-preview-label {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-green-dark);
+}
+
+.portfolio-card.is-pdf:hover .portfolio-card-overlay {
+  opacity: 0;
+}
+
+.portfolio-card.is-pdf:hover .portfolio-card-thumb {
+  transform: scale(1.03);
+  filter: blur(1px);
+}
+
+/* Work page grid */
+.portfolio-grid-work {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+@media (min-width: 768px) {
+  .portfolio-grid-work {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1200px) {
+  .portfolio-grid-work {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2.5rem;
+  }
+}
+
+.portfolio-grid-work .portfolio-card {
+  width: 100%;
+  flex: none;
+}
+
+/* Category filter */
+.portfolio-category-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: center;
+  margin: 2rem 0 1rem;
+}
+
+.portfolio-filter-btn {
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.portfolio-filter-btn:hover,
+.portfolio-filter-btn.is-active {
+  background: var(--color-green);
+  border-color: var(--color-green);
+  color: #fff;
+}
+
+.portfolio-card.is-hidden {
+  display: none !important;
+}
+
+.portfolio-empty {
+  border-radius: 0;
+  padding: 4rem;
+  text-align: center;
+}
+
+.portfolio-scroll-track {
+  gap: 2rem;
+}
+
+.portfolio-scroll-container {
+  scroll-snap-type: x proximity;
+}
+
+.portfolio-section-home .portfolio-card {
+  scroll-snap-align: start;
+}

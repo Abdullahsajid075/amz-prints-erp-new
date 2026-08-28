@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'STUDIO_PORTFOLIO_VERSION', '1.5.0' );
+define( 'STUDIO_PORTFOLIO_VERSION', '1.6.0' );
 define( 'STUDIO_PORTFOLIO_DIR', get_template_directory() );
 define( 'STUDIO_PORTFOLIO_URI', get_template_directory_uri() );
 
@@ -20,6 +20,7 @@ require_once STUDIO_PORTFOLIO_DIR . '/inc/portfolio-meta.php';
 require_once STUDIO_PORTFOLIO_DIR . '/inc/contact-form.php';
 require_once STUDIO_PORTFOLIO_DIR . '/inc/shortcodes.php';
 require_once STUDIO_PORTFOLIO_DIR . '/inc/elementor.php';
+require_once STUDIO_PORTFOLIO_DIR . '/inc/page-setup.php';
 
 /**
  * Theme setup.
@@ -41,7 +42,8 @@ function studio_portfolio_setup() {
 	add_theme_support( 'responsive-embeds' );
 	add_theme_support( 'editor-styles' );
 
-	add_image_size( 'portfolio-card', 840, 630, true );
+	add_image_size( 'portfolio-card', 1000, 750, true );
+	add_image_size( 'portfolio-card-large', 1200, 900, true );
 	add_image_size( 'portfolio-hero', 1200, 800, true );
 	add_image_size( 'portfolio-gallery', 600, 450, true );
 
@@ -73,6 +75,13 @@ function studio_portfolio_scripts() {
 		'studio-portfolio-light',
 		STUDIO_PORTFOLIO_URI . '/assets/css/light-minimal.css',
 		array( 'studio-portfolio-style' ),
+		STUDIO_PORTFOLIO_VERSION
+	);
+
+	wp_enqueue_style(
+		'studio-portfolio-portfolio',
+		STUDIO_PORTFOLIO_URI . '/assets/css/portfolio.css',
+		array( 'studio-portfolio-light' ),
 		STUDIO_PORTFOLIO_VERSION
 	);
 

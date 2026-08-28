@@ -220,10 +220,18 @@ function studio_render_nav( $class = 'main-nav' ) {
 	}
 
 	$links = array(
-		array( 'label' => studio_get_option( 'nav_work', __( 'Work', 'studio-portfolio' ) ), 'url' => '#work' ),
-		array( 'label' => studio_get_option( 'nav_about', __( 'About', 'studio-portfolio' ) ), 'url' => '#about' ),
-		array( 'label' => studio_get_option( 'nav_system', __( 'System', 'studio-portfolio' ) ), 'url' => '#design-system' ),
-		array( 'label' => studio_get_option( 'nav_contact', __( 'Contact', 'studio-portfolio' ) ), 'url' => '#contact' ),
+		array(
+			'label' => studio_get_option( 'nav_work', __( 'Work', 'studio-portfolio' ) ),
+			'url'   => studio_get_page_url( 'work_page_id', '#work' ),
+		),
+		array(
+			'label' => studio_get_option( 'nav_about', __( 'About', 'studio-portfolio' ) ),
+			'url'   => studio_get_page_url( 'about_page_id', '#about' ),
+		),
+		array(
+			'label' => studio_get_option( 'nav_contact', __( 'Contact', 'studio-portfolio' ) ),
+			'url'   => studio_get_page_url( 'contact_page_id', '#contact' ),
+		),
 	);
 	?>
 	<nav class="<?php echo esc_attr( $class ); ?>" aria-label="<?php esc_attr_e( 'Primary', 'studio-portfolio' ); ?>">
@@ -287,4 +295,56 @@ function studio_get_portfolio_link( $post_id ) {
 		'target' => '_self',
 		'is_pdf' => false,
 	);
+}
+
+/**
+ * Get best thumbnail attachment ID for a portfolio item.
+ *
+ * @param int $post_id Post ID.
+ * @return int
+ */
+function studio_get_portfolio_thumbnail_id( $post_id ) {
+	if ( has_post_thumbnail( $post_id ) ) {
+		return (int) get_post_thumbnail_id( $post_id );
+	}
+
+	$pdf_cover = absint( get_post_meta( $post_id, '_portfolio_pdf_cover', true ) );
+	if ( $pdf_cover ) {
+		return $pdf_cover;
+	}
+
+	$gallery = get_post_meta( $post_id, '_portfolio_gallery', true );
+	if ( is_array( $gallery ) && ! empty( $gallery[0] ) ) {
+		return (int) $gallery[0];
+	}
+
+	return 0;
+}
+
+/**
+ * Get all portfolio category names for a post.
+ *
+ * @param int $post_id Post ID.
+ * @return array
+ */
+function studio_get_portfolio_categories( $post_id ) {
+	$terms = get_the_terms( $post_id, 'portfolio_category' );
+	if ( ! $terms || is_wp_error( $terms ) ) {
+		return array();
+	}
+	return wp_list_pluck( $terms, 'name' );
+}
+
+/**
+ * Get portfolio category slugs for filtering.
+ *
+ * @param int $post_id Post ID.
+ * @return array
+ */
+function studio_get_portfolio_category_slugs( $post_id ) {
+	$terms = get_the_terms( $post_id, 'portfolio_category' );
+	if ( ! $terms || is_wp_error( $terms ) ) {
+		return array();
+	}
+	return wp_list_pluck( $terms, 'slug' );
 }

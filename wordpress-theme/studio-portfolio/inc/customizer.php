@@ -22,13 +22,17 @@ function studio_portfolio_customize_register( $wp_customize ) {
 	) );
 
 	studio_customizer_section_colors( $wp_customize );
+	studio_customizer_section_pages( $wp_customize );
 	studio_customizer_section_header( $wp_customize );
 	studio_customizer_section_hero( $wp_customize );
 	studio_customizer_section_marquee( $wp_customize );
 	studio_customizer_section_portfolio( $wp_customize );
+	studio_customizer_section_work_page( $wp_customize );
 	studio_customizer_section_about( $wp_customize );
+	studio_customizer_section_about_page( $wp_customize );
 	studio_customizer_section_design_system( $wp_customize );
 	studio_customizer_section_contact( $wp_customize );
+	studio_customizer_section_contact_page( $wp_customize );
 	studio_customizer_section_floating( $wp_customize );
 	studio_customizer_section_footer( $wp_customize );
 	studio_customizer_section_visibility( $wp_customize );
@@ -98,6 +102,38 @@ function studio_customizer_section_colors( $wp_customize ) {
 }
 
 /**
+ * Pages — assign Work, About, Contact pages.
+ */
+function studio_customizer_section_pages( $wp_customize ) {
+	$section = 'studio_pages';
+	$wp_customize->add_section( $section, array(
+		'title'       => __( 'Pages Setup', 'studio-portfolio' ),
+		'description' => __( 'Assign separate pages for Work, About, and Contact. Pages are auto-created on theme activation.', 'studio-portfolio' ),
+		'panel'       => 'studio_portfolio_panel',
+		'priority'    => 12,
+	) );
+
+	$page_controls = array(
+		'work_page_id'    => __( 'Work Page', 'studio-portfolio' ),
+		'about_page_id'   => __( 'About Page', 'studio-portfolio' ),
+		'contact_page_id' => __( 'Contact Page', 'studio-portfolio' ),
+	);
+
+	foreach ( $page_controls as $id => $label ) {
+		$wp_customize->add_setting( 'studio_' . $id, array(
+			'default'           => 0,
+			'sanitize_callback' => 'absint',
+			'transport'         => 'refresh',
+		) );
+		$wp_customize->add_control( 'studio_' . $id, array(
+			'label'   => $label,
+			'section' => $section,
+			'type'    => 'dropdown-pages',
+		) );
+	}
+}
+
+/**
  * Header section.
  */
 function studio_customizer_section_header( $wp_customize ) {
@@ -112,7 +148,6 @@ function studio_customizer_section_header( $wp_customize ) {
 	studio_add_text( $wp_customize, $section, 'header_cta_url', __( 'Header Button URL', 'studio-portfolio' ), '#contact' );
 	studio_add_text( $wp_customize, $section, 'nav_work', __( 'Nav: Work Label', 'studio-portfolio' ), 'Work' );
 	studio_add_text( $wp_customize, $section, 'nav_about', __( 'Nav: About Label', 'studio-portfolio' ), 'About' );
-	studio_add_text( $wp_customize, $section, 'nav_system', __( 'Nav: System Label', 'studio-portfolio' ), 'System' );
 	studio_add_text( $wp_customize, $section, 'nav_contact', __( 'Nav: Contact Label', 'studio-portfolio' ), 'Contact' );
 }
 
@@ -197,14 +232,47 @@ function studio_customizer_section_marquee( $wp_customize ) {
 function studio_customizer_section_portfolio( $wp_customize ) {
 	$section = 'studio_portfolio_section';
 	$wp_customize->add_section( $section, array(
-		'title' => __( 'Portfolio Section', 'studio-portfolio' ),
-		'panel' => 'studio_portfolio_panel',
+		'title'       => __( 'Homepage — Featured Portfolio', 'studio-portfolio' ),
+		'description' => __( 'Shows featured projects on the homepage. Mark items in Portfolio → Edit → "Show on Homepage".', 'studio-portfolio' ),
+		'panel'       => 'studio_portfolio_panel',
 	) );
 
 	studio_add_text( $wp_customize, $section, 'work_label', __( 'Section Label', 'studio-portfolio' ), 'Selected Work' );
-	studio_add_text( $wp_customize, $section, 'work_title', __( 'Section Title', 'studio-portfolio' ), 'Projects that speak louder than words' );
-	studio_add_text( $wp_customize, $section, 'work_description', __( 'Section Description', 'studio-portfolio' ), 'Hover over the gallery to auto-scroll through my portfolio.', 'textarea' );
+	studio_add_text( $wp_customize, $section, 'work_title', __( 'Section Title', 'studio-portfolio' ), 'Featured projects' );
+	studio_add_text( $wp_customize, $section, 'work_description', __( 'Section Description', 'studio-portfolio' ), 'A selection of my best work — hover to auto-scroll through projects.', 'textarea' );
 	studio_add_text( $wp_customize, $section, 'work_hint', __( 'Scroll Hint Text', 'studio-portfolio' ), 'Hover to auto-scroll · Drag to explore' );
+	studio_add_text( $wp_customize, $section, 'home_view_all_text', __( 'View All Button Text', 'studio-portfolio' ), 'View All Work →' );
+
+	$wp_customize->add_setting( 'studio_home_portfolio_count', array(
+		'default'           => 6,
+		'sanitize_callback' => 'absint',
+		'transport'         => 'refresh',
+	) );
+	$wp_customize->add_control( 'studio_home_portfolio_count', array(
+		'label'       => __( 'Max Featured Projects on Homepage', 'studio-portfolio' ),
+		'section'     => $section,
+		'type'        => 'number',
+		'input_attrs' => array( 'min' => 1, 'max' => 20 ),
+	) );
+
+	studio_add_checkbox( $wp_customize, $section, 'home_show_view_all', __( 'Show "View All Work" Button', 'studio-portfolio' ), true );
+}
+
+/**
+ * Work page section.
+ */
+function studio_customizer_section_work_page( $wp_customize ) {
+	$section = 'studio_work_page';
+	$wp_customize->add_section( $section, array(
+		'title'       => __( 'Work Page', 'studio-portfolio' ),
+		'description' => __( 'Content for the separate Work page (assign under Pages Setup).', 'studio-portfolio' ),
+		'panel'       => 'studio_portfolio_panel',
+	) );
+
+	studio_add_text( $wp_customize, $section, 'work_page_label', __( 'Section Label', 'studio-portfolio' ), 'All Work' );
+	studio_add_text( $wp_customize, $section, 'work_page_title', __( 'Section Title', 'studio-portfolio' ), 'Full portfolio' );
+	studio_add_text( $wp_customize, $section, 'work_page_description', __( 'Section Description', 'studio-portfolio' ), 'Browse every project by category.', 'textarea' );
+	studio_add_checkbox( $wp_customize, $section, 'work_page_show_categories', __( 'Show Category Filter Buttons', 'studio-portfolio' ), true );
 }
 
 /**
@@ -250,6 +318,34 @@ function studio_customizer_section_about( $wp_customize ) {
 		studio_add_text( $wp_customize, $section, "service_{$i}_title", sprintf( __( 'Service %d Title', 'studio-portfolio' ), $i ), '' );
 		studio_add_text( $wp_customize, $section, "service_{$i}_desc", sprintf( __( 'Service %d Description', 'studio-portfolio' ), $i ), '', 'textarea' );
 	}
+}
+
+/**
+ * About page — optional override title (uses same content as About section).
+ */
+function studio_customizer_section_about_page( $wp_customize ) {
+	$section = 'studio_about_page';
+	$wp_customize->add_section( $section, array(
+		'title'       => __( 'About Page', 'studio-portfolio' ),
+		'description' => __( 'The About page uses content from the About Section settings above.', 'studio-portfolio' ),
+		'panel'       => 'studio_portfolio_panel',
+	) );
+
+	studio_add_text( $wp_customize, $section, 'about_page_intro', __( 'Extra Page Intro (optional)', 'studio-portfolio' ), '', 'textarea' );
+}
+
+/**
+ * Contact page section.
+ */
+function studio_customizer_section_contact_page( $wp_customize ) {
+	$section = 'studio_contact_page';
+	$wp_customize->add_section( $section, array(
+		'title'       => __( 'Contact Page', 'studio-portfolio' ),
+		'description' => __( 'The Contact page uses content from the Contact Section settings.', 'studio-portfolio' ),
+		'panel'       => 'studio_portfolio_panel',
+	) );
+
+	studio_add_text( $wp_customize, $section, 'contact_page_intro', __( 'Extra Page Intro (optional)', 'studio-portfolio' ), '', 'textarea' );
 }
 
 /**
@@ -329,11 +425,11 @@ function studio_customizer_section_visibility( $wp_customize ) {
 		'panel' => 'studio_portfolio_panel',
 	) );
 
-	studio_add_checkbox( $wp_customize, $section, 'show_marquee', __( 'Show Marquee Banner', 'studio-portfolio' ), true );
-	studio_add_checkbox( $wp_customize, $section, 'show_portfolio', __( 'Show Portfolio Section', 'studio-portfolio' ), true );
-	studio_add_checkbox( $wp_customize, $section, 'show_about', __( 'Show About Section', 'studio-portfolio' ), true );
-	studio_add_checkbox( $wp_customize, $section, 'show_design_system', __( 'Show Design System Section', 'studio-portfolio' ), true );
-	studio_add_checkbox( $wp_customize, $section, 'show_contact', __( 'Show Contact Section', 'studio-portfolio' ), true );
+	studio_add_checkbox( $wp_customize, $section, 'show_marquee', __( 'Show Marquee Banner on Homepage', 'studio-portfolio' ), true );
+	studio_add_checkbox( $wp_customize, $section, 'show_portfolio', __( 'Show Featured Portfolio on Homepage', 'studio-portfolio' ), true );
+	studio_add_checkbox( $wp_customize, $section, 'show_about', __( 'Show About Section on Homepage', 'studio-portfolio' ), false );
+	studio_add_checkbox( $wp_customize, $section, 'show_design_system', __( 'Show Design System on Homepage', 'studio-portfolio' ), false );
+	studio_add_checkbox( $wp_customize, $section, 'show_contact', __( 'Show Contact Section on Homepage', 'studio-portfolio' ), false );
 }
 
 /**

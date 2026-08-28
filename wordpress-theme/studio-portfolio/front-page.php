@@ -27,7 +27,11 @@ if ( $front_id && studio_is_elementor_page( $front_id ) ) {
 		get_template_part( 'template-parts/marquee' );
 	}
 	if ( studio_section_enabled( 'portfolio' ) ) {
-		get_template_part( 'template-parts/portfolio' );
+		get_template_part(
+			'template-parts/portfolio',
+			null,
+			array( 'mode' => 'home' )
+		);
 	}
 	if ( studio_section_enabled( 'about' ) ) {
 		get_template_part( 'template-parts/about' );

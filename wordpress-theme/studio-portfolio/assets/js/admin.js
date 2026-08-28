@@ -92,4 +92,44 @@
     $('#portfolio_pdf').val('');
     $('#studio-pdf-preview').empty();
   });
+
+  /* PDF cover thumbnail */
+  var pdfCoverFrame;
+
+  $('#studio-upload-pdf-cover').on('click', function (e) {
+    e.preventDefault();
+
+    if (pdfCoverFrame) {
+      pdfCoverFrame.open();
+      return;
+    }
+
+    pdfCoverFrame = wp.media({
+      title: 'Upload PDF Preview Thumbnail',
+      button: { text: 'Use this image' },
+      multiple: false,
+      library: { type: 'image' }
+    });
+
+    pdfCoverFrame.on('select', function () {
+      var attachment = pdfCoverFrame.state().get('selection').first().toJSON();
+      var thumb = attachment.sizes && attachment.sizes.medium
+        ? attachment.sizes.medium.url
+        : attachment.url;
+
+      $('#portfolio_pdf_cover').val(attachment.id);
+      $('#studio-pdf-cover-preview').html(
+        '<img src="' + thumb + '" alt="" style="max-width:160px;height:auto;display:block;margin-bottom:8px;" />' +
+        '<button type="button" class="button studio-remove-pdf-cover">Remove Thumbnail</button>'
+      );
+    });
+
+    pdfCoverFrame.open();
+  });
+
+  $(document).on('click', '.studio-remove-pdf-cover', function (e) {
+    e.preventDefault();
+    $('#portfolio_pdf_cover').val('');
+    $('#studio-pdf-cover-preview').empty();
+  });
 })(jQuery);

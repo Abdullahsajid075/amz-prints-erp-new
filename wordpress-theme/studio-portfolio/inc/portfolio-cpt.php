@@ -73,7 +73,7 @@ function studio_portfolio_columns( $columns ) {
 	$new['cb'] = $columns['cb'];
 	$new['thumbnail'] = __( 'Image', 'studio-portfolio' );
 	$new['title'] = $columns['title'];
-	$new['portfolio_category'] = __( 'Category', 'studio-portfolio' );
+	$new['portfolio_featured'] = __( 'Home', 'studio-portfolio' );
 	$new['portfolio_year'] = __( 'Year', 'studio-portfolio' );
 	$new['menu_order'] = __( 'Order', 'studio-portfolio' );
 	$new['date'] = $columns['date'];
@@ -89,6 +89,11 @@ function studio_portfolio_column_content( $column, $post_id ) {
 			} else {
 				echo '<span style="color:#999;">—</span>';
 			}
+			break;
+		case 'portfolio_featured':
+			echo '1' === get_post_meta( $post_id, '_portfolio_featured_home', true )
+				? '<span style="color:#059669;font-weight:600;">✓</span>'
+				: '<span style="color:#999;">—</span>';
 			break;
 		case 'portfolio_category':
 			$terms = get_the_terms( $post_id, 'portfolio_category' );

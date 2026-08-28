@@ -33,6 +33,19 @@ class Studio_Portfolio_Widget extends Studio_Portfolio_Elementor_Widget_Base {
 		);
 
 		$this->add_control(
+			'display_mode',
+			array(
+				'label'   => __( 'Display Mode', 'studio-portfolio' ),
+				'type'    => \Elementor\Controls_Manager::SELECT,
+				'default' => 'home',
+				'options' => array(
+					'home' => __( 'Homepage Featured (scroll)', 'studio-portfolio' ),
+					'work' => __( 'Full Work Page (grid + filters)', 'studio-portfolio' ),
+				),
+			)
+		);
+
+		$this->add_control(
 			'work_label',
 			array(
 				'label'   => __( 'Section Label', 'studio-portfolio' ),
@@ -132,18 +145,20 @@ class Studio_Portfolio_Widget extends Studio_Portfolio_Elementor_Widget_Base {
 
 	protected function render() {
 		$settings = $this->get_settings_for_display();
+		$mode     = $settings['display_mode'] ?? 'home';
 
 		$this->render_template_part(
 			'portfolio',
 			array(
-				'work_label'       => $settings['work_label'],
-				'work_title'       => $settings['work_title'],
-				'work_description' => $settings['work_description'],
-				'work_hint'        => $settings['work_hint'],
-				'category'         => $settings['category'],
-				'posts_per_page'   => $settings['posts_per_page'],
-				'orderby'          => $settings['orderby'],
-				'order'            => $settings['order'],
+				'mode'               => $mode,
+				'work_label'         => $settings['work_label'],
+				'work_title'         => $settings['work_title'],
+				'work_description'   => $settings['work_description'],
+				'work_hint'          => $settings['work_hint'],
+				'category'           => $settings['category'],
+				'posts_per_page'     => 'home' === $mode ? 6 : -1,
+				'orderby'            => $settings['orderby'],
+				'order'              => $settings['order'],
 			)
 		);
 	}
