@@ -11,7 +11,10 @@ $args         = isset( $args ) ? $args : array();
 $story_blocks = studio_get_about_story_blocks( $args );
 $stats        = studio_get_about_stats( $args );
 $awards       = studio_get_about_awards();
-$about_intro  = studio_template_arg( $args, 'about_text', 'about_page_intro', studio_get_option( 'about_text', '' ) );
+$about_intro  = studio_template_arg( $args, 'about_text', 'about_page_intro', '' );
+if ( ! $about_intro ) {
+	$about_intro = studio_get_option( 'about_text', 'This is my story — who I am, how I work, and why I build brands rather than just designing files.' );
+}
 $about_close  = studio_template_arg( $args, 'about_text2', 'about_text2', '' );
 $page_label   = studio_template_arg( $args, 'about_label', 'about_page_label', studio_get_option( 'about_label', 'About Me' ) );
 $page_title   = studio_template_arg( $args, 'about_title', 'about_page_title', studio_get_option( 'about_title', 'More Than a Designer. A Brand Builder.' ) );

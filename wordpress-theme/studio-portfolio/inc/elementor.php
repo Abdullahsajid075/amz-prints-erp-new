@@ -131,3 +131,22 @@ function studio_elementor_body_class( $classes ) {
 	return $classes;
 }
 add_filter( 'body_class', 'studio_elementor_body_class' );
+
+/**
+ * Keep About / How I Work on theme templates even if Elementor Theme Builder is active.
+ *
+ * @param bool   $need     Whether to override.
+ * @param string $location Location name.
+ * @return bool
+ */
+function studio_elementor_keep_locked_pages( $need, $location = '' ) {
+	if ( ! is_page() ) {
+		return $need;
+	}
+	$role = studio_detect_page_role( get_queried_object_id() );
+	if ( in_array( $role, array( 'about', 'how-i-work' ), true ) ) {
+		return false;
+	}
+	return $need;
+}
+add_filter( 'elementor/theme/need_override_location', 'studio_elementor_keep_locked_pages', 999, 2 );

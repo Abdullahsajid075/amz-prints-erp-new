@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'STUDIO_CONTENT_PACK', 'brand-builder-v25' );
+define( 'STUDIO_CONTENT_PACK', 'brand-builder-v251' );
 
 /**
  * Set theme mod only when empty.
@@ -562,19 +562,56 @@ function studio_admin_load_demo_page() {
 
 	if ( isset( $_GET['studio_load_demo'] ) && check_admin_referer( 'studio_load_demo' ) ) {
 		studio_seed_dummy_content( true );
-		wp_safe_redirect( add_query_arg( 'studio_demo_loaded', '1', admin_url( 'admin.php?page=studio-portfolio' ) ) );
+		wp_safe_redirect( add_query_arg( 'studio_demo_loaded', '1', admin_url( 'admin.php?page=studio-portfolio-demo' ) ) );
 		exit;
 	}
 
-	$loaded = isset( $_GET['studio_demo_loaded'] );
+	if ( isset( $_GET['studio_repair_pages'] ) && check_admin_referer( 'studio_repair_pages' ) ) {
+		studio_create_default_pages( true );
+		flush_rewrite_rules( false );
+		update_option( 'studio_pages_setup_version', STUDIO_PORTFOLIO_VERSION );
+		wp_safe_redirect( add_query_arg( 'studio_pages_repaired', '1', admin_url( 'admin.php?page=studio-portfolio-demo' ) ) );
+		exit;
+	}
+
+	$loaded   = isset( $_GET['studio_demo_loaded'] );
+	$repaired = isset( $_GET['studio_pages_repaired'] );
+	$about_id = studio_resolve_page_id( 'about_page_id' );
+	$hiw_id   = studio_resolve_page_id( 'how_i_work_page_id' );
 	?>
 	<div class="wrap">
 		<h1><?php esc_html_e( 'Studio Portfolio — Demo Content', 'studio-portfolio' ); ?></h1>
 		<?php if ( $loaded ) : ?>
 			<div class="notice notice-success"><p><?php esc_html_e( 'Demo content loaded! Edit everything in Customize Theme or Portfolio admin.', 'studio-portfolio' ); ?></p></div>
 		<?php endif; ?>
+		<?php if ( $repaired ) : ?>
+			<div class="notice notice-success"><p><?php esc_html_e( 'About Me and How I Work pages were created and assigned. Save Permalinks once, then view those two pages.', 'studio-portfolio' ); ?></p></div>
+		<?php endif; ?>
+
+		<h2><?php esc_html_e( 'Fix About & How I Work', 'studio-portfolio' ); ?></h2>
+		<p><?php esc_html_e( 'This creates two separate pages and locks the correct templates: About = your story, How I Work = the 6-step process (not the portfolio).', 'studio-portfolio' ); ?></p>
+		<p>
+			<?php if ( $about_id ) : ?>
+				<a href="<?php echo esc_url( get_permalink( $about_id ) ); ?>" target="_blank"><?php esc_html_e( 'View About Me', 'studio-portfolio' ); ?></a>
+			<?php else : ?>
+				<em><?php esc_html_e( 'About page is not assigned yet.', 'studio-portfolio' ); ?></em>
+			<?php endif; ?>
+			&nbsp;·&nbsp;
+			<?php if ( $hiw_id ) : ?>
+				<a href="<?php echo esc_url( get_permalink( $hiw_id ) ); ?>" target="_blank"><?php esc_html_e( 'View How I Work', 'studio-portfolio' ); ?></a>
+			<?php else : ?>
+				<em><?php esc_html_e( 'How I Work page is not assigned yet.', 'studio-portfolio' ); ?></em>
+			<?php endif; ?>
+		</p>
+		<p>
+			<a class="button button-primary" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin.php?page=studio-portfolio-demo&studio_repair_pages=1' ), 'studio_repair_pages' ) ); ?>">
+				<?php esc_html_e( 'Repair About & How I Work Pages', 'studio-portfolio' ); ?>
+			</a>
+		</p>
+
+		<hr />
 		<p><?php esc_html_e( 'Load sample text, images, and portfolio case studies. You can edit or replace everything later.', 'studio-portfolio' ); ?></p>
-		<a class="button button-primary button-hero" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin.php?page=studio-portfolio-demo&studio_load_demo=1' ), 'studio_load_demo' ) ); ?>">
+		<a class="button" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin.php?page=studio-portfolio-demo&studio_load_demo=1' ), 'studio_load_demo' ) ); ?>">
 			<?php esc_html_e( 'Load Demo Content Now', 'studio-portfolio' ); ?>
 		</a>
 		<p style="margin-top:1.5rem;"><a href="<?php echo esc_url( studio_get_customize_url() ); ?>"><?php esc_html_e( 'Open Customizer →', 'studio-portfolio' ); ?></a></p>

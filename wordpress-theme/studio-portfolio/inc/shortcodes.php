@@ -18,6 +18,7 @@ function studio_register_shortcodes() {
 		'studio_marquee'           => 'marquee',
 		'studio_portfolio'         => 'portfolio',
 		'studio_about'             => 'about',
+		'studio_how_i_work'        => 'how-i-work',
 		'studio_contact'           => 'contact',
 		'studio_design_system'     => 'design-system',
 		'studio_floating_contact'  => 'floating-contact',
@@ -47,7 +48,7 @@ function studio_shortcode_help() {
 	?>
 	<div class="notice notice-info is-dismissible">
 		<p><strong><?php esc_html_e( 'Studio Portfolio Shortcodes (for Elementor Shortcode widget):', 'studio-portfolio' ); ?></strong></p>
-		<p><code>[studio_hero]</code> · <code>[studio_marquee]</code> · <code>[studio_portfolio]</code> · <code>[studio_about]</code> · <code>[studio_contact]</code> · <code>[studio_design_system]</code> · <code>[studio_floating_contact]</code></p>
+		<p><code>[studio_hero]</code> · <code>[studio_marquee]</code> · <code>[studio_portfolio]</code> · <code>[studio_about]</code> · <code>[studio_how_i_work]</code> · <code>[studio_contact]</code></p>
 	</div>
 	<?php
 }

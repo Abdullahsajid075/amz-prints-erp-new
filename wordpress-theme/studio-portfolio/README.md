@@ -40,7 +40,7 @@ Or **Studio Portfolio → Load Demo Content** to refresh sample copy (including 
 1. Activate theme
 2. **Settings → Permalinks → Save**
 3. **Settings → Reading** → Homepage = **Home**
-4. Optional: **Studio Portfolio → Load Demo Content**
+4. If About is empty or How I Work shows the wrong page: **Studio Portfolio → Load Demo Content → Repair About & How I Work Pages**
 
 ## Download
 

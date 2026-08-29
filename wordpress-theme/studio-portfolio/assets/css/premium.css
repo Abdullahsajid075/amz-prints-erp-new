@@ -977,5 +977,48 @@
 @media (min-width: 1024px) {
   .main-nav { display: flex !important; }
   .header-cta { display: block !important; }
-  .nav-toggle { display: none !important; }
+	.nav-toggle { display: none !important; }
+}
+
+/* About + How I Work — always readable on the light theme */
+.studio-about-page .about-section,
+.studio-how-i-work-page .how-i-work-section {
+  background: var(--color-bg-soft, #F7FAF7);
+  color: var(--color-text, #1A1A1A);
+}
+
+.studio-about-page .about-story-content,
+.studio-about-page .about-intro,
+.studio-about-page .about-story-title,
+.studio-about-page .about-title {
+  -webkit-text-fill-color: unset;
+  color: var(--color-text, #1A1A1A);
+}
+
+.studio-about-page .about-story-content,
+.studio-about-page .about-intro {
+  color: var(--color-text-muted, #4B5563);
+}
+
+.studio-about-page .about-story-card {
+  background: #fff;
+  border: 1px solid var(--color-border, #E5E7EB);
+}
+
+.studio-about-page .about-page-hero {
+  display: grid;
+  gap: 2rem;
+  align-items: center;
+}
+
+@media (min-width: 900px) {
+  .studio-about-page .about-page-hero {
+    grid-template-columns: 0.85fr 1.15fr;
+  }
+}
+
+.studio-about-page .about-page-photo {
+  width: 100%;
+  height: auto;
+  display: block;
 }
