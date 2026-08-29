@@ -140,6 +140,9 @@ add_filter( 'body_class', 'studio_elementor_body_class' );
  * @return bool
  */
 function studio_elementor_keep_locked_pages( $need, $location = '' ) {
+	if ( is_front_page() ) {
+		return false;
+	}
 	if ( ! is_page() ) {
 		return $need;
 	}

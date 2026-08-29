@@ -211,6 +211,10 @@ function studio_detect_page_role( $page_id ) {
 		return '';
 	}
 
+	if ( (int) get_option( 'page_on_front' ) === $page_id ) {
+		return '';
+	}
+
 	$slug     = (string) get_post_field( 'post_name', $page_id );
 	$title    = (string) get_the_title( $page_id );
 	$template = (string) get_post_meta( $page_id, '_wp_page_template', true );
@@ -348,28 +352,75 @@ function studio_get_page_url( $key, $fallback = '#' ) {
 /**
  * Ensure Home is set as the static front page.
  */
+/**
+ * Ensure a static front page exists — never steal About / How I Work / Portfolio.
+ */
 function studio_ensure_home_page() {
-	$home = get_page_by_path( 'home' );
-	if ( ! $home ) {
-		$home_id = wp_insert_post(
-			array(
-				'post_title'  => 'Home',
-				'post_name'   => 'home',
-				'post_status' => 'publish',
-				'post_type'   => 'page',
-			),
-			true
-		);
-		if ( is_wp_error( $home_id ) ) {
-			return;
-		}
-		$home = get_post( $home_id );
+	$role_templates = wp_list_pluck( studio_get_page_role_defs(), 'template' );
+	$role_slugs     = array();
+	foreach ( studio_get_page_role_defs() as $def ) {
+		$role_slugs = array_merge( $role_slugs, $def['slugs'] );
 	}
 
-	if ( $home && 'publish' === $home->post_status ) {
-		update_option( 'page_on_front', $home->ID );
+	$current = (int) get_option( 'page_on_front' );
+	if ( $current && 'publish' === get_post_status( $current ) ) {
+		$slug     = (string) get_post_field( 'post_name', $current );
+		$template = (string) get_post_meta( $current, '_wp_page_template', true );
+		$hijacked = in_array( $template, $role_templates, true ) || ( $slug && in_array( $slug, $role_slugs, true ) && 'home' !== $slug );
+
+		if ( $hijacked && 'home' === $slug ) {
+			update_post_meta( $current, '_wp_page_template', 'default' );
+			$hijacked = false;
+		}
+
+		if ( $hijacked ) {
+			$home_id = studio_get_dedicated_home_page_id( array( $current ) );
+			if ( $home_id ) {
+				update_post_meta( $home_id, '_wp_page_template', 'default' );
+				update_option( 'page_on_front', $home_id );
+			}
+		} elseif ( $template && in_array( $template, $role_templates, true ) ) {
+			update_post_meta( $current, '_wp_page_template', 'default' );
+		}
+
+		update_option( 'show_on_front', 'page' );
+		return;
+	}
+
+	$home_id = studio_get_dedicated_home_page_id();
+	if ( $home_id ) {
+		update_post_meta( $home_id, '_wp_page_template', 'default' );
+		update_option( 'page_on_front', $home_id );
 		update_option( 'show_on_front', 'page' );
 	}
+}
+
+/**
+ * Find or create a dedicated Home page that is not a role page.
+ *
+ * @param array $exclude_ids Page IDs to skip.
+ * @return int
+ */
+function studio_get_dedicated_home_page_id( $exclude_ids = array() ) {
+	$exclude_ids = array_merge( $exclude_ids, studio_claimed_page_ids( '' ) );
+	$exclude_ids = array_values( array_unique( array_filter( array_map( 'intval', $exclude_ids ) ) ) );
+
+	$home_id = studio_find_page_by_aliases( array( 'home' ), array( 'Home' ), $exclude_ids );
+	if ( $home_id ) {
+		return $home_id;
+	}
+
+	$home_id = wp_insert_post(
+		array(
+			'post_title'  => __( 'Home', 'studio-portfolio' ),
+			'post_name'   => 'home',
+			'post_status' => 'publish',
+			'post_type'   => 'page',
+		),
+		true
+	);
+
+	return is_wp_error( $home_id ) ? 0 : (int) $home_id;
 }
 
 /**
@@ -413,6 +464,32 @@ function studio_create_default_pages( $force = false ) {
 		}
 
 		$page_id = (int) $page_id;
+		$front_id = (int) get_option( 'page_on_front' );
+		if ( $front_id && $page_id === $front_id ) {
+			$page_id = 0;
+			$page_id = studio_find_page_by_aliases( $data['slugs'], $data['titles'], array_merge( $claimed, array( $front_id ) ) );
+			if ( ! $page_id ) {
+				$page_id = wp_insert_post(
+					array(
+						'post_title'   => $data['title'],
+						'post_name'    => $data['slug'],
+						'post_status'  => 'publish',
+						'post_type'    => 'page',
+						'post_content' => $data['shortcode'],
+					),
+					true
+				);
+				if ( is_wp_error( $page_id ) ) {
+					continue;
+				}
+			}
+		}
+
+		$page_id = (int) $page_id;
+		if ( $front_id && $page_id === $front_id ) {
+			continue;
+		}
+
 		update_post_meta( $page_id, '_wp_page_template', $data['template'] );
 		set_theme_mod( 'studio_' . $mod, $page_id );
 		studio_strip_empty_elementor( $page_id );
@@ -648,6 +725,11 @@ add_action( 'pre_get_posts', 'studio_portfolio_page_query_fix' );
  * @return string
  */
 function studio_force_page_templates( $template ) {
+	if ( is_front_page() ) {
+		$file = STUDIO_PORTFOLIO_DIR . '/front-page.php';
+		return file_exists( $file ) ? $file : $template;
+	}
+
 	if ( is_singular( 'portfolio' ) ) {
 		$file = STUDIO_PORTFOLIO_DIR . '/single-portfolio.php';
 		return file_exists( $file ) ? $file : $template;
