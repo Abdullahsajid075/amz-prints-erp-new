@@ -125,7 +125,7 @@ function studio_portfolio_activation() {
 	studio_register_portfolio_cpt();
 	flush_rewrite_rules();
 
-	$defaults = array( 'Branding', 'UI/UX Design', 'Print Design', 'Packaging', 'Social Media', 'Logo Design' );
+	$defaults = array( 'Branding', 'Logo Design', 'Graphic Design', 'Print Design', 'Packaging', 'UI/UX Design', 'Social Media', 'Corporate Branding', 'Signage' );
 	foreach ( $defaults as $cat ) {
 		if ( ! term_exists( $cat, 'portfolio_category' ) ) {
 			wp_insert_term( $cat, 'portfolio_category' );

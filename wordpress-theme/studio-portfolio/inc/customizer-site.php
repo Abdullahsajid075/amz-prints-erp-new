@@ -151,14 +151,7 @@ function studio_customizer_how_i_work( $wp_customize ) {
 	studio_add_text( $wp_customize, $section, 'hiw_title', __( 'Page Title', 'studio-portfolio' ), 'How I Work' );
 	studio_add_text( $wp_customize, $section, 'hiw_description', __( 'Page Description', 'studio-portfolio' ), 'A transparent look at my creative process — from software to client collaboration.', 'textarea' );
 
-	$blocks = array(
-		'software'    => array( 'Software I Use', '🖥️', 'Adobe Illustrator, Photoshop, Figma, InDesign, After Effects — and AI tools for rapid prototyping.' ),
-		'create'      => array( 'How I Create Design', '✏️', 'I start with research and mood boards, sketch concepts, then refine in digital tools until every detail feels intentional.' ),
-		'innovation'  => array( 'How I Build Innovation', '💡', 'I push beyond templates — combining trends with timeless principles to create designs that feel fresh and ownable.' ),
-		'redesign'    => array( 'How I Redesign Old Design', '🔄', 'I audit what works, preserve brand equity, and modernize typography, color, and layout without losing recognition.' ),
-		'client_mind' => array( "How I Read My Client's Mind", '🧠', 'Deep discovery calls, questionnaires, and iterative feedback loops help me translate vision into visuals before the first draft.' ),
-		'presentation'=> array( 'Design & Presentation Setup', '📊', 'Every deliverable is packaged professionally — mockups, brand guidelines, and presentation decks ready for stakeholders.' ),
-	);
+	$blocks = studio_get_hiw_defaults();
 
 	foreach ( $blocks as $key => $data ) {
 		studio_add_text( $wp_customize, $section, "hiw_{$key}_title", sprintf( __( '%s — Title', 'studio-portfolio' ), $data[0] ), $data[0] );

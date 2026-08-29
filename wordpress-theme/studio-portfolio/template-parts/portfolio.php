@@ -36,7 +36,7 @@ $all_categories = get_terms(
 
 <section id="<?php echo $is_portfolio_page ? 'portfolio-page' : 'work'; ?>" class="section portfolio-section <?php echo $is_portfolio_page ? 'portfolio-section-page premium-portfolio-page' : 'portfolio-section-home'; ?>">
 	<div class="container">
-		<div class="section-header fade-in <?php echo $is_portfolio_page ? 'center' : ''; ?>">
+		<div class="section-header <?php echo $is_portfolio_page ? 'center' : ''; ?>">
 			<p class="section-label"><?php echo esc_html( studio_template_arg( $args, 'work_label', $label_key, $default_label ) ); ?></p>
 			<h2 class="display-md"><?php echo esc_html( studio_template_arg( $args, 'work_title', $title_key, $default_title ) ); ?></h2>
 			<?php
@@ -56,7 +56,7 @@ $all_categories = get_terms(
 		</div>
 
 		<?php if ( $is_portfolio_page && ! is_wp_error( $all_categories ) && ! empty( $all_categories ) ) : ?>
-			<div class="portfolio-category-tabs premium-tabs fade-in" role="tablist" aria-label="<?php esc_attr_e( 'Portfolio categories', 'studio-portfolio' ); ?>">
+			<div class="portfolio-category-tabs premium-tabs" role="tablist" aria-label="<?php esc_attr_e( 'Portfolio categories', 'studio-portfolio' ); ?>">
 				<button type="button" class="portfolio-tab-btn is-active" data-filter="all" role="tab" aria-selected="true">
 					<?php esc_html_e( 'All', 'studio-portfolio' ); ?>
 				</button>
@@ -70,6 +70,37 @@ $all_categories = get_terms(
 	</div>
 
 	<?php if ( $portfolio->have_posts() ) : ?>
+		<?php if ( $is_portfolio_page ) : ?>
+			<div class="container">
+				<div class="portfolio-grid-work">
+					<?php
+					$index = 1;
+					while ( $portfolio->have_posts() ) :
+						$portfolio->the_post();
+						$number = get_post_meta( get_the_ID(), '_portfolio_number', true );
+						if ( ! $number ) {
+							$number = str_pad( (string) $index, 2, '0', STR_PAD_LEFT );
+						}
+						get_template_part(
+							'template-parts/portfolio-card',
+							null,
+							array(
+								'card' => array(
+									'post_id' => get_the_ID(),
+									'number'  => $number,
+									'large'   => true,
+									'premium' => true,
+									'context' => 'default',
+								),
+							)
+						);
+						$index++;
+					endwhile;
+					wp_reset_postdata();
+					?>
+				</div>
+			</div>
+		<?php else : ?>
 		<div class="portfolio-scroll-wrapper portfolio-scroll-premium">
 			<div class="portfolio-scroll-container" aria-label="<?php esc_attr_e( 'Portfolio gallery', 'studio-portfolio' ); ?>">
 				<div class="portfolio-scroll-track">
@@ -90,7 +121,7 @@ $all_categories = get_terms(
 									'number'  => $number,
 									'large'   => true,
 									'premium' => true,
-									'context' => $is_home ? 'home' : 'default',
+									'context' => 'home',
 								),
 							)
 						);
@@ -101,17 +132,13 @@ $all_categories = get_terms(
 				</div>
 			</div>
 		</div>
-
-		<div class="portfolio-scroll-hint">
-			<span class="hint-icon">→</span>
-			<span><?php echo esc_html( studio_template_arg( $args, 'work_hint', $hint_key, __( 'Hover to auto-scroll · Drag to explore', 'studio-portfolio' ) ) ); ?></span>
-		</div>
+		<?php endif; ?>
 	<?php else : ?>
 		<div class="container">
 			<div class="portfolio-empty glass">
 				<p><?php esc_html_e( 'No portfolio items yet.', 'studio-portfolio' ); ?></p>
 				<?php if ( $is_home ) : ?>
-					<p class="text-muted"><?php esc_html_e( 'Mark projects as "Show on Homepage" in Portfolio → Edit.', 'studio-portfolio' ); ?></p>
+					<p class="text-muted"><?php esc_html_e( 'Add items under Portfolio → Add New. They appear here automatically.', 'studio-portfolio' ); ?></p>
 				<?php endif; ?>
 				<?php if ( current_user_can( 'edit_posts' ) ) : ?>
 					<p><a href="<?php echo esc_url( admin_url( 'post-new.php?post_type=portfolio' ) ); ?>"><?php esc_html_e( 'Add portfolio item →', 'studio-portfolio' ); ?></a></p>

@@ -16,11 +16,20 @@ $about_close  = studio_template_arg( $args, 'about_text2', 'about_text2', '' );
 $page_label   = studio_template_arg( $args, 'about_label', 'about_page_label', studio_get_option( 'about_label', 'About Me' ) );
 $page_title   = studio_template_arg( $args, 'about_title', 'about_page_title', studio_get_option( 'about_title', 'Everything about me' ) );
 $photo_id     = (int) studio_get_option( 'about_page_photo', 0 );
+if ( ! $photo_id && get_the_ID() ) {
+	$photo_id = (int) get_post_thumbnail_id( get_the_ID() );
+}
+if ( ! $photo_id ) {
+	$about_page = studio_resolve_page_id( 'about_page_id' );
+	if ( $about_page ) {
+		$photo_id = (int) get_post_thumbnail_id( $about_page );
+	}
+}
 ?>
 
 <section id="about" class="section about-section premium-section">
 	<div class="container">
-		<div class="about-page-hero fade-in">
+		<div class="about-page-hero">
 			<?php if ( $photo_id ) : ?>
 				<div class="about-page-photo-wrap premium-card-glow">
 					<?php echo wp_get_attachment_image( $photo_id, 'large', false, array( 'class' => 'about-page-photo' ) ); ?>

@@ -67,7 +67,7 @@ function studio_portfolio_home_display_callback( $post ) {
 				<th><?php esc_html_e( 'Show on Homepage', 'studio-portfolio' ); ?></th>
 				<td>
 					<label>
-						<input type="checkbox" name="portfolio_featured_home" value="1" <?php checked( $featured_home, '1' ); ?> />
+		<input type="checkbox" name="portfolio_featured_home" value="1" <?php checked( $featured_home !== '0' ); ?> />
 						<strong><?php esc_html_e( 'Feature on homepage gallery', 'studio-portfolio' ); ?></strong>
 					</label>
 				</td>

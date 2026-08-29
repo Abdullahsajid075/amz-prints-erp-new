@@ -199,5 +199,18 @@
     fadeElements.forEach(function (el) {
       observer.observe(el);
     });
+  } else {
+    fadeElements.forEach(function (el) {
+      el.classList.add('visible');
+    });
   }
+
+  document.querySelectorAll('.mobile-accordion-toggle').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var wrap = btn.closest('.mobile-accordion');
+      if (!wrap) return;
+      var open = wrap.classList.toggle('open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  });
 })();

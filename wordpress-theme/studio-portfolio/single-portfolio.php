@@ -90,7 +90,7 @@ while ( have_posts() ) :
 		</article>
 
 		<p style="margin-top:3rem;">
-			<a href="<?php echo esc_url( home_url( '/#work' ) ); ?>" class="btn btn-outline">← <?php esc_html_e( 'Back to Portfolio', 'studio-portfolio' ); ?></a>
+			<a href="<?php echo esc_url( studio_get_page_url( 'portfolio_page_id', home_url( '/portfolio/' ) ) ); ?>" class="btn btn-outline">← <?php esc_html_e( 'Back to Portfolio', 'studio-portfolio' ); ?></a>
 		</p>
 	</div>
 </main>

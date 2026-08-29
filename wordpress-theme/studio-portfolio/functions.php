@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'STUDIO_PORTFOLIO_VERSION', '2.3.0' );
+define( 'STUDIO_PORTFOLIO_VERSION', '2.4.0' );
 define( 'STUDIO_PORTFOLIO_DIR', get_template_directory() );
 define( 'STUDIO_PORTFOLIO_URI', get_template_directory_uri() );
 
@@ -23,6 +23,7 @@ require_once STUDIO_PORTFOLIO_DIR . '/inc/contact-form.php';
 require_once STUDIO_PORTFOLIO_DIR . '/inc/shortcodes.php';
 require_once STUDIO_PORTFOLIO_DIR . '/inc/elementor.php';
 require_once STUDIO_PORTFOLIO_DIR . '/inc/page-setup.php';
+require_once STUDIO_PORTFOLIO_DIR . '/inc/portfolio-hub.php';
 require_once STUDIO_PORTFOLIO_DIR . '/inc/admin-customize-link.php';
 require_once STUDIO_PORTFOLIO_DIR . '/inc/dummy-content.php';
 

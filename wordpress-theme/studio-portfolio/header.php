@@ -39,21 +39,21 @@
 
 <nav class="mobile-nav" aria-label="<?php esc_attr_e( 'Mobile', 'studio-portfolio' ); ?>">
 	<div class="container">
-		<?php if ( has_nav_menu( 'primary' ) ) : ?>
-			<?php
-			wp_nav_menu( array(
-				'theme_location' => 'primary',
-				'container'      => false,
-				'menu_class'     => 'mobile-menu-list',
-				'depth'          => 1,
-			) );
-			?>
-		<?php else : ?>
-			<a href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php echo esc_html( studio_get_option( 'nav_home', 'Home' ) ); ?></a>
-			<a href="<?php echo esc_url( studio_get_page_url( 'portfolio_page_id', studio_get_page_url( 'work_page_id', '#portfolio' ) ) ); ?>"><?php echo esc_html( studio_get_option( 'nav_portfolio', 'Portfolio' ) ); ?></a>
-			<a href="<?php echo esc_url( studio_get_page_url( 'about_page_id', '#about' ) ); ?>"><?php echo esc_html( studio_get_option( 'nav_about', 'About' ) ); ?></a>
-			<a href="<?php echo esc_url( studio_get_page_url( 'how_i_work_page_id', '#how-i-work' ) ); ?>"><?php echo esc_html( studio_get_option( 'nav_how_i_work', 'How I Work' ) ); ?></a>
-		<?php endif; ?>
+		<a href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php echo esc_html( studio_get_option( 'nav_home', 'Home' ) ); ?></a>
+		<div class="mobile-accordion">
+			<button type="button" class="mobile-accordion-toggle" aria-expanded="false">
+				<?php echo esc_html( studio_get_option( 'nav_portfolio', 'Portfolio' ) ); ?>
+				<span>▾</span>
+			</button>
+			<div class="mobile-accordion-panel">
+				<a href="<?php echo esc_url( studio_get_page_url( 'portfolio_page_id', home_url( '/portfolio/' ) ) ); ?>"><?php esc_html_e( 'All Projects', 'studio-portfolio' ); ?></a>
+				<?php foreach ( studio_get_portfolio_hub_pages() as $hub ) : ?>
+					<a href="<?php echo esc_url( $hub['url'] ); ?>"><?php echo esc_html( $hub['icon'] . ' ' . $hub['title'] ); ?></a>
+				<?php endforeach; ?>
+			</div>
+		</div>
+		<a href="<?php echo esc_url( studio_get_page_url( 'about_page_id', home_url( '/about-me/' ) ) ); ?>"><?php echo esc_html( studio_get_option( 'nav_about', 'About' ) ); ?></a>
+		<a href="<?php echo esc_url( studio_get_page_url( 'how_i_work_page_id', home_url( '/how-i-work/' ) ) ); ?>"><?php echo esc_html( studio_get_option( 'nav_how_i_work', 'How I Work' ) ); ?></a>
 		<a href="<?php echo esc_url( studio_get_page_url( 'schedule_page_id', '#' ) ); ?>" class="btn btn-gold btn-schedule" style="margin-top:2rem;display:inline-flex;">
 			<?php echo esc_html( studio_get_option( 'nav_schedule', 'Schedule Meeting' ) ); ?>
 		</a>

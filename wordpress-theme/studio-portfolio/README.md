@@ -1,73 +1,58 @@
-# Studio Portfolio v2.2 — Full Site + Demo Content
+# Studio Portfolio v2.4
 
-Professional multi-page portfolio theme — fully customizable via **Studio Portfolio → Customize Theme** or **Appearance → Customize**.
+Multi-page design portfolio theme. Edit everything in **WordPress admin** (pages, Portfolio items, Customizer).
 
 ## Pages
 
 | Page | What it shows |
 |------|---------------|
-| **Home** | Hero + Marquee + About preview (text only) + Services + Featured portfolio + CTA |
-| **Portfolio** | Category tabs → filtered gallery, hover auto-scroll, PDF thumbnails |
-| **About Me** | Experience, Education, Goals, Awards, Services |
-| **How I Work** | Software, Design process, Innovation, Redesign, Client mind-reading, Presentation |
-| **Schedule Meeting** | Booking form → sends to WhatsApp **+923471136415** |
+| **Home** | Hero, marquee, About (photo + text), services, portfolio, CTA |
+| **Portfolio** | All projects you add in admin — plus mega menu with 5 category pages |
+| **Brand Identity / Graphic Design / Print & Packaging / Digital & Social / Corporate & Signage** | Editable intro + photo + automatic project grid |
+| **About Me** | Photo, story, services, awards |
+| **How I Work** | 6 process cards |
+| **Schedule Meeting** | WhatsApp booking form |
 
-Pages auto-create on theme activation. Assign under **Customizer → Pages Setup**.
+## Mega menu (Portfolio)
 
----
+Hover **Portfolio** in the header. Five sub-pages with picture + dummy text. Edit each page in **Pages**:
 
-## Quick Setup
+- Title, featured image, and content
+- Projects appear automatically when you add them under **Portfolio → Add New** and assign the matching category
 
-1. Upload & activate theme (demo content loads automatically)
-2. **Settings → Permalinks → Save** (required once)
-3. **Settings → Reading** → Static page → Homepage = **Home**
-4. **Studio Portfolio → Customize Theme** — edit all text, images, colors
-5. Or **Studio Portfolio → Load Demo Content** — reload sample text/images/portfolio
+## Add a project (shows on site automatically)
 
----
+1. **Portfolio → Add New**
+2. Title + description
+3. Featured Image
+4. Category (right sidebar)
+5. Publish
 
-## Home Page Sections
+It shows on:
+- Home gallery
+- `/portfolio/`
+- Matching mega-menu category page
+- Its own URL: `/project/your-title/`
 
-| Section | Customize location |
-|---------|-------------------|
-| Hero photo & text | Customizer → Hero |
-| **Marquee banner** | Customizer → Marquee Banner + Home Page → Show Marquee |
-| Stats strip | Removed from homepage |
-| **About photo (separate from hero)** | Removed from home — text-only About preview |
-| Services | Customizer → Services |
-| Featured portfolio | Portfolio admin + Customizer → Home Page |
-| CTA band | Customizer → Home Page → CTA Band |
+## Edit content (no code)
 
----
+| What | Where |
+|------|--------|
+| Home / About photos & text | **Appearance → Customize → Studio Portfolio** or **Studio Portfolio → Customize Theme** |
+| About photo also | **Pages → About Me → Featured Image** |
+| Home About photo also | **Pages → Home → Featured Image** |
+| Mega menu pages | **Pages → Brand Identity** (etc.) |
+| How I Work / Services | Customizer sections |
+| Footer | Customizer → Footer |
 
-## Portfolio
+If you send new copy later, it can be updated in the theme defaults — you can still override it in Customizer/Pages.
 
-- **Portfolio → Edit** → check **Show on Homepage** for home preview
-- Upload **Featured Image** + **PDF Preview Thumbnail** for PDF projects
-- Assign **Categories** (Branding, UI/UX, etc.)
+## Setup after upload
 
----
-
-## Schedule Meeting
-
-Menu button **Schedule Meeting** → form → opens WhatsApp with details pre-filled.
-
-Customize WhatsApp number under **Customizer → Schedule Meeting**.
-
----
-
-## Troubleshooting
-
-1. **Marquee not showing?** → Customizer → Home Page → enable **Show Marquee Banner on Home**. Also check **Marquee Banner** section has items.
-2. **Pages 404?** → Settings → Permalinks → Save
-3. **Empty site?** → Studio Portfolio → Load Demo Content
-4. **Home shows only Elementor content?** → Remove Elementor layout from Home page to use theme sections
-
-Page URLs: `/` · `/portfolio/` · `/about-me/` · `/how-i-work/` · `/schedule-meeting/`
-
-Projects: `/project/your-project-name/`
-
----
+1. Activate theme
+2. **Settings → Permalinks → Save**
+3. **Settings → Reading** → Homepage = **Home**
+4. **Studio Portfolio → Load Demo Content** (optional)
 
 ## Download
 

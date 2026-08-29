@@ -1,26 +1,15 @@
 <?php
 /**
- * Front page — Hero, Marquee, About, Services, Portfolio
+ * Front page — always uses theme sections (edit in Customizer / Studio Portfolio menu).
  *
  * @package Studio_Portfolio
  */
 
 get_header();
+?>
 
-$front_id = (int) get_option( 'page_on_front' );
-
-if ( $front_id && studio_is_elementor_page( $front_id ) ) {
-	?>
-	<main class="studio-elementor-content">
-		<?php
-		while ( have_posts() ) :
-			the_post();
-			the_content();
-		endwhile;
-		?>
-	</main>
+<main class="studio-home">
 	<?php
-} else {
 	get_template_part( 'template-parts/hero' );
 
 	if ( studio_get_option( 'show_marquee_home', true ) ) {
@@ -44,6 +33,8 @@ if ( $front_id && studio_is_elementor_page( $front_id ) ) {
 	);
 
 	get_template_part( 'template-parts/home-cta' );
-}
+	?>
+</main>
 
+<?php
 get_footer();

@@ -220,6 +220,9 @@ function studio_create_default_pages( $force = false ) {
 	}
 
 	studio_ensure_home_page();
+	if ( function_exists( 'studio_create_portfolio_hub_pages' ) ) {
+		studio_create_portfolio_hub_pages();
+	}
 }
 
 /**
@@ -280,26 +283,24 @@ add_action( 'admin_notices', 'studio_missing_pages_admin_notice' );
  * @return array
  */
 function studio_get_portfolio_query_args( $args = array() ) {
+	$mode = studio_template_arg( $args, 'mode', '', 'home' );
+
 	$query_args = array(
 		'post_type'      => 'portfolio',
-		'posts_per_page' => (int) studio_template_arg( $args, 'posts_per_page', 'home_portfolio_count', 6 ),
+		'post_status'    => 'publish',
+		'posts_per_page' => (int) studio_template_arg( $args, 'posts_per_page', 'home_portfolio_count', 8 ),
 		'orderby'        => studio_template_arg( $args, 'orderby', '', 'menu_order' ),
 		'order'          => studio_template_arg( $args, 'order', '', 'ASC' ),
 	);
 
-	$mode = studio_template_arg( $args, 'mode', '', 'home' );
-	if ( 'home' === $mode || ! empty( $args['featured_only'] ) ) {
-		$query_args['meta_query'] = array(
-			array(
-				'key'   => '_portfolio_featured_home',
-				'value' => '1',
-			),
-		);
+	// Homepage + full portfolio page both show published items.
+	// Featured flag is optional — never hide new admin items.
+	if ( 'home' !== $mode ) {
+		$query_args['posts_per_page'] = -1;
 	}
 
 	if ( 'portfolio' === $mode || 'work' === $mode ) {
 		$query_args['posts_per_page'] = -1;
-		unset( $query_args['meta_query'] );
 	}
 
 	$category = studio_template_arg( $args, 'category', '', '' );
@@ -317,25 +318,38 @@ function studio_get_portfolio_query_args( $args = array() ) {
 }
 
 /**
+ * Default How I Work blocks.
+ *
+ * @return array
+ */
+function studio_get_hiw_defaults() {
+	return array(
+		'software'     => array( 'Software I Use', '🖥️', 'Adobe Illustrator, Photoshop, Figma, InDesign, After Effects — and AI tools for rapid prototyping.' ),
+		'create'       => array( 'How I Create Design', '✏️', 'I start with research and mood boards, sketch concepts, then refine in digital tools until every detail feels intentional.' ),
+		'innovation'   => array( 'How I Build Innovation', '💡', 'I push beyond templates — combining trends with timeless principles to create designs that feel fresh and ownable.' ),
+		'redesign'     => array( 'How I Redesign Old Design', '🔄', 'I audit what works, preserve brand equity, and modernize typography, color, and layout without losing recognition.' ),
+		'client_mind'  => array( "How I Read My Client's Mind", '🧠', 'Deep discovery calls, questionnaires, and iterative feedback loops help me translate vision into visuals before the first draft.' ),
+		'presentation' => array( 'Design & Presentation Setup', '📊', 'Every deliverable is packaged professionally — mockups, brand guidelines, and presentation decks ready for stakeholders.' ),
+	);
+}
+
+/**
  * Get How I Work process blocks.
  *
  * @return array
  */
 function studio_get_how_i_work_blocks() {
-	$keys   = array( 'software', 'create', 'innovation', 'redesign', 'client_mind', 'presentation' );
-	$blocks = array();
+	$defaults = studio_get_hiw_defaults();
+	$blocks   = array();
 
-	foreach ( $keys as $key ) {
-		$content = studio_get_option( "hiw_{$key}_content", '' );
-		if ( ! $content ) {
-			continue;
-		}
+	foreach ( $defaults as $key => $data ) {
 		$blocks[] = array(
-			'icon'    => studio_get_option( "hiw_{$key}_icon", '📝' ),
-			'title'   => studio_get_option( "hiw_{$key}_title", '' ),
-			'content' => $content,
+			'icon'    => studio_get_option( "hiw_{$key}_icon", $data[1] ),
+			'title'   => studio_get_option( "hiw_{$key}_title", $data[0] ),
+			'content' => studio_get_option( "hiw_{$key}_content", $data[2] ),
 		);
 	}
+
 	return $blocks;
 }
 
@@ -386,3 +400,81 @@ function studio_portfolio_page_query_fix( $query ) {
 	}
 }
 add_action( 'pre_get_posts', 'studio_portfolio_page_query_fix' );
+
+/**
+ * Always load the correct page template even if WP template meta is missing.
+ *
+ * @param string $template Template path.
+ * @return string
+ */
+function studio_force_page_templates( $template ) {
+	if ( is_singular( 'portfolio' ) ) {
+		$file = STUDIO_PORTFOLIO_DIR . '/single-portfolio.php';
+		return file_exists( $file ) ? $file : $template;
+	}
+
+	if ( ! is_page() ) {
+		return $template;
+	}
+
+	$page_id = get_queried_object_id();
+	if ( ! $page_id ) {
+		return $template;
+	}
+
+	if ( get_post_meta( $page_id, '_studio_hub_page', true ) ) {
+		$file = STUDIO_PORTFOLIO_DIR . '/page-templates/page-portfolio-category.php';
+		return file_exists( $file ) ? $file : $template;
+	}
+
+	foreach ( studio_get_page_template_map() as $key => $relative ) {
+		if ( (int) studio_resolve_page_id( $key ) === (int) $page_id ) {
+			$file = STUDIO_PORTFOLIO_DIR . '/' . $relative;
+			if ( file_exists( $file ) ) {
+				return $file;
+			}
+		}
+	}
+
+	$slug = get_post_field( 'post_name', $page_id );
+	$by_slug = array(
+		'portfolio'         => 'page-templates/page-portfolio.php',
+		'about-me'          => 'page-templates/page-about.php',
+		'how-i-work'        => 'page-templates/page-how-i-work.php',
+		'schedule-meeting'  => 'page-templates/page-schedule-meeting.php',
+	);
+	if ( isset( $by_slug[ $slug ] ) ) {
+		$file = STUDIO_PORTFOLIO_DIR . '/' . $by_slug[ $slug ];
+		if ( file_exists( $file ) ) {
+			return $file;
+		}
+	}
+
+	return $template;
+}
+add_filter( 'template_include', 'studio_force_page_templates', 99 );
+
+/**
+ * Sync About / Home featured images into Customizer photo settings.
+ *
+ * @param int $post_id Post ID.
+ */
+function studio_sync_page_photos( $post_id ) {
+	if ( wp_is_post_revision( $post_id ) || 'page' !== get_post_type( $post_id ) ) {
+		return;
+	}
+
+	$thumb = get_post_thumbnail_id( $post_id );
+	if ( ! $thumb ) {
+		return;
+	}
+
+	if ( (int) get_option( 'page_on_front' ) === (int) $post_id ) {
+		set_theme_mod( 'studio_home_about_photo', (int) $thumb );
+	}
+
+	if ( (int) studio_resolve_page_id( 'about_page_id' ) === (int) $post_id ) {
+		set_theme_mod( 'studio_about_page_photo', (int) $thumb );
+	}
+}
+add_action( 'save_post_page', 'studio_sync_page_photos' );

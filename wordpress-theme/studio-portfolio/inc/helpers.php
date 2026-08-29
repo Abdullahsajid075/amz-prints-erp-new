@@ -17,7 +17,11 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return mixed
  */
 function studio_get_option( $key, $default = '' ) {
-	return get_theme_mod( 'studio_' . $key, $default );
+	$value = get_theme_mod( 'studio_' . $key, null );
+	if ( null === $value || ( is_string( $value ) && '' === trim( $value ) ) ) {
+		return $default;
+	}
+	return $value;
 }
 
 /**
@@ -148,27 +152,27 @@ function studio_get_about_story_blocks( $args = array() ) {
 		array(
 			'icon'    => '💼',
 			'title'   => studio_get_option( 'about_experience_title', __( 'Experience', 'studio-portfolio' ) ),
-			'content' => studio_get_option( 'about_experience', '' ),
+			'content' => studio_get_option( 'about_experience', "Senior Brand Designer — Creative Studio (2022–Present)\nLead designer for 20+ brand identity projects.\n\nFreelance Designer — Self employed (2019–2022)\nWorked with startups across tech, food, and fashion." ),
 		),
 		array(
 			'icon'    => '🎓',
 			'title'   => studio_get_option( 'about_education_title', __( 'Education', 'studio-portfolio' ) ),
-			'content' => studio_get_option( 'about_education', '' ),
+			'content' => studio_get_option( 'about_education', "Bachelor of Fine Arts — National College of Arts\nGraphic Design Specialization — 2019\n\nUI/UX Certificate — Google Coursera" ),
 		),
 		array(
 			'icon'    => '🏢',
 			'title'   => studio_get_option( 'about_companies_title', __( 'Companies & Brands', 'studio-portfolio' ) ),
-			'content' => studio_get_option( 'about_companies', '' ),
+			'content' => studio_get_option( 'about_companies', 'Worked with brands including: TechFlow, GreenLeaf Organics, Urban Coffee Co., StyleHub Fashion, and 30+ startups.' ),
 		),
 		array(
 			'icon'    => '🎯',
 			'title'   => studio_get_option( 'about_goal_title', __( 'My Goal', 'studio-portfolio' ) ),
-			'content' => studio_get_option( 'about_goal', '' ),
+			'content' => studio_get_option( 'about_goal', 'My goal is to build a world-class design studio that helps Pakistani brands compete globally with premium visual identity and digital experiences.' ),
 		),
 		array(
 			'icon'    => '💪',
 			'title'   => studio_get_option( 'about_struggles_title', __( 'My Journey & Struggles', 'studio-portfolio' ) ),
-			'content' => studio_get_option( 'about_struggles', '' ),
+			'content' => studio_get_option( 'about_struggles', 'Starting without connections was hard. I learned to build my portfolio piece by piece, take feedback gracefully, and never stop learning new tools and trends.' ),
 		),
 	);
 }
@@ -208,40 +212,45 @@ function studio_get_about_stats( $args = array() ) {
  * Render primary navigation.
  */
 function studio_render_nav( $class = 'main-nav' ) {
-	if ( has_nav_menu( 'primary' ) ) {
-		wp_nav_menu( array(
-			'theme_location' => 'primary',
-			'container'      => false,
-			'menu_class'     => $class,
-			'depth'          => 1,
-			'fallback_cb'    => false,
-		) );
-		return;
-	}
-
-	$links = array(
-		array(
-			'label' => studio_get_option( 'nav_home', __( 'Home', 'studio-portfolio' ) ),
-			'url'   => home_url( '/' ),
-		),
-		array(
-			'label' => studio_get_option( 'nav_portfolio', __( 'Portfolio', 'studio-portfolio' ) ),
-			'url'   => studio_get_page_url( 'portfolio_page_id', studio_get_page_url( 'work_page_id', '#portfolio' ) ),
-		),
-		array(
-			'label' => studio_get_option( 'nav_about', __( 'About', 'studio-portfolio' ) ),
-			'url'   => studio_get_page_url( 'about_page_id', '#about' ),
-		),
-		array(
-			'label' => studio_get_option( 'nav_how_i_work', __( 'How I Work', 'studio-portfolio' ) ),
-			'url'   => studio_get_page_url( 'how_i_work_page_id', '#how-i-work' ),
-		),
-	);
+	$portfolio_url = studio_get_page_url( 'portfolio_page_id', studio_get_page_url( 'work_page_id', home_url( '/portfolio/' ) ) );
+	$hub_pages     = function_exists( 'studio_get_portfolio_hub_pages' ) ? studio_get_portfolio_hub_pages() : array();
 	?>
 	<nav class="<?php echo esc_attr( $class ); ?>" aria-label="<?php esc_attr_e( 'Primary', 'studio-portfolio' ); ?>">
-		<?php foreach ( $links as $link ) : ?>
-			<a href="<?php echo esc_url( $link['url'] ); ?>"><?php echo esc_html( $link['label'] ); ?></a>
-		<?php endforeach; ?>
+		<a href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php echo esc_html( studio_get_option( 'nav_home', __( 'Home', 'studio-portfolio' ) ) ); ?></a>
+
+		<div class="nav-item has-mega">
+			<a href="<?php echo esc_url( $portfolio_url ); ?>" class="nav-parent" aria-haspopup="true">
+				<?php echo esc_html( studio_get_option( 'nav_portfolio', __( 'Portfolio', 'studio-portfolio' ) ) ); ?>
+				<span class="nav-caret" aria-hidden="true">▾</span>
+			</a>
+			<?php if ( ! empty( $hub_pages ) ) : ?>
+				<div class="mega-menu" role="menu">
+					<div class="mega-menu-inner">
+						<?php foreach ( $hub_pages as $hub ) : ?>
+							<a class="mega-card" href="<?php echo esc_url( $hub['url'] ); ?>" role="menuitem">
+								<?php if ( ! empty( $hub['image'] ) ) : ?>
+									<span class="mega-card-media">
+										<img src="<?php echo esc_url( $hub['image'] ); ?>" alt="<?php echo esc_attr( $hub['title'] ); ?>" />
+									</span>
+								<?php else : ?>
+									<span class="mega-card-icon"><?php echo esc_html( $hub['icon'] ); ?></span>
+								<?php endif; ?>
+								<span class="mega-card-body">
+									<strong><?php echo esc_html( $hub['title'] ); ?></strong>
+									<span><?php echo esc_html( $hub['excerpt'] ); ?></span>
+								</span>
+							</a>
+						<?php endforeach; ?>
+					</div>
+					<p class="mega-menu-foot">
+						<a href="<?php echo esc_url( $portfolio_url ); ?>"><?php esc_html_e( 'View all projects →', 'studio-portfolio' ); ?></a>
+					</p>
+				</div>
+			<?php endif; ?>
+		</div>
+
+		<a href="<?php echo esc_url( studio_get_page_url( 'about_page_id', home_url( '/about-me/' ) ) ); ?>"><?php echo esc_html( studio_get_option( 'nav_about', __( 'About', 'studio-portfolio' ) ) ); ?></a>
+		<a href="<?php echo esc_url( studio_get_page_url( 'how_i_work_page_id', home_url( '/how-i-work/' ) ) ); ?>"><?php echo esc_html( studio_get_option( 'nav_how_i_work', __( 'How I Work', 'studio-portfolio' ) ) ); ?></a>
 	</nav>
 	<?php
 }

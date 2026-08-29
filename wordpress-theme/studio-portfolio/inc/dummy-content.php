@@ -242,6 +242,9 @@ function studio_seed_dummy_content( $force = false ) {
 
 	studio_seed_portfolio_items( $force );
 	studio_create_default_pages( true );
+	if ( function_exists( 'studio_create_portfolio_hub_pages' ) ) {
+		studio_create_portfolio_hub_pages();
+	}
 	studio_seed_page_urls( $force );
 
 	update_option( 'studio_dummy_seeded', STUDIO_PORTFOLIO_VERSION );
