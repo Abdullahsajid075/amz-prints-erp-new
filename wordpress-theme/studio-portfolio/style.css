@@ -4,7 +4,7 @@ Theme URI: https://github.com/Abdullahsajid075/amz-prints-erp-new
 Author: Studio
 Author URI: https://studio.design
 Description: Light minimalist personal brand portfolio — serif typography, open hero PNG, animated background graphics, green accents.
-Version: 2.2.0
+Version: 2.2.1
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
@@ -562,9 +562,7 @@ a {
 
 /* ── Marquee ── */
 .marquee-section {
-  padding: 1.5rem 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 1.75rem 0;
   background: var(--color-black-elevated);
   overflow: hidden;
 }

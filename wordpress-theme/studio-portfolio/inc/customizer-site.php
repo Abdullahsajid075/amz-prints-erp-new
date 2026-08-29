@@ -40,18 +40,6 @@ function studio_customizer_home_page( $wp_customize ) {
 	studio_add_text( $wp_customize, $section, 'home_about_text', __( 'About Preview — Text', 'studio-portfolio' ), 'I help businesses stand out with thoughtful design — from brand identity to digital experiences.', 'textarea' );
 	studio_add_text( $wp_customize, $section, 'home_about_btn', __( 'About Preview — Button Text', 'studio-portfolio' ), 'Read My Full Story →' );
 
-	$wp_customize->add_setting( 'studio_home_about_photo', array(
-		'default'           => '',
-		'sanitize_callback' => 'absint',
-		'transport'         => 'refresh',
-	) );
-	$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'studio_home_about_photo', array(
-		'label'       => __( 'About Section Photo (Home Page)', 'studio-portfolio' ),
-		'description' => __( 'Separate from Hero photo — shown in the About preview on homepage.', 'studio-portfolio' ),
-		'section'     => $section,
-		'mime_type'   => 'image',
-	) ) );
-
 	studio_add_checkbox( $wp_customize, $section, 'show_marquee_home', __( 'Show Marquee Banner on Home', 'studio-portfolio' ), true );
 
 	studio_add_text( $wp_customize, $section, 'home_services_label', __( 'Services — Label', 'studio-portfolio' ), 'What I Offer' );

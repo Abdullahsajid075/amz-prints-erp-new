@@ -27,7 +27,6 @@ if ( $front_id && studio_is_elementor_page( $front_id ) ) {
 		get_template_part( 'template-parts/marquee' );
 	}
 
-	get_template_part( 'template-parts/home-stats' );
 	get_template_part( 'template-parts/home-about-preview' );
 	get_template_part( 'template-parts/home-services' );
 	get_template_part(

@@ -212,21 +212,13 @@ function studio_seed_dummy_content( $force = false ) {
 		studio_seed_mod( $key, $value, $force );
 	}
 
-	// Photos — hero & home about (separate images)
-	$hero_url  = 'https://picsum.photos/seed/designer-hero-v2/900/1100';
-	$about_url = 'https://picsum.photos/seed/designer-about-v2/700/900';
+	// Hero photo
+	$hero_url = 'https://picsum.photos/seed/designer-hero-v2/900/1100';
 
 	if ( $force || ! studio_get_option( 'hero_personal_photo', 0 ) ) {
 		$hero_id = studio_sideload_image( $hero_url );
 		if ( $hero_id ) {
 			set_theme_mod( 'studio_hero_personal_photo', $hero_id );
-		}
-	}
-
-	if ( $force || ! studio_get_option( 'home_about_photo', 0 ) ) {
-		$about_id = studio_sideload_image( $about_url );
-		if ( $about_id ) {
-			set_theme_mod( 'studio_home_about_photo', $about_id );
 		}
 	}
 

@@ -6,7 +6,7 @@ Professional multi-page portfolio theme — fully customizable via **Studio Port
 
 | Page | What it shows |
 |------|---------------|
-| **Home** | Hero + Marquee + Stats + About preview (separate photo) + Services + Featured portfolio + CTA |
+| **Home** | Hero + Marquee + About preview (text only) + Services + Featured portfolio + CTA |
 | **Portfolio** | Category tabs → filtered gallery, hover auto-scroll, PDF thumbnails |
 | **About Me** | Experience, Education, Goals, Awards, Services |
 | **How I Work** | Software, Design process, Innovation, Redesign, Client mind-reading, Presentation |
