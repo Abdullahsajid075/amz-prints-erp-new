@@ -40,10 +40,30 @@ function studio_customizer_home_page( $wp_customize ) {
 	studio_add_text( $wp_customize, $section, 'home_about_text', __( 'About Preview — Text', 'studio-portfolio' ), 'I help businesses stand out with thoughtful design — from brand identity to digital experiences.', 'textarea' );
 	studio_add_text( $wp_customize, $section, 'home_about_btn', __( 'About Preview — Button Text', 'studio-portfolio' ), 'Read My Full Story →' );
 
+	$wp_customize->add_setting( 'studio_home_about_photo', array(
+		'default'           => '',
+		'sanitize_callback' => 'absint',
+		'transport'         => 'refresh',
+	) );
+	$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'studio_home_about_photo', array(
+		'label'       => __( 'About Section Photo (Home Page)', 'studio-portfolio' ),
+		'description' => __( 'Optional photo shown beside the About preview on homepage.', 'studio-portfolio' ),
+		'section'     => $section,
+		'mime_type'   => 'image',
+	) ) );
+
 	studio_add_checkbox( $wp_customize, $section, 'show_marquee_home', __( 'Show Marquee Banner on Home', 'studio-portfolio' ), true );
 
 	studio_add_text( $wp_customize, $section, 'home_services_label', __( 'Services — Label', 'studio-portfolio' ), 'What I Offer' );
 	studio_add_text( $wp_customize, $section, 'home_services_title', __( 'Services — Title', 'studio-portfolio' ), 'Premium design services' );
+
+	$home_defaults = studio_get_default_home_services();
+	for ( $i = 1; $i <= 8; $i++ ) {
+		$default = $home_defaults[ $i - 1 ] ?? array( 'icon' => '✨', 'title' => '', 'desc' => '' );
+		studio_add_text( $wp_customize, $section, "home_service_{$i}_icon", sprintf( __( 'Home Service %d — Icon', 'studio-portfolio' ), $i ), $default['icon'] );
+		studio_add_text( $wp_customize, $section, "home_service_{$i}_title", sprintf( __( 'Home Service %d — Title', 'studio-portfolio' ), $i ), $default['title'] );
+		studio_add_text( $wp_customize, $section, "home_service_{$i}_desc", sprintf( __( 'Home Service %d — Short Description', 'studio-portfolio' ), $i ), $default['desc'], 'textarea' );
+	}
 
 	studio_add_text( $wp_customize, $section, 'home_portfolio_label', __( 'Portfolio Preview — Label', 'studio-portfolio' ), 'Selected Work' );
 	studio_add_text( $wp_customize, $section, 'home_portfolio_title', __( 'Portfolio Preview — Title', 'studio-portfolio' ), 'Recent projects' );
@@ -91,6 +111,29 @@ function studio_customizer_about_page_v2( $wp_customize ) {
 
 	studio_add_text( $wp_customize, $section, 'about_awards_title', __( 'Awards — Title', 'studio-portfolio' ), 'My Awards & Achievements' );
 	studio_add_text( $wp_customize, $section, 'about_awards', __( 'Awards — Content (one per line)', 'studio-portfolio' ), "Best Brand Design — Design Awards 2024\nUI/UX Excellence — Creative Summit 2023\nFeatured Designer — Behance 2022", 'textarea' );
+
+	$wp_customize->add_setting( 'studio_about_page_photo', array(
+		'default'           => '',
+		'sanitize_callback' => 'absint',
+		'transport'         => 'refresh',
+	) );
+	$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'studio_about_page_photo', array(
+		'label'       => __( 'About Page Photo', 'studio-portfolio' ),
+		'description' => __( 'Large photo at the top of the About Me page.', 'studio-portfolio' ),
+		'section'     => $section,
+		'mime_type'   => 'image',
+	) ) );
+
+	studio_add_text( $wp_customize, $section, 'detailed_services_label', __( 'Detailed Services — Label', 'studio-portfolio' ), 'My Services' );
+	studio_add_text( $wp_customize, $section, 'detailed_services_title', __( 'Detailed Services — Title', 'studio-portfolio' ), 'Everything I design for your brand' );
+
+	$defaults = studio_get_default_detailed_services();
+	for ( $i = 1; $i <= 8; $i++ ) {
+		$default = $defaults[ $i - 1 ] ?? array( 'icon' => '✨', 'title' => '', 'items' => array() );
+		studio_add_text( $wp_customize, $section, "detailed_service_{$i}_icon", sprintf( __( 'Service %d — Icon', 'studio-portfolio' ), $i ), $default['icon'] );
+		studio_add_text( $wp_customize, $section, "detailed_service_{$i}_title", sprintf( __( 'Service %d — Title', 'studio-portfolio' ), $i ), $default['title'] );
+		studio_add_text( $wp_customize, $section, "detailed_service_{$i}_items", sprintf( __( 'Service %d — Items (one per line)', 'studio-portfolio' ), $i ), implode( "\n", $default['items'] ), 'textarea' );
+	}
 }
 
 /**

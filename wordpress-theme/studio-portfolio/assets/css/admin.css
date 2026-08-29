@@ -48,3 +48,20 @@
 .studio-portfolio-meta th {
   width: 160px;
 }
+
+.studio-home-featured-box {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  padding: 12px 16px 4px;
+  margin-bottom: 8px;
+}
+
+.studio-media-preview img {
+  max-width: 220px;
+  height: auto;
+  display: block;
+  margin-bottom: 8px;
+  border-radius: 6px;
+  border: 1px solid #ddd;
+}

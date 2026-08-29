@@ -1,6 +1,6 @@
 <?php
 /**
- * About section — Experience, Education, Goals, Awards
+ * About section — Experience, Education, Goals, Awards, Detailed Services
  *
  * @package Studio_Portfolio
  *
@@ -10,26 +10,33 @@
 $args         = isset( $args ) ? $args : array();
 $story_blocks = studio_get_about_story_blocks( $args );
 $stats        = studio_get_about_stats( $args );
-$services     = studio_get_services( $args );
 $awards       = studio_get_about_awards();
 $about_intro  = studio_template_arg( $args, 'about_text', 'about_page_intro', studio_get_option( 'about_text', '' ) );
 $about_close  = studio_template_arg( $args, 'about_text2', 'about_text2', '' );
 $page_label   = studio_template_arg( $args, 'about_label', 'about_page_label', studio_get_option( 'about_label', 'About Me' ) );
 $page_title   = studio_template_arg( $args, 'about_title', 'about_page_title', studio_get_option( 'about_title', 'Everything about me' ) );
+$photo_id     = (int) studio_get_option( 'about_page_photo', 0 );
 ?>
 
 <section id="about" class="section about-section premium-section">
 	<div class="container">
-		<div class="section-header center fade-in">
-			<p class="section-label"><?php echo esc_html( $page_label ); ?></p>
-			<h1 class="display-md about-title"><?php echo esc_html( $page_title ); ?></h1>
-			<?php if ( $about_intro ) : ?>
-				<p class="text-muted about-intro home-lead"><?php echo esc_html( $about_intro ); ?></p>
+		<div class="about-page-hero fade-in">
+			<?php if ( $photo_id ) : ?>
+				<div class="about-page-photo-wrap premium-card-glow">
+					<?php echo wp_get_attachment_image( $photo_id, 'large', false, array( 'class' => 'about-page-photo' ) ); ?>
+				</div>
 			<?php endif; ?>
+			<div class="about-page-intro-block">
+				<p class="section-label"><?php echo esc_html( $page_label ); ?></p>
+				<h1 class="display-md about-title"><?php echo esc_html( $page_title ); ?></h1>
+				<?php if ( $about_intro ) : ?>
+					<p class="text-muted about-intro home-lead"><?php echo esc_html( $about_intro ); ?></p>
+				<?php endif; ?>
+			</div>
 		</div>
 
 		<?php if ( ! empty( $stats ) ) : ?>
-			<div class="stats-grid fade-in" style="margin-bottom:3rem;">
+			<div class="stats-grid fade-in" style="margin:3rem 0;">
 				<?php foreach ( $stats as $stat ) : ?>
 					<div class="stat-card premium-stat-card">
 						<p class="stat-value text-gradient"><?php echo esc_html( $stat['value'] ); ?></p>
@@ -50,6 +57,8 @@ $page_title   = studio_template_arg( $args, 'about_title', 'about_page_title', s
 			<?php endforeach; ?>
 		</div>
 
+		<?php get_template_part( 'template-parts/services-detailed' ); ?>
+
 		<?php if ( ! empty( $awards ) ) : ?>
 			<div class="about-awards premium-card-glow fade-in" style="margin-top:3rem;">
 				<h3 class="display-md" style="font-size:1.75rem;margin-bottom:1.5rem;">
@@ -66,24 +75,6 @@ $page_title   = studio_template_arg( $args, 'about_title', 'about_page_title', s
 		<?php if ( $about_close ) : ?>
 			<div class="about-closing glass fade-in">
 				<p><?php echo nl2br( esc_html( $about_close ) ); ?></p>
-			</div>
-		<?php endif; ?>
-
-		<?php if ( ! empty( $services ) ) : ?>
-			<div class="about-services fade-in" style="margin-top:4rem;">
-				<p class="section-label"><?php echo esc_html( studio_get_option( 'services_label', 'What I Do' ) ); ?></p>
-				<h3 class="display-md" style="font-size:1.75rem;margin-bottom:2rem;"><?php echo esc_html( studio_get_option( 'services_title', 'My Skills & Services' ) ); ?></h3>
-				<div class="services-grid premium-services-grid">
-					<?php foreach ( $services as $service ) : ?>
-						<div class="service-card premium-service-card">
-							<div class="service-icon"><?php echo esc_html( $service['icon'] ); ?></div>
-							<div>
-								<h4 class="service-title"><?php echo esc_html( $service['title'] ); ?></h4>
-								<p class="service-desc"><?php echo esc_html( $service['desc'] ); ?></p>
-							</div>
-						</div>
-					<?php endforeach; ?>
-				</div>
 			</div>
 		<?php endif; ?>
 	</div>

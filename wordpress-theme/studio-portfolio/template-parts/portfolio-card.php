@@ -18,14 +18,15 @@ $number    = $card['number'] ?? '01';
 $size      = $card['size'] ?? 'portfolio-card-large';
 $large     = ! empty( $card['large'] );
 $premium   = ! empty( $card['premium'] );
-$thumb_id  = studio_get_portfolio_thumbnail_id( $post_id );
+$context   = $card['context'] ?? 'default';
+$thumb_id  = studio_get_portfolio_thumbnail_id( $post_id, $context );
 $year      = get_post_meta( $post_id, '_portfolio_year', true );
 $tags      = studio_get_portfolio_tags( $post_id );
 $categories = studio_get_portfolio_categories( $post_id );
 $cat_slugs  = studio_get_portfolio_category_slugs( $post_id );
 $link       = studio_get_portfolio_link( $post_id );
 $title      = get_the_title( $post_id );
-$excerpt    = get_the_excerpt( $post_id );
+$excerpt    = ( 'home' === $context ) ? studio_get_portfolio_home_description( $post_id ) : get_the_excerpt( $post_id );
 
 $card_classes = array( 'portfolio-card', 'fade-in' );
 if ( $large ) {

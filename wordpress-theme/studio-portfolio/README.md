@@ -32,8 +32,8 @@ Pages auto-create on theme activation. Assign under **Customizer → Pages Setup
 |---------|-------------------|
 | Hero photo & text | Customizer → Hero |
 | **Marquee banner** | Customizer → Marquee Banner + Home Page → Show Marquee |
-| Stats strip | Customizer → About Section (stat numbers) |
-| **About photo (separate from hero)** | Customizer → **Home Page → About Section Photo** |
+| Stats strip | Removed from homepage |
+| **About photo (separate from hero)** | Removed from home — text-only About preview |
 | Services | Customizer → Services |
 | Featured portfolio | Portfolio admin + Customizer → Home Page |
 | CTA band | Customizer → Home Page → CTA Band |

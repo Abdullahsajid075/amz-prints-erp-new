@@ -412,7 +412,12 @@ function studio_customizer_section_footer( $wp_customize ) {
 		'panel' => 'studio_portfolio_panel',
 	) );
 
-	studio_add_text( $wp_customize, $section, 'footer_tagline', __( 'Footer Tagline', 'studio-portfolio' ), 'Crafted with passion.' );
+	studio_add_text( $wp_customize, $section, 'footer_headline', __( 'Footer Headline (Bold)', 'studio-portfolio' ), 'Design that builds bold brands.' );
+	studio_add_text( $wp_customize, $section, 'footer_description', __( 'Footer Description', 'studio-portfolio' ), 'Premium brand identity, print, packaging, digital & corporate design — crafted with strategy and creativity.', 'textarea' );
+	studio_add_text( $wp_customize, $section, 'footer_services_title', __( 'Services Column Title', 'studio-portfolio' ), 'Services' );
+	studio_add_text( $wp_customize, $section, 'footer_services', __( 'Footer Services (one per line)', 'studio-portfolio' ), "Brand Identity\nGraphic Design\nPrint Design\nPackaging Design\nSocial Media Design\nDigital Design\nCorporate Branding\nSignage & Advertising", 'textarea' );
+	studio_add_text( $wp_customize, $section, 'footer_cta_btn', __( 'Footer CTA Button Text', 'studio-portfolio' ), 'Start a Project →' );
+	studio_add_text( $wp_customize, $section, 'footer_tagline', __( 'Copyright Tagline', 'studio-portfolio' ), 'Designed with passion in Pakistan.' );
 }
 
 /**

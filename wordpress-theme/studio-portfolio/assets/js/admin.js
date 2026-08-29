@@ -69,10 +69,9 @@
     }
 
     pdfFrame = wp.media({
-      title: 'Upload Project PDF',
-      button: { text: 'Use this PDF' },
-      multiple: false,
-      library: { type: 'application/pdf' }
+      title: 'Upload Project File',
+      button: { text: 'Use this file' },
+      multiple: false
     });
 
     pdfFrame.on('select', function () {
@@ -131,5 +130,42 @@
     e.preventDefault();
     $('#portfolio_pdf_cover').val('');
     $('#studio-pdf-cover-preview').empty();
+  });
+
+  /* Homepage card image */
+  var homeImageFrame;
+
+  $('#studio-upload-home-image').on('click', function (e) {
+    e.preventDefault();
+
+    if (homeImageFrame) {
+      homeImageFrame.open();
+      return;
+    }
+
+    homeImageFrame = wp.media({
+      title: 'Homepage Card Image',
+      button: { text: 'Use this image' },
+      multiple: false,
+      library: { type: 'image' }
+    });
+
+    homeImageFrame.on('select', function () {
+      var attachment = homeImageFrame.state().get('selection').first().toJSON();
+      var thumb = attachment.sizes && attachment.sizes.medium
+        ? attachment.sizes.medium.url
+        : attachment.url;
+
+      $('#portfolio_home_image').val(attachment.id);
+      $('#studio-home-image-preview').html('<img src="' + thumb + '" alt="" />');
+    });
+
+    homeImageFrame.open();
+  });
+
+  $(document).on('click', '.studio-remove-home-image', function (e) {
+    e.preventDefault();
+    $('#portfolio_home_image').val('');
+    $('#studio-home-image-preview').empty();
   });
 })(jQuery);

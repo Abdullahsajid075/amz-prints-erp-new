@@ -304,10 +304,18 @@ function studio_get_portfolio_link( $post_id ) {
 /**
  * Get best thumbnail attachment ID for a portfolio item.
  *
- * @param int $post_id Post ID.
+ * @param int    $post_id Post ID.
+ * @param string $context Display context: default|home.
  * @return int
  */
-function studio_get_portfolio_thumbnail_id( $post_id ) {
+function studio_get_portfolio_thumbnail_id( $post_id, $context = 'default' ) {
+	if ( 'home' === $context ) {
+		$home_image = absint( get_post_meta( $post_id, '_portfolio_home_image', true ) );
+		if ( $home_image ) {
+			return $home_image;
+		}
+	}
+
 	if ( has_post_thumbnail( $post_id ) ) {
 		return (int) get_post_thumbnail_id( $post_id );
 	}
@@ -323,6 +331,20 @@ function studio_get_portfolio_thumbnail_id( $post_id ) {
 	}
 
 	return 0;
+}
+
+/**
+ * Get portfolio card description for homepage.
+ *
+ * @param int $post_id Post ID.
+ * @return string
+ */
+function studio_get_portfolio_home_description( $post_id ) {
+	$home_desc = get_post_meta( $post_id, '_portfolio_home_description', true );
+	if ( $home_desc ) {
+		return $home_desc;
+	}
+	return get_the_excerpt( $post_id );
 }
 
 /**

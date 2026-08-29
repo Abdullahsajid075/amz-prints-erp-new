@@ -114,6 +114,9 @@ function studio_get_dummy_theme_mods() {
 
 		// Footer / contact
 		'footer_tagline'      => 'Designed with passion in Pakistan.',
+		'footer_headline'     => 'Design that builds bold brands.',
+		'footer_description'  => 'Premium brand identity, print, packaging, digital & corporate design — crafted with strategy and creativity.',
+		'footer_cta_btn'      => 'Start a Project →',
 		'contact_email'       => 'hello@yourbrand.com',
 		'whatsapp_number'     => '923471136415',
 		'schedule_whatsapp'   => '923471136415',
@@ -188,6 +191,7 @@ function studio_seed_portfolio_items( $force = false ) {
 		update_post_meta( $post_id, '_portfolio_number', str_pad( (string) ( $i + 1 ), 2, '0', STR_PAD_LEFT ) );
 		update_post_meta( $post_id, '_portfolio_tags', $project['cat'] . ', Design, Creative' );
 		update_post_meta( $post_id, '_portfolio_featured_home', $project['featured'] ? '1' : '0' );
+		update_post_meta( $post_id, '_portfolio_home_description', 'Demo project — edit title, image & description in Portfolio admin.' );
 
 		if ( ! term_exists( $project['cat'], 'portfolio_category' ) ) {
 			wp_insert_term( $project['cat'], 'portfolio_category' );
@@ -219,6 +223,20 @@ function studio_seed_dummy_content( $force = false ) {
 		$hero_id = studio_sideload_image( $hero_url );
 		if ( $hero_id ) {
 			set_theme_mod( 'studio_hero_personal_photo', $hero_id );
+		}
+	}
+
+	if ( $force || ! studio_get_option( 'home_about_photo', 0 ) ) {
+		$home_about_id = studio_sideload_image( 'https://picsum.photos/seed/about-home-v3/700/900' );
+		if ( $home_about_id ) {
+			set_theme_mod( 'studio_home_about_photo', $home_about_id );
+		}
+	}
+
+	if ( $force || ! studio_get_option( 'about_page_photo', 0 ) ) {
+		$about_page_id = studio_sideload_image( 'https://picsum.photos/seed/about-page-v3/800/1000' );
+		if ( $about_page_id ) {
+			set_theme_mod( 'studio_about_page_photo', $about_page_id );
 		}
 	}
 

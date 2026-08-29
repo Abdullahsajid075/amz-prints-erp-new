@@ -14,12 +14,21 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 function studio_portfolio_add_meta_boxes() {
 	add_meta_box(
+		'studio_portfolio_home_display',
+		__( '⭐ Homepage Featured Project', 'studio-portfolio' ),
+		'studio_portfolio_home_display_callback',
+		'portfolio',
+		'normal',
+		'high'
+	);
+
+	add_meta_box(
 		'studio_portfolio_details',
 		__( 'Portfolio Details', 'studio-portfolio' ),
 		'studio_portfolio_details_callback',
 		'portfolio',
 		'normal',
-		'high'
+		'default'
 	);
 
 	add_meta_box(
@@ -32,6 +41,79 @@ function studio_portfolio_add_meta_boxes() {
 	);
 }
 add_action( 'add_meta_boxes', 'studio_portfolio_add_meta_boxes' );
+
+/**
+ * Homepage featured project meta box.
+ *
+ * @param WP_Post $post Post object.
+ */
+function studio_portfolio_home_display_callback( $post ) {
+	wp_nonce_field( 'studio_portfolio_save', 'studio_portfolio_nonce' );
+
+	$featured_home = get_post_meta( $post->ID, '_portfolio_featured_home', true );
+	$home_image_id = absint( get_post_meta( $post->ID, '_portfolio_home_image', true ) );
+	$home_desc     = get_post_meta( $post->ID, '_portfolio_home_description', true );
+	$thumb_id      = get_post_thumbnail_id( $post->ID );
+	$file_id       = absint( get_post_meta( $post->ID, '_portfolio_pdf', true ) );
+	$file_url      = $file_id ? wp_get_attachment_url( $file_id ) : '';
+	$preview_url   = $home_image_id ? wp_get_attachment_image_url( $home_image_id, 'medium' ) : ( $thumb_id ? wp_get_attachment_image_url( $thumb_id, 'medium' ) : '' );
+	?>
+	<div class="studio-home-featured-box">
+		<p class="description" style="margin-top:0;">
+			<?php esc_html_e( 'Control homepage visibility, card image, description, and project file. Title = post title above.', 'studio-portfolio' ); ?>
+		</p>
+		<table class="form-table studio-portfolio-meta">
+			<tr>
+				<th><?php esc_html_e( 'Show on Homepage', 'studio-portfolio' ); ?></th>
+				<td>
+					<label>
+						<input type="checkbox" name="portfolio_featured_home" value="1" <?php checked( $featured_home, '1' ); ?> />
+						<strong><?php esc_html_e( 'Feature on homepage gallery', 'studio-portfolio' ); ?></strong>
+					</label>
+				</td>
+			</tr>
+			<tr>
+				<th><?php esc_html_e( 'Homepage Card Image', 'studio-portfolio' ); ?></th>
+				<td>
+					<input type="hidden" id="portfolio_home_image" name="portfolio_home_image" value="<?php echo esc_attr( $home_image_id ); ?>" />
+					<div id="studio-home-image-preview" class="studio-media-preview">
+						<?php if ( $preview_url ) : ?>
+							<img src="<?php echo esc_url( $preview_url ); ?>" alt="" />
+						<?php endif; ?>
+					</div>
+					<p>
+						<button type="button" class="button button-primary" id="studio-upload-home-image"><?php esc_html_e( 'Upload Image', 'studio-portfolio' ); ?></button>
+						<button type="button" class="button studio-remove-home-image"><?php esc_html_e( 'Remove', 'studio-portfolio' ); ?></button>
+					</p>
+					<p class="description"><?php esc_html_e( 'Optional. Uses Featured Image from sidebar if empty.', 'studio-portfolio' ); ?></p>
+				</td>
+			</tr>
+			<tr>
+				<th><label for="portfolio_home_description"><?php esc_html_e( 'Homepage Description', 'studio-portfolio' ); ?></label></th>
+				<td>
+					<textarea id="portfolio_home_description" name="portfolio_home_description" rows="3" class="large-text"><?php echo esc_textarea( $home_desc ); ?></textarea>
+					<p class="description"><?php esc_html_e( 'Short text shown under title on homepage cards.', 'studio-portfolio' ); ?></p>
+				</td>
+			</tr>
+			<tr>
+				<th><?php esc_html_e( 'Project File (PDF / Image)', 'studio-portfolio' ); ?></th>
+				<td>
+					<input type="hidden" id="portfolio_pdf" name="portfolio_pdf" value="<?php echo esc_attr( $file_id ); ?>" />
+					<div id="studio-pdf-preview" class="studio-pdf-preview">
+						<?php if ( $file_url ) : ?>
+							<a href="<?php echo esc_url( $file_url ); ?>" target="_blank" rel="noopener"><?php echo esc_html( basename( $file_url ) ); ?></a>
+							<button type="button" class="button studio-remove-pdf"><?php esc_html_e( 'Remove File', 'studio-portfolio' ); ?></button>
+						<?php endif; ?>
+					</div>
+					<p>
+						<button type="button" class="button button-primary" id="studio-upload-pdf"><?php esc_html_e( 'Upload PDF or Image', 'studio-portfolio' ); ?></button>
+					</p>
+				</td>
+			</tr>
+		</table>
+	</div>
+	<?php
+}
 
 /**
  * Portfolio details meta box.
@@ -79,28 +161,6 @@ function studio_portfolio_details_callback( $post ) {
 			</td>
 		</tr>
 		<tr>
-			<th><?php esc_html_e( 'Project PDF', 'studio-portfolio' ); ?></th>
-			<td>
-				<?php
-				$pdf_id  = get_post_meta( $post->ID, '_portfolio_pdf', true );
-				$pdf_url = $pdf_id ? wp_get_attachment_url( $pdf_id ) : '';
-				?>
-				<input type="hidden" id="portfolio_pdf" name="portfolio_pdf" value="<?php echo esc_attr( $pdf_id ); ?>" />
-				<div id="studio-pdf-preview" class="studio-pdf-preview">
-					<?php if ( $pdf_url ) : ?>
-						<a href="<?php echo esc_url( $pdf_url ); ?>" target="_blank" rel="noopener"><?php echo esc_html( basename( $pdf_url ) ); ?></a>
-						<button type="button" class="button studio-remove-pdf"><?php esc_html_e( 'Remove PDF', 'studio-portfolio' ); ?></button>
-					<?php endif; ?>
-				</div>
-				<p>
-					<button type="button" class="button button-primary" id="studio-upload-pdf">
-						<?php esc_html_e( 'Upload PDF', 'studio-portfolio' ); ?>
-					</button>
-				</p>
-				<p class="description"><?php esc_html_e( 'When a PDF is uploaded, clicking the portfolio item opens the PDF in a new browser tab.', 'studio-portfolio' ); ?></p>
-			</td>
-		</tr>
-		<tr>
 			<th><?php esc_html_e( 'PDF Preview Thumbnail', 'studio-portfolio' ); ?></th>
 			<td>
 				<?php
@@ -120,15 +180,6 @@ function studio_portfolio_details_callback( $post ) {
 					</button>
 				</p>
 				<p class="description"><?php esc_html_e( 'Shown on the homepage and on hover for PDF projects. If empty, Featured Image is used.', 'studio-portfolio' ); ?></p>
-			</td>
-		</tr>
-		<tr>
-			<th><?php esc_html_e( 'Show on Homepage', 'studio-portfolio' ); ?></th>
-			<td>
-				<label>
-					<input type="checkbox" name="portfolio_featured_home" value="1" <?php checked( get_post_meta( $post->ID, '_portfolio_featured_home', true ), '1' ); ?> />
-					<?php esc_html_e( 'Feature this project on the homepage gallery', 'studio-portfolio' ); ?>
-				</label>
 			</td>
 		</tr>
 		<tr>
@@ -230,6 +281,19 @@ function studio_portfolio_save_meta( $post_id ) {
 			update_post_meta( $post_id, '_portfolio_pdf_cover', $cover_id );
 		} else {
 			delete_post_meta( $post_id, '_portfolio_pdf_cover' );
+		}
+	}
+
+	if ( isset( $_POST['portfolio_home_description'] ) ) {
+		update_post_meta( $post_id, '_portfolio_home_description', sanitize_textarea_field( wp_unslash( $_POST['portfolio_home_description'] ) ) );
+	}
+
+	if ( isset( $_POST['portfolio_home_image'] ) ) {
+		$home_image = absint( $_POST['portfolio_home_image'] );
+		if ( $home_image ) {
+			update_post_meta( $post_id, '_portfolio_home_image', $home_image );
+		} else {
+			delete_post_meta( $post_id, '_portfolio_home_image' );
 		}
 	}
 

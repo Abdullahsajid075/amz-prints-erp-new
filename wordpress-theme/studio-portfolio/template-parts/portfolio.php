@@ -90,6 +90,7 @@ $all_categories = get_terms(
 									'number'  => $number,
 									'large'   => true,
 									'premium' => true,
+									'context' => $is_home ? 'home' : 'default',
 								),
 							)
 						);
