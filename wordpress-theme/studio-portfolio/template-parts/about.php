@@ -14,7 +14,7 @@ $awards       = studio_get_about_awards();
 $about_intro  = studio_template_arg( $args, 'about_text', 'about_page_intro', studio_get_option( 'about_text', '' ) );
 $about_close  = studio_template_arg( $args, 'about_text2', 'about_text2', '' );
 $page_label   = studio_template_arg( $args, 'about_label', 'about_page_label', studio_get_option( 'about_label', 'About Me' ) );
-$page_title   = studio_template_arg( $args, 'about_title', 'about_page_title', studio_get_option( 'about_title', 'Everything about me' ) );
+$page_title   = studio_template_arg( $args, 'about_title', 'about_page_title', studio_get_option( 'about_title', 'More Than a Designer. A Brand Builder.' ) );
 $photo_id     = (int) studio_get_option( 'about_page_photo', 0 );
 if ( ! $photo_id && get_the_ID() ) {
 	$photo_id = (int) get_post_thumbnail_id( get_the_ID() );
@@ -68,6 +68,20 @@ if ( ! $photo_id ) {
 
 		<?php get_template_part( 'template-parts/services-detailed' ); ?>
 
+		<?php
+		$journey = studio_get_journey_steps();
+		if ( ! empty( $journey ) ) :
+			?>
+			<div class="about-journey" style="margin-top:4rem;">
+				<p class="section-label"><?php esc_html_e( 'My Creative Journey', 'studio-portfolio' ); ?></p>
+				<ol class="journey-timeline">
+					<?php foreach ( $journey as $step ) : ?>
+						<li><?php echo esc_html( $step ); ?></li>
+					<?php endforeach; ?>
+				</ol>
+			</div>
+		<?php endif; ?>
+
 		<?php if ( ! empty( $awards ) ) : ?>
 			<div class="about-awards premium-card-glow fade-in" style="margin-top:3rem;">
 				<h3 class="display-md" style="font-size:1.75rem;margin-bottom:1.5rem;">
@@ -86,5 +100,11 @@ if ( ! $photo_id ) {
 				<p><?php echo nl2br( esc_html( $about_close ) ); ?></p>
 			</div>
 		<?php endif; ?>
+
+		<p class="center" style="margin-top:3rem;">
+			<a class="btn btn-primary btn-lg" href="<?php echo esc_url( studio_get_start_project_url() ); ?>">
+				<?php echo esc_html( studio_get_option( 'nav_schedule', 'Start a Project' ) ); ?> →
+			</a>
+		</p>
 	</div>
 </section>

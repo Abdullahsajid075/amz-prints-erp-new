@@ -19,9 +19,9 @@ $label_key     = $is_portfolio_page ? 'portfolio_page_label' : 'work_label';
 $title_key     = $is_portfolio_page ? 'portfolio_page_title' : 'work_title';
 $desc_key      = $is_portfolio_page ? 'portfolio_page_description' : 'work_description';
 $hint_key      = $is_portfolio_page ? 'portfolio_page_hint' : 'work_hint';
-$default_label = $is_portfolio_page ? 'Portfolio' : 'Selected Work';
-$default_title = $is_portfolio_page ? 'Design work across every category' : 'Recent projects';
-$default_desc  = $is_portfolio_page ? 'Select a category — projects appear below. Hover to auto-scroll.' : '';
+$default_label = $is_portfolio_page ? 'My Work' : 'Selected Work';
+$default_title = $is_portfolio_page ? 'Selected brand work' : 'Featured projects';
+$default_desc  = $is_portfolio_page ? 'Browse by category. Each project is a case study — challenge, approach, design, transformation, and result.' : '';
 
 $view_all_url  = isset( $args['view_all_url'] ) ? $args['view_all_url'] : studio_get_page_url( 'portfolio_page_id', studio_get_page_url( 'work_page_id', '#portfolio' ) );
 $show_view_all = ! $is_portfolio_page && studio_template_arg( $args, 'show_view_all', 'home_show_view_all', true );

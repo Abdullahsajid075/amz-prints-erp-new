@@ -19,7 +19,9 @@ function studio_get_page_template_map() {
 		'portfolio_page_id'  => 'page-templates/page-portfolio.php',
 		'work_page_id'       => 'page-templates/page-portfolio.php',
 		'about_page_id'      => 'page-templates/page-about.php',
+		'services_page_id'   => 'page-templates/page-services.php',
 		'how_i_work_page_id' => 'page-templates/page-how-i-work.php',
+		'contact_page_id'    => 'page-templates/page-contact.php',
 		'schedule_page_id'   => 'page-templates/page-schedule-meeting.php',
 	);
 }
@@ -34,7 +36,9 @@ function studio_get_page_slug_map() {
 		'portfolio_page_id'  => 'portfolio',
 		'work_page_id'       => 'portfolio',
 		'about_page_id'      => 'about-me',
+		'services_page_id'   => 'services',
 		'how_i_work_page_id' => 'how-i-work',
+		'contact_page_id'    => 'contact',
 		'schedule_page_id'   => 'schedule-meeting',
 	);
 }
@@ -163,15 +167,27 @@ function studio_create_default_pages( $force = false ) {
 			'template' => 'page-templates/page-about.php',
 		),
 		array(
+			'mod'      => 'services_page_id',
+			'title'    => __( 'Services', 'studio-portfolio' ),
+			'slug'     => 'services',
+			'template' => 'page-templates/page-services.php',
+		),
+		array(
 			'mod'      => 'how_i_work_page_id',
 			'title'    => __( 'How I Work', 'studio-portfolio' ),
 			'slug'     => 'how-i-work',
 			'template' => 'page-templates/page-how-i-work.php',
 		),
 		array(
+			'mod'      => 'contact_page_id',
+			'title'    => __( 'Contact', 'studio-portfolio' ),
+			'slug'     => 'contact',
+			'template' => 'page-templates/page-contact.php',
+		),
+		array(
 			'mod'      => 'schedule_page_id',
-			'title'    => __( 'Schedule Meeting', 'studio-portfolio' ),
-			'slug'     => 'schedule-meeting',
+			'title'    => __( 'Start a Project', 'studio-portfolio' ),
+			'slug'     => 'start-a-project',
 			'template' => 'page-templates/page-schedule-meeting.php',
 		),
 	);
@@ -220,8 +236,8 @@ function studio_create_default_pages( $force = false ) {
 	}
 
 	studio_ensure_home_page();
-	if ( function_exists( 'studio_create_portfolio_hub_pages' ) ) {
-		studio_create_portfolio_hub_pages();
+	if ( function_exists( 'studio_disable_portfolio_hub_pages' ) ) {
+		studio_disable_portfolio_hub_pages();
 	}
 }
 
@@ -257,7 +273,7 @@ function studio_missing_pages_admin_notice() {
 		return;
 	}
 
-	$required = array( 'portfolio_page_id', 'about_page_id', 'how_i_work_page_id', 'schedule_page_id' );
+	$required = array( 'portfolio_page_id', 'about_page_id', 'services_page_id', 'how_i_work_page_id', 'contact_page_id' );
 	foreach ( $required as $key ) {
 		if ( studio_resolve_page_id( $key ) ) {
 			continue;
@@ -317,36 +333,17 @@ function studio_get_portfolio_query_args( $args = array() ) {
 	return apply_filters( 'studio_portfolio_query_args', $query_args, $args );
 }
 
-/**
- * Default How I Work blocks.
- *
- * @return array
- */
-function studio_get_hiw_defaults() {
-	return array(
-		'software'     => array( 'Software I Use', '🖥️', 'Adobe Illustrator, Photoshop, Figma, InDesign, After Effects — and AI tools for rapid prototyping.' ),
-		'create'       => array( 'How I Create Design', '✏️', 'I start with research and mood boards, sketch concepts, then refine in digital tools until every detail feels intentional.' ),
-		'innovation'   => array( 'How I Build Innovation', '💡', 'I push beyond templates — combining trends with timeless principles to create designs that feel fresh and ownable.' ),
-		'redesign'     => array( 'How I Redesign Old Design', '🔄', 'I audit what works, preserve brand equity, and modernize typography, color, and layout without losing recognition.' ),
-		'client_mind'  => array( "How I Read My Client's Mind", '🧠', 'Deep discovery calls, questionnaires, and iterative feedback loops help me translate vision into visuals before the first draft.' ),
-		'presentation' => array( 'Design & Presentation Setup', '📊', 'Every deliverable is packaged professionally — mockups, brand guidelines, and presentation decks ready for stakeholders.' ),
-	);
-}
-
-/**
- * Get How I Work process blocks.
- *
- * @return array
- */
 function studio_get_how_i_work_blocks() {
 	$defaults = studio_get_hiw_defaults();
 	$blocks   = array();
 
 	foreach ( $defaults as $key => $data ) {
 		$blocks[] = array(
-			'icon'    => studio_get_option( "hiw_{$key}_icon", $data[1] ),
+			'step'    => studio_get_option( "hiw_{$key}_step", $data[1] ),
 			'title'   => studio_get_option( "hiw_{$key}_title", $data[0] ),
-			'content' => studio_get_option( "hiw_{$key}_content", $data[2] ),
+			'subtitle'=> studio_get_option( "hiw_{$key}_subtitle", $data[2] ),
+			'icon'    => $data[1],
+			'content' => studio_get_option( "hiw_{$key}_content", $data[3] ),
 		);
 	}
 
@@ -371,7 +368,7 @@ function studio_get_meeting_platforms() {
 function studio_get_about_awards() {
 	return studio_get_lines(
 		'about_awards',
-		"Best Brand Design — Design Awards 2024\nUI/UX Excellence — Creative Summit 2023\nFeatured Designer — Behance 2022"
+		"Complete brand systems for food, retail, and corporate clients\nPrint, packaging, and signage that stay consistent with the identity\nFounded and led creative businesses\nWorked with businesses across multiple industries"
 	);
 }
 
@@ -440,8 +437,11 @@ function studio_force_page_templates( $template ) {
 	$by_slug = array(
 		'portfolio'         => 'page-templates/page-portfolio.php',
 		'about-me'          => 'page-templates/page-about.php',
+		'contact'           => 'page-templates/page-contact.php',
+		'services'          => 'page-templates/page-services.php',
 		'how-i-work'        => 'page-templates/page-how-i-work.php',
 		'schedule-meeting'  => 'page-templates/page-schedule-meeting.php',
+		'start-a-project'   => 'page-templates/page-schedule-meeting.php',
 	);
 	if ( isset( $by_slug[ $slug ] ) ) {
 		$file = STUDIO_PORTFOLIO_DIR . '/' . $by_slug[ $slug ];

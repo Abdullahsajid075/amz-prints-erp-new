@@ -1,6 +1,6 @@
 <?php
 /**
- * Single Portfolio template
+ * Single Portfolio — case study
  *
  * @package Studio_Portfolio
  */
@@ -10,12 +10,13 @@ get_header();
 while ( have_posts() ) :
 	the_post();
 
-	$year   = get_post_meta( get_the_ID(), '_portfolio_year', true );
-	$client = get_post_meta( get_the_ID(), '_portfolio_client', true );
-	$url    = get_post_meta( get_the_ID(), '_portfolio_url', true );
-	$tags   = studio_get_portfolio_tags( get_the_ID() );
+	$year    = get_post_meta( get_the_ID(), '_portfolio_year', true );
+	$client  = get_post_meta( get_the_ID(), '_portfolio_client', true );
+	$url     = get_post_meta( get_the_ID(), '_portfolio_url', true );
+	$tags    = studio_get_portfolio_tags( get_the_ID() );
 	$gallery = get_post_meta( get_the_ID(), '_portfolio_gallery', true );
-	$terms  = get_the_terms( get_the_ID(), 'portfolio_category' );
+	$terms   = get_the_terms( get_the_ID(), 'portfolio_category' );
+	$fields  = studio_get_case_study_fields();
 	?>
 
 <main class="single-portfolio">
@@ -23,8 +24,9 @@ while ( have_posts() ) :
 		<article <?php post_class( 'single-portfolio-hero' ); ?>>
 			<p class="section-label">
 				<?php
+				esc_html_e( 'Case Study', 'studio-portfolio' );
 				if ( $terms && ! is_wp_error( $terms ) ) {
-					echo esc_html( $terms[0]->name );
+					echo ' · ' . esc_html( $terms[0]->name );
 				}
 				if ( $year ) {
 					echo ' · ' . esc_html( $year );
@@ -60,8 +62,25 @@ while ( have_posts() ) :
 				</div>
 			<?php endif; ?>
 
-			<div class="about-text">
-				<?php the_content(); ?>
+			<?php if ( get_the_content() ) : ?>
+				<div class="about-text case-study-intro">
+					<?php the_content(); ?>
+				</div>
+			<?php endif; ?>
+
+			<div class="case-study-flow">
+				<?php foreach ( $fields as $key => $label ) : ?>
+					<?php
+					$body = get_post_meta( get_the_ID(), '_portfolio_' . $key, true );
+					if ( ! $body ) {
+						continue;
+					}
+					?>
+					<section class="case-study-block premium-card-glow">
+						<p class="section-label"><?php echo esc_html( $label ); ?></p>
+						<div class="case-study-body"><?php echo nl2br( esc_html( $body ) ); ?></div>
+					</section>
+				<?php endforeach; ?>
 			</div>
 
 			<?php if ( ! empty( $tags ) ) : ?>
@@ -91,6 +110,9 @@ while ( have_posts() ) :
 
 		<p style="margin-top:3rem;">
 			<a href="<?php echo esc_url( studio_get_page_url( 'portfolio_page_id', home_url( '/portfolio/' ) ) ); ?>" class="btn btn-outline">← <?php esc_html_e( 'Back to Portfolio', 'studio-portfolio' ); ?></a>
+			<a href="<?php echo esc_url( studio_get_start_project_url() ); ?>" class="btn btn-primary" style="margin-left:0.75rem;">
+				<?php echo esc_html( studio_get_option( 'nav_schedule', 'Start a Project' ) ); ?> →
+			</a>
 		</p>
 	</div>
 </main>

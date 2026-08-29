@@ -66,7 +66,7 @@ class Studio_Hero_Widget extends Studio_Portfolio_Elementor_Widget_Base {
 			array(
 				'label'   => __( 'Title Line 1', 'studio-portfolio' ),
 				'type'    => \Elementor\Controls_Manager::TEXT,
-				'default' => __( 'Hi, I am', 'studio-portfolio' ),
+				'default' => __( 'Welcome to My Creative World', 'studio-portfolio' ),
 			)
 		);
 
@@ -75,7 +75,7 @@ class Studio_Hero_Widget extends Studio_Portfolio_Elementor_Widget_Base {
 			array(
 				'label'   => __( 'Title Line 2 (highlighted)', 'studio-portfolio' ),
 				'type'    => \Elementor\Controls_Manager::TEXT,
-				'default' => __( 'a Designer', 'studio-portfolio' ),
+				'default' => __( 'I Don’t Just Design.', 'studio-portfolio' ),
 			)
 		);
 
@@ -84,7 +84,7 @@ class Studio_Hero_Widget extends Studio_Portfolio_Elementor_Widget_Base {
 			array(
 				'label'   => __( 'Title Line 3', 'studio-portfolio' ),
 				'type'    => \Elementor\Controls_Manager::TEXT,
-				'default' => __( 'building my brand', 'studio-portfolio' ),
+				'default' => __( 'I Build Brands.', 'studio-portfolio' ),
 			)
 		);
 
@@ -93,7 +93,7 @@ class Studio_Hero_Widget extends Studio_Portfolio_Elementor_Widget_Base {
 			array(
 				'label'   => __( 'Role / Tagline', 'studio-portfolio' ),
 				'type'    => \Elementor\Controls_Manager::TEXT,
-				'default' => __( 'Brand & UI Designer', 'studio-portfolio' ),
+				'default' => __( 'Brand Designer & Brand Builder', 'studio-portfolio' ),
 			)
 		);
 

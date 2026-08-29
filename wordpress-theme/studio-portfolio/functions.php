@@ -9,11 +9,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'STUDIO_PORTFOLIO_VERSION', '2.4.0' );
+define( 'STUDIO_PORTFOLIO_VERSION', '2.5.0' );
 define( 'STUDIO_PORTFOLIO_DIR', get_template_directory() );
 define( 'STUDIO_PORTFOLIO_URI', get_template_directory_uri() );
 
 require_once STUDIO_PORTFOLIO_DIR . '/inc/helpers.php';
+require_once STUDIO_PORTFOLIO_DIR . '/inc/brand-content.php';
 require_once STUDIO_PORTFOLIO_DIR . '/inc/services-catalog.php';
 require_once STUDIO_PORTFOLIO_DIR . '/inc/customizer.php';
 require_once STUDIO_PORTFOLIO_DIR . '/inc/customizer-site.php';

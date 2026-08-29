@@ -34,8 +34,8 @@ $has_photo = (bool) $photo_id;
 			<?php endif; ?>
 			<div class="home-about-content">
 				<p class="section-label"><?php echo esc_html( studio_get_option( 'home_about_label', 'About Me' ) ); ?></p>
-				<h2 class="display-md"><?php echo esc_html( studio_get_option( 'home_about_title', 'Passionate designer with 5+ years of experience' ) ); ?></h2>
-				<p class="text-muted home-lead"><?php echo esc_html( studio_get_option( 'home_about_text', 'I combine strategy, creativity, and attention to detail to deliver designs that not only look beautiful but also solve real business problems.' ) ); ?></p>
+				<h2 class="display-md"><?php echo esc_html( studio_get_option( 'home_about_title', 'More than a designer. A brand builder.' ) ); ?></h2>
+				<p class="text-muted home-lead"><?php echo esc_html( studio_get_option( 'home_about_text', 'I don’t just design files. I build brands — strategy first, then a visual system your team can actually use.' ) ); ?></p>
 				<a href="<?php echo esc_url( $about_url ); ?>" class="btn btn-primary btn-lg">
 					<?php echo esc_html( studio_get_option( 'home_about_btn', 'Read Full Story →' ) ); ?>
 				</a>

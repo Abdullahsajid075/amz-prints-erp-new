@@ -68,7 +68,7 @@ if ( $premium ) {
 
 			<div class="portfolio-card-overlay">
 				<span>
-					<?php echo $link['is_pdf'] ? esc_html__( 'View PDF →', 'studio-portfolio' ) : esc_html__( 'View Project →', 'studio-portfolio' ); ?>
+					<?php echo $link['is_pdf'] ? esc_html__( 'View PDF →', 'studio-portfolio' ) : esc_html__( 'View Case Study →', 'studio-portfolio' ); ?>
 				</span>
 			</div>
 		</div>

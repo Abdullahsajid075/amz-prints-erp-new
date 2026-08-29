@@ -17,9 +17,12 @@ function studio_handle_contact_form() {
 		wp_die( esc_html__( 'Security check failed.', 'studio-portfolio' ) );
 	}
 
-	$name    = isset( $_POST['contact_name'] ) ? sanitize_text_field( wp_unslash( $_POST['contact_name'] ) ) : '';
-	$email   = isset( $_POST['contact_email'] ) ? sanitize_email( wp_unslash( $_POST['contact_email'] ) ) : '';
-	$message = isset( $_POST['contact_message'] ) ? sanitize_textarea_field( wp_unslash( $_POST['contact_message'] ) ) : '';
+	$name         = isset( $_POST['contact_name'] ) ? sanitize_text_field( wp_unslash( $_POST['contact_name'] ) ) : '';
+	$email        = isset( $_POST['contact_email'] ) ? sanitize_email( wp_unslash( $_POST['contact_email'] ) ) : '';
+	$whatsapp     = isset( $_POST['contact_whatsapp'] ) ? sanitize_text_field( wp_unslash( $_POST['contact_whatsapp'] ) ) : '';
+	$company      = isset( $_POST['contact_company'] ) ? sanitize_text_field( wp_unslash( $_POST['contact_company'] ) ) : '';
+	$project_type = isset( $_POST['contact_project_type'] ) ? sanitize_text_field( wp_unslash( $_POST['contact_project_type'] ) ) : '';
+	$message      = isset( $_POST['contact_message'] ) ? sanitize_textarea_field( wp_unslash( $_POST['contact_message'] ) ) : '';
 
 	if ( empty( $name ) || empty( $email ) || empty( $message ) ) {
 		wp_safe_redirect( add_query_arg( 'contact', 'error', wp_get_referer() ) );
@@ -27,11 +30,14 @@ function studio_handle_contact_form() {
 	}
 
 	$to      = studio_get_option( 'contact_email', get_option( 'admin_email' ) );
-	$subject = sprintf( '[%s] New contact from %s', get_bloginfo( 'name' ), $name );
+	$subject = sprintf( '[%s] New project inquiry from %s', get_bloginfo( 'name' ), $name );
 	$body    = sprintf(
-		"Name: %s\nEmail: %s\n\nMessage:\n%s",
+		"Name: %s\nEmail: %s\nWhatsApp: %s\nCompany: %s\nProject Type: %s\n\nProject:\n%s",
 		$name,
 		$email,
+		$whatsapp,
+		$company,
+		$project_type,
 		$message
 	);
 	$headers = array(

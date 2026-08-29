@@ -9,6 +9,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+define( 'STUDIO_CONTENT_PACK', 'brand-builder-v25' );
+
 /**
  * Set theme mod only when empty.
  *
@@ -49,158 +51,395 @@ function studio_sideload_image( $url, $post_id = 0 ) {
  * @return array
  */
 function studio_get_dummy_theme_mods() {
-	return array(
-		// Hero
-		'hero_status'         => 'Available for freelance & full-time projects',
-		'hero_name'           => 'Muhammad Ali',
-		'hero_role'           => 'Brand Designer · UI/UX · Creative Director',
-		'hero_title_line1'    => 'I design brands that',
-		'hero_title_line2'    => 'people remember',
-		'hero_title_line3'    => 'and businesses grow',
-		'hero_description'    => 'Welcome! I am a creative designer helping startups and established brands build stunning visual identities, websites, and marketing materials.',
-		'hero_btn1_text'      => 'View Portfolio',
-		'hero_btn2_text'      => 'About Me',
-		'hero_photo_caption'  => 'Nice to meet you!',
+	$hiw = function_exists( 'studio_get_hiw_defaults' ) ? studio_get_hiw_defaults() : array();
+	$mods = array(
+		'hero_status'        => 'Brand Design Expert · Brand Builder',
+		'hero_name'          => 'Abdullah',
+		'hero_role'          => 'Brand Designer & Brand Builder',
+		'hero_title_line1'   => 'Welcome to My Creative World',
+		'hero_title_line2'   => 'I Don’t Just Design.',
+		'hero_title_line3'   => 'I Build Brands.',
+		'hero_description'   => 'I help businesses look more professional, feel more consistent, and stand out — through identity, packaging, print, social, signage, and digital design.',
+		'hero_btn1_text'     => 'View My Work',
+		'hero_btn2_text'     => 'About Me',
+		'hero_photo_caption' => 'Nice to meet you!',
 
-		// Marquee
-		'marquee_items'       => "Brand Identity\nUI/UX Design\nLogo Design\nPackaging\nSocial Media\nWeb Design\nPrint Design\nMotion Graphics",
-		'marquee_text_color'  => '#6B7280',
-		'marquee_sep_color'   => '#059669',
-		'marquee_bg_color'    => '#ECFDF5',
+		'marquee_items'      => "Brand Identity\nLogo Design\nPackaging\nPrint Design\nSocial Media\nCorporate Branding\nSignage\nDigital Design",
+		'marquee_text_color' => '#6B7280',
+		'marquee_sep_color'  => '#059669',
+		'marquee_bg_color'   => '#ECFDF5',
 
-		// Home about
-		'home_about_label'    => 'About Me',
-		'home_about_title'    => 'Passionate designer with 5+ years of experience',
-		'home_about_text'     => 'I combine strategy, creativity, and attention to detail to deliver designs that not only look beautiful but also solve real business problems. From logos to full brand systems — I have got you covered.',
-		'home_about_btn'      => 'Read Full Story →',
+		'home_about_label' => 'Who I Am',
+		'home_about_title' => 'More than a designer. A brand builder.',
+		'home_about_text'  => 'I don’t just design files. I build brands — strategy first, then a visual system your team can actually use across print, packaging, digital, and signage.',
+		'home_about_btn'   => 'Read Full Story →',
 
-		// Home services
-		'home_services_label' => 'Services',
-		'home_services_title' => 'What I can do for you',
+		'home_services_label' => 'What I Do',
+		'home_services_title' => 'Services built around real brand work',
 
-		// Home portfolio
-		'home_portfolio_label' => 'Portfolio',
-		'home_portfolio_title' => 'Featured work',
-		'home_portfolio_btn'   => 'See All Projects →',
+		'home_portfolio_label' => 'My Work',
+		'home_portfolio_title' => 'Featured projects',
+		'home_portfolio_btn'   => 'View all work →',
 
-		// About full
-		'about_page_intro'    => 'I am a multidisciplinary designer based in Pakistan, working with clients worldwide. Here is my complete story.',
-		'about_text'          => 'I started my design journey with a passion for visual storytelling. Today I help brands communicate clearly and stand out in crowded markets.',
-		'about_experience'    => "Senior Brand Designer — Creative Studio (2022–Present)\nLead designer for 20+ brand identity projects.\n\nFreelance Designer — Self employed (2019–2022)\nWorked with startups across tech, food, and fashion.",
-		'about_education'     => "Bachelor of Fine Arts — National College of Arts\nGraphic Design Specialization — 2019\n\nUI/UX Certificate — Google Coursera",
-		'about_companies'     => "Worked with brands including: TechFlow, GreenLeaf Organics, Urban Coffee Co., StyleHub Fashion, and 30+ startups.",
-		'about_goal'          => 'My goal is to build a world-class design studio that helps Pakistani brands compete globally with premium visual identity and digital experiences.',
-		'about_struggles'     => 'Starting without connections was hard. I learned to build my portfolio piece by piece, take feedback gracefully, and never stop learning new tools and trends.',
+		'approach_label' => 'How I Work',
+		'approach_title' => 'My Creative Process',
+		'approach_text'  => 'A thoughtful process. A strategic approach. A brand designed to make an impact.',
 
-		// Services
-		'service_1_title'     => 'Brand Identity',
-		'service_1_desc'      => 'Logo, color palette, typography, brand guidelines, and stationery.',
-		'service_1_icon'      => '🎨',
-		'service_2_title'     => 'UI/UX Design',
-		'service_2_desc'      => 'Websites, mobile apps, dashboards — user-focused and modern.',
-		'service_2_icon'      => '📱',
-		'service_3_title'     => 'Print & Packaging',
-		'service_3_desc'      => 'Business cards, brochures, product packaging, and labels.',
-		'service_3_icon'      => '📦',
-		'service_4_title'     => 'Social Media Design',
-		'service_4_desc'      => 'Posts, stories, banners, and campaign creatives.',
-		'service_4_icon'      => '✨',
+		'why_label'  => 'Why Work With Me',
+		'why_title'  => 'Strategy, systems, and real-world brand applications',
+		'why_points' => "Strategy before decoration\nComplete brand systems, not one-off files\nPrint, packaging, digital and signage that stay consistent\nA clear process from discovery to delivery\nBuilt for real businesses, not just portfolios",
 
-		// Stats
-		'stat_projects'       => '80+',
-		'stat_clients'        => '45+',
-		'stat_experience'     => '5+',
-		'stat_awards'         => '8',
+		'clients_label' => "Brands I've Helped Build",
+		'clients_title' => 'Selected clients & industries',
+		'clients_list'  => "Fireway Pizza|Food & QSR|Brand transformation\nGreenLeaf Organics|FMCG|Packaging & identity\nUrban Coffee Co.|Hospitality|Cafe branding\nStyleHub|Fashion|Campaign & social\nMeridian Analytics|Tech|Corporate identity\nNova Tech|SaaS|Logo & digital",
 
-		// Footer / contact
-		'footer_tagline'      => 'Designed with passion in Pakistan.',
-		'footer_headline'     => 'Design that builds bold brands.',
-		'footer_description'  => 'Premium brand identity, print, packaging, digital & corporate design — crafted with strategy and creativity.',
-		'footer_cta_btn'      => 'Start a Project →',
-		'contact_email'       => 'hello@yourbrand.com',
-		'whatsapp_number'     => '923471136415',
-		'schedule_whatsapp'   => '923471136415',
+		'testimonials_label' => 'What Clients Say',
+		'testimonials_title' => 'Proof from real businesses',
+		'testimonials'       => "The new branding completely changed how our business looks and feels. Abdullah understood what we needed and transformed the brand into something we are proud to represent.|Restaurant Owner|Fireway Pizza\nHe didn't just design a logo — he built a system we can use everywhere, from packaging to signage.|Marketing Lead|GreenLeaf Organics\nProfessional, strategic, and easy to work with. Our company profile and stationery finally feel like one brand.|Director|Urban Coffee Co.",
 
-		// Visibility
-		'show_marquee'        => true,
-		'show_marquee_home'   => true,
+		'about_page_label' => 'About Me',
+		'about_page_title' => 'More Than a Designer. A Brand Builder.',
+		'about_page_intro' => 'This is my story — who I am, how I work, and why I build brands rather than just designing files.',
+		'about_text'       => 'I am a brand designer and brand builder. I help businesses communicate clearly, look more professional, and stand out in crowded markets.',
+		'about_experience_title' => 'Experience',
+		'about_experience'       => "I work as a brand designer and brand builder — helping businesses look more professional, feel more consistent, and stand out in crowded markets.\n\nFrom identity systems to packaging, print, social, and signage, I design work that is meant to be used in the real world.",
+		'about_education_title'  => 'Design Philosophy',
+		'about_education'        => "I don't just design. I build brands.\n\nEvery project starts with the business: audience, goals, competitors, and what the brand needs to communicate. The visuals come after the strategy.",
+		'about_companies_title'  => 'Industries & Businesses',
+		'about_companies'        => 'I have worked with businesses across food, retail, hospitality, fashion, corporate, and digital — building identities that work on packaging, signage, stationery, and screens.',
+		'about_goal_title'       => 'My Role as a Brand Designer',
+		'about_goal'             => 'My role is to turn a business into a brand people remember — logo, color, typography, applications, and a system the team can actually use.',
+		'about_founded_title'    => 'Companies & Businesses I Have Founded',
+		'about_founded'          => 'I have founded and led creative businesses — applying the same brand-building process I use for clients to my own companies.',
+		'about_struggles_title'  => 'The Journey',
+		'about_struggles'        => "Started in graphic design → worked with local businesses → expanded into branding and corporate design → founded and led creative businesses → now helping brands grow through design and strategy.",
+		'about_journey'          => "Started graphic design with a focus on visual storytelling\nWorked with local businesses to solve real branding problems\nExpanded into brand identity and corporate design\nFounded and led creative businesses\nWorked across food, retail, corporate and digital industries\nNow building brands through design and strategy",
+		'about_text2'            => 'Have a brand that needs a better identity? Let’s talk about your next project.',
+		'about_awards_title'     => 'Key Achievements',
+		'about_awards'           => "Complete brand systems for food, retail, and corporate clients\nPrint, packaging, and signage that stay consistent with the identity\nFounded and led creative businesses\nWorked with businesses across multiple industries",
 
-		// Stats labels
+		'hiw_label'       => 'My Creative Process',
+		'hiw_title'       => 'How I Work',
+		'hiw_description' => 'A thoughtful process. A strategic approach. A brand designed to make an impact.',
+		'hiw_flow'        => 'DISCOVER → STRATEGIZE → EXPLORE → DESIGN → REFINE → DELIVER',
+
+		'portfolio_page_label'       => 'My Work',
+		'portfolio_page_title'       => 'Selected brand work',
+		'portfolio_page_description' => 'Browse by category. Each project is a case study — challenge, approach, design, transformation, and result.',
+		'portfolio_page_hint'        => 'Open a project to read the full case study',
+
+		'service_1_title' => 'Brand Identity',
+		'service_1_desc'  => 'Logo, visual identity, brand guidelines, brand kits',
+		'service_1_icon'  => '🎨',
+		'service_2_title' => 'Graphic Design',
+		'service_2_desc'  => 'Marketing materials, posters, brochures, presentations',
+		'service_2_icon'  => '✏️',
+		'service_3_title' => 'Packaging Design',
+		'service_3_desc'  => 'Boxes, labels, pouches, product packaging',
+		'service_3_icon'  => '📦',
+		'service_4_title' => 'Print Design',
+		'service_4_desc'  => 'Business cards, stationery, catalogues, flyers',
+		'service_4_icon'  => '🖨️',
+
+		'stat_projects'         => '80+',
+		'stat_clients'          => '45+',
+		'stat_experience'       => '5+',
+		'stat_awards'           => '8',
 		'stat_projects_label'   => 'Projects Completed',
 		'stat_clients_label'    => 'Happy Clients',
 		'stat_experience_label' => 'Years Experience',
-		'stat_awards_label'     => 'Awards Won',
+		'stat_awards_label'     => 'Key Achievements',
 
-		// Home CTA
-		'home_cta_label' => 'Let\'s Work Together',
-		'home_cta_title' => 'Ready to start your next project?',
-		'home_cta_text'  => 'Book a free consultation — I\'ll reply on WhatsApp within 24 hours.',
-		'home_cta_btn'   => 'Schedule Meeting →',
+		'footer_tagline'     => 'Designed with passion in Pakistan.',
+		'footer_headline'    => 'I don’t just design. I build brands.',
+		'footer_description' => 'Brand identity, packaging, print, social, signage, and digital — crafted with strategy and a clear process.',
+		'footer_cta_btn'     => 'Start a Project →',
+		'contact_email'      => 'hello@yourbrand.com',
+		'whatsapp_number'    => '923471136415',
+		'schedule_whatsapp'  => '923471136415',
+		'nav_schedule'       => 'Start a Project',
+
+		'show_marquee'      => true,
+		'show_marquee_home' => true,
+
+		'home_cta_label' => "Let's Work Together",
+		'home_cta_title' => 'Have a Brand That Needs a Better Identity?',
+		'home_cta_text'  => "Let's talk about your next project.",
+		'home_cta_btn'   => 'Start a Project →',
 		'home_cta_btn2'  => 'View Portfolio',
 
-		// Social
-		'social_1_label' => 'Behance',
-		'social_1_url'   => 'https://behance.net',
-		'social_2_label' => 'Dribbble',
-		'social_2_url'   => 'https://dribbble.com',
-		'social_3_label' => 'Instagram',
-		'social_3_url'   => 'https://instagram.com',
-		'social_4_label' => 'LinkedIn',
-		'social_4_url'   => 'https://linkedin.com',
+		'contact_label'       => 'Contact',
+		'contact_title'       => 'Have a Brand That Needs a Better Identity?',
+		'contact_description' => "Let's talk about your next project.",
+		'contact_location'    => 'Available Worldwide · Remote',
+		'contact_btn_text'    => 'Start a Project',
+		'contact_success'     => 'Thank you — I will get back to you shortly.',
+		'contact_project_types' => "Brand Identity\nGraphic Design\nPackaging Design\nPrint Design\nSocial Media Design\nCorporate Branding\nSignage & Advertising\nDigital Design\nUI / Website Design\nOther",
+
+		'social_1_label' => 'LinkedIn',
+		'social_1_url'   => 'https://linkedin.com',
+		'social_2_label' => 'Instagram',
+		'social_2_url'   => 'https://instagram.com',
+		'social_3_label' => 'Behance',
+		'social_3_url'   => 'https://behance.net',
+		'social_4_label' => 'WhatsApp',
+		'social_4_url'   => 'https://wa.me/923471136415',
+	);
+
+	foreach ( $hiw as $key => $data ) {
+		$mods[ "hiw_{$key}_title" ]    = $data[0];
+		$mods[ "hiw_{$key}_step" ]     = $data[1];
+		$mods[ "hiw_{$key}_subtitle" ] = $data[2];
+		$mods[ "hiw_{$key}_content" ]  = $data[3];
+	}
+
+	$home_services = function_exists( 'studio_get_default_home_services' ) ? studio_get_default_home_services() : array();
+	foreach ( $home_services as $i => $service ) {
+		$n = $i + 1;
+		$mods[ "home_service_{$n}_icon" ]  = $service['icon'];
+		$mods[ "home_service_{$n}_title" ] = $service['title'];
+		$mods[ "home_service_{$n}_desc" ]  = $service['desc'];
+	}
+
+	return $mods;
+}
+
+/**
+ * Default portfolio category names.
+ *
+ * @return array
+ */
+function studio_get_default_portfolio_categories() {
+	return array(
+		'Brand Identity',
+		'Logo Design',
+		'Packaging',
+		'Print Design',
+		'Social Media',
+		'Corporate Branding',
+		'Signage & Large Format',
+		'Digital Design',
+		'UI/Website Design',
 	);
 }
 
 /**
- * Seed portfolio demo projects.
+ * Find a portfolio item by title.
  *
- * @param bool $force Recreate if empty only unless forced.
+ * @param string $title Title.
+ * @return int
  */
-function studio_seed_portfolio_items( $force = false ) {
-	$existing = wp_count_posts( 'portfolio' );
-	if ( ! $force && ( $existing->publish ?? 0 ) > 0 ) {
-		return;
+function studio_find_portfolio_by_title( $title ) {
+	$by_slug = get_page_by_path( sanitize_title( $title ), OBJECT, 'portfolio' );
+	if ( $by_slug ) {
+		return (int) $by_slug->ID;
 	}
 
-	$projects = array(
-		array( 'title' => 'Nova Tech Brand Identity', 'cat' => 'Branding', 'year' => '2025', 'featured' => true, 'img' => 'https://picsum.photos/seed/nova-brand/1000/750' ),
-		array( 'title' => 'Pulse Fitness App UI', 'cat' => 'UI/UX Design', 'year' => '2025', 'featured' => true, 'img' => 'https://picsum.photos/seed/pulse-app/1000/750' ),
-		array( 'title' => 'GreenLeaf Organic Packaging', 'cat' => 'Packaging', 'year' => '2024', 'featured' => true, 'img' => 'https://picsum.photos/seed/greenleaf/1000/750' ),
-		array( 'title' => 'Urban Coffee Shop Branding', 'cat' => 'Branding', 'year' => '2024', 'featured' => true, 'img' => 'https://picsum.photos/seed/urban-coffee/1000/750' ),
-		array( 'title' => 'StyleHub Fashion Campaign', 'cat' => 'Social Media', 'year' => '2024', 'featured' => false, 'img' => 'https://picsum.photos/seed/stylehub/1000/750' ),
-		array( 'title' => 'Meridian Analytics Dashboard', 'cat' => 'UI/UX Design', 'year' => '2023', 'featured' => false, 'img' => 'https://picsum.photos/seed/meridian/1000/750' ),
+	$posts = get_posts(
+		array(
+			'post_type'      => 'portfolio',
+			'title'          => $title,
+			'post_status'    => 'any',
+			'posts_per_page' => 1,
+		)
 	);
+	return ! empty( $posts[0] ) ? (int) $posts[0]->ID : 0;
+}
 
-	foreach ( $projects as $i => $project ) {
-		$post_id = wp_insert_post(
-			array(
-				'post_title'   => $project['title'],
-				'post_content' => 'Demo project description — edit this in Portfolio → All Items. Replace the image with your own work.',
-				'post_excerpt' => 'A showcase project demonstrating ' . strtolower( $project['cat'] ) . ' work. Fully editable from WordPress admin.',
-				'post_status'  => 'publish',
-				'post_type'    => 'portfolio',
-				'menu_order'   => $i + 1,
-			),
-			true
-		);
+/**
+ * Demo portfolio / case-study projects.
+ *
+ * @return array
+ */
+function studio_get_demo_portfolio_projects() {
+	return array(
+		array(
+			'title'          => 'Fireway Pizza — Brand Transformation',
+			'cat'            => 'Brand Identity',
+			'year'           => '2025',
+			'featured'       => true,
+			'client'         => 'Fireway Pizza',
+			'img'            => 'https://picsum.photos/seed/fireway-pizza/1000/750',
+			'excerpt'        => 'A full brand transformation — from a tired QSR look to a system the business is proud to represent.',
+			'content'        => "Fireway Pizza needed more than a new logo. The existing branding felt dated, inconsistent, and weak next to competitors.\n\nThis case study walks through the challenge, the strategy, the design system, and the before/after transformation.",
+			'challenge'      => 'The existing branding looked dated and inconsistent. Packaging, signage, and social posts each felt like a different business. Customers could not recognize the brand at a glance, and the company did not look as premium as the food it served.',
+			'approach'       => 'I started by understanding the business, audience, and competitors — then defined a clearer position: fast, warm, and proudly local. The recommendation was a complete visual system (not a logo-only refresh) so every touchpoint could speak with one voice.',
+			'design'         => 'The new identity includes a refined logo, a warmer color palette, bold typography, stationery, pizza boxes and labels, menu boards, shop signage, and social templates. Every application was designed to work in print and on screen.',
+			'transformation' => 'Before: mixed fonts, weak color, and signage that did not match the packaging. After: one recognizable system — from the storefront to the delivery box to Instagram.',
+			'result'         => 'The new branding changed how the business looks and feels. Staff and owners now have assets they are proud to represent, and customers meet a clearer, more professional brand at every step.',
+		),
+		array(
+			'title'          => 'GreenLeaf Organics — Packaging System',
+			'cat'            => 'Packaging',
+			'year'           => '2024',
+			'featured'       => true,
+			'client'         => 'GreenLeaf Organics',
+			'img'            => 'https://picsum.photos/seed/greenleaf-pack/1000/750',
+			'excerpt'        => 'Pouches, labels, and boxes that feel natural, premium, and consistent on the shelf.',
+			'content'        => 'A packaging system for an organic FMCG brand — designed to stand out on shelf while staying honest to the product.',
+			'challenge'      => 'Existing packs looked generic and did not communicate “organic” or “premium” clearly next to bigger competitors.',
+			'approach'       => 'We defined a calm, natural visual direction and a structure that could scale across SKUs without redesigning each pack from scratch.',
+			'design'         => 'Color, typography, and a flexible label system for pouches, boxes, and stickers — plus mockups ready for production.',
+			'transformation' => 'From mixed, low-impact packaging to a family of packs that read as one brand from across the aisle.',
+			'result'         => 'A system the team can extend to new products without losing consistency.',
+		),
+		array(
+			'title'          => 'Urban Coffee Co. — Cafe Branding',
+			'cat'            => 'Corporate Branding',
+			'year'           => '2024',
+			'featured'       => true,
+			'client'         => 'Urban Coffee Co.',
+			'img'            => 'https://picsum.photos/seed/urban-cafe/1000/750',
+			'excerpt'        => 'Identity, stationery, and in-store graphics for a hospitality brand.',
+			'content'        => 'Hospitality branding that works on cups, menus, and the shop front.',
+			'challenge'      => 'The cafe had a name, but no system — menus, cups, and social each looked different.',
+			'approach'       => 'Build a warm, urban identity that feels as good in print as it does on a storefront.',
+			'design'         => 'Logo, color, typography, menus, cups, and interior signage.',
+			'transformation' => 'A loose collection of files became a complete cafe brand.',
+			'result'         => 'Guests now experience one brand from the first Instagram post to the last sip.',
+		),
+		array(
+			'title'          => 'Nova Tech — Logo & Visual Identity',
+			'cat'            => 'Logo Design',
+			'year'           => '2025',
+			'featured'       => true,
+			'client'         => 'Nova Tech',
+			'img'            => 'https://picsum.photos/seed/nova-logo/1000/750',
+			'excerpt'        => 'A precise logo and identity kit for a SaaS company.',
+			'content'        => 'Logo, color, and digital-ready identity for a technology brand.',
+			'challenge'      => 'The previous mark felt generic and did not scale well in app icons or presentations.',
+			'approach'       => 'A simple, geometric direction that stays clear at small sizes.',
+			'design'         => 'Primary logo, icon, color, type, and a compact brand kit.',
+			'transformation' => 'From a clip-art style mark to a professional identity system.',
+			'result'         => 'A logo the company can use confidently across product and sales materials.',
+		),
+		array(
+			'title'          => 'StyleHub — Social Campaign',
+			'cat'            => 'Social Media',
+			'year'           => '2024',
+			'featured'       => false,
+			'client'         => 'StyleHub',
+			'img'            => 'https://picsum.photos/seed/stylehub-social/1000/750',
+			'excerpt'        => 'Campaign posts, ads, and banners with a consistent fashion voice.',
+			'content'        => 'A social system for a fashion retailer — templates, ads, and campaign key visuals.',
+			'challenge'      => 'Posts looked handmade each week and did not match the store branding.',
+			'approach'       => 'A campaign look with reusable templates so the team can stay on-brand.',
+			'design'         => 'Feed posts, stories, ads, and cover banners.',
+			'transformation' => 'Scattered creatives became a recognizable fashion campaign.',
+			'result'         => 'Faster production and a clearer brand on every platform.',
+		),
+		array(
+			'title'          => 'Meridian — Company Profile & Print',
+			'cat'            => 'Print Design',
+			'year'           => '2023',
+			'featured'       => false,
+			'client'         => 'Meridian Analytics',
+			'img'            => 'https://picsum.photos/seed/meridian-print/1000/750',
+			'excerpt'        => 'Corporate stationery, catalogue, and presentation design.',
+			'content'        => 'Print collateral that finally matches the company’s digital presence.',
+			'challenge'      => 'Business cards, proposals, and the company profile all used different layouts.',
+			'approach'       => 'One print system aligned with the corporate identity.',
+			'design'         => 'Stationery, catalogue spreads, and a presentation template.',
+			'transformation' => 'Inconsistent print files became a professional collateral set.',
+			'result'         => 'Sales materials now look like they belong to the same company.',
+		),
+		array(
+			'title'          => 'Horizon Stores — Signage & Vehicle',
+			'cat'            => 'Signage & Large Format',
+			'year'           => '2024',
+			'featured'       => false,
+			'client'         => 'Horizon Stores',
+			'img'            => 'https://picsum.photos/seed/horizon-sign/1000/750',
+			'excerpt'        => 'Shop fronts, boards, and vehicle graphics at real-world scale.',
+			'content'        => 'Large-format branding that holds up on the street and on the road.',
+			'challenge'      => 'Store signage and delivery vans did not match the indoor brand.',
+			'approach'       => 'Adapt the identity for distance, light, and large format production.',
+			'design'         => 'Fascia boards, window graphics, and vehicle wraps.',
+			'transformation' => 'The brand finally reads clearly from the street.',
+			'result'         => 'A consistent public-facing identity at scale.',
+		),
+		array(
+			'title'          => 'Pulse Fitness — Website UI',
+			'cat'            => 'UI/Website Design',
+			'year'           => '2025',
+			'featured'       => false,
+			'client'         => 'Pulse Fitness',
+			'img'            => 'https://picsum.photos/seed/pulse-ui/1000/750',
+			'excerpt'        => 'Landing pages and digital banners aligned with the brand.',
+			'content'        => 'Digital design for a fitness brand — UI that matches print and social.',
+			'challenge'      => 'The website looked unrelated to the gym’s physical branding.',
+			'approach'       => 'Bring the identity online with clear hierarchy and conversion-focused layouts.',
+			'design'         => 'Landing page UI, digital banners, and email header designs.',
+			'transformation' => 'A generic template site became a branded digital experience.',
+			'result'         => 'Online and offline now feel like the same brand.',
+		),
+	);
+}
 
-		if ( is_wp_error( $post_id ) ) {
-			continue;
+/**
+ * Seed portfolio demo projects (update by title, do not duplicate).
+ *
+ * @param bool $force Recreate images / meta even when the post exists.
+ */
+function studio_seed_portfolio_items( $force = false ) {
+	foreach ( studio_get_default_portfolio_categories() as $cat ) {
+		if ( ! term_exists( $cat, 'portfolio_category' ) ) {
+			wp_insert_term( $cat, 'portfolio_category' );
+		}
+	}
+
+	foreach ( studio_get_demo_portfolio_projects() as $i => $project ) {
+		$post_id = studio_find_portfolio_by_title( $project['title'] );
+
+		if ( ! $post_id ) {
+			$post_id = wp_insert_post(
+				array(
+					'post_title'   => $project['title'],
+					'post_content' => $project['content'],
+					'post_excerpt' => $project['excerpt'],
+					'post_status'  => 'publish',
+					'post_type'    => 'portfolio',
+					'menu_order'   => $i + 1,
+				),
+				true
+			);
+			if ( is_wp_error( $post_id ) ) {
+				continue;
+			}
+		} elseif ( $force ) {
+			wp_update_post(
+				array(
+					'ID'           => $post_id,
+					'post_content' => $project['content'],
+					'post_excerpt' => $project['excerpt'],
+					'post_status'  => 'publish',
+					'menu_order'   => $i + 1,
+				)
+			);
 		}
 
 		update_post_meta( $post_id, '_portfolio_year', $project['year'] );
+		update_post_meta( $post_id, '_portfolio_client', $project['client'] );
 		update_post_meta( $post_id, '_portfolio_number', str_pad( (string) ( $i + 1 ), 2, '0', STR_PAD_LEFT ) );
-		update_post_meta( $post_id, '_portfolio_tags', $project['cat'] . ', Design, Creative' );
+		update_post_meta( $post_id, '_portfolio_tags', $project['cat'] . ', Brand, Design' );
 		update_post_meta( $post_id, '_portfolio_featured_home', $project['featured'] ? '1' : '0' );
-		update_post_meta( $post_id, '_portfolio_home_description', 'Demo project — edit title, image & description in Portfolio admin.' );
+		update_post_meta( $post_id, '_portfolio_home_description', $project['excerpt'] );
+		update_post_meta( $post_id, '_portfolio_challenge', $project['challenge'] );
+		update_post_meta( $post_id, '_portfolio_approach', $project['approach'] );
+		update_post_meta( $post_id, '_portfolio_design', $project['design'] );
+		update_post_meta( $post_id, '_portfolio_transformation', $project['transformation'] );
+		update_post_meta( $post_id, '_portfolio_result', $project['result'] );
 
 		if ( ! term_exists( $project['cat'], 'portfolio_category' ) ) {
 			wp_insert_term( $project['cat'], 'portfolio_category' );
 		}
 		wp_set_object_terms( $post_id, $project['cat'], 'portfolio_category' );
 
-		$thumb_id = studio_sideload_image( $project['img'], $post_id );
-		if ( $thumb_id ) {
-			set_post_thumbnail( $post_id, $thumb_id );
+		if ( $force || ! has_post_thumbnail( $post_id ) ) {
+			$thumb_id = studio_sideload_image( $project['img'], $post_id );
+			if ( $thumb_id ) {
+				set_post_thumbnail( $post_id, $thumb_id );
+			}
 		}
 	}
 }
@@ -211,12 +450,10 @@ function studio_seed_portfolio_items( $force = false ) {
  * @param bool $force Overwrite existing theme mods and recreate portfolio.
  */
 function studio_seed_dummy_content( $force = false ) {
-	// Text content
 	foreach ( studio_get_dummy_theme_mods() as $key => $value ) {
 		studio_seed_mod( $key, $value, $force );
 	}
 
-	// Hero photo
 	$hero_url = 'https://picsum.photos/seed/designer-hero-v2/900/1100';
 
 	if ( $force || ! studio_get_option( 'hero_personal_photo', 0 ) ) {
@@ -242,12 +479,13 @@ function studio_seed_dummy_content( $force = false ) {
 
 	studio_seed_portfolio_items( $force );
 	studio_create_default_pages( true );
-	if ( function_exists( 'studio_create_portfolio_hub_pages' ) ) {
-		studio_create_portfolio_hub_pages();
+	if ( function_exists( 'studio_disable_portfolio_hub_pages' ) ) {
+		studio_disable_portfolio_hub_pages();
 	}
 	studio_seed_page_urls( $force );
 
 	update_option( 'studio_dummy_seeded', STUDIO_PORTFOLIO_VERSION );
+	update_option( 'studio_content_pack', STUDIO_CONTENT_PACK );
 }
 
 /**
@@ -261,17 +499,43 @@ function studio_seed_page_urls( $force = false ) {
 }
 
 /**
+ * Apply brand-builder copy once (fixes stale dummy text / mega-menu era content).
+ */
+function studio_apply_brand_builder_pack() {
+	if ( get_option( 'studio_content_pack' ) === STUDIO_CONTENT_PACK ) {
+		return;
+	}
+
+	foreach ( studio_get_dummy_theme_mods() as $key => $value ) {
+		set_theme_mod( 'studio_' . $key, $value );
+	}
+
+	studio_create_default_pages( true );
+	if ( function_exists( 'studio_disable_portfolio_hub_pages' ) ) {
+		studio_disable_portfolio_hub_pages();
+	}
+	studio_seed_portfolio_items( false );
+	studio_seed_page_urls( true );
+
+	update_option( 'studio_content_pack', STUDIO_CONTENT_PACK );
+	update_option( 'studio_dummy_seeded', STUDIO_PORTFOLIO_VERSION );
+}
+
+/**
  * Auto-seed on theme activation.
  */
 function studio_on_dummy_content_activation() {
 	studio_seed_dummy_content( false );
+	studio_apply_brand_builder_pack();
 }
 add_action( 'after_switch_theme', 'studio_on_dummy_content_activation', 30 );
 
 /**
- * Seed demo content after update if site is empty.
+ * Seed demo content after update if site is empty, and apply the content pack once.
  */
 function studio_maybe_seed_dummy_content() {
+	studio_apply_brand_builder_pack();
+
 	if ( get_option( 'studio_dummy_seeded' ) === STUDIO_PORTFOLIO_VERSION ) {
 		return;
 	}
@@ -305,15 +569,15 @@ function studio_admin_load_demo_page() {
 	$loaded = isset( $_GET['studio_demo_loaded'] );
 	?>
 	<div class="wrap">
-		<h1><? esc_html_e( 'Studio Portfolio — Demo Content', 'studio-portfolio' ); ?></h1>
+		<h1><?php esc_html_e( 'Studio Portfolio — Demo Content', 'studio-portfolio' ); ?></h1>
 		<?php if ( $loaded ) : ?>
-			<div class="notice notice-success"><p><? esc_html_e( 'Demo content loaded! Edit everything in Customize Theme or Portfolio admin.', 'studio-portfolio' ); ?></p></div>
+			<div class="notice notice-success"><p><?php esc_html_e( 'Demo content loaded! Edit everything in Customize Theme or Portfolio admin.', 'studio-portfolio' ); ?></p></div>
 		<?php endif; ?>
-		<p><? esc_html_e( 'Load sample text, images, and portfolio projects. You can edit or replace everything later.', 'studio-portfolio' ); ?></p>
+		<p><?php esc_html_e( 'Load sample text, images, and portfolio case studies. You can edit or replace everything later.', 'studio-portfolio' ); ?></p>
 		<a class="button button-primary button-hero" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin.php?page=studio-portfolio-demo&studio_load_demo=1' ), 'studio_load_demo' ) ); ?>">
-			<? esc_html_e( 'Load Demo Content Now', 'studio-portfolio' ); ?>
+			<?php esc_html_e( 'Load Demo Content Now', 'studio-portfolio' ); ?>
 		</a>
-		<p style="margin-top:1.5rem;"><a href="<?php echo esc_url( studio_get_customize_url() ); ?>"><? esc_html_e( 'Open Customizer →', 'studio-portfolio' ); ?></a></p>
+		<p style="margin-top:1.5rem;"><a href="<?php echo esc_url( studio_get_customize_url() ); ?>"><?php esc_html_e( 'Open Customizer →', 'studio-portfolio' ); ?></a></p>
 	</div>
 	<?php
 }

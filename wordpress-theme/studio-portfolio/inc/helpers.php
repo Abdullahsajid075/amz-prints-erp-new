@@ -84,10 +84,10 @@ function studio_get_services( $args = array() ) {
 	}
 	if ( empty( $services ) ) {
 		$services = array(
-			array( 'icon' => '🎨', 'title' => __( 'Brand Identity', 'studio-portfolio' ), 'desc' => __( 'Logos, visual systems, and brand guidelines.', 'studio-portfolio' ) ),
-			array( 'icon' => '📐', 'title' => __( 'UI/UX Design', 'studio-portfolio' ), 'desc' => __( 'Intuitive interfaces for web and mobile.', 'studio-portfolio' ) ),
-			array( 'icon' => '🧩', 'title' => __( 'Design Systems', 'studio-portfolio' ), 'desc' => __( 'Scalable component libraries and tokens.', 'studio-portfolio' ) ),
-			array( 'icon' => '✨', 'title' => __( 'Creative Direction', 'studio-portfolio' ), 'desc' => __( 'Campaign concepts and visual storytelling.', 'studio-portfolio' ) ),
+			array( 'icon' => '🎨', 'title' => __( 'Brand Identity', 'studio-portfolio' ), 'desc' => __( 'Logo, visual identity, brand guidelines, brand kits.', 'studio-portfolio' ) ),
+			array( 'icon' => '✏️', 'title' => __( 'Graphic Design', 'studio-portfolio' ), 'desc' => __( 'Marketing materials, posters, brochures, presentations.', 'studio-portfolio' ) ),
+			array( 'icon' => '📦', 'title' => __( 'Packaging Design', 'studio-portfolio' ), 'desc' => __( 'Boxes, labels, pouches, product packaging.', 'studio-portfolio' ) ),
+			array( 'icon' => '🖨️', 'title' => __( 'Print Design', 'studio-portfolio' ), 'desc' => __( 'Business cards, stationery, catalogues, flyers.', 'studio-portfolio' ) ),
 		);
 	}
 	return $services;
@@ -99,7 +99,7 @@ function studio_get_services( $args = array() ) {
  * @return array
  */
 function studio_get_marquee_items() {
-	$default = "Brand Identity\nUI/UX Design\nDesign Systems\nPackaging\nArt Direction\nMotion Design\nTypography\nVisual Identity";
+	$default = "Brand Identity\nLogo Design\nPackaging\nPrint Design\nSocial Media\nCorporate Branding\nSignage\nDigital Design";
 	$items   = studio_get_lines( 'marquee_items', $default );
 	return apply_filters( 'studio_marquee_items', $items );
 }
@@ -152,27 +152,32 @@ function studio_get_about_story_blocks( $args = array() ) {
 		array(
 			'icon'    => '💼',
 			'title'   => studio_get_option( 'about_experience_title', __( 'Experience', 'studio-portfolio' ) ),
-			'content' => studio_get_option( 'about_experience', "Senior Brand Designer — Creative Studio (2022–Present)\nLead designer for 20+ brand identity projects.\n\nFreelance Designer — Self employed (2019–2022)\nWorked with startups across tech, food, and fashion." ),
+			'content' => studio_get_option( 'about_experience', "I work as a brand designer and brand builder — helping businesses look more professional, feel more consistent, and stand out in crowded markets.\n\nFrom identity systems to packaging, print, social, and signage, I design work that is meant to be used in the real world." ),
 		),
 		array(
-			'icon'    => '🎓',
-			'title'   => studio_get_option( 'about_education_title', __( 'Education', 'studio-portfolio' ) ),
-			'content' => studio_get_option( 'about_education', "Bachelor of Fine Arts — National College of Arts\nGraphic Design Specialization — 2019\n\nUI/UX Certificate — Google Coursera" ),
+			'icon'    => '🧭',
+			'title'   => studio_get_option( 'about_education_title', __( 'Design Philosophy', 'studio-portfolio' ) ),
+			'content' => studio_get_option( 'about_education', "I don't just design. I build brands.\n\nEvery project starts with the business: audience, goals, competitors, and what the brand needs to communicate. The visuals come after the strategy." ),
 		),
 		array(
 			'icon'    => '🏢',
-			'title'   => studio_get_option( 'about_companies_title', __( 'Companies & Brands', 'studio-portfolio' ) ),
-			'content' => studio_get_option( 'about_companies', 'Worked with brands including: TechFlow, GreenLeaf Organics, Urban Coffee Co., StyleHub Fashion, and 30+ startups.' ),
+			'title'   => studio_get_option( 'about_companies_title', __( 'Industries & Businesses', 'studio-portfolio' ) ),
+			'content' => studio_get_option( 'about_companies', 'I have worked with businesses across food, retail, hospitality, fashion, corporate, and digital — building identities that work on packaging, signage, stationery, and screens.' ),
 		),
 		array(
 			'icon'    => '🎯',
-			'title'   => studio_get_option( 'about_goal_title', __( 'My Goal', 'studio-portfolio' ) ),
-			'content' => studio_get_option( 'about_goal', 'My goal is to build a world-class design studio that helps Pakistani brands compete globally with premium visual identity and digital experiences.' ),
+			'title'   => studio_get_option( 'about_goal_title', __( 'My Role as a Brand Designer', 'studio-portfolio' ) ),
+			'content' => studio_get_option( 'about_goal', 'My role is to turn a business into a brand people remember — logo, color, typography, applications, and a system the team can actually use.' ),
 		),
 		array(
-			'icon'    => '💪',
-			'title'   => studio_get_option( 'about_struggles_title', __( 'My Journey & Struggles', 'studio-portfolio' ) ),
-			'content' => studio_get_option( 'about_struggles', 'Starting without connections was hard. I learned to build my portfolio piece by piece, take feedback gracefully, and never stop learning new tools and trends.' ),
+			'icon'    => '🏗️',
+			'title'   => studio_get_option( 'about_founded_title', __( 'Companies & Businesses I Have Founded', 'studio-portfolio' ) ),
+			'content' => studio_get_option( 'about_founded', 'I have founded and led creative businesses — applying the same brand-building process I use for clients to my own companies.' ),
+		),
+		array(
+			'icon'    => '🚀',
+			'title'   => studio_get_option( 'about_struggles_title', __( 'The Journey', 'studio-portfolio' ) ),
+			'content' => studio_get_option( 'about_struggles', "Started in graphic design → worked with local businesses → expanded into branding and corporate design → founded and led creative businesses → now helping brands grow through design and strategy." ),
 		),
 	);
 }
@@ -212,47 +217,30 @@ function studio_get_about_stats( $args = array() ) {
  * Render primary navigation.
  */
 function studio_render_nav( $class = 'main-nav' ) {
-	$portfolio_url = studio_get_page_url( 'portfolio_page_id', studio_get_page_url( 'work_page_id', home_url( '/portfolio/' ) ) );
-	$hub_pages     = function_exists( 'studio_get_portfolio_hub_pages' ) ? studio_get_portfolio_hub_pages() : array();
+	$links = array(
+		array( studio_get_option( 'nav_home', __( 'Home', 'studio-portfolio' ) ), home_url( '/' ) ),
+		array( studio_get_option( 'nav_about', __( 'About', 'studio-portfolio' ) ), studio_get_page_url( 'about_page_id', home_url( '/about-me/' ) ) ),
+		array( studio_get_option( 'nav_services', __( 'Services', 'studio-portfolio' ) ), studio_get_page_url( 'services_page_id', home_url( '/services/' ) ) ),
+		array( studio_get_option( 'nav_portfolio', __( 'Portfolio', 'studio-portfolio' ) ), studio_get_page_url( 'portfolio_page_id', home_url( '/portfolio/' ) ) ),
+		array( studio_get_option( 'nav_how_i_work', __( 'How I Work', 'studio-portfolio' ) ), studio_get_page_url( 'how_i_work_page_id', home_url( '/how-i-work/' ) ) ),
+		array( studio_get_option( 'nav_contact', __( 'Contact', 'studio-portfolio' ) ), studio_get_page_url( 'contact_page_id', home_url( '/contact/' ) ) ),
+	);
 	?>
 	<nav class="<?php echo esc_attr( $class ); ?>" aria-label="<?php esc_attr_e( 'Primary', 'studio-portfolio' ); ?>">
-		<a href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php echo esc_html( studio_get_option( 'nav_home', __( 'Home', 'studio-portfolio' ) ) ); ?></a>
-
-		<div class="nav-item has-mega">
-			<a href="<?php echo esc_url( $portfolio_url ); ?>" class="nav-parent" aria-haspopup="true">
-				<?php echo esc_html( studio_get_option( 'nav_portfolio', __( 'Portfolio', 'studio-portfolio' ) ) ); ?>
-				<span class="nav-caret" aria-hidden="true">▾</span>
-			</a>
-			<?php if ( ! empty( $hub_pages ) ) : ?>
-				<div class="mega-menu" role="menu">
-					<div class="mega-menu-inner">
-						<?php foreach ( $hub_pages as $hub ) : ?>
-							<a class="mega-card" href="<?php echo esc_url( $hub['url'] ); ?>" role="menuitem">
-								<?php if ( ! empty( $hub['image'] ) ) : ?>
-									<span class="mega-card-media">
-										<img src="<?php echo esc_url( $hub['image'] ); ?>" alt="<?php echo esc_attr( $hub['title'] ); ?>" />
-									</span>
-								<?php else : ?>
-									<span class="mega-card-icon"><?php echo esc_html( $hub['icon'] ); ?></span>
-								<?php endif; ?>
-								<span class="mega-card-body">
-									<strong><?php echo esc_html( $hub['title'] ); ?></strong>
-									<span><?php echo esc_html( $hub['excerpt'] ); ?></span>
-								</span>
-							</a>
-						<?php endforeach; ?>
-					</div>
-					<p class="mega-menu-foot">
-						<a href="<?php echo esc_url( $portfolio_url ); ?>"><?php esc_html_e( 'View all projects →', 'studio-portfolio' ); ?></a>
-					</p>
-				</div>
-			<?php endif; ?>
-		</div>
-
-		<a href="<?php echo esc_url( studio_get_page_url( 'about_page_id', home_url( '/about-me/' ) ) ); ?>"><?php echo esc_html( studio_get_option( 'nav_about', __( 'About', 'studio-portfolio' ) ) ); ?></a>
-		<a href="<?php echo esc_url( studio_get_page_url( 'how_i_work_page_id', home_url( '/how-i-work/' ) ) ); ?>"><?php echo esc_html( studio_get_option( 'nav_how_i_work', __( 'How I Work', 'studio-portfolio' ) ) ); ?></a>
+		<?php foreach ( $links as $link ) : ?>
+			<a href="<?php echo esc_url( $link[1] ); ?>"><?php echo esc_html( $link[0] ); ?></a>
+		<?php endforeach; ?>
 	</nav>
 	<?php
+}
+
+/**
+ * Primary conversion URL — Contact form ("Start a Project").
+ *
+ * @return string
+ */
+function studio_get_start_project_url() {
+	return studio_get_page_url( 'contact_page_id', studio_get_page_url( 'schedule_page_id', home_url( '/contact/' ) ) );
 }
 
 /**

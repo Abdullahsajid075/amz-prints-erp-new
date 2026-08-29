@@ -35,9 +35,9 @@ class Studio_Contact_Widget extends Studio_Portfolio_Elementor_Widget_Base {
 		$this->add_section_header_controls(
 			'contact',
 			array(
-				'label'       => __( 'Get in Touch', 'studio-portfolio' ),
-				'title'       => __( "Let's create something amazing together", 'studio-portfolio' ),
-				'description' => __( 'Have a project in mind? Drop me a message and let us start a conversation.', 'studio-portfolio' ),
+				'label'       => __( 'Contact', 'studio-portfolio' ),
+				'title'       => __( 'Have a Brand That Needs a Better Identity?', 'studio-portfolio' ),
+				'description' => __( "Let's talk about your next project.", 'studio-portfolio' ),
 			)
 		);
 
@@ -127,7 +127,7 @@ class Studio_Contact_Widget extends Studio_Portfolio_Elementor_Widget_Base {
 			array(
 				'label'     => __( 'Submit Button Text', 'studio-portfolio' ),
 				'type'      => \Elementor\Controls_Manager::TEXT,
-				'default'   => __( 'Send Message', 'studio-portfolio' ),
+				'default'   => __( 'Start a Project', 'studio-portfolio' ),
 				'condition' => array( 'show_form' => 'yes' ),
 			)
 		);

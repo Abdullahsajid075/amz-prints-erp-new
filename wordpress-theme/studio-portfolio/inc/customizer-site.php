@@ -70,10 +70,26 @@ function studio_customizer_home_page( $wp_customize ) {
 	studio_add_text( $wp_customize, $section, 'home_portfolio_btn', __( 'Portfolio Preview — Button', 'studio-portfolio' ), 'View Full Portfolio →' );
 
 	studio_add_text( $wp_customize, $section, 'home_cta_label', __( 'CTA Band — Label', 'studio-portfolio' ), 'Let\'s Work Together' );
-	studio_add_text( $wp_customize, $section, 'home_cta_title', __( 'CTA Band — Title', 'studio-portfolio' ), 'Ready to start your next project?' );
-	studio_add_text( $wp_customize, $section, 'home_cta_text', __( 'CTA Band — Text', 'studio-portfolio' ), 'Book a free consultation — I\'ll reply on WhatsApp within 24 hours.', 'textarea' );
-	studio_add_text( $wp_customize, $section, 'home_cta_btn', __( 'CTA Band — Primary Button', 'studio-portfolio' ), 'Schedule Meeting →' );
+	studio_add_text( $wp_customize, $section, 'home_cta_title', __( 'CTA Band — Title', 'studio-portfolio' ), 'Have a brand that needs a better identity?' );
+	studio_add_text( $wp_customize, $section, 'home_cta_text', __( 'CTA Band — Text', 'studio-portfolio' ), 'Let\'s talk about your next project.', 'textarea' );
+	studio_add_text( $wp_customize, $section, 'home_cta_btn', __( 'CTA Band — Primary Button', 'studio-portfolio' ), 'Start a Project →' );
 	studio_add_text( $wp_customize, $section, 'home_cta_btn2', __( 'CTA Band — Secondary Button', 'studio-portfolio' ), 'View Portfolio' );
+
+	studio_add_text( $wp_customize, $section, 'approach_label', __( 'Design Approach — Label', 'studio-portfolio' ), 'My Creative Process' );
+	studio_add_text( $wp_customize, $section, 'approach_title', __( 'Design Approach — Title', 'studio-portfolio' ), 'How I build brands' );
+	studio_add_text( $wp_customize, $section, 'approach_text', __( 'Design Approach — Text', 'studio-portfolio' ), 'A thoughtful process. A strategic approach. A brand designed to make an impact.', 'textarea' );
+
+	studio_add_text( $wp_customize, $section, 'why_label', __( 'Why Work With Me — Label', 'studio-portfolio' ), 'Why Work With Me' );
+	studio_add_text( $wp_customize, $section, 'why_title', __( 'Why Work With Me — Title', 'studio-portfolio' ), 'Strategy, systems, and real-world brand applications' );
+	studio_add_text( $wp_customize, $section, 'why_points', __( 'Why Work With Me — Points (one per line)', 'studio-portfolio' ), "Strategy before decoration\nComplete brand systems, not one-off files\nPrint, packaging, digital and signage that stay consistent\nA clear process from discovery to delivery\nBuilt for real businesses, not just portfolios", 'textarea' );
+
+	studio_add_text( $wp_customize, $section, 'clients_label', __( 'Clients — Label', 'studio-portfolio' ), 'Brands I\'ve Helped Build' );
+	studio_add_text( $wp_customize, $section, 'clients_title', __( 'Clients — Title', 'studio-portfolio' ), 'Selected clients & industries' );
+	studio_add_text( $wp_customize, $section, 'clients_list', __( 'Clients (Name|Industry|Note, one per line)', 'studio-portfolio' ), "Fireway Pizza|Food & QSR|Brand transformation\nGreenLeaf Organics|FMCG|Packaging & identity\nUrban Coffee Co.|Hospitality|Cafe branding\nStyleHub|Fashion|Campaign & social\nMeridian Analytics|Tech|Corporate identity\nNova Tech|SaaS|Logo & digital", 'textarea' );
+
+	studio_add_text( $wp_customize, $section, 'testimonials_label', __( 'Testimonials — Label', 'studio-portfolio' ), 'What Clients Say' );
+	studio_add_text( $wp_customize, $section, 'testimonials_title', __( 'Testimonials — Title', 'studio-portfolio' ), 'Proof from real businesses' );
+	studio_add_text( $wp_customize, $section, 'testimonials', __( 'Testimonials (Quote|Name|Company, one per line)', 'studio-portfolio' ), "The new branding completely changed how our business looks and feels. Abdullah understood what we needed and transformed the brand into something we are proud to represent.|Restaurant Owner|Fireway Pizza\nHe didn't just design a logo — he built a system we can use everywhere, from packaging to signage.|Marketing Lead|GreenLeaf Organics\nProfessional, strategic, and easy to work with. Our company profile and stationery finally feel like one brand.|Director|Urban Coffee Co.", 'textarea' );
 }
 
 /**
@@ -87,9 +103,9 @@ function studio_customizer_portfolio_page_v2( $wp_customize ) {
 		'panel'       => 'studio_portfolio_panel',
 	) );
 
-	studio_add_text( $wp_customize, $section, 'portfolio_page_label', __( 'Page Label', 'studio-portfolio' ), 'Portfolio' );
-	studio_add_text( $wp_customize, $section, 'portfolio_page_title', __( 'Page Title', 'studio-portfolio' ), 'Design work across every category' );
-	studio_add_text( $wp_customize, $section, 'portfolio_page_description', __( 'Page Description', 'studio-portfolio' ), 'Select a category above — projects appear below. Hover the gallery to auto-scroll. PDF projects show a preview thumbnail on hover.', 'textarea' );
+	studio_add_text( $wp_customize, $section, 'portfolio_page_label', __( 'Page Label', 'studio-portfolio' ), 'My Work' );
+	studio_add_text( $wp_customize, $section, 'portfolio_page_title', __( 'Page Title', 'studio-portfolio' ), 'Selected brand work' );
+	studio_add_text( $wp_customize, $section, 'portfolio_page_description', __( 'Page Description', 'studio-portfolio' ), 'Browse by category. Each project is a case study — challenge, approach, design, and result.', 'textarea' );
 	studio_add_text( $wp_customize, $section, 'portfolio_page_hint', __( 'Scroll Hint', 'studio-portfolio' ), 'Hover to auto-scroll · Click PDF to view' );
 	studio_add_text( $wp_customize, $section, 'portfolio_premium_badge', __( 'Premium Badge Text', 'studio-portfolio' ), 'Premium' );
 }
@@ -106,11 +122,12 @@ function studio_customizer_about_page_v2( $wp_customize ) {
 	) );
 
 	studio_add_text( $wp_customize, $section, 'about_page_label', __( 'Page Label', 'studio-portfolio' ), 'About Me' );
-	studio_add_text( $wp_customize, $section, 'about_page_title', __( 'Page Title', 'studio-portfolio' ), 'Everything about me' );
-	studio_add_text( $wp_customize, $section, 'about_page_intro', __( 'Introduction', 'studio-portfolio' ), 'Welcome to my world — here is my story, experience, and what drives me as a designer.', 'textarea' );
+	studio_add_text( $wp_customize, $section, 'about_page_title', __( 'Page Title', 'studio-portfolio' ), 'More Than a Designer. A Brand Builder.' );
+	studio_add_text( $wp_customize, $section, 'about_page_intro', __( 'Introduction', 'studio-portfolio' ), 'This is my story — who I am, how I work, and why I build brands rather than just designing files.', 'textarea' );
 
-	studio_add_text( $wp_customize, $section, 'about_awards_title', __( 'Awards — Title', 'studio-portfolio' ), 'My Awards & Achievements' );
-	studio_add_text( $wp_customize, $section, 'about_awards', __( 'Awards — Content (one per line)', 'studio-portfolio' ), "Best Brand Design — Design Awards 2024\nUI/UX Excellence — Creative Summit 2023\nFeatured Designer — Behance 2022", 'textarea' );
+	studio_add_text( $wp_customize, $section, 'about_awards_title', __( 'Awards — Title', 'studio-portfolio' ), 'Key Achievements' );
+	studio_add_text( $wp_customize, $section, 'about_awards', __( 'Awards — Content (one per line)', 'studio-portfolio' ), "Complete brand systems for food, retail, and corporate clients\nPrint, packaging, and signage that stay consistent with the identity\nFounded and led creative businesses\nWorked with businesses across multiple industries", 'textarea' );
+	studio_add_text( $wp_customize, $section, 'about_journey', __( 'Creative Journey (one step per line)', 'studio-portfolio' ), "Started graphic design with a focus on visual storytelling\nWorked with local businesses to solve real branding problems\nExpanded into brand identity and corporate design\nFounded and led creative businesses\nWorked across food, retail, corporate and digital industries\nNow building brands through design and strategy", 'textarea' );
 
 	$wp_customize->add_setting( 'studio_about_page_photo', array(
 		'default'           => '',
@@ -147,16 +164,17 @@ function studio_customizer_how_i_work( $wp_customize ) {
 		'panel'       => 'studio_portfolio_panel',
 	) );
 
-	studio_add_text( $wp_customize, $section, 'hiw_label', __( 'Page Label', 'studio-portfolio' ), 'Process' );
+	studio_add_text( $wp_customize, $section, 'hiw_label', __( 'Page Label', 'studio-portfolio' ), 'My Creative Process' );
 	studio_add_text( $wp_customize, $section, 'hiw_title', __( 'Page Title', 'studio-portfolio' ), 'How I Work' );
-	studio_add_text( $wp_customize, $section, 'hiw_description', __( 'Page Description', 'studio-portfolio' ), 'A transparent look at my creative process — from software to client collaboration.', 'textarea' );
+	studio_add_text( $wp_customize, $section, 'hiw_description', __( 'Page Description', 'studio-portfolio' ), 'A thoughtful process. A strategic approach. A brand designed to make an impact.', 'textarea' );
+	studio_add_text( $wp_customize, $section, 'hiw_flow', __( 'Process Flow Line', 'studio-portfolio' ), 'DISCOVER → STRATEGIZE → EXPLORE → DESIGN → REFINE → DELIVER' );
 
 	$blocks = studio_get_hiw_defaults();
 
 	foreach ( $blocks as $key => $data ) {
-		studio_add_text( $wp_customize, $section, "hiw_{$key}_title", sprintf( __( '%s — Title', 'studio-portfolio' ), $data[0] ), $data[0] );
-		studio_add_text( $wp_customize, $section, "hiw_{$key}_icon", sprintf( __( '%s — Icon', 'studio-portfolio' ), $data[0] ), $data[1] );
-		studio_add_text( $wp_customize, $section, "hiw_{$key}_content", sprintf( __( '%s — Content', 'studio-portfolio' ), $data[0] ), $data[2], 'textarea' );
+		studio_add_text( $wp_customize, $section, "hiw_{$key}_title", sprintf( __( 'Step %s — Title', 'studio-portfolio' ), $data[1] ), $data[0] );
+		studio_add_text( $wp_customize, $section, "hiw_{$key}_subtitle", sprintf( __( 'Step %s — Subtitle', 'studio-portfolio' ), $data[1] ), $data[2] );
+		studio_add_text( $wp_customize, $section, "hiw_{$key}_content", sprintf( __( 'Step %s — Content', 'studio-portfolio' ), $data[1] ), $data[3], 'textarea' );
 	}
 }
 
@@ -171,7 +189,7 @@ function studio_customizer_schedule_meeting( $wp_customize ) {
 		'panel'       => 'studio_portfolio_panel',
 	) );
 
-	studio_add_text( $wp_customize, $section, 'nav_schedule', __( 'Menu Button Text', 'studio-portfolio' ), 'Schedule Meeting' );
+	studio_add_text( $wp_customize, $section, 'nav_schedule', __( 'Header Button Text', 'studio-portfolio' ), 'Start a Project' );
 	studio_add_text( $wp_customize, $section, 'schedule_page_label', __( 'Page Label', 'studio-portfolio' ), 'Book a Call' );
 	studio_add_text( $wp_customize, $section, 'schedule_page_title', __( 'Page Title', 'studio-portfolio' ), 'Schedule a meeting with me' );
 	studio_add_text( $wp_customize, $section, 'schedule_page_description', __( 'Page Description', 'studio-portfolio' ), 'Fill in your details and preferred time — I will confirm via WhatsApp.', 'textarea' );

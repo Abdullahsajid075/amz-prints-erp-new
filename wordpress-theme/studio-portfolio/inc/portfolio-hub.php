@@ -66,68 +66,49 @@ function studio_get_portfolio_hub_defs() {
 
 /**
  * Create / repair the 5 portfolio mega-menu pages as children of Portfolio.
+ *
+ * @deprecated 2.5.0 Mega menu removed. Drafts any leftover hub pages.
  */
 function studio_create_portfolio_hub_pages() {
-	$parent_id = studio_resolve_page_id( 'portfolio_page_id' );
-	if ( ! $parent_id ) {
-		return;
+	studio_disable_portfolio_hub_pages();
+}
+
+/**
+ * Unpublish leftover mega-menu hub pages so they are not in the site journey.
+ */
+function studio_disable_portfolio_hub_pages() {
+	$pages = get_posts(
+		array(
+			'post_type'      => 'page',
+			'post_status'    => array( 'publish', 'draft', 'private' ),
+			'posts_per_page' => 50,
+			'meta_key'       => '_studio_hub_page',
+			'meta_value'     => '1',
+		)
+	);
+
+	foreach ( $pages as $page ) {
+		if ( 'draft' !== $page->post_status ) {
+			wp_update_post(
+				array(
+					'ID'          => $page->ID,
+					'post_status' => 'draft',
+					'post_parent' => 0,
+				)
+			);
+		}
 	}
 
 	foreach ( studio_get_portfolio_hub_defs() as $def ) {
-		foreach ( $def['terms'] as $term_name ) {
-			if ( ! term_exists( $term_name, 'portfolio_category' ) ) {
-				wp_insert_term( $term_name, 'portfolio_category' );
-			}
-		}
-
 		$page = get_page_by_path( $def['slug'] );
-		if ( ! $page ) {
-			$page_id = wp_insert_post(
-				array(
-					'post_title'   => $def['title'],
-					'post_name'    => $def['slug'],
-					'post_status'  => 'publish',
-					'post_type'    => 'page',
-					'post_parent'  => $parent_id,
-					'post_excerpt' => $def['excerpt'],
-					'post_content' => $def['content'],
-					'menu_order'   => 0,
-				),
-				true
-			);
-			if ( is_wp_error( $page_id ) ) {
-				continue;
-			}
-		} else {
-			$page_id = (int) $page->ID;
+		if ( $page && 'publish' === $page->post_status && get_post_meta( $page->ID, '_studio_hub_page', true ) ) {
 			wp_update_post(
 				array(
-					'ID'          => $page_id,
-					'post_parent' => $parent_id,
-					'post_status' => 'publish',
+					'ID'          => $page->ID,
+					'post_status' => 'draft',
+					'post_parent' => 0,
 				)
 			);
-			if ( empty( $page->post_content ) ) {
-				wp_update_post(
-					array(
-						'ID'           => $page_id,
-						'post_content' => $def['content'],
-						'post_excerpt' => $def['excerpt'],
-					)
-				);
-			}
-		}
-
-		update_post_meta( $page_id, '_wp_page_template', 'page-templates/page-portfolio-category.php' );
-		update_post_meta( $page_id, '_studio_hub_page', '1' );
-		update_post_meta( $page_id, '_studio_hub_terms', $def['terms'] );
-		update_post_meta( $page_id, '_studio_hub_icon', $def['icon'] );
-
-		if ( ! has_post_thumbnail( $page_id ) && function_exists( 'studio_sideload_image' ) ) {
-			$img_id = studio_sideload_image( $def['image'], $page_id );
-			if ( $img_id ) {
-				set_post_thumbnail( $page_id, $img_id );
-			}
 		}
 	}
 }

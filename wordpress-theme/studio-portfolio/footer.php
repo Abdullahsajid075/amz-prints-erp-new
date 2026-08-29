@@ -6,7 +6,7 @@
  */
 
 $footer_services = studio_get_footer_services();
-$schedule_url    = studio_get_page_url( 'schedule_page_id', '#' );
+$start_url       = studio_get_start_project_url();
 ?>
 
 <footer class="site-footer site-footer-creative">
@@ -20,7 +20,7 @@ $schedule_url    = studio_get_page_url( 'schedule_page_id', '#' );
 				</a>
 				<h2 class="footer-headline"><?php echo esc_html( studio_get_option( 'footer_headline', 'Design that builds bold brands.' ) ); ?></h2>
 				<p class="footer-description"><?php echo esc_html( studio_get_option( 'footer_description', 'Premium brand identity, print, packaging, digital & corporate design — crafted with strategy and creativity.' ) ); ?></p>
-				<a href="<?php echo esc_url( $schedule_url ); ?>" class="btn btn-primary footer-cta-btn">
+				<a href="<?php echo esc_url( $start_url ); ?>" class="btn btn-primary footer-cta-btn">
 					<?php echo esc_html( studio_get_option( 'footer_cta_btn', 'Start a Project →' ) ); ?>
 				</a>
 			</div>
@@ -29,10 +29,11 @@ $schedule_url    = studio_get_page_url( 'schedule_page_id', '#' );
 				<h3 class="footer-col-title"><?php esc_html_e( 'Quick Links', 'studio-portfolio' ); ?></h3>
 				<ul class="footer-link-list">
 					<li><a href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php echo esc_html( studio_get_option( 'nav_home', 'Home' ) ); ?></a></li>
-					<li><a href="<?php echo esc_url( studio_get_page_url( 'portfolio_page_id', '#' ) ); ?>"><?php echo esc_html( studio_get_option( 'nav_portfolio', 'Portfolio' ) ); ?></a></li>
 					<li><a href="<?php echo esc_url( studio_get_page_url( 'about_page_id', '#' ) ); ?>"><?php echo esc_html( studio_get_option( 'nav_about', 'About' ) ); ?></a></li>
+					<li><a href="<?php echo esc_url( studio_get_page_url( 'services_page_id', '#' ) ); ?>"><?php echo esc_html( studio_get_option( 'nav_services', 'Services' ) ); ?></a></li>
+					<li><a href="<?php echo esc_url( studio_get_page_url( 'portfolio_page_id', '#' ) ); ?>"><?php echo esc_html( studio_get_option( 'nav_portfolio', 'Portfolio' ) ); ?></a></li>
 					<li><a href="<?php echo esc_url( studio_get_page_url( 'how_i_work_page_id', '#' ) ); ?>"><?php echo esc_html( studio_get_option( 'nav_how_i_work', 'How I Work' ) ); ?></a></li>
-					<li><a href="<?php echo esc_url( $schedule_url ); ?>"><?php echo esc_html( studio_get_option( 'nav_schedule', 'Schedule Meeting' ) ); ?></a></li>
+					<li><a href="<?php echo esc_url( studio_get_page_url( 'contact_page_id', '#' ) ); ?>"><?php echo esc_html( studio_get_option( 'nav_contact', 'Contact' ) ); ?></a></li>
 				</ul>
 			</div>
 

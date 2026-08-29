@@ -39,6 +39,15 @@ function studio_portfolio_add_meta_boxes() {
 		'normal',
 		'default'
 	);
+
+	add_meta_box(
+		'studio_portfolio_case_study',
+		__( 'Case Study', 'studio-portfolio' ),
+		'studio_portfolio_case_study_callback',
+		'portfolio',
+		'normal',
+		'high'
+	);
 }
 add_action( 'add_meta_boxes', 'studio_portfolio_add_meta_boxes' );
 
@@ -194,6 +203,31 @@ function studio_portfolio_details_callback( $post ) {
 }
 
 /**
+ * Case study fields — Challenge → Result.
+ *
+ * @param WP_Post $post Post.
+ */
+function studio_portfolio_case_study_callback( $post ) {
+	$fields = studio_get_case_study_fields();
+	?>
+	<p class="description">
+		<?php esc_html_e( 'This is what visitors see on the project page. Portfolio shows the work; How I Work is your process — keep them different.', 'studio-portfolio' ); ?>
+	</p>
+	<table class="form-table studio-portfolio-meta">
+		<?php foreach ( $fields as $key => $label ) : ?>
+			<?php $value = get_post_meta( $post->ID, '_portfolio_' . $key, true ); ?>
+			<tr>
+				<th><label for="portfolio_<?php echo esc_attr( $key ); ?>"><?php echo esc_html( $label ); ?></label></th>
+				<td>
+					<textarea id="portfolio_<?php echo esc_attr( $key ); ?>" name="portfolio_<?php echo esc_attr( $key ); ?>" rows="5" class="large-text"><?php echo esc_textarea( $value ); ?></textarea>
+				</td>
+			</tr>
+		<?php endforeach; ?>
+	</table>
+	<?php
+}
+
+/**
  * Portfolio gallery meta box with media uploader.
  */
 function studio_portfolio_gallery_callback( $post ) {
@@ -299,6 +333,15 @@ function studio_portfolio_save_meta( $post_id ) {
 
 	$featured = isset( $_POST['portfolio_featured_home'] ) ? '1' : '0';
 	update_post_meta( $post_id, '_portfolio_featured_home', $featured );
+
+	if ( function_exists( 'studio_get_case_study_fields' ) ) {
+		foreach ( array_keys( studio_get_case_study_fields() ) as $key ) {
+			$input = 'portfolio_' . $key;
+			if ( isset( $_POST[ $input ] ) ) {
+				update_post_meta( $post_id, '_portfolio_' . $key, sanitize_textarea_field( wp_unslash( $_POST[ $input ] ) ) );
+			}
+		}
+	}
 }
 add_action( 'save_post_portfolio', 'studio_portfolio_save_meta' );
 

@@ -66,14 +66,14 @@ function studio_get_default_detailed_services() {
  */
 function studio_get_default_home_services() {
 	return array(
-		array( 'icon' => '🎨', 'title' => 'Brand Identity', 'desc' => 'Logo, guidelines & visual identity systems' ),
-		array( 'icon' => '✏️', 'title' => 'Graphic Design', 'desc' => 'Marketing materials, brochures & presentations' ),
-		array( 'icon' => '🖨️', 'title' => 'Print Design', 'desc' => 'Business cards, stationery & catalogues' ),
-		array( 'icon' => '📦', 'title' => 'Packaging Design', 'desc' => 'Product boxes, labels & mockups' ),
-		array( 'icon' => '📱', 'title' => 'Social Media Design', 'desc' => 'Posts, ads & campaign creatives' ),
-		array( 'icon' => '💻', 'title' => 'Digital Design', 'desc' => 'Website UI, landing pages & email templates' ),
-		array( 'icon' => '🏢', 'title' => 'Corporate Branding', 'desc' => 'Company profiles & marketing collateral' ),
-		array( 'icon' => '🪧', 'title' => 'Signage & Advertising', 'desc' => 'Sign boards, shop branding & outdoor ads' ),
+		array( 'icon' => '🎨', 'title' => 'Brand Identity', 'desc' => 'Logo, visual identity, brand guidelines, brand kits' ),
+		array( 'icon' => '✏️', 'title' => 'Graphic Design', 'desc' => 'Marketing materials, posters, brochures, presentations' ),
+		array( 'icon' => '📦', 'title' => 'Packaging Design', 'desc' => 'Boxes, labels, pouches, product packaging' ),
+		array( 'icon' => '🖨️', 'title' => 'Print Design', 'desc' => 'Business cards, stationery, catalogues, flyers' ),
+		array( 'icon' => '📱', 'title' => 'Social Media Design', 'desc' => 'Campaigns, posts, advertisements, banners' ),
+		array( 'icon' => '🏢', 'title' => 'Corporate Branding', 'desc' => 'Company profiles, corporate stationery, marketing collateral' ),
+		array( 'icon' => '🪧', 'title' => 'Signage & Advertising', 'desc' => 'Sign boards, vehicle branding, large-format graphics' ),
+		array( 'icon' => '💻', 'title' => 'Digital Design', 'desc' => 'Website UI, landing pages, digital banners, email designs' ),
 	);
 }
 

@@ -613,116 +613,210 @@
   min-height: 100%;
 }
 
-/* Mega menu */
-.nav-item.has-mega {
-  position: relative;
-}
-
-.nav-parent {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.nav-caret {
-  font-size: 0.7em;
-  opacity: 0.7;
-}
-
-.mega-menu {
-  display: none;
-  position: absolute;
-  top: calc(100% + 0.85rem);
-  left: 50%;
-  transform: translateX(-40%);
-  width: min(920px, 80vw);
-  background: #fff;
-  border: 1px solid var(--color-border);
-  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.12);
-  z-index: 1200;
-  padding: 1.25rem;
-}
-
-.nav-item.has-mega:hover .mega-menu,
-.nav-item.has-mega:focus-within .mega-menu {
-  display: block;
-}
-
-.mega-menu-inner {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 0.75rem;
-}
-
-.mega-card {
-  display: flex;
-  flex-direction: column;
-  text-decoration: none;
-  color: inherit;
-  border: 1px solid var(--color-border);
-  min-height: 100%;
-  overflow: hidden;
-  background: var(--color-bg);
-}
-
-.mega-card:hover {
-  border-color: rgba(5, 150, 105, 0.4);
-  box-shadow: 0 8px 24px rgba(5, 150, 105, 0.1);
-}
-
-.mega-card-media {
-  display: block;
-  aspect-ratio: 16 / 10;
-  overflow: hidden;
-  background: var(--color-bg-muted);
-}
-
-.mega-card-media img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.mega-card-icon {
-  font-size: 1.5rem;
-  padding: 1rem 1rem 0;
-}
-
-.mega-card-body {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  padding: 0.85rem;
-}
-
-.mega-card-body strong {
+/* Process, proof, case studies */
+.process-flow {
   font-family: var(--font-display);
-  font-size: 0.95rem;
+  font-size: clamp(0.8rem, 2vw, 1.05rem);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-green);
+  margin: 1.25rem 0 0;
+  font-weight: 600;
+}
+
+.hiw-step-subtitle {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  margin: 0.35rem 0 0.75rem;
   color: var(--color-text);
 }
 
-.mega-card-body span {
+.process-steps,
+.hiw-timeline {
+  display: grid;
+  gap: 1.25rem;
+  margin-top: 2.5rem;
+}
+
+@media (min-width: 768px) {
+  .process-steps,
+  .hiw-timeline {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1200px) {
+  .process-steps,
+  .hiw-timeline {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.approach-pills {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 2rem;
+}
+
+.approach-pill {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 8.5rem;
+  padding: 1rem 1.15rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-white, #fff);
+}
+
+.approach-pill span {
   font-size: 0.75rem;
-  line-height: 1.4;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-green);
+}
+
+.home-why-grid {
+  display: grid;
+  gap: 2rem;
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .home-why-grid {
+    grid-template-columns: 0.9fr 1.1fr;
+    gap: 3rem;
+  }
+}
+
+.why-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.why-list li {
+  position: relative;
+  padding: 0.9rem 0 0.9rem 1.6rem;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 1.05rem;
+}
+
+.why-list li::before {
+  content: '→';
+  position: absolute;
+  left: 0;
+  color: var(--color-green);
+  font-weight: 700;
+}
+
+.clients-grid,
+.testimonials-grid {
+  display: grid;
+  gap: 1.25rem;
+  margin-top: 2rem;
+}
+
+@media (min-width: 700px) {
+  .clients-grid,
+  .testimonials-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.client-card,
+.testimonial-card {
+  padding: 1.35rem;
+  background: var(--color-white, #fff);
+}
+
+.client-card h3 {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  margin: 0 0 0.35rem;
+}
+
+.client-industry {
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-green);
+  margin: 0 0 0.5rem;
+}
+
+.testimonial-card p {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  line-height: 1.55;
+  margin: 0 0 1.25rem;
+}
+
+.testimonial-card footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.9rem;
+}
+
+.testimonial-card footer span {
   color: var(--color-text-muted);
 }
 
-.mega-menu-foot {
-  margin: 0.75rem 0 0;
-  text-align: right;
+.journey-timeline {
+  list-style: none;
+  margin: 1.25rem 0 0;
+  padding: 0;
+  border-left: 2px solid rgba(5, 150, 105, 0.35);
 }
 
-.mega-menu-foot a {
-  color: var(--color-green-dark) !important;
-  font-weight: 600;
-  font-size: 0.875rem;
+.journey-timeline li {
+  position: relative;
+  padding: 0 0 1.25rem 1.5rem;
 }
 
-.mega-menu-foot a::after {
-  display: none !important;
+.journey-timeline li::before {
+  content: '';
+  position: absolute;
+  left: -0.45rem;
+  top: 0.4rem;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: var(--color-green);
 }
 
-/* Hub category pages */
+.case-study-intro {
+  margin: 2rem 0;
+}
+
+.case-study-flow {
+  display: grid;
+  gap: 1.25rem;
+  margin-top: 2rem;
+}
+
+.case-study-block {
+  padding: 1.5rem;
+  background: var(--color-white, #fff);
+}
+
+.case-study-body {
+  margin-top: 0.75rem;
+  line-height: 1.75;
+}
+
+.form-row-2 {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) {
+  .form-row-2 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .studio-page-content {
   padding-top: 6.5rem;
 }
@@ -809,15 +903,12 @@
   .header-cta { display: none !important; }
   .nav-toggle { display: flex !important; }
 
-  .mega-menu-inner {
-    grid-template-columns: 1fr;
-  }
-
   .home-about-layout.has-photo,
   .about-page-hero,
   .hub-hero-grid,
   .footer-creative-grid,
   .home-cta-inner,
+  .home-why-grid,
   .schedule-grid {
     grid-template-columns: 1fr !important;
   }
@@ -826,7 +917,11 @@
   .premium-services-grid,
   .services-detailed-grid,
   .portfolio-grid-work,
-  .hiw-timeline {
+  .hiw-timeline,
+  .process-steps,
+  .clients-grid,
+  .testimonials-grid,
+  .form-row-2 {
     grid-template-columns: 1fr !important;
   }
 
@@ -883,12 +978,4 @@
   .main-nav { display: flex !important; }
   .header-cta { display: block !important; }
   .nav-toggle { display: none !important; }
-}
-
-@media (max-width: 767px) {
-  .mega-menu {
-    position: static;
-    width: 100%;
-    transform: none;
-  }
 }

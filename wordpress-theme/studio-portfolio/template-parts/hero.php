@@ -54,16 +54,16 @@ $photo_caption  = isset( $args['photo_caption'] ) ? $args['photo_caption'] : stu
 				<?php endif; ?>
 
 				<h1 class="hero-title display-xl">
-					<span class="hero-title-line1"><?php echo esc_html( isset( $args['title_line1'] ) ? $args['title_line1'] : studio_get_option( 'hero_title_line1', 'Hi, I am' ) ); ?></span>
-					<em class="text-gradient hero-title-line2"><?php echo esc_html( isset( $args['title_line2'] ) ? $args['title_line2'] : studio_get_option( 'hero_title_line2', 'a Designer' ) ); ?></em>
-					<span class="hero-title-line3"><?php echo esc_html( isset( $args['title_line3'] ) ? $args['title_line3'] : studio_get_option( 'hero_title_line3', 'building my brand' ) ); ?></span>
+					<span class="hero-title-line1"><?php echo esc_html( isset( $args['title_line1'] ) ? $args['title_line1'] : studio_get_option( 'hero_title_line1', 'Welcome to My Creative World' ) ); ?></span>
+					<em class="text-gradient hero-title-line2"><?php echo esc_html( isset( $args['title_line2'] ) ? $args['title_line2'] : studio_get_option( 'hero_title_line2', 'I Don’t Just Design.' ) ); ?></em>
+					<span class="hero-title-line3"><?php echo esc_html( isset( $args['title_line3'] ) ? $args['title_line3'] : studio_get_option( 'hero_title_line3', 'I Build Brands.' ) ); ?></span>
 				</h1>
 
 				<?php if ( $role ) : ?>
 					<p class="hero-role"><?php echo esc_html( $role ); ?></p>
 				<?php endif; ?>
 
-				<p class="hero-desc"><?php echo esc_html( isset( $args['description'] ) ? $args['description'] : studio_get_option( 'hero_description', 'Welcome to my personal portfolio. Here I share my work, my story, and everything about my creative journey.' ) ); ?></p>
+				<p class="hero-desc"><?php echo esc_html( isset( $args['description'] ) ? $args['description'] : studio_get_option( 'hero_description', 'I help businesses look more professional, feel more consistent, and stand out — through identity, packaging, print, social, signage, and digital design.' ) ); ?></p>
 
 				<div class="hero-actions">
 					<a href="<?php echo esc_url( isset( $args['btn1_url'] ) ? $args['btn1_url'] : studio_get_option( 'hero_btn1_url', studio_get_page_url( 'portfolio_page_id', '#portfolio' ) ) ); ?>" class="btn btn-primary btn-lg">

@@ -1,58 +1,46 @@
-# Studio Portfolio v2.4
+# Studio Portfolio v2.5
 
-Multi-page design portfolio theme. Edit everything in **WordPress admin** (pages, Portfolio items, Customizer).
+Personal **brand builder** portfolio theme. Simple navigation — no mega menu.
+
+**Journey:** Welcome → Who I am → What I do → My work → How I work → Proof → Let’s work together
+
+## Navigation
+
+Home · About · Services · Portfolio · How I Work · Contact + **Start a Project**
 
 ## Pages
 
 | Page | What it shows |
 |------|---------------|
-| **Home** | Hero, marquee, About (photo + text), services, portfolio, CTA |
-| **Portfolio** | All projects you add in admin — plus mega menu with 5 category pages |
-| **Brand Identity / Graphic Design / Print & Packaging / Digital & Social / Corporate & Signage** | Editable intro + photo + automatic project grid |
-| **About Me** | Photo, story, services, awards |
-| **How I Work** | 6 process cards |
-| **Schedule Meeting** | WhatsApp booking form |
+| **Home** | Hero, intro, featured projects, services, process teaser, why work with me, clients, testimonials, CTA |
+| **About** | Photo + story: experience, philosophy, industries, role, companies founded, journey, achievements |
+| **Services** | 8 core services (not a list of 30 tiny tasks) |
+| **Portfolio** | Work by category. Each item opens a **case study** |
+| **How I Work** | Creative process only: Discover → Strategize → Explore → Design → Refine → Deliver |
+| **Contact** | Name, email, WhatsApp, company, project type, message |
 
-## Mega menu (Portfolio)
+Portfolio and How I Work are different pages. Portfolio is the work. How I Work is the process.
 
-Hover **Portfolio** in the header. Five sub-pages with picture + dummy text. Edit each page in **Pages**:
-
-- Title, featured image, and content
-- Projects appear automatically when you add them under **Portfolio → Add New** and assign the matching category
-
-## Add a project (shows on site automatically)
+## Add a case study
 
 1. **Portfolio → Add New**
-2. Title + description
-3. Featured Image
-4. Category (right sidebar)
-5. Publish
+2. Title (example: *Fireway Pizza — Brand Transformation*)
+3. Featured Image + category
+4. Fill **Case Study**: Challenge, Approach, Design, Transformation, Result
+5. Publish — it appears on Home and `/portfolio/`, and at `/project/your-title/`
 
-It shows on:
-- Home gallery
-- `/portfolio/`
-- Matching mega-menu category page
-- Its own URL: `/project/your-title/`
+## Edit content
 
-## Edit content (no code)
+**Appearance → Customize → Studio Portfolio — Full Site**
 
-| What | Where |
-|------|--------|
-| Home / About photos & text | **Appearance → Customize → Studio Portfolio** or **Studio Portfolio → Customize Theme** |
-| About photo also | **Pages → About Me → Featured Image** |
-| Home About photo also | **Pages → Home → Featured Image** |
-| Mega menu pages | **Pages → Brand Identity** (etc.) |
-| How I Work / Services | Customizer sections |
-| Footer | Customizer → Footer |
-
-If you send new copy later, it can be updated in the theme defaults — you can still override it in Customizer/Pages.
+Or **Studio Portfolio → Load Demo Content** to refresh sample copy (including Fireway Pizza).
 
 ## Setup after upload
 
 1. Activate theme
 2. **Settings → Permalinks → Save**
 3. **Settings → Reading** → Homepage = **Home**
-4. **Studio Portfolio → Load Demo Content** (optional)
+4. Optional: **Studio Portfolio → Load Demo Content**
 
 ## Download
 
