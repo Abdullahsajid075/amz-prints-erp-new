@@ -41,7 +41,7 @@ $pid = (string) ( $product['id'] ?? '' );
 	>
 		<div class="shop-card__media">
 			<?php if ( $img ) : ?>
-				<img src="<?php echo function_exists( 'amz_prints_product_img_src' ) ? amz_prints_product_img_src( $img ) : esc_url( $img ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>" alt="<?php echo esc_attr( $product['name'] ); ?>" loading="lazy">
+				<img src="<?php echo function_exists( 'amz_prints_product_img_src' ) ? amz_prints_product_img_src( $img ) : esc_url( $img ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>" alt="<?php echo esc_attr( $product['name'] ); ?>" width="800" height="800" loading="lazy" decoding="async">
 			<?php else : ?>
 				<span class="shop-card__letter" aria-hidden="true"><?php echo esc_html( mb_substr( $product['name'], 0, 1 ) ); ?></span>
 			<?php endif; ?>

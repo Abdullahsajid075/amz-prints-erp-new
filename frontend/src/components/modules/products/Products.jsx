@@ -156,10 +156,15 @@ const Products = () => {
     if (!file) return;
     setImageBusy(true);
     try {
-      // High-res compress for sharp website/ERP display (fits Sheets ~45k limit).
-      const dataUrl = await compressImageFile(file, { maxEdge: 1000, maxChars: 45000, quality: 0.86 });
+      // 1:1 square, full picture (no crop), sharp enough for website cards.
+      const dataUrl = await compressImageFile(file, {
+        maxEdge: 1200,
+        maxChars: 45000,
+        quality: 0.9,
+        square: true,
+      });
       setFormData((prev) => ({ ...prev, image: dataUrl }));
-      toast.success('Photo ready — sharp quality');
+      toast.success('Photo ready — 1:1, full picture');
     } catch (err) {
       toast.error(err.message || 'Photo failed');
     } finally {
@@ -365,9 +370,9 @@ const Products = () => {
                     className="rounded-xl border-2 border-gray-700 bg-white overflow-hidden hover:border-orange-500 hover:shadow-md transition-all"
                     data-testid={`product-card-${product.id}`}
                   >
-                    <div className="aspect-[4/3] bg-gray-50 flex items-center justify-center overflow-hidden relative">
+                    <div className="aspect-square bg-white flex items-center justify-center overflow-hidden relative">
                       {img ? (
-                        <img src={img} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        <img src={img} alt="" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
                       ) : service ? (
                         <Wrench className="h-8 w-8 text-gray-300" />
                       ) : (
@@ -486,15 +491,16 @@ const Products = () => {
 
           <form onSubmit={handleSave} className="space-y-3 mt-2">
             <div className="flex items-center gap-3">
-              <div className="w-20 h-20 rounded-lg border bg-gray-50 overflow-hidden flex items-center justify-center shrink-0">
+              <div className="w-24 h-24 rounded-lg border bg-white overflow-hidden flex items-center justify-center shrink-0">
                 {formData.image ? (
-                  <img src={formData.image} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  <img src={formData.image} alt="" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
                 ) : (
                   <ImagePlus className="h-6 w-6 text-gray-300" />
                 )}
               </div>
               <div className="space-y-1 flex-1 min-w-0">
-                <Label>Catalog photo</Label>
+                <Label>Catalog photo (1:1)</Label>
+                <p className="text-[11px] text-gray-500">Full picture is kept. Saved as a sharp square.</p>
                 <Input type="file" accept="image/*" onChange={onPickImage} disabled={imageBusy} className="text-xs" />
                 {formData.image && (
                   <Button

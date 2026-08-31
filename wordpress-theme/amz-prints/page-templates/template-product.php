@@ -40,7 +40,7 @@ if ( $product ) {
 				<div class="product-detail__gallery">
 					<?php if ( ! empty( $images ) ) : ?>
 						<div class="product-detail__main">
-							<img src="<?php echo amz_prints_product_img_src( $images[0] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>" alt="<?php echo esc_attr( $product['name'] ); ?>" data-main-image>
+							<img src="<?php echo amz_prints_product_img_src( $images[0] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>" alt="<?php echo esc_attr( $product['name'] ); ?>" width="1200" height="1200" data-main-image>
 						</div>
 						<?php if ( count( $images ) > 1 ) : ?>
 							<div class="product-detail__thumbs">
