@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { customersAPI } from '@/services/api';
 import { customerMatchesQuery } from '@/utils/customerSearch';
-import { UserPlus, User, Search, X, ChevronDown } from 'lucide-react';
+import { UserPlus, User, Search, X, ChevronDown, Ban, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
 /**
@@ -31,6 +31,7 @@ export default function CustomerPicker({
   const [draft, setDraft] = useState({ name: '', phone: '', email: '', address: '' });
   const [query, setQuery] = useState('');
   const [listOpen, setListOpen] = useState(false);
+  const [blockedInfo, setBlockedInfo] = useState(null);
   const wrapRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -71,6 +72,12 @@ export default function CustomerPicker({
   }, [listOpen]);
 
   const applyCustomer = (c) => {
+    // Blocked customers cannot be booked — show the reason and stop here.
+    if (c && c.blocked) {
+      setBlockedInfo({ name: c.name || 'This customer', reason: c.blockReason || c.block_reason || '' });
+      setListOpen(false);
+      return;
+    }
     onChange?.({
       customerId: c.id || '',
       customerName: c.name || '',
@@ -227,11 +234,12 @@ export default function CustomerPicker({
                     <button
                       key={c.id}
                       type="button"
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-orange-50 border-b last:border-0"
+                      className={`w-full text-left px-3 py-2 text-sm border-b last:border-0 ${c.blocked ? 'bg-rose-50/60 hover:bg-rose-50' : 'hover:bg-orange-50'}`}
                       onClick={() => applyCustomer(c)}
                     >
                       <span className="font-medium text-gray-900">{c.name}</span>
                       {c.phone ? <span className="text-gray-500"> — {c.phone}</span> : null}
+                      {c.blocked ? <span className="ml-1 text-[10px] font-semibold text-rose-600">(Blocked)</span> : null}
                       {c.city ? <span className="block text-[11px] text-gray-400">{c.city}</span> : null}
                     </button>
                   ))
@@ -305,6 +313,30 @@ export default function CustomerPicker({
               data-testid="save-new-customer"
             >
               {saving ? 'Saving…' : 'Save Customer'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Blocked customer — cannot be booked */}
+      <Dialog open={!!blockedInfo} onOpenChange={(v) => !v && setBlockedInfo(null)}>
+        <DialogContent className="max-w-md" data-testid="blocked-customer-dialog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-rose-700">
+              <Ban className="h-5 w-5" />Customer Blocked
+            </DialogTitle>
+            <DialogDescription>
+              <span className="font-semibold text-gray-800">{blockedInfo?.name}</span> is blocked and cannot place orders or use our services.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-1 flex items-start gap-2 rounded-md border border-rose-100 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+            <span><span className="font-semibold">Reason:</span> {blockedInfo?.reason || 'Not specified'}</span>
+          </div>
+          <p className="text-xs text-gray-500 mt-2">To unblock this customer, please contact your Admin.</p>
+          <DialogFooter className="pt-3">
+            <Button type="button" className="text-white" style={{ backgroundColor: accent }} onClick={() => setBlockedInfo(null)}>
+              Understood
             </Button>
           </DialogFooter>
         </DialogContent>

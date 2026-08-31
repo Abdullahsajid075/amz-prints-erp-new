@@ -22,6 +22,27 @@ async function ensureWalkIn() {
   return mapCustomer(row);
 }
 
+// Look up the customer targeted by an order/quotation and report if blocked.
+async function findBlockedCustomer(body = {}) {
+  const cid = String(body.customerId || '').trim();
+  const phone = String(body.customerPhone || '').trim();
+  let row = null;
+  if (cid) {
+    const { data } = await supabase
+      .from('customers').select('id,name,blocked,block_reason').eq('id', cid).maybeSingle();
+    row = data;
+  }
+  if (!row && phone) {
+    const { data } = await supabase
+      .from('customers').select('id,name,blocked,block_reason').eq('phone', phone).limit(1);
+    row = data && data[0];
+  }
+  if (row && row.blocked) {
+    return { name: row.name || '', reason: row.block_reason || '' };
+  }
+  return null;
+}
+
 async function getSettingsObject() {
   const { data, error } = await supabase.from('settings').select('key,value');
   if (error) throw error;
@@ -92,6 +113,17 @@ async function nextOrderId(prefix = 'ORD') {
   return `${prefix}-${String(max + 1).padStart(4, '0')}`;
 }
 
+// Unique, human-friendly office tracking code for a customer (e.g. AMZ-0001).
+async function nextCustomerCode(prefix = 'AMZ') {
+  const { data } = await supabase.from('customers').select('customer_code');
+  let max = 0;
+  (data || []).forEach((r) => {
+    const m = String(r.customer_code || '').match(/(\d+)\s*$/);
+    if (m) max = Math.max(max, Number(m[1]));
+  });
+  return `${prefix}-${String(max + 1).padStart(4, '0')}`;
+}
+
 async function upsertCustomerFromOrder(body) {
   const phone = String(body.customerPhone || '').trim();
   const name = String(body.customerName || '').trim();
@@ -120,6 +152,7 @@ async function upsertCustomerFromOrder(body) {
     in_crm: false,
     notify_whatsapp: true,
     notify_email: true,
+    customer_code: await nextCustomerCode(),
   };
   await supabase.from('customers').insert(row);
   return mapCustomer(row);
@@ -930,8 +963,49 @@ async function dispatch(req, res) {
     // Customers + CRM
     if (path === '/customers' || path.startsWith('/customers/')) {
       if (path === '/customers' && method === 'GET') {
-        const { data } = await supabase.from('customers').select('*').order('created_at', { ascending: false });
-        return send(res, (data || []).map(mapCustomer));
+        const [{ data }, { data: orders }, { data: payments }] = await Promise.all([
+          supabase.from('customers').select('*').order('created_at', { ascending: false }),
+          supabase.from('orders').select('customer_id,customer_phone,doc_type,total_amount,advance_payment,balance_amount'),
+          supabase.from('payments').select('customer_id,party_phone,amount'),
+        ]);
+        // Aggregate receivables per customer (by id and phone) from real orders.
+        const byId = {};
+        const byPhone = {};
+        const bump = (bucket, key, patch) => {
+          if (!key) return;
+          const b = bucket[key] || { totalBilled: 0, totalPaid: 0, outstanding: 0 };
+          b.totalBilled += patch.billed || 0;
+          b.totalPaid += patch.paid || 0;
+          b.outstanding += patch.outstanding || 0;
+          bucket[key] = b;
+        };
+        (orders || []).forEach((o) => {
+          if (String(o.doc_type || 'Order').toLowerCase() === 'quotation') return;
+          const total = num(o.total_amount);
+          const advance = num(o.advance_payment);
+          const balance = o.balance_amount != null && o.balance_amount !== ''
+            ? num(o.balance_amount)
+            : Math.max(0, total - advance);
+          const patch = { billed: total, paid: advance, outstanding: balance };
+          bump(byId, String(o.customer_id || ''), patch);
+          bump(byPhone, String(o.customer_phone || '').trim(), patch);
+        });
+        (payments || []).forEach((p) => {
+          const patch = { paid: num(p.amount) };
+          bump(byId, String(p.customer_id || ''), patch);
+          bump(byPhone, String(p.party_phone || '').trim(), patch);
+        });
+        const mapped = (data || []).map((row) => {
+          const c = mapCustomer(row);
+          const agg = byId[String(c.id)] || byPhone[String(c.phone || '').trim()] || null;
+          return {
+            ...c,
+            totalBilled: agg ? agg.totalBilled : 0,
+            totalPaid: agg ? agg.totalPaid : 0,
+            outstanding: agg ? Math.max(0, agg.outstanding) : 0,
+          };
+        });
+        return send(res, mapped);
       }
       if (path === '/customers' && method === 'POST') {
         const nameNorm = String(body.name || '').toLowerCase().replace(/[\s_-]+/g, '');
@@ -957,7 +1031,7 @@ async function dispatch(req, res) {
           }
           await supabase.from('customers').update(updates).eq('id', existing.id);
           const { data } = await supabase.from('customers').select('*').eq('id', existing.id).maybeSingle();
-          return send(res, mapCustomer(data));
+          return send(res, { ...mapCustomer(data), _isNew: false });
         }
         const row = {
           id: id('cust'),
@@ -972,9 +1046,10 @@ async function dispatch(req, res) {
           stage_updated_at: body.inCrm === true ? new Date().toISOString() : '',
           notify_whatsapp: truthy(body.notifyWhatsApp, true),
           notify_email: truthy(body.notifyEmail, true),
+          customer_code: body.customerCode || await nextCustomerCode(),
         };
         await supabase.from('customers').insert(row);
-        return send(res, mapCustomer(row));
+        return send(res, { ...mapCustomer(row), _isNew: true });
       }
 
       const parts = path.split('/').filter(Boolean); // customers, id, ...
@@ -1019,6 +1094,33 @@ async function dispatch(req, res) {
           stage: body.stage || 'lead',
           stage_updated_at: new Date().toISOString(),
           in_crm: true,
+        }).eq('id', cid);
+        const { data } = await supabase.from('customers').select('*').eq('id', cid).maybeSingle();
+        return send(res, mapCustomer(data));
+      }
+      if (parts[2] === 'block' && (method === 'PUT' || method === 'POST')) {
+        const reason = String(body.reason || body.blockReason || '').trim();
+        if (!reason) return sendError(res, 'A reason is required to block a customer', 400);
+        await supabase.from('customers').update({
+          blocked: true,
+          block_reason: reason,
+          blocked_at: new Date().toISOString(),
+          blocked_by: String(user.name || user.username || user.id || 'staff'),
+        }).eq('id', cid);
+        const { data } = await supabase.from('customers').select('*').eq('id', cid).maybeSingle();
+        return send(res, mapCustomer(data));
+      }
+      if (parts[2] === 'unblock' && (method === 'PUT' || method === 'POST')) {
+        const role = String(user.role || '').trim().toLowerCase();
+        const isAdmin = ['admin', 'administrator', 'owner', 'super admin', 'superadmin'].includes(role);
+        if (!isAdmin) {
+          return sendError(res, 'Only an Admin can unblock a customer. Please contact your Admin.', 403);
+        }
+        await supabase.from('customers').update({
+          blocked: false,
+          block_reason: '',
+          blocked_at: '',
+          blocked_by: '',
         }).eq('id', cid);
         const { data } = await supabase.from('customers').select('*').eq('id', cid).maybeSingle();
         return send(res, mapCustomer(data));
@@ -1250,6 +1352,15 @@ async function dispatch(req, res) {
           .map(mapOrder));
       }
       if (method === 'POST') {
+        const blocked = await findBlockedCustomer(body);
+        if (blocked) {
+          return send(res, {
+            message: `${blocked.name || 'This customer'} is blocked and cannot place orders. Reason: ${blocked.reason || 'Not specified'}. Please contact Admin.`,
+            blocked: true,
+            blockReason: blocked.reason || '',
+            customerName: blocked.name || '',
+          }, 403);
+        }
         const docType = String(body.docType || body.doctype || 'Order').toLowerCase();
         if (docType === 'pos') {
           let posCust = null;
@@ -1329,6 +1440,15 @@ async function dispatch(req, res) {
         return send(res, (data || []).map(mapOrder));
       }
       if (path === '/quotations' && method === 'POST') {
+        const blockedQ = await findBlockedCustomer(body);
+        if (blockedQ) {
+          return send(res, {
+            message: `${blockedQ.name || 'This customer'} is blocked and cannot be booked. Reason: ${blockedQ.reason || 'Not specified'}. Please contact Admin.`,
+            blocked: true,
+            blockReason: blockedQ.reason || '',
+            customerName: blockedQ.name || '',
+          }, 403);
+        }
         body.docType = 'Quotation';
         if (!body.orderId) body.orderId = await nextOrderId('QTN');
         if (body.customerPhone || body.customerName) {

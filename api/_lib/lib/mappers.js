@@ -15,6 +15,11 @@ function mapCustomer(row) {
     stageUpdatedAt: row.stage_updated_at || '',
     notifyWhatsApp: truthy(row.notify_whatsapp, true),
     notifyEmail: truthy(row.notify_email, true),
+    customerCode: row.customer_code || '',
+    blocked: !!row.blocked,
+    blockReason: row.block_reason || '',
+    blockedAt: row.blocked_at || '',
+    blockedBy: row.blocked_by || '',
   };
 }
 

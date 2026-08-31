@@ -35,8 +35,15 @@ create table if not exists customers (
   created_at timestamptz default now()
 );
 alter table customers add column if not exists portal_password text;
+-- Office tracking code + block/unblock controls
+alter table customers add column if not exists customer_code text default '';
+alter table customers add column if not exists blocked boolean default false;
+alter table customers add column if not exists block_reason text default '';
+alter table customers add column if not exists blocked_at text default '';
+alter table customers add column if not exists blocked_by text default '';
 create index if not exists customers_phone_idx on customers (phone);
 create index if not exists customers_in_crm_idx on customers (in_crm);
+create index if not exists customers_code_idx on customers (customer_code);
 
 create table if not exists crm_notes (
   id text primary key,
