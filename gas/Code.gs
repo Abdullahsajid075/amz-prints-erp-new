@@ -43,7 +43,7 @@ var DEFAULT_HEADERS = {
   Customers: [
     'Id', 'Name', 'Phone', 'Email', 'Address', 'City', 'Notes',
     'InCrm', 'Stage', 'StageUpdatedAt', 'NotifyWhatsApp', 'NotifyEmail', 'PortalPassword',
-    'CustomerCode', 'Blocked', 'BlockReason', 'BlockedAt', 'BlockedBy'
+    'CustomerCode', 'Blocked', 'BlockReason', 'BlockedAt', 'BlockedBy', 'CreditBalance'
   ],
   CrmNotes: ['Id', 'CustomerId', 'Note', 'CreatedAt', 'CreatedBy'],
   Employees: [
@@ -65,7 +65,7 @@ var DEFAULT_HEADERS = {
   Invoices: [
     'Id', 'InvoiceNo', 'Date', 'DueDate', 'OrderId', 'CustomerId', 'CustomerName', 'CustomerPhone',
     'CustomerEmail', 'CustomerAddress', 'Items', 'Subtotal', 'TaxRate', 'Tax', 'Discount',
-    'PreviousBalance', 'Total', 'Paid', 'Status', 'Notes', 'ShareToken'
+    'PreviousBalance', 'Total', 'Paid', 'Status', 'Notes', 'ShareToken', 'PaymentHistory'
   ],
   Vendors: ['Id', 'Name', 'Phone', 'Email', 'Address', 'Notes'],
   Purchases: [
@@ -75,7 +75,7 @@ var DEFAULT_HEADERS = {
   Expenses: ['Id', 'Date', 'Category', 'Amount', 'Description', 'PaymentMethod'],
   Payments: [
     'Id', 'Date', 'Type', 'Category', 'RefId', 'CustomerName', 'CustomerId',
-    'PartyPhone', 'PartyEmail', 'Amount', 'Method', 'Notes', 'BalanceDue', 'TotalAmount'
+    'PartyPhone', 'PartyEmail', 'Amount', 'Method', 'Notes', 'BalanceDue', 'TotalAmount', 'Locked'
   ],
   Counters: [
     'RecordType', 'CounterName', 'AccessHolder', 'Prefix', 'LastNumber', 'Status',
@@ -833,6 +833,7 @@ function toApiCustomer_(c) {
     blockReason: c.blockreason || '',
     blockedAt: c.blockedat || '',
     blockedBy: c.blockedby || '',
+    creditBalance: Number(c.creditbalance || 0),
   };
 }
 
@@ -866,7 +867,7 @@ function handleCustomerBlock_(customerId, action, body, user) {
   }
 
   if (action === 'unblock') {
-    if (!isAdminRole_(user)) throw new Error('Only Admin can unblock customers');
+    if (!isAdminRole_(user)) throw new Error('Only Admin with Settings access can unblock customers');
     var unblockUpdates = {
       blocked: false,
       blockreason: '',
@@ -1086,9 +1087,7 @@ function handleCustomers_(path, method, body, user) {
     } catch (eInv) { invRows = []; }
     var orderPaid = orders.reduce(function (s, o) { return s + Number(o.advancepayment || 0); }, 0);
     var paymentPaid = payRows.reduce(function (s, p) { return s + Number(p.amount || 0); }, 0);
-    var billed = orders.reduce(function (s, o) { return s + Number(o.totalamount || o.total || 0); }, 0);
-    // Prefer order balances for outstanding; payments already reflected when applied to orders
-    var outstanding = orders.reduce(function (s, o) { return s + Number(o.balanceamount || 0); }, 0);
+    var ledger = computeCustomerLedger_(customer, orders, invRows, payRows);
     return {
       customer: enrichApiCustomer_(customer, orders),
       invoices: invRows.map(toApiInvoice_),
@@ -1103,12 +1102,23 @@ function handleCustomers_(path, method, body, user) {
           reference: p.refid || p.reference || '',
           party: p.customername || p.party || '',
           notes: p.notes || '',
+          locked: isNotifyOn_(p.locked) || String(p.id || '').indexOf('pay_') === 0,
         };
       }),
-      totalBilled: billed,
-      totalPaid: Math.max(orderPaid, paymentPaid),
-      outstanding: outstanding,
+      totalBilled: ledger.totalBilled,
+      totalPaid: ledger.totalPaid,
+      outstanding: ledger.outstanding,
+      orderOutstanding: ledger.orderOutstanding,
+      invoiceOutstanding: ledger.invoiceOutstanding,
+      creditBalance: ledger.creditBalance,
+      payable: ledger.payable,
+      statement: ledger.statement || [],
     };
+  }
+
+  var payCustMatch = path.match(/^\/customers\/([^/]+)\/payment$/);
+  if (payCustMatch && method === 'POST') {
+    return recordCustomerPayment_(decodeURIComponent(payCustMatch[1]), body || {});
   }
 
   // /customers/:id/notes  or  /customers/:id/notes/:noteId
@@ -2214,67 +2224,22 @@ function handleOrderById_(path, method, body) {
 
   if (path.indexOf('/payment') !== -1 && method === 'POST') {
     var orderForPayment = orders[index];
-    var amount = Number(body.amount || 0);
-    if (!(amount > 0)) throw new Error('Enter a valid payment amount');
-    var total = Number(orderForPayment.totalamount || orderForPayment.total || 0);
-    var paidBefore = Number(orderForPayment.advancepayment || 0);
-    var balanceBefore = Math.max(0, total - paidBefore);
-    if (amount > balanceBefore) throw new Error('Payment cannot exceed order balance');
-
-    var paidAfter = paidBefore + amount;
-    var balanceAfter = Math.max(0, total - paidAfter);
-    var history = orderForPayment.paymenthistory;
-    if (typeof history === 'string') {
-      try { history = JSON.parse(history); } catch (eHist) { history = []; }
-    }
-    if (!Array.isArray(history)) history = [];
-    history.push({
-      date: body.date || nowDate_(),
-      amount: amount,
-      method: body.method || 'Cash',
-      notes: body.notes || '',
-    });
-    updateObjectProps_(sheet, SHEET_NAMES.ORDERS, orderForPayment._row, {
-      advancepayment: paidAfter,
-      balanceamount: balanceAfter,
-      paymenthistory: history,
-    });
-
-    var paySheet = getSheet_(SHEET_NAMES.PAYMENTS);
-    ensureHeaders_(paySheet, SHEET_NAMES.PAYMENTS);
-    var payment = {
-      id: 'pay_order_' + Date.now(),
-      date: body.date || nowDate_(),
-      type: 'inflow',
-      category: 'Invoice Payment',
-      refid: orderForPayment.orderid || orderForPayment.id,
-      customername: orderForPayment.customername || '',
-      customerid: orderForPayment.customerid || '',
-      partyphone: orderForPayment.customerphone || '',
-      partyemail: orderForPayment.customeremail || '',
-      amount: amount,
-      method: body.method || 'Cash',
-      notes: body.notes || ('Order payment — ' + (orderForPayment.orderid || orderForPayment.id)),
-      balancedue: balanceAfter,
-      totalamount: total,
-    };
-    appendObject_(paySheet, SHEET_NAMES.PAYMENTS, payment);
-
-    var updatedOrder = Object.assign({}, orderForPayment, {
-      advancepayment: paidAfter,
-      balanceamount: balanceAfter,
-      paymenthistory: history,
-    });
+    var invoiceForPay = findOrCreateInvoiceForOrder_(orderForPayment);
+    var invPayResult = recordInvoicePayment_(invoiceForPay.id || invoiceForPay.invoiceno, body || {});
     return {
-      order: toApiOrder_(updatedOrder),
-      payment: payment,
+      order: snapshotOrderPaid_(orderForPayment.orderid || orderForPayment.id, (invPayResult.invoice && invPayResult.invoice.paidAmount) || 0) || toApiOrder_(orderForPayment),
+      invoice: invPayResult.invoice,
+      payment: invPayResult.payment,
+      applied: invPayResult.applied,
+      extra: invPayResult.extra,
+      creditBalance: invPayResult.creditBalance,
     };
   }
 
   if (method === 'GET') return toApiOrder_(orders[index]);
   if (method === 'PUT') {
     if (/^(delivered|completed|complete)$/i.test(String(orders[index].status || ''))) {
-      throw new Error('Delivered order is locked. Only payments can be recorded.');
+      throw new Error('Delivered order is locked. Record payments on the invoice.');
     }
     var prev = toApiOrder_(orders[index]);
     var updated = normalizeOrder_(body, orders[index]);
@@ -2601,15 +2566,430 @@ function handleCollection_(sheetName, path, method, body, basePath) {
 
   if (method === 'GET') return rows[index];
   if (method === 'PUT') {
+    var prev = rows[index];
+    if (isNotifyOn_(prev.locked) || String(prev.id || '').indexOf('pay_') === 0) {
+      if (!body || body.allowEditFromPortal !== true) {
+        throw new Error('This payment is locked. Edit only from Customer Portal.');
+      }
+    }
     var updates = coerceKeys_(Object.assign({}, rows[index], body));
     updateObjectProps_(sheet, sheetName, rows[index]._row, updates);
     return updates;
   }
   if (method === 'DELETE') {
+    var prevDel = rows[index];
+    if (isNotifyOn_(prevDel.locked) || String(prevDel.id || '').indexOf('pay_') === 0) {
+      throw new Error('Recorded payments cannot be deleted. Contact Admin.');
+    }
     deleteRow_(sheet, rows[index]._row, sheetName);
     return { success: true };
   }
   throw new Error('Method not allowed');
+}
+
+/* ===================== PAYMENTS (unified ledger) ===================== */
+
+function parsePaymentHistory_(raw) {
+  if (!raw) return [];
+  if (typeof raw === 'string') {
+    try { raw = JSON.parse(raw); } catch (e) { return []; }
+  }
+  return Array.isArray(raw) ? raw : (raw ? [raw] : []);
+}
+
+function invoiceTotalDue_(inv) {
+  return Number(inv.total || inv.totalamount || 0) + Number(inv.previousbalance || 0);
+}
+
+function invoiceStatusFromPaid_(totalDue, paid) {
+  paid = Number(paid || 0);
+  totalDue = Number(totalDue || 0);
+  if (paid <= 0) return 'Unpaid';
+  if (paid >= totalDue - 0.01) return 'Paid';
+  return 'Partial';
+}
+
+function appendPaymentsSheetRow_(opts) {
+  opts = opts || {};
+  var paySheet = getSheet_(SHEET_NAMES.PAYMENTS);
+  ensureHeaders_(paySheet, SHEET_NAMES.PAYMENTS);
+  var payment = {
+    id: opts.id || ('pay_' + Date.now()),
+    date: opts.date || nowDate_(),
+    type: opts.type || 'inflow',
+    category: opts.category || 'Invoice Payment',
+    refid: opts.refId || opts.reference || '',
+    customername: opts.customerName || opts.party || '',
+    customerid: opts.customerId || '',
+    partyphone: opts.customerPhone || opts.partyPhone || '',
+    partyemail: opts.customerEmail || opts.partyEmail || '',
+    amount: Number(opts.amount || 0),
+    method: opts.method || 'Cash',
+    notes: opts.notes || '',
+    balancedue: Number(opts.balanceDue != null ? opts.balanceDue : 0),
+    totalamount: Number(opts.totalAmount != null ? opts.totalAmount : 0),
+    locked: opts.locked === false ? false : true,
+  };
+  appendObject_(paySheet, SHEET_NAMES.PAYMENTS, payment);
+  invalidateSheetCache_(SHEET_NAMES.PAYMENTS);
+  return payment;
+}
+
+function addCustomerCredit_(customerId, amount, note) {
+  amount = Number(amount || 0);
+  if (!(amount > 0) || !customerId) return 0;
+  var sheet = getSheet_(SHEET_NAMES.CUSTOMERS);
+  var customers = getSheetRows_(SHEET_NAMES.CUSTOMERS);
+  var idx = findById_(customers, customerId);
+  if (idx < 0) return 0;
+  var prev = Number(customers[idx].creditbalance || 0);
+  var next = prev + amount;
+  updateObjectProps_(sheet, SHEET_NAMES.CUSTOMERS, customers[idx]._row, {
+    creditbalance: next,
+  });
+  invalidateSheetCache_(SHEET_NAMES.CUSTOMERS);
+  return next;
+}
+
+/** Display-only snapshot on the order card — payment records live on the invoice. */
+function snapshotOrderPaid_(orderRef, paidAmount) {
+  if (!orderRef) return null;
+  var sheet = getSheet_(SHEET_NAMES.ORDERS);
+  var orders = getSheetRows_(SHEET_NAMES.ORDERS);
+  var idx = orders.findIndex(function (o) {
+    return String(o.id) === String(orderRef)
+      || String(o.orderid) === String(orderRef);
+  });
+  if (idx < 0) return null;
+  var order = orders[idx];
+  var total = Number(order.totalamount || order.total || 0);
+  var paid = Math.max(0, Number(paidAmount || 0));
+  var balance = Math.max(0, total - paid);
+  updateObjectProps_(sheet, SHEET_NAMES.ORDERS, order._row, {
+    advancepayment: Math.min(paid, total),
+    balanceamount: balance,
+  });
+  invalidateSheetCache_(SHEET_NAMES.ORDERS);
+  return toApiOrder_(Object.assign({}, order, {
+    advancepayment: Math.min(paid, total),
+    balanceamount: balance,
+  }));
+}
+
+function findInvoiceForOrder_(order) {
+  if (!order) return null;
+  var invoices = getSheetRows_(SHEET_NAMES.INVOICES);
+  var oid = String(order.orderid || '');
+  var id = String(order.id || '');
+  var idx = invoices.findIndex(function (inv) {
+    var ref = String(inv.orderid || '');
+    return ref && (ref === oid || ref === id);
+  });
+  return idx >= 0 ? invoices[idx] : null;
+}
+
+function findOrCreateInvoiceForOrder_(order) {
+  var existing = findInvoiceForOrder_(order);
+  if (existing) return existing;
+  var items = order.products;
+  if (typeof items === 'string') {
+    try { items = JSON.parse(items); } catch (e) { items = []; }
+  }
+  if (!Array.isArray(items)) items = [];
+  var mapped = items.map(function (p) {
+    return {
+      name: p.name || '',
+      quantity: Number(p.quantity || 0),
+      rate: Number(p.rate || 0),
+      size: p.size || '',
+      material: p.material || '',
+    };
+  });
+  var subtotal = mapped.reduce(function (s, it) {
+    return s + (Number(it.quantity || 0) * Number(it.rate || 0));
+  }, 0);
+  if (!(subtotal > 0)) subtotal = Number(order.totalamount || order.total || 0);
+  var sheet = getSheet_(SHEET_NAMES.INVOICES);
+  ensureHeaders_(sheet, SHEET_NAMES.INVOICES);
+  var created = normalizeInvoice_({
+    orderId: order.orderid || order.id,
+    customerId: order.customerid,
+    customerName: order.customername,
+    customerPhone: order.customerphone,
+    customerEmail: order.customeremail,
+    customerAddress: order.customeraddress,
+    items: mapped,
+    subtotal: subtotal,
+    taxRate: 0,
+    tax: 0,
+    discount: 0,
+    previousBalance: 0,
+    totalAmount: subtotal,
+    paidAmount: 0,
+    status: 'Unpaid',
+    notes: 'From order ' + (order.orderid || order.id),
+  });
+  if (!created.invoiceno) {
+    created.invoiceno = 'INV-' + Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Karachi', 'yyyy') + '-' + String(Date.now()).slice(-4);
+  }
+  appendObject_(sheet, SHEET_NAMES.INVOICES, created);
+  invalidateSheetCache_(SHEET_NAMES.INVOICES);
+  return created;
+}
+
+function recordInvoicePayment_(invoiceId, body) {
+  body = body || {};
+  var amount = Number(body.amount || 0);
+  if (!(amount > 0)) throw new Error('Enter a valid payment amount');
+  var sheet = getSheet_(SHEET_NAMES.INVOICES);
+  ensureHeaders_(sheet, SHEET_NAMES.INVOICES);
+  var rows = getSheetRows_(SHEET_NAMES.INVOICES);
+  var idx = findById_(rows, invoiceId);
+  if (idx < 0) {
+    idx = rows.findIndex(function (r) {
+      return String(r.invoiceno || '') === String(invoiceId || '');
+    });
+  }
+  if (idx < 0) throw new Error('Invoice not found');
+  var inv = rows[idx];
+  var totalDue = invoiceTotalDue_(inv);
+  var paidBefore = Number(inv.paid || 0);
+  var balanceBefore = Math.max(0, totalDue - paidBefore);
+  var applied = Math.min(amount, balanceBefore);
+  var extra = Math.max(0, amount - applied);
+  var paidAfter = paidBefore + applied;
+  var balanceAfter = Math.max(0, totalDue - paidAfter);
+  var payDate = body.date || nowDate_();
+  var history = parsePaymentHistory_(inv.paymenthistory);
+  var payId = 'pay_inv_' + Date.now();
+  history.push({
+    id: payId,
+    date: payDate,
+    amount: amount,
+    applied: applied,
+    extra: extra,
+    method: body.method || 'Cash',
+    notes: body.notes || '',
+    locked: true,
+  });
+  var status = invoiceStatusFromPaid_(totalDue, paidAfter);
+  updateObjectProps_(sheet, SHEET_NAMES.INVOICES, inv._row, {
+    paid: paidAfter,
+    status: status,
+    paymenthistory: history,
+  });
+  invalidateSheetCache_(SHEET_NAMES.INVOICES);
+
+  var paymentRow = appendPaymentsSheetRow_({
+    id: payId,
+    date: payDate,
+    category: 'Invoice Payment',
+    refId: inv.invoiceno || inv.id,
+    customerId: inv.customerid || '',
+    customerName: inv.customername || '',
+    customerPhone: inv.customerphone || '',
+    customerEmail: inv.customeremail || '',
+    amount: amount,
+    method: body.method || 'Cash',
+    notes: body.notes || ('Invoice payment — ' + (inv.invoiceno || inv.id)),
+    balanceDue: balanceAfter,
+    totalAmount: totalDue,
+    locked: true,
+  });
+
+  var linkedOrder = null;
+  if (inv.orderid) {
+    linkedOrder = snapshotOrderPaid_(inv.orderid, paidAfter);
+  }
+
+  var creditBalance = 0;
+  if (extra > 0 && inv.customerid) {
+    creditBalance = addCustomerCredit_(inv.customerid, extra, 'Overpayment on invoice ' + (inv.invoiceno || inv.id));
+  }
+
+  var updatedInv = Object.assign({}, inv, {
+    paid: paidAfter,
+    status: status,
+    paymenthistory: history,
+  });
+  return {
+    invoice: toApiInvoice_(updatedInv),
+    payment: paymentRow,
+    applied: applied,
+    extra: extra,
+    creditBalance: creditBalance,
+    order: linkedOrder,
+  };
+}
+
+function recordCustomerPayment_(customerId, body) {
+  body = body || {};
+  var amount = Number(body.amount || 0);
+  if (!(amount > 0)) throw new Error('Enter a valid payment amount');
+  if (body.invoiceId || body.linkedInvoiceId) {
+    var invResult = recordInvoicePayment_(body.invoiceId || body.linkedInvoiceId, body);
+    var customers = getSheetRows_(SHEET_NAMES.CUSTOMERS);
+    var cIdx = findById_(customers, customerId);
+    var cust = cIdx >= 0 ? customers[cIdx] : null;
+    return Object.assign({ customer: cust ? enrichApiCustomer_(cust, getSheetRows_(SHEET_NAMES.ORDERS)) : null }, invResult);
+  }
+
+  var customers = getSheetRows_(SHEET_NAMES.CUSTOMERS);
+  var idx = findById_(customers, customerId);
+  if (idx < 0) throw new Error('Customer not found');
+  var cust = customers[idx];
+  var payDate = body.date || nowDate_();
+  var payId = 'pay_cust_' + Date.now();
+  var refId = body.reference || body.refId || body.linkedOrderId || payId;
+  var applied = 0;
+  var extra = amount;
+  var linkedOrder = null;
+
+  if (body.orderId || body.linkedOrderId) {
+    var orderRef = body.orderId || body.linkedOrderId;
+    var orders = getSheetRows_(SHEET_NAMES.ORDERS);
+    var oIdx = orders.findIndex(function (o) {
+      return String(o.id) === String(orderRef) || String(o.orderid) === String(orderRef);
+    });
+    if (oIdx >= 0) {
+      var invForOrder = findOrCreateInvoiceForOrder_(orders[oIdx]);
+      var invPay = recordInvoicePayment_(invForOrder.id || invForOrder.invoiceno, body);
+      return Object.assign({
+        customer: enrichApiCustomer_(cust, getSheetRows_(SHEET_NAMES.ORDERS)),
+      }, invPay);
+    }
+  }
+
+  var paymentRow = appendPaymentsSheetRow_({
+    id: payId,
+    date: payDate,
+    category: body.category || 'Invoice Payment',
+    refId: refId,
+    customerId: cust.id,
+    customerName: cust.name || '',
+    customerPhone: cust.phone || '',
+    customerEmail: cust.email || '',
+    amount: amount,
+    method: body.method || 'Cash',
+    notes: body.notes || (applied > 0 ? 'Customer payment' : 'Unallocated customer credit'),
+    balanceDue: 0,
+    totalAmount: amount,
+    locked: true,
+  });
+
+  var creditBalance = Number(cust.creditbalance || 0);
+  if (extra > 0) {
+    creditBalance = addCustomerCredit_(cust.id, extra, body.notes || '');
+  }
+
+  return {
+    customer: enrichApiCustomer_(Object.assign({}, cust, { creditbalance: creditBalance }), getSheetRows_(SHEET_NAMES.ORDERS)),
+    payment: paymentRow,
+    applied: applied,
+    extra: extra,
+    creditBalance: creditBalance,
+    order: linkedOrder,
+  };
+}
+
+function computeCustomerLedger_(customer, orders, invoices, payRows) {
+  orders = orders || [];
+  invoices = invoices || [];
+  payRows = payRows || [];
+  var invoicedRefs = {};
+  invoices.forEach(function (inv) {
+    var ref = String(inv.orderid || '');
+    if (ref) invoicedRefs[ref] = true;
+  });
+  var orphanOrders = orders.filter(function (o) {
+    return !invoicedRefs[String(o.orderid || '')] && !invoicedRefs[String(o.id || '')];
+  });
+  var invoiceBilled = invoices.reduce(function (s, inv) { return s + invoiceTotalDue_(inv); }, 0);
+  var orphanBilled = orphanOrders.reduce(function (s, o) { return s + Number(o.totalamount || o.total || 0); }, 0);
+  var invoiceOutstanding = invoices.reduce(function (s, inv) {
+    return s + Math.max(0, invoiceTotalDue_(inv) - Number(inv.paid || 0));
+  }, 0);
+  var orphanOutstanding = orphanOrders.reduce(function (s, o) { return s + Number(o.balanceamount || 0); }, 0);
+  var paymentPaid = payRows.reduce(function (s, p) {
+    var t = String(p.type || 'inflow').toLowerCase();
+    if (t === 'outflow' || t === 'out') return s - Number(p.amount || 0);
+    return s + Number(p.amount || 0);
+  }, 0);
+  var credit = Number(customer.creditbalance || 0);
+  var outstanding = Math.max(0, invoiceOutstanding + orphanOutstanding - credit);
+  var statement = buildLedgerStatement_(invoices, payRows, orphanOrders);
+  return {
+    totalBilled: invoiceBilled + orphanBilled,
+    totalPaid: Math.max(0, paymentPaid),
+    orderOutstanding: orphanOutstanding,
+    invoiceOutstanding: invoiceOutstanding,
+    outstanding: outstanding,
+    creditBalance: credit,
+    payable: outstanding,
+    statement: statement,
+  };
+}
+
+function buildLedgerStatement_(invoices, payRows, orphanOrders) {
+  var lines = [];
+  (invoices || []).forEach(function (inv) {
+    var due = invoiceTotalDue_(inv);
+    if (!(due > 0)) return;
+    lines.push({
+      date: inv.date || '',
+      type: 'debit',
+      particular: 'Invoice ' + (inv.invoiceno || inv.id || ''),
+      reference: inv.invoiceno || '',
+      invoiceNumber: inv.invoiceno || '',
+      orderId: inv.orderid || '',
+      debit: due,
+      credit: 0,
+      method: '',
+      notes: inv.notes || '',
+    });
+  });
+  (orphanOrders || []).forEach(function (o) {
+    var amt = Number(o.totalamount || o.total || 0);
+    if (!(amt > 0)) return;
+    lines.push({
+      date: o.date || '',
+      type: 'debit',
+      particular: 'Order ' + (o.orderid || o.id || '') + ' (no invoice)',
+      reference: o.orderid || '',
+      invoiceNumber: '',
+      orderId: o.orderid || '',
+      debit: amt,
+      credit: 0,
+      method: '',
+      notes: '',
+    });
+  });
+  (payRows || []).forEach(function (p) {
+    var amt = Number(p.amount || 0);
+    if (!(amt > 0)) return;
+    var outflow = String(p.type || 'inflow').toLowerCase() === 'outflow' || String(p.type || '').toLowerCase() === 'out';
+    lines.push({
+      date: p.date || '',
+      type: outflow ? 'debit' : 'credit',
+      particular: p.notes || p.category || (outflow ? 'Payment out' : 'Payment received'),
+      reference: p.refid || p.reference || p.id || '',
+      invoiceNumber: '',
+      orderId: '',
+      debit: outflow ? amt : 0,
+      credit: outflow ? 0 : amt,
+      method: p.method || '',
+      notes: p.notes || '',
+    });
+  });
+  lines.sort(function (a, b) {
+    return String(a.date || '').localeCompare(String(b.date || ''));
+  });
+  var running = 0;
+  return lines.map(function (line) {
+    running += Number(line.debit || 0) - Number(line.credit || 0);
+    line.balance = running;
+    return line;
+  });
 }
 
 /* ===================== INVOICES ===================== */
@@ -2670,6 +3050,8 @@ function normalizeInvoice_(body, existing) {
       body.paidAmount != null ? body.paidAmount
         : (body.paid != null ? body.paid : existing.paid || 0)
     ),
+    paymenthistory: body.paymentHistory != null ? body.paymentHistory
+      : (body.paymenthistory != null ? body.paymenthistory : existing.paymenthistory || []),
     status: body.status || existing.status || 'Unpaid',
     notes: body.notes || existing.notes || '',
     sharetoken: body.shareToken || body.sharetoken || existing.sharetoken
@@ -2683,6 +3065,9 @@ function toApiInvoice_(inv) {
     try { items = JSON.parse(items); } catch (eItems) { items = []; }
   }
   if (!Array.isArray(items)) items = [];
+  var paymentHistory = parsePaymentHistory_(inv.paymenthistory);
+  var totalDue = invoiceTotalDue_(inv);
+  var paid = Number(inv.paid || inv.paidamount || 0);
   return {
     id: inv.id,
     invoiceNumber: inv.invoiceno || '',
@@ -2701,8 +3086,10 @@ function toApiInvoice_(inv) {
     discount: Number(inv.discount || 0),
     previousBalance: Number(inv.previousbalance || 0),
     totalAmount: Number(inv.total || inv.totalamount || 0),
-    paidAmount: Number(inv.paid || inv.paidamount || 0),
-    status: inv.status || 'Unpaid',
+    paidAmount: paid,
+    balanceAmount: Math.max(0, totalDue - paid),
+    paymentHistory: paymentHistory,
+    status: inv.status || invoiceStatusFromPaid_(totalDue, paid),
     notes: inv.notes || '',
     shareToken: inv.sharetoken || '',
   };
@@ -2749,8 +3136,9 @@ function handleInvoices_(path, method, body) {
   }
   appendObject_(sheet, SHEET_NAMES.INVOICES, created);
       var apiInv = toApiInvoice_(created);
-      try {
-        apiInv._notifications = dispatchOrderNotifications_({
+      if (body.notifyOnCreate === true) {
+        try {
+          apiInv._notifications = dispatchOrderNotifications_({
           customerName: apiInv.customerName,
           customerPhone: apiInv.customerPhone,
           customerEmail: apiInv.customerEmail,
@@ -2764,12 +3152,18 @@ function handleInvoices_(path, method, body) {
           amount: apiInv.totalAmount,
           email: apiInv.customerEmail,
         });
-      } catch (notifyErr) {
-        apiInv._notifications = { error: String(notifyErr) };
+        } catch (notifyErr) {
+          apiInv._notifications = { error: String(notifyErr) };
+        }
       }
       return apiInv;
     }
     throw new Error('Method not allowed');
+  }
+
+  var payInvMatch = path.match(/^\/invoices\/([^/]+)\/payment$/);
+  if (payInvMatch && method === 'POST') {
+    return recordInvoicePayment_(decodeURIComponent(payInvMatch[1]), body || {});
   }
 
   var id = path.split('/')[2];
@@ -2784,9 +3178,19 @@ function handleInvoices_(path, method, body) {
 
   if (method === 'GET') return toApiInvoice_(rows[index]);
   if (method === 'PUT') {
+    var prevInv = rows[index];
+    var prevHistory = parsePaymentHistory_(prevInv.paymenthistory);
+    if (prevHistory.length > 0 && (body.paidAmount != null || body.paid != null)) {
+      throw new Error('Paid amount is locked — use Record Payment to add payments. Edit history only from Customer Portal.');
+    }
     var updated = normalizeInvoice_(body, rows[index]);
     updated.id = rows[index].id;
     if (!updated.sharetoken) updated.sharetoken = rows[index].sharetoken;
+    if (prevHistory.length > 0) {
+      updated.paid = Number(prevInv.paid || 0);
+      updated.paymenthistory = prevHistory;
+      updated.status = invoiceStatusFromPaid_(invoiceTotalDue_(updated), updated.paid);
+    }
     updateObjectProps_(sheet, SHEET_NAMES.INVOICES, rows[index]._row, updated);
     return toApiInvoice_(updated);
   }
@@ -3608,16 +4012,18 @@ function parseProductVariations_(raw) {
   }).filter(function (v) { return !!v.name; });
 }
 
-/** Product gallery — JSON array of data-URLs / http(s) URLs (max 5). */
+/** Product gallery — JSON array of data-URLs / http(s) URLs (max 5). Primary image first. */
 function parseProductImages_(raw, primary) {
   var out = [];
+  var seen = {};
   var push = function (v) {
     var s = sanitizeCatalogImage_(v);
-    if (!s) return;
-    if (out.indexOf(s) >= 0) return;
+    if (!s || seen[s]) return;
     if (out.length >= 5) return;
+    seen[s] = true;
     out.push(s);
   };
+  push(primary);
   var list = raw;
   if (typeof list === 'string') {
     var t = String(list || '').trim();
@@ -3632,7 +4038,6 @@ function parseProductImages_(raw, primary) {
   if (Array.isArray(list)) {
     list.forEach(function (img) { push(img); });
   }
-  push(primary);
   return out;
 }
 
@@ -4095,9 +4500,8 @@ function toPublicTrackOrder_(o) {
 }
 
 /**
- * Photos are stored IN Google Sheets (compressed data-URL).
- * No Google Drive / DriveApp — works when Workspace blocks Drive OAuth.
- * Sheets cell limit ~50k chars; frontend compresses before upload.
+ * Product photos: primary in Image column, gallery extras in Images JSON.
+ * No Drive — full-resolution data-URLs up to Sheets cell limit (~50k chars).
  */
 // Google Sheets cell max is 50,000 chars — keep a small safety margin
 var MAX_SHEET_IMAGE_CHARS_ = 49000;
@@ -4120,7 +4524,7 @@ function saveImageToSheetCell_(dataUrl, fileId) {
   if (raw.indexOf('data:image') === 0) {
     if (raw.length > MAX_SHEET_IMAGE_CHARS_) {
       throw new Error(
-        'Photo too large for Sheets (' + raw.length + ' chars). Pick a smaller / clearer photo — max ~' + MAX_SHEET_IMAGE_CHARS_ + ' after compress.'
+        'Photo too large for Sheets (' + raw.length + ' chars). Use original resolution under ~' + MAX_SHEET_IMAGE_CHARS_ + ' chars or fewer gallery photos.'
       );
     }
     return raw;
@@ -4309,6 +4713,8 @@ function normalizeProduct_(body, existing) {
   }).filter(function (s) { return !!s; });
   if (imageList.length > 5) imageList = imageList.slice(0, 5);
   var imageVal = imageList.length ? imageList[0] : '';
+  // Primary photo → Image column (full quality). Gallery extras → Images JSON only.
+  var galleryExtras = imageList.length > 1 ? imageList.slice(1) : [];
   var variationsRaw = body.variations != null ? body.variations : existing.variations;
   var variations = parseProductVariations_(variationsRaw);
   var showWeb = true;
@@ -4336,7 +4742,7 @@ function normalizeProduct_(body, existing) {
     stock: Number(body.stock != null ? body.stock : (existing.stock || 0)),
     designer: isService ? '' : (body.designer || existing.designer || ''),
     image: imageVal,
-    images: imageList,
+    images: galleryExtras,
     status: body.active === false ? 'Inactive' : (body.status || existing.status || 'Active'),
     showonwebsite: showWeb,
     showontop: showTop,

@@ -345,37 +345,34 @@ export function buildTemplateVars(order = {}, company = {}, extras = {}) {
 }
 
 export function resolveWhatsAppTemplate(templates, event, status) {
-  const t = templates || DEFAULT_WHATSAPP_TEMPLATES;
-  if (event === 'quotation') return t.quotation || DEFAULT_WHATSAPP_TEMPLATES.quotation;
+  const t = templates || {};
+  if (event === 'quotation' && t.quotation) return t.quotation;
   if (event === 'created') {
-    return t.created || t['Order Received'] || DEFAULT_WHATSAPP_TEMPLATES.created;
+    return t.created || t['Order Received'] || '';
   }
   if (event === 'invoice' || event === 'invoice_generated') {
-    return t.invoice_generated || t.invoice || DEFAULT_WHATSAPP_TEMPLATES.invoice_generated;
+    return t.invoice_generated || t.invoice || '';
   }
   if (event === 'payment_reminder' || event === 'reminder') {
-    return t.payment_reminder || DEFAULT_WHATSAPP_TEMPLATES.payment_reminder;
+    return t.payment_reminder || '';
   }
   if (event === 'balance_reminder') {
-    return t.balance_reminder || DEFAULT_WHATSAPP_TEMPLATES.balance_reminder;
+    return t.balance_reminder || '';
   }
   if (event === 'payment_received') {
-    return t.payment_received || DEFAULT_WHATSAPP_TEMPLATES.payment_received;
+    return t.payment_received || '';
   }
   if (event === 'payment_sent') {
-    return t.payment_sent || DEFAULT_WHATSAPP_TEMPLATES.payment_sent;
+    return t.payment_sent || '';
   }
   if (event === 'token_booked') {
-    return t.token_booked || DEFAULT_WHATSAPP_TEMPLATES.token_booked;
+    return t.token_booked || '';
   }
   if (event === 'token_called') {
-    return t.token_called || DEFAULT_WHATSAPP_TEMPLATES.token_called;
+    return t.token_called || '';
   }
-  // Prefer Settings templates (including Ready); fall back to defaults
   if (status && t[status]) return t[status];
-  if (status === 'Ready') return DEFAULT_WHATSAPP_TEMPLATES.Ready;
-  if (status === 'Order Received') {
-    return t['Order Received'] || t.created || DEFAULT_WHATSAPP_TEMPLATES['Order Received'] || DEFAULT_WHATSAPP_TEMPLATES.created;
-  }
-  return t.status || DEFAULT_WHATSAPP_TEMPLATES.status;
+  if (event && t[event]) return t[event];
+  if (t.status) return t.status;
+  return '';
 }

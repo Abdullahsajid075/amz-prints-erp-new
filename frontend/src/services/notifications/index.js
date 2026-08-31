@@ -55,8 +55,8 @@ function mergeNotificationSettings(raw = {}) {
     dailyReminderHour: Number(raw.dailyReminderHour) || 9,
     smsEnabled: truthy(raw.smsEnabled, false),
     autoOpenWhatsApp: truthy(raw.autoOpenWhatsApp, true),
-    whatsappTemplates: { ...DEFAULT_WHATSAPP_TEMPLATES, ...(raw.whatsappTemplates || {}) },
-    emailSubjects: { ...DEFAULT_EMAIL_SUBJECTS, ...(raw.emailSubjects || {}) },
+    whatsappTemplates: raw.whatsappTemplates && typeof raw.whatsappTemplates === 'object' ? raw.whatsappTemplates : {},
+    emailSubjects: raw.emailSubjects && typeof raw.emailSubjects === 'object' ? raw.emailSubjects : {},
   };
 }
 
@@ -200,10 +200,14 @@ export async function notifyOrderEvent({
     && phone
   ) {
     const template = resolveWhatsAppTemplate(notifications.whatsappTemplates, event, status);
-    const text = fillTemplate(template, vars);
-    whatsappResult = openWhatsAppChat(phone, text, { pendingWindow });
-    channelIds.push('whatsapp');
-    payloadBase.text = text;
+    const text = String(template || '').trim() ? fillTemplate(template, vars) : '';
+    if (text) {
+      whatsappResult = openWhatsAppChat(phone, text, { pendingWindow });
+      channelIds.push('whatsapp');
+      payloadBase.text = text;
+    } else if (pendingWindow && !pendingWindow.closed) {
+      try { pendingWindow.close(); } catch { /* ignore */ }
+    }
   } else if (pendingWindow && !pendingWindow.closed) {
     try { pendingWindow.close(); } catch { /* ignore */ }
   }
@@ -237,10 +241,10 @@ export async function notifyOrderEvent({
         || DEFAULT_EMAIL_SUBJECTS.status;
       payloadBase.subject = fillTemplate(subjectTpl, vars);
       payloadBase.to = String(emailTo).trim();
-      payloadBase.message = fillTemplate(
-        resolveWhatsAppTemplate(notifications.whatsappTemplates, event, status),
-        vars
-      );
+      const bodyTpl = resolveWhatsAppTemplate(notifications.whatsappTemplates, event, status);
+      payloadBase.message = String(bodyTpl || '').trim()
+        ? fillTemplate(bodyTpl, vars)
+        : fillTemplate(`Dear {CustomerName},\n\nUpdate for order #{OrderNo}.`, vars);
       payloadBase.replyTo = NOTIFY_FROM_EMAIL;
       channelIds.push('email');
     }

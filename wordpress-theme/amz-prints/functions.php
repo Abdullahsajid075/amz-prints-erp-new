@@ -46,8 +46,8 @@ function amz_prints_setup() {
 	add_editor_style( 'assets/css/main.css' );
 
 	add_image_size( 'amz-hero', 1920, 1080, true );
-	add_image_size( 'amz-card', 800, 600, true );
-	add_image_size( 'amz-product', 640, 640, true );
+	add_image_size( 'amz-card', 1200, 900, false );
+	add_image_size( 'amz-product', 1200, 1200, false );
 
 	register_nav_menus( array(
 		'primary' => __( 'Primary Menu', 'amz-prints' ),

@@ -1,36 +1,33 @@
-/** Compress image for catalog only — never attach to order/invoice lines. */
+/** Product catalog images — preserve upload resolution; only shrink if Sheets cell limit requires it. */
 
-/** Longest side in px — sharp enough for ERP + website product views. */
-const DEFAULT_MAX_EDGE = 1200;
-/** Prefer high quality; size loop will step down only if over Sheets limit. */
-const DEFAULT_JPEG_QUALITY = 0.88;
-/** Google Sheets cell max is 50k; stay under for a single Image cell. */
-const DEFAULT_MAX_CHARS = 45000;
-/** Images JSON cell budget (all gallery photos together). */
-export const IMAGES_CELL_BUDGET = 45000;
-/** Per-photo budget so several fit inside Images JSON. */
-export const GALLERY_MAX_CHARS = 7500;
+/** Google Sheets cell max is 50k; stay under for Image / Images cells. */
+export const SHEETS_MAX_IMAGE_CHARS = 49000;
+/** Legacy alias used by fitImagesForSheets (gallery extras JSON cell). */
+export const IMAGES_CELL_BUDGET = 49000;
+/** Per extra gallery photo soft target when packing JSON (primary lives in Image column). */
+export const GALLERY_EXTRA_MAX_CHARS = 49000;
 
-function supportsWebpDataUrl_() {
-  try {
-    const c = document.createElement('canvas');
-    c.width = 1;
-    c.height = 1;
-    return c.toDataURL('image/webp').startsWith('data:image/webp');
-  } catch {
-    return false;
-  }
+/** @deprecated — prefer encodeProductImageFile; kept for employee photos etc. */
+const DEFAULT_JPEG_QUALITY = 0.98;
+
+function mimeForFile_(file) {
+  const t = String(file?.type || '').toLowerCase();
+  if (t === 'image/png') return 'image/png';
+  if (t === 'image/jpeg' || t === 'image/jpg') return 'image/jpeg';
+  if (t === 'image/webp') return 'image/webp';
+  return 'image/jpeg';
 }
 
 /**
+ * Encode image at original resolution. JPEG/WebP use high quality; PNG stays lossless.
+ * Resize / lower quality only when result exceeds maxChars (Sheets limit).
  * @param {File} file
- * @param {{ maxEdge?: number, maxChars?: number, quality?: number, preferWebp?: boolean }} [opts]
+ * @param {{ maxChars?: number, maxEdge?: number|null, quality?: number }} [opts]
  */
-export function compressImageFile(file, opts = {}) {
-  const MAX_EDGE = opts.maxEdge || DEFAULT_MAX_EDGE;
-  const START_QUALITY = opts.quality || DEFAULT_JPEG_QUALITY;
-  const MAX_DATA_URL_CHARS = opts.maxChars || DEFAULT_MAX_CHARS;
-  const preferWebp = opts.preferWebp !== false && supportsWebpDataUrl_();
+export function encodeProductImageFile(file, opts = {}) {
+  const MAX_CHARS = opts.maxChars ?? SHEETS_MAX_IMAGE_CHARS;
+  const MAX_EDGE = opts.maxEdge === undefined ? null : opts.maxEdge;
+  const START_QUALITY = opts.quality ?? DEFAULT_JPEG_QUALITY;
 
   return new Promise((resolve, reject) => {
     if (!file || !file.type?.startsWith('image/')) {
@@ -43,10 +40,8 @@ export function compressImageFile(file, opts = {}) {
       const img = new Image();
       img.onerror = () => reject(new Error('Invalid image'));
       img.onload = () => {
-        let { width, height } = img;
-        const scale = Math.min(1, MAX_EDGE / Math.max(width, height || 1));
-        width = Math.max(1, Math.round(width * scale));
-        height = Math.max(1, Math.round(height * scale));
+        const origW = img.width || 1;
+        const origH = img.height || 1;
 
         const tryEncode = (w, h, quality, mime) => {
           const canvas = document.createElement('canvas');
@@ -62,42 +57,47 @@ export function compressImageFile(file, opts = {}) {
             ctx.clearRect(0, 0, w, h);
           }
           ctx.drawImage(img, 0, 0, w, h);
+          if (mime === 'image/png') return canvas.toDataURL('image/png');
           return canvas.toDataURL(mime, quality);
         };
 
         try {
-          let mime = preferWebp ? 'image/webp' : 'image/jpeg';
-          let q = START_QUALITY;
-          let w = width;
-          let h = height;
+          let mime = mimeForFile_(file);
+          let q = mime === 'image/png' ? 1 : START_QUALITY;
+          let w = origW;
+          let h = origH;
+
+          if (MAX_EDGE && Math.max(w, h) > MAX_EDGE) {
+            const scale = MAX_EDGE / Math.max(w, h);
+            w = Math.max(1, Math.round(w * scale));
+            h = Math.max(1, Math.round(h * scale));
+          }
+
           let dataUrl = tryEncode(w, h, q, mime);
 
-          // Always fit under limit — never leave user with a hard failure if possible
           let steps = 0;
-          while (dataUrl.length > MAX_DATA_URL_CHARS && steps < 40) {
+          while (dataUrl.length > MAX_CHARS && steps < 60) {
             steps += 1;
-            if (q > 0.55) {
-              q = Math.max(0.55, +(q - 0.05).toFixed(2));
-            } else if (mime === 'image/webp') {
+            if (mime === 'image/png') {
               mime = 'image/jpeg';
-              q = 0.78;
-            } else if (w > 200 || h > 200) {
-              w = Math.max(160, Math.round(w * 0.82));
-              h = Math.max(160, Math.round(h * 0.82));
-            } else if (q > 0.35) {
-              q = Math.max(0.35, +(q - 0.05).toFixed(2));
+              q = 0.95;
+            } else if (q > 0.75) {
+              q = Math.max(0.75, +(q - 0.03).toFixed(2));
+            } else if (w > Math.min(origW, origH) * 0.4) {
+              w = Math.max(1, Math.round(w * 0.92));
+              h = Math.max(1, Math.round(h * 0.92));
+            } else if (q > 0.5) {
+              q = Math.max(0.5, +(q - 0.05).toFixed(2));
             } else {
               break;
             }
             dataUrl = tryEncode(w, h, q, mime);
           }
 
-          if (dataUrl.length > MAX_DATA_URL_CHARS) {
-            // Last resort tiny JPEG
-            dataUrl = tryEncode(160, 160, 0.4, 'image/jpeg');
-          }
-          if (dataUrl.length > MAX_DATA_URL_CHARS) {
-            reject(new Error('Photo still too large after compress — try a simpler / smaller file'));
+          if (dataUrl.length > MAX_CHARS) {
+            reject(new Error(
+              `Photo is too large for storage (${dataUrl.length} chars). Try a smaller file or fewer gallery photos.`
+            ));
             return;
           }
           resolve(dataUrl);
@@ -109,6 +109,11 @@ export function compressImageFile(file, opts = {}) {
     };
     reader.readAsDataURL(file);
   });
+}
+
+/** @deprecated use encodeProductImageFile */
+export function compressImageFile(file, opts = {}) {
+  return encodeProductImageFile(file, opts);
 }
 
 /** Safe src for catalog thumbnails (Drive + data URLs). */
@@ -137,32 +142,29 @@ export function productImagesList(product) {
   return out;
 }
 
-/** Gallery compress — sized so several photos fit in one Sheets Images cell. */
+/** Product upload — full resolution (Sheets limit applies only if needed). */
 export function compressGalleryImageFile(file) {
-  return compressImageFile(file, {
-    maxEdge: 1000,
-    maxChars: GALLERY_MAX_CHARS,
-    quality: 0.82,
-  });
+  return encodeProductImageFile(file, { maxChars: SHEETS_MAX_IMAGE_CHARS });
 }
 
 /**
- * Pack gallery so JSON fits Sheets cell (~50k). Keeps as many photos as possible from the start.
- * Oversized single entries are skipped.
+ * Pack gallery for Sheets: primary image uses Image column; extras share Images JSON cell.
+ * Primary is never dropped — only extra photos may be skipped if JSON is full.
  */
 export function fitImagesForSheets(images, budget = IMAGES_CELL_BUDGET) {
   const list = (Array.isArray(images) ? images : [])
     .map((s) => String(s || '').trim())
     .filter(Boolean);
-  const out = [];
-  for (const img of list) {
-    if (img.length > GALLERY_MAX_CHARS + 2000) continue; // skip unusable giants
-    const trial = [...out, img];
+  if (!list.length) return [];
+  const primary = list[0];
+  const extras = [];
+  for (const img of list.slice(1)) {
+    const trial = [...extras, img];
     if (JSON.stringify(trial).length > budget) break;
-    out.push(img);
-    if (out.length >= MAX_PRODUCT_IMAGES) break;
+    extras.push(img);
+    if (extras.length >= MAX_PRODUCT_IMAGES - 1) break;
   }
-  return out;
+  return [primary, ...extras];
 }
 
 /** Strip catalog-only fields before saving onto order/invoice line items */

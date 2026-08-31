@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ordersAPI, customersAPI, designersAPI, tokensAPI, productsAPI } from '@/services/api';
-import { notifyOrderEvent, printPaymentSlip } from '@/services/notifications';
+import { notifyOrderEvent } from '@/services/notifications';
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import ProductPicker from '@/components/shared/ProductPicker';
 import { ORDER_STATUS } from '@/utils/constants';
@@ -287,23 +287,6 @@ const OrderForm = () => {
   const calculateTotal = () => formData.products.reduce((t, p) => t + (Number(p.quantity) || 0) * (Number(p.rate) || 0), 0);
   const calculateBalance = () => calculateTotal() - (Number(formData.advancePayment) || 0);
 
-  const printOrderPaymentReceipt = (data, receivedAmount) => {
-    if (!(Number(receivedAmount) > 0)) return;
-    printPaymentSlip({
-      type: 'inflow',
-      party: data.customerName,
-      partyPhone: data.customerPhone,
-      amount: receivedAmount,
-      totalAmount: data.totalAmount,
-      balanceDue: data.balanceAmount,
-      method: 'Cash / Advance',
-      category: 'Order Payment',
-      reference: data.orderId || data.id,
-      date: new Date().toISOString().slice(0, 10),
-      notes: `Order ${data.orderId || ''} payment`,
-    }, company || {});
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!requireCustomer(formData)) return;
@@ -370,9 +353,6 @@ const OrderForm = () => {
       };
 
       const prevStatus = isEdit ? originalStatus : '';
-      const prevAdvance = isEdit ? Number(originalAdvance) || 0 : 0;
-      const nextAdvance = Number(orderData.advancePayment) || 0;
-      const receivedDelta = Math.max(0, nextAdvance - prevAdvance);
 
       if (isEdit) {
         const updated = await ordersAPI.update(orderId, orderData);
@@ -394,13 +374,9 @@ const OrderForm = () => {
           trackingNumber: server.trackingNumber || orderData.trackingNumber,
         };
 
-        // One WhatsApp only: status change wins; else payment_received. Always print slip for money.
-        if (receivedDelta > 0) {
-          printOrderPaymentReceipt(data, receivedDelta);
-        }
+        // Payments live on invoices — no payment slip from the order form.
         const statusChanged = String(prevStatus) !== String(data.status || orderData.status);
         if (statusChanged) {
-          // Email already sent by Apps Script on update; frontend opens WhatsApp only
           const notify = await notifyOrderEvent({ event: 'status', order: data, sendEmail: false });
           toast.message('WhatsApp opened — tap Send (status update)');
           const gasEmail = server?._notifications?.email;
@@ -410,26 +386,6 @@ const OrderForm = () => {
             toast.success(`Email sent to ${data.customerEmail}`);
           }
           if (notify?.emailError) toast.error(notify.emailError);
-        } else if (receivedDelta > 0) {
-          const notify = await notifyOrderEvent({
-            event: 'payment_received',
-            order: data,
-            payment: {
-              party: data.customerName,
-              partyPhone: data.customerPhone,
-              partyEmail: data.customerEmail,
-              amount: receivedDelta,
-              method: 'Cash / Advance',
-              reference: data.orderId || orderId,
-              type: 'inflow',
-              balanceDue: data.balanceAmount,
-              totalAmount: data.totalAmount,
-            },
-            sendEmail: true,
-          });
-          toast.message('Payment slip + WhatsApp — tap Send');
-          if (notify?.emailSent) toast.success(`Payment email sent to ${data.customerEmail}`);
-          else if (notify?.emailError) toast.error(notify.emailError);
         }
       } else {
         const created = await ordersAPI.create(orderData);
@@ -446,39 +402,13 @@ const OrderForm = () => {
         }
         toast.success('Order created successfully');
         const data = { ...orderData, ...(created.data || {}) };
-        if (nextAdvance > 0) {
-          printOrderPaymentReceipt(data, nextAdvance);
-        }
-        // Single WhatsApp via frontend (skip GAS WhatsApp hint). Order-created email comes from Apps Script.
-        if (nextAdvance > 0) {
-          const notify = await notifyOrderEvent({
-            event: 'payment_received',
-            order: data,
-            payment: {
-              party: data.customerName,
-              partyPhone: data.customerPhone,
-              partyEmail: data.customerEmail,
-              amount: nextAdvance,
-              method: 'Cash / Advance',
-              reference: data.orderId || data.id,
-              type: 'inflow',
-              balanceDue: data.balanceAmount,
-              totalAmount: data.totalAmount,
-            },
-            sendEmail: true,
-          });
-          toast.message('Payment slip + WhatsApp — tap Send');
-          if (notify?.emailSent) toast.success(`Payment email sent to ${data.customerEmail}`);
-          else if (notify?.emailError) toast.error(notify.emailError);
-        } else {
-          await notifyOrderEvent({ event: 'created', order: data, sendEmail: false });
-          toast.message('WhatsApp opened — tap Send to notify customer');
-          const gasEmail = created.data?._notifications?.email;
-          if (gasEmail?.ok === false) {
-            toast.error(gasEmail.error || 'Order email failed — authorize Mail in Apps Script as amazonprinting@gmail.com');
-          } else if (gasEmail?.ok) {
-            toast.success(`Order email sent to ${data.customerEmail}`);
-          }
+        await notifyOrderEvent({ event: 'created', order: data, sendEmail: false });
+        toast.message('WhatsApp opened — tap Send to notify customer');
+        const gasEmail = created.data?._notifications?.email;
+        if (gasEmail?.ok === false) {
+          toast.error(gasEmail.error || 'Order email failed — authorize Mail in Apps Script as amazonprinting@gmail.com');
+        } else if (gasEmail?.ok) {
+          toast.success(`Order email sent to ${data.customerEmail}`);
         }
       }
       navigate('/orders');
@@ -775,23 +705,24 @@ const OrderForm = () => {
 
         <Card className="border-orange-200 shadow-sm rounded-2xl overflow-hidden">
           <div className="h-1" style={{ backgroundColor: accent }} />
-          <CardHeader className="py-3"><CardTitle className="text-base">Payment (required on booking)</CardTitle></CardHeader>
+          <CardHeader className="py-3"><CardTitle className="text-base">Payment summary</CardTitle></CardHeader>
           <CardContent className="pt-0 space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="rounded-xl p-3 bg-[#FFF9F5] border border-orange-100">
+                <p className="text-[10px] uppercase tracking-wide text-gray-500">Order Total</p>
+                <p className="font-bold text-xl" style={{ color: accent }}>{formatCurrency(calculateTotal())}</p>
+              </div>
               <div>
-                <Label className="text-xs">Advance / Received *</Label>
+                <Label className="text-xs">Shown received</Label>
                 <Input
                   type="number"
                   min="0"
                   step="0.01"
                   value={formData.advancePayment}
                   onChange={(e) => setFormData((prev) => ({ ...prev, advancePayment: parseFloat(e.target.value) || 0 }))}
+                  disabled={isEdit}
                   data-testid="advance-payment-input"
                 />
-              </div>
-              <div className="rounded-xl p-3 bg-[#FFF9F5] border border-orange-100">
-                <p className="text-[10px] uppercase tracking-wide text-gray-500">Order Total</p>
-                <p className="font-bold text-xl" style={{ color: accent }}>{formatCurrency(calculateTotal())}</p>
               </div>
               <div className="rounded-xl p-3 bg-gray-50 border border-gray-100">
                 <p className="text-[10px] uppercase tracking-wide text-gray-500">Balance Due</p>
@@ -799,7 +730,7 @@ const OrderForm = () => {
               </div>
             </div>
             <p className="text-xs text-gray-500">
-              Total · Advance · Balance customer ko booking pe clear dikhengi. Payment receive hone pe receipt print hogi.
+              Payments are recorded on the Invoice, POS, or customer ledger — not as order payment lines.
             </p>
           </CardContent>
         </Card>

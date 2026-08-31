@@ -73,6 +73,7 @@ function normalizePayment(p = {}) {
     linkedOrderId: p.linkedOrderId || p.linkedorderid || '',
     linkedInvoiceId: p.linkedInvoiceId || p.linkedinvoiceid || '',
     linkedLabel: p.linkedLabel || '',
+    locked: p.locked === true || p.locked === 'true' || String(p.id || '').startsWith('pay_'),
   };
 }
 
@@ -162,7 +163,12 @@ const Payments = () => {
 
   const openCreate = () => { setEditing(null); setFormData(empty); setDialogOpen(true); };
   const openEdit = (p) => {
-    setEditing(p);
+    const row = normalizePayment(p);
+    if (row.locked || String(row.id || '').startsWith('pay_')) {
+      toast.error('This payment is locked. Edit only from Customer Portal.');
+      return;
+    }
+    setEditing(row);
     setFormData({
       ...empty,
       ...p,

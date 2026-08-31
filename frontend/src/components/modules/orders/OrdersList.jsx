@@ -13,8 +13,9 @@ import { ORDER_STATUS } from '@/utils/constants';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
 import PageHeader from '@/components/shared/PageHeader';
-import { openWhatsAppChat, fillTemplate, buildTemplateVars, resolveWhatsAppTemplate } from '@/services/notifications';
+import { openWhatsAppChat, fillTemplate, buildTemplateVars, resolveWhatsAppTemplate, notifyOrderEvent } from '@/services/notifications';
 import { orderIsDeliveredWithBalance, openUrduBalanceWhatsApp } from '@/utils/customerHelpers';
+import { finishPaymentRecording } from '@/utils/paymentActions';
 import { Plus, Search, Eye, Edit, Copy, Trash2, User, Phone, Mail, MapPin, Calendar, Package, FileText, X, Printer, Receipt, Truck, Link2, Bell, StickyNote, Wallet } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
@@ -84,6 +85,7 @@ const OrdersList = () => {
   const [paymentOrder, setPaymentOrder] = useState(null);
   const [paymentData, setPaymentData] = useState({ amount: '', method: 'Cash', notes: '' });
   const [paymentSaving, setPaymentSaving] = useState(false);
+  const [statusBusyId, setStatusBusyId] = useState('');
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -186,6 +188,53 @@ const OrdersList = () => {
     } catch { toast.error('Failed to delete order'); }
   };
 
+  const changeOrderStatus = async (order, status) => {
+    if (!order?.id || String(order.status) === String(status)) return;
+    setStatusBusyId(order.id);
+    try {
+      const res = await ordersAPI.updateStatus(order.id, status);
+      const updated = res.data || { ...order, status };
+      setOrders((prev) => prev.map((o) => (String(o.id) === String(order.id) ? { ...o, status } : o)));
+      if (viewOrder && String(viewOrder.id) === String(order.id)) {
+        setViewOrder((prev) => ({ ...prev, status }));
+      }
+      toast.success(`Status → ${status}`);
+      if (updated.customerPhone || order.customerPhone) {
+        await notifyOrderEvent({
+          event: 'status',
+          order: { ...order, ...updated, status },
+          openWhatsApp: true,
+          sendEmail: false,
+        });
+        toast.message('Status WhatsApp opened — tap Send');
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Could not update status');
+    } finally {
+      setStatusBusyId('');
+    }
+  };
+
+  const StatusSelect = ({ order, compact }) => (
+    <Select
+      value={order.status || ORDER_STATUS.RECEIVED}
+      disabled={!!statusBusyId}
+      onValueChange={(v) => changeOrderStatus(order, v)}
+    >
+      <SelectTrigger
+        className={compact ? 'h-7 w-[132px] text-[10px] px-2' : 'h-8 w-full text-xs'}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {Object.values(ORDER_STATUS).map((s) => (
+          <SelectItem key={s} value={s}>{s}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+
   const openPayment = (order) => {
     const balance = Math.max(0, orderDisplayTotal(order) - Number(order.advancePayment || 0));
     if (!(balance > 0)) {
@@ -201,19 +250,36 @@ const OrdersList = () => {
     if (!paymentOrder) return;
     const amount = Number(paymentData.amount) || 0;
     const balance = Math.max(0, orderDisplayTotal(paymentOrder) - Number(paymentOrder.advancePayment || 0));
-    if (!(amount > 0) || amount > balance) {
-      toast.error(`Enter an amount up to ${formatCurrency(balance)}`);
+    if (!(amount > 0)) {
+      toast.error('Enter a valid amount');
       return;
     }
     setPaymentSaving(true);
     try {
-      await ordersAPI.pay(paymentOrder.id, {
+      const res = await ordersAPI.pay(paymentOrder.id, {
         amount,
         method: paymentData.method,
         notes: paymentData.notes,
         date: new Date().toISOString().slice(0, 10),
       });
-      toast.success('Payment recorded');
+      const data = res.data || {};
+      await finishPaymentRecording(data.payment || data, {
+        company,
+        extras: {
+          customerName: paymentOrder.customerName,
+          customerPhone: paymentOrder.customerPhone,
+          customerEmail: paymentOrder.customerEmail,
+          reference: paymentOrder.orderId,
+          balanceDue: data.order?.balanceAmount ?? Math.max(0, balance - Math.min(amount, balance)),
+          totalAmount: orderDisplayTotal(paymentOrder),
+        },
+        notify: true,
+        sendEmail: false,
+      });
+      if (Number(data.extra) > 0) {
+        toast.message(`Extra ${formatCurrency(data.extra)} saved as customer credit`);
+      }
+      toast.success('Payment recorded on invoice');
       setPaymentOrder(null);
       fetchOrders();
     } catch (err) {
@@ -459,6 +525,9 @@ const OrdersList = () => {
         </div>
         <Badge className={`${getStatusColor(order.status)} text-[10px] shrink-0`}>{order.status}</Badge>
       </div>
+      <div className="mb-3">
+        <StatusSelect order={order} />
+      </div>
       <div className="space-y-1.5 mb-3">
         <div className="flex items-center gap-2 text-sm">
           <User className="h-3.5 w-3.5 text-gray-400 shrink-0" />
@@ -469,9 +538,19 @@ const OrdersList = () => {
           <span>Due {formatDate(order.deliveryDate)}</span>
         </div>
       </div>
-      <div className="flex items-end justify-between pt-2 border-t border-gray-100 mb-2">
-        <span className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Total</span>
-        <span className="text-lg font-bold" style={{ color: '#F26522' }}>{formatCurrency(orderDisplayTotal(order))}</span>
+      <div className="grid grid-cols-3 gap-1 pt-2 border-t border-gray-100 mb-2">
+        <div>
+          <p className="text-[9px] uppercase tracking-wider text-gray-500 font-semibold">Total</p>
+          <p className="text-sm font-bold" style={{ color: '#F26522' }}>{formatCurrency(orderDisplayTotal(order))}</p>
+        </div>
+        <div>
+          <p className="text-[9px] uppercase tracking-wider text-gray-500 font-semibold">Received</p>
+          <p className="text-sm font-bold text-emerald-700">{formatCurrency(order.advancePayment || 0)}</p>
+        </div>
+        <div>
+          <p className="text-[9px] uppercase tracking-wider text-gray-500 font-semibold">Balance</p>
+          <p className="text-sm font-bold text-gray-800">{formatCurrency(orderBalanceDue(order))}</p>
+        </div>
       </div>
       <div className="flex items-center gap-1">
         <Button size="sm" className="flex-1 text-white text-xs h-8" style={{ backgroundColor: '#F26522' }} onClick={() => handleView(order.id)} data-testid={`view-order-${order.id}`}>
@@ -501,7 +580,7 @@ const OrdersList = () => {
         <Button size="icon" variant="outline" className="h-8 w-8" title="Print" onClick={() => handlePrint(order)} data-testid={`print-order-${order.id}`}>
           <Printer className="h-3.5 w-3.5" />
         </Button>
-        <Button size="icon" variant="outline" className="h-8 w-8 text-emerald-700" title="Record payment" onClick={() => openPayment(order)} data-testid={`pay-order-${order.id}`}>
+        <Button size="icon" variant="outline" className="h-8 w-8 text-emerald-700" title="Record payment on invoice" onClick={() => openPayment(order)} data-testid={`pay-order-${order.id}`}>
           <Wallet className="h-3.5 w-3.5" />
         </Button>
         {!isLockedOrder(order) && (
@@ -659,12 +738,12 @@ const OrdersList = () => {
                       <td className="py-2.5 px-3 text-gray-600 hidden md:table-cell">{formatDate(order.date)}</td>
                       <td className="py-2.5 px-3 text-gray-600 hidden md:table-cell">{formatDate(order.deliveryDate)}</td>
                       <td className="py-2.5 px-3 text-right font-bold" style={{ color: '#F26522' }}>{formatCurrency(orderDisplayTotal(order))}</td>
-                      <td className="py-2.5 px-3"><Badge className={`${getStatusColor(order.status)} text-[10px]`}>{order.status}</Badge></td>
+                      <td className="py-2.5 px-3"><StatusSelect order={order} compact /></td>
                       <td className="py-2.5 px-3 text-right">
                         <div className="flex items-center gap-1 justify-end">
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleView(order.id)} title="View"><Eye className="h-4 w-4" /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleGenerateInvoice(order)} title="Invoice"><Receipt className="h-4 w-4" style={{ color: '#F26522' }} /></Button>
-                          <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-700" onClick={() => openPayment(order)} title="Record payment"><Wallet className="h-4 w-4" /></Button>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-700" onClick={() => openPayment(order)} title="Record payment on invoice"><Wallet className="h-4 w-4" /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600" onClick={() => handleWhatsApp(order)} title="WhatsApp"><WhatsAppIcon className="h-4 w-4" /></Button>
                           {needsDesignDocsReminder(order) && (
                             <>
@@ -710,7 +789,11 @@ const OrdersList = () => {
                 </DialogTitle>
                 <DialogDescription className="mt-2">{viewOrder?.orderId} — Complete order information</DialogDescription>
               </div>
-              {viewOrder && <Badge className={`${getStatusColor(viewOrder.status)} text-sm px-3 py-1`}>{viewOrder.status}</Badge>}
+              {viewOrder && (
+                <div className="w-[160px]">
+                  <StatusSelect order={viewOrder} />
+                </div>
+              )}
             </div>
           </DialogHeader>
 
@@ -789,7 +872,7 @@ const OrdersList = () => {
                 <h4 className="text-sm font-semibold uppercase tracking-wider mb-3 text-white/90">Payment Summary</h4>
                 <div className="grid grid-cols-3 gap-4">
                   <div><p className="text-xs text-white/80 mb-1">Total</p><p className="text-xl font-bold text-white">{formatCurrency(viewOrder.totalAmount || 0)}</p></div>
-                  <div><p className="text-xs text-white/80 mb-1">Advance</p><p className="text-xl font-bold text-white">{formatCurrency(viewOrder.advancePayment || 0)}</p></div>
+                  <div><p className="text-xs text-white/80 mb-1">Received</p><p className="text-xl font-bold text-white">{formatCurrency(viewOrder.advancePayment || 0)}</p></div>
                   <div><p className="text-xs text-white/80 mb-1">Balance</p><p className="text-xl font-bold text-white">{formatCurrency((viewOrder.totalAmount || 0) - (viewOrder.advancePayment || 0))}</p></div>
                 </div>
                 {(viewOrder.paymentMethod || viewOrder.paymentStatus || viewOrder.orderSource) && (
@@ -851,7 +934,7 @@ const OrdersList = () => {
                 <Button variant="outline" className="text-green-700" onClick={() => handleWhatsApp(viewOrder)}><WhatsAppIcon className="h-4 w-4 mr-1" />WhatsApp</Button>
                 <Button variant="outline" onClick={() => handleGenerateInvoice(viewOrder)}><Receipt className="h-4 w-4 mr-1" style={{ color: '#F26522' }} />Invoice</Button>
                 <Button variant="outline" className="text-emerald-700 border-emerald-200" onClick={() => openPayment(viewOrder)}>
-                  <Wallet className="h-4 w-4 mr-1" />Record payment
+                  <Wallet className="h-4 w-4 mr-1" />Pay on invoice
                 </Button>
                 {!isLockedOrder(viewOrder) && (
                   <Button style={{ backgroundColor: '#F26522' }} className="text-white" onClick={() => { setViewOpen(false); navigate(`/orders/${viewOrder.id}/edit`); }} data-testid="edit-from-dialog-button">
@@ -867,8 +950,10 @@ const OrdersList = () => {
       <Dialog open={!!paymentOrder} onOpenChange={(open) => { if (!open && !paymentSaving) setPaymentOrder(null); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Record Order Payment</DialogTitle>
-            <DialogDescription>{paymentOrder?.orderId} · {paymentOrder?.customerName}</DialogDescription>
+            <DialogTitle>Record payment on invoice</DialogTitle>
+            <DialogDescription>
+              {paymentOrder?.orderId} · {paymentOrder?.customerName} — saved on the invoice / customer ledger
+            </DialogDescription>
           </DialogHeader>
           {paymentOrder && (
             <form onSubmit={saveOrderPayment} className="space-y-4">
@@ -894,7 +979,7 @@ const OrdersList = () => {
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setPaymentOrder(null)} disabled={paymentSaving}>Cancel</Button>
                 <Button type="submit" className="text-white" style={{ backgroundColor: '#F26522' }} disabled={paymentSaving}>
-                  <Wallet className="h-4 w-4 mr-1" />{paymentSaving ? 'Saving…' : 'Accept payment'}
+                  <Wallet className="h-4 w-4 mr-1" />{paymentSaving ? 'Saving…' : 'Record & print receipt'}
                 </Button>
               </DialogFooter>
             </form>

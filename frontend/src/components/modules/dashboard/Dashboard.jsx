@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { dashboardAPI, expensesAPI, purchasesAPI } from '@/services/api';
 import { totalVendorPayables } from '@/utils/vendorPayables';
 import { useAuth, getUserDisplayName } from '@/context/AuthContext';
-import { useBrand } from '@/context/BrandContext';
+import ReceivablesDialog from '@/components/shared/ReceivablesDialog';
 import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
 import {
   TrendingUp, TrendingDown, ShoppingCart, CheckCircle, DollarSign,
@@ -145,6 +145,7 @@ const Dashboard = () => {
   const [attention, setAttention] = useState([]);
   const [recentExpenses, setRecentExpenses] = useState([]);
   const [chartData, setChartData] = useState({ monthlySales: [], orderStatus: [] });
+  const [receivablesOpen, setReceivablesOpen] = useState(false);
 
   const fetchDashboardDataWith = useCallback(async (range) => {
     const from = range?.from || '';
@@ -372,13 +373,16 @@ const Dashboard = () => {
           <div className="mt-5 grid grid-cols-2 lg:grid-cols-4 gap-2.5">
             {[
               { label: 'Revenue', value: formatCurrency(stats.revenue), hint: `${stats.collectionRate || 0}% collected` },
-              { label: 'Receivables', value: formatCurrency(stats.receivables), hint: 'Customer balances' },
+              { label: 'Receivables', value: formatCurrency(stats.receivables), hint: 'Customer balances', onClick: () => setReceivablesOpen(true) },
               { label: 'Net position', value: formatCurrency(net), hint: 'Cash In − Cash Out (Payments)' },
               { label: 'Open orders', value: stats.pendingOrders || 0, hint: `${stats.fulfillmentRate || 0}% fulfilled` },
             ].map((k) => (
               <div
                 key={k.label}
-                className="rounded-xl border border-white/10 bg-white/[0.06] backdrop-blur-sm p-3.5 transition-transform duration-300 hover:-translate-y-0.5"
+                role={k.onClick ? 'button' : undefined}
+                tabIndex={k.onClick ? 0 : undefined}
+                onClick={k.onClick}
+                className={`rounded-xl border border-white/10 bg-white/[0.06] backdrop-blur-sm p-3.5 transition-transform duration-300 hover:-translate-y-0.5 ${k.onClick ? 'cursor-pointer' : ''}`}
               >
                 <p className="text-[10px] uppercase tracking-[0.12em] text-white/65 font-bold">{k.label}</p>
                 <p className="mt-1 font-display text-lg sm:text-xl font-bold">{k.value}</p>
@@ -589,7 +593,7 @@ const Dashboard = () => {
           sub={`${stats.collectionRate || 0}% collection rate`}
           icon={TrendingUp}
           tint="#F59E0B"
-          onClick={() => navigate('/orders')}
+          onClick={() => setReceivablesOpen(true)}
         />
         <MetricTile
           testId="stat-payables"
@@ -752,6 +756,7 @@ const Dashboard = () => {
           )}
         </Panel>
       </section>
+      <ReceivablesDialog open={receivablesOpen} onOpenChange={setReceivablesOpen} />
     </div>
   );
 };

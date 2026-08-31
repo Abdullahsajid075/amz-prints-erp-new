@@ -685,7 +685,9 @@ body:not(.amz-home) .site-header {
 .product-card__media { aspect-ratio: 1; background: var(--amz-paper-2); overflow: hidden; }
 .product-card__media { aspect-ratio: 4/3; }
 .product-tile__media img,
-.product-card__media img { width: 100%; height: 100%; object-fit: cover; }
+.product-card__media img { width: 100%; height: 100%; object-fit: cover; image-rendering: auto; }
+.product-detail__gallery img,
+.product-detail__main img { max-width: 100%; height: auto; image-rendering: auto; }
 .product-tile__placeholder,
 .product-card__placeholder {
   width: 100%;

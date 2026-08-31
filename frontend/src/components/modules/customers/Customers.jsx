@@ -6,20 +6,22 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { customersAPI } from '@/services/api';
-import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
+import { finishPaymentRecording } from '@/utils/paymentActions';
+import { useBrand } from '@/context/BrandContext';
+import { formatCurrency, formatDate } from '@/utils/helpers';
 import { customerMatchesQuery } from '@/utils/customerSearch';
 import {
-  isCustomerBlocked, getBlockMessage, isAdminUser, customerDisplayCode,
+  isCustomerBlocked, canUnblockCustomer, customerDisplayCode,
   openUrduBalanceWhatsApp, openCustomerWelcomeWhatsApp,
 } from '@/utils/customerHelpers';
 import { useAuth } from '@/context/AuthContext';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
-import { Plus, Search, Edit, Trash2, User, Phone, Mail, MapPin, FileText, Receipt, CreditCard, TrendingUp, X, Save, BookOpen, Bell, Kanban, ShieldBan, ShieldCheck } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, User, Phone, Mail, MapPin, TrendingUp, X, Save, BookOpen, Bell, Kanban, ShieldBan, ShieldCheck, Wallet } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
 
@@ -37,7 +39,8 @@ const empty = {
 const Customers = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const isAdmin = isAdminUser(user);
+  const { company } = useBrand();
+  const canUnblock = canUnblockCustomer(user);
   const [searchParams, setSearchParams] = useSearchParams();
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -55,6 +58,9 @@ const Customers = () => {
   const [blockTarget, setBlockTarget] = useState(null);
   const [blockReason, setBlockReason] = useState('');
   const [blockSaving, setBlockSaving] = useState(false);
+  const [payCustomer, setPayCustomer] = useState(null);
+  const [payData, setPayData] = useState({ amount: '', method: 'Cash', notes: '', date: new Date().toISOString().slice(0, 10), reference: '' });
+  const [paySaving, setPaySaving] = useState(false);
 
   const withBalanceCount = useMemo(
     () => customers.filter((c) => Number(c.outstanding) > 0).length,
@@ -184,8 +190,8 @@ const Customers = () => {
   };
 
   const handleUnblock = async (c) => {
-    if (!isAdmin) {
-      toast.error('Only Admin can unblock — contact Admin');
+    if (!canUnblock) {
+      toast.error('Only Admin (Settings access) can unblock — contact Admin');
       return;
     }
     if (!window.confirm(`Unblock ${c.name}?`)) return;
@@ -196,6 +202,68 @@ const Customers = () => {
     } catch (err) {
       console.error(err);
       toast.error(err.response?.data?.message || 'Failed to unblock');
+    }
+  };
+
+  const openCustomerPayment = (c) => {
+    setPayCustomer(c);
+    setPayData({
+      amount: Number(c.outstanding) > 0 ? c.outstanding : '',
+      method: 'Cash',
+      notes: '',
+      date: new Date().toISOString().slice(0, 10),
+      reference: '',
+    });
+  };
+
+  const saveCustomerPayment = async (e) => {
+    e.preventDefault();
+    if (!payCustomer?.id) return;
+    const amount = Number(payData.amount) || 0;
+    if (!(amount > 0)) {
+      toast.error('Enter a valid amount');
+      return;
+    }
+    setPaySaving(true);
+    try {
+      const payload = {
+        amount,
+        method: payData.method,
+        notes: payData.notes,
+        date: payData.date,
+        reference: payData.reference,
+      };
+      if (payData.reference?.trim()) {
+        if (/^inv/i.test(payData.reference.trim())) payload.linkedInvoiceId = payData.reference.trim();
+        else payload.linkedOrderId = payData.reference.trim();
+      }
+      const res = await customersAPI.recordPayment(payCustomer.id, payload);
+      const data = res.data || {};
+      await finishPaymentRecording(data.payment || data, {
+        company,
+        extras: {
+          customerName: payCustomer.name,
+          customerPhone: payCustomer.phone,
+          customerEmail: payCustomer.email,
+          reference: payData.reference,
+        },
+        notify: true,
+        sendEmail: false,
+      });
+      if (Number(data.extra) > 0 || Number(data.creditBalance) > 0) {
+        toast.message(`Credit balance: ${formatCurrency(data.creditBalance || data.extra)}`);
+      }
+      toast.success('Payment recorded');
+      setPayCustomer(null);
+      fetchCustomers();
+      if (ledgerOpen && ledger?.customer?.id === payCustomer.id) {
+        const lr = await customersAPI.getLedger(payCustomer.id);
+        setLedger(lr.data);
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err?.message || 'Payment failed');
+    } finally {
+      setPaySaving(false);
     }
   };
 
@@ -296,8 +364,17 @@ const Customers = () => {
                           <WhatsAppIcon className="h-3 w-3 mr-1" />باقی رقم (WhatsApp)
                         </Button>
                       )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs text-emerald-700 border-emerald-200"
+                        onClick={() => openCustomerPayment(c)}
+                        data-testid={`pay-customer-${c.id}`}
+                      >
+                        <Wallet className="h-3 w-3 mr-1" />Record payment
+                      </Button>
                       {isCustomerBlocked(c) ? (
-                        isAdmin && (
+                        canUnblock && (
                           <Button size="sm" variant="outline" className="h-8 text-xs text-emerald-700" onClick={() => handleUnblock(c)} data-testid={`unblock-${c.id}`}>
                             <ShieldCheck className="h-3 w-3 mr-1" />Unblock
                           </Button>
@@ -375,7 +452,7 @@ const Customers = () => {
             : !ledger ? <div className="text-center py-8 text-gray-500">No data</div>
             : (
               <div className="space-y-4 mt-3">
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="p-3 rounded-lg" style={{ backgroundColor: '#FFF3ED' }}>
                     <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Total Billed</p>
                     <p className="text-lg font-bold" style={{ color: '#F26522' }}>{formatCurrency(ledger.totalBilled)}</p>
@@ -388,56 +465,110 @@ const Customers = () => {
                     <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Outstanding</p>
                     <p className={`text-lg font-bold ${ledger.outstanding > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>{formatCurrency(ledger.outstanding)}</p>
                   </div>
-                </div>
-                {ledger.outstanding > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      className="text-white"
-                      style={{ backgroundColor: '#F26522' }}
-                      disabled={balanceSending}
-                      onClick={() => sendBalanceRequest(ledger.customer, ledger.outstanding)}
-                      data-testid="send-balance-request"
-                    >
-                      <WhatsAppIcon className="h-4 w-4 mr-2" />
-                      {balanceSending ? 'Opening…' : 'باقی رقم — WhatsApp (Urdu)'}
-                    </Button>
-                    <p className="text-xs text-gray-500 self-center">WhatsApp only — Urdu balance reminder</p>
+                  <div className="p-3 rounded-lg bg-sky-50">
+                    <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Credit</p>
+                    <p className="text-lg font-bold text-sky-700">{formatCurrency(ledger.creditBalance || ledger.customer?.creditBalance || 0)}</p>
                   </div>
-                )}
-                <Tabs defaultValue="invoices">
-                  <TabsList className="grid grid-cols-3 w-full">
-                    <TabsTrigger value="invoices"><Receipt className="h-3 w-3 mr-1" />Invoices ({ledger.invoices.length})</TabsTrigger>
-                    <TabsTrigger value="orders"><FileText className="h-3 w-3 mr-1" />Orders ({ledger.orders.length})</TabsTrigger>
-                    <TabsTrigger value="payments"><CreditCard className="h-3 w-3 mr-1" />Payments ({ledger.payments.length})</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="invoices">
-                    {ledger.invoices.length === 0 ? <p className="text-center py-6 text-gray-500 text-sm">No invoices yet.</p> : (
-                      <table className="w-full text-sm">
-                        <thead><tr className="border-b bg-gray-50"><th className="text-left py-2 px-2 text-xs uppercase text-gray-600">Invoice</th><th className="text-left py-2 px-2 text-xs uppercase text-gray-600">Date</th><th className="text-right py-2 px-2 text-xs uppercase text-gray-600">Total</th><th className="text-right py-2 px-2 text-xs uppercase text-gray-600">Paid</th><th className="text-left py-2 px-2 text-xs uppercase text-gray-600">Status</th></tr></thead>
-                        <tbody>{ledger.invoices.map(inv => (<tr key={inv.id} className="border-b"><td className="py-2 px-2 font-semibold" style={{ color: '#F26522' }}>{inv.invoiceNumber}</td><td className="py-2 px-2 text-gray-600">{formatDate(inv.date)}</td><td className="py-2 px-2 text-right font-semibold">{formatCurrency(inv.totalAmount)}</td><td className="py-2 px-2 text-right text-emerald-700">{formatCurrency(inv.paidAmount || 0)}</td><td className="py-2 px-2"><Badge className={`${inv.status === 'Paid' ? 'bg-green-100 text-green-800' : inv.status === 'Partial' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'} text-[10px]`}>{inv.status}</Badge></td></tr>))}</tbody>
-                      </table>
-                    )}
-                  </TabsContent>
-                  <TabsContent value="orders">
-                    {ledger.orders.length === 0 ? <p className="text-center py-6 text-gray-500 text-sm">No orders yet.</p> : (
-                      <table className="w-full text-sm">
-                        <thead><tr className="border-b bg-gray-50"><th className="text-left py-2 px-2 text-xs uppercase text-gray-600">Order</th><th className="text-left py-2 px-2 text-xs uppercase text-gray-600">Date</th><th className="text-right py-2 px-2 text-xs uppercase text-gray-600">Amount</th><th className="text-left py-2 px-2 text-xs uppercase text-gray-600">Status</th></tr></thead>
-                        <tbody>{ledger.orders.map(o => (<tr key={o.id} className="border-b"><td className="py-2 px-2 font-semibold">{o.orderId}</td><td className="py-2 px-2 text-gray-600">{formatDate(o.date)}</td><td className="py-2 px-2 text-right font-semibold">{formatCurrency(o.totalAmount)}</td><td className="py-2 px-2"><Badge className={`${getStatusColor(o.status)} text-[10px]`}>{o.status}</Badge></td></tr>))}</tbody>
-                      </table>
-                    )}
-                  </TabsContent>
-                  <TabsContent value="payments">
-                    {ledger.payments.length === 0 ? <p className="text-center py-6 text-gray-500 text-sm">No payments recorded yet.</p> : (
-                      <table className="w-full text-sm">
-                        <thead><tr className="border-b bg-gray-50"><th className="text-left py-2 px-2 text-xs uppercase text-gray-600">Date</th><th className="text-left py-2 px-2 text-xs uppercase text-gray-600">Reference</th><th className="text-left py-2 px-2 text-xs uppercase text-gray-600">Method</th><th className="text-right py-2 px-2 text-xs uppercase text-gray-600">Amount</th></tr></thead>
-                        <tbody>{ledger.payments.map(p => (<tr key={p.id} className="border-b"><td className="py-2 px-2 text-gray-600">{formatDate(p.date)}</td><td className="py-2 px-2 text-xs" style={{ color: '#F26522' }}>{p.reference || '-'}</td><td className="py-2 px-2"><Badge variant="outline" className="text-[10px]">{p.method}</Badge></td><td className={`py-2 px-2 text-right font-bold ${p.type === 'inflow' ? 'text-emerald-700' : 'text-rose-600'}`}>{p.type === 'inflow' ? '+' : '-'}{formatCurrency(p.amount)}</td></tr>))}</tbody>
-                      </table>
-                    )}
-                  </TabsContent>
-                </Tabs>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" className="text-white" style={{ backgroundColor: '#F26522' }} onClick={() => openCustomerPayment(ledger.customer)}>
+                    <Wallet className="h-4 w-4 mr-2" />Record payment
+                  </Button>
+                  {ledger.outstanding > 0 && (
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="text-green-700 border-green-200"
+                        disabled={balanceSending}
+                        onClick={() => sendBalanceRequest(ledger.customer, ledger.outstanding)}
+                        data-testid="send-balance-request"
+                      >
+                        <WhatsAppIcon className="h-4 w-4 mr-2" />
+                        {balanceSending ? 'Opening…' : 'باقی رقم — WhatsApp (Urdu)'}
+                      </Button>
+                      <p className="text-xs text-gray-500 self-center">WhatsApp only — Urdu balance reminder</p>
+                    </>
+                  )}
+                </div>
+                <div className="overflow-x-auto rounded-lg border border-gray-100">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-gray-50 text-[10px] uppercase tracking-wider text-gray-500">
+                        <th className="text-left py-2 px-2 font-semibold">Date</th>
+                        <th className="text-left py-2 px-2 font-semibold">Particulars</th>
+                        <th className="text-left py-2 px-2 font-semibold">Ref</th>
+                        <th className="text-right py-2 px-2 font-semibold">Debit</th>
+                        <th className="text-right py-2 px-2 font-semibold">Credit</th>
+                        <th className="text-right py-2 px-2 font-semibold">Balance</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(ledger.statement || []).length === 0 ? (
+                        <tr><td colSpan={6} className="py-8 text-center text-gray-500 text-sm">No transactions yet.</td></tr>
+                      ) : ledger.statement.map((line, i) => (
+                        <tr key={`${line.date}-${line.reference}-${i}`} className="border-b last:border-0">
+                          <td className="py-2 px-2 text-gray-600 whitespace-nowrap">{formatDate(line.date)}</td>
+                          <td className="py-2 px-2">
+                            <p className="font-medium text-gray-800">{line.particular}</p>
+                            {line.method ? <p className="text-[11px] text-gray-400">{line.method}</p> : null}
+                          </td>
+                          <td className="py-2 px-2 text-xs" style={{ color: '#F26522' }}>{line.reference || line.invoiceNumber || '—'}</td>
+                          <td className="py-2 px-2 text-right text-rose-600">{line.debit ? formatCurrency(line.debit) : '—'}</td>
+                          <td className="py-2 px-2 text-right text-emerald-700">{line.credit ? formatCurrency(line.credit) : '—'}</td>
+                          <td className={`py-2 px-2 text-right font-semibold ${Number(line.balance) > 0 ? 'text-gray-900' : 'text-emerald-700'}`}>{formatCurrency(line.balance)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!payCustomer} onOpenChange={(open) => { if (!open && !paySaving) setPayCustomer(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Record Customer Payment</DialogTitle>
+            <DialogDescription>{payCustomer?.name} · {customerDisplayCode(payCustomer)}</DialogDescription>
+          </DialogHeader>
+          {payCustomer && (
+            <form onSubmit={saveCustomerPayment} className="space-y-3 mt-2">
+              <div>
+                <Label>Date</Label>
+                <Input type="date" value={payData.date} onChange={(e) => setPayData((p) => ({ ...p, date: e.target.value }))} required />
+              </div>
+              <div>
+                <Label>Amount *</Label>
+                <Input type="number" min="0.01" step="0.01" value={payData.amount} onChange={(e) => setPayData((p) => ({ ...p, amount: e.target.value }))} required />
+              </div>
+              <div>
+                <Label>Apply to invoice # or leave blank for general ledger</Label>
+                <Input value={payData.reference} onChange={(e) => setPayData((p) => ({ ...p, reference: e.target.value }))} placeholder="INV-2026-1234 (blank = customer credit)" />
+              </div>
+              <div>
+                <Label>Method</Label>
+                <Select value={payData.method} onValueChange={(method) => setPayData((p) => ({ ...p, method }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {['Cash', 'Bank Transfer', 'UPI', 'Card', 'Cheque'].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Notes</Label>
+                <Input value={payData.notes} onChange={(e) => setPayData((p) => ({ ...p, notes: e.target.value }))} />
+              </div>
+              <p className="text-xs text-gray-500">Extra amount is saved as customer credit for future invoices/orders.</p>
+              <DialogFooter className="gap-2">
+                <Button type="button" variant="outline" onClick={() => setPayCustomer(null)} disabled={paySaving}>Cancel</Button>
+                <Button type="submit" className="text-white" style={{ backgroundColor: '#F26522' }} disabled={paySaving}>
+                  <Wallet className="h-4 w-4 mr-1" />{paySaving ? 'Saving…' : 'Record & print receipt'}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
 

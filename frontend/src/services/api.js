@@ -32,6 +32,7 @@ export const customersAPI = {
   update: (id, data) => gasRequest('PUT', `/customers/${id}`, withToken({ data })),
   delete: (id) => gasRequest('DELETE', `/customers/${id}`, withToken()),
   getLedger: (id) => gasRequest('GET', `/customers/${id}/ledger`, withToken()),
+  recordPayment: (id, data) => gasRequest('POST', `/customers/${id}/payment`, withToken({ data })),
   block: (id, data) => gasRequest('POST', `/customers/${id}/block`, withToken({ data })),
   unblock: (id) => gasRequest('POST', `/customers/${id}/unblock`, withToken()),
   updateStage: (id, stage) => gasRequest('PUT', `/customers/${id}/stage`, withToken({ data: { stage } })),
@@ -78,6 +79,7 @@ export const invoicesAPI = {
   getByToken: (token) => gasRequest('GET', `/public/invoice/${token}`),
   create: (data) => gasRequest('POST', '/invoices', withToken({ data })),
   update: (id, data) => gasRequest('PUT', `/invoices/${id}`, withToken({ data })),
+  pay: (id, data) => gasRequest('POST', `/invoices/${id}/payment`, withToken({ data })),
   delete: (id) => gasRequest('DELETE', `/invoices/${id}`, withToken()),
 };
 

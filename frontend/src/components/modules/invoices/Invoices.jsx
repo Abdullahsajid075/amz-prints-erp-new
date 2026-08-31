@@ -2,15 +2,20 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { invoicesAPI } from '@/services/api';
 import { notifyOrderEvent } from '@/services/notifications';
+import { finishPaymentRecording } from '@/utils/paymentActions';
+import { useBrand } from '@/context/BrandContext';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
-import { Plus, Search, Eye, Edit, FileText, Copy as CopyIcon } from 'lucide-react';
-import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
+import { Plus, Search, Eye, Edit, FileText, Copy as CopyIcon, Wallet } from 'lucide-react';
+import ReceivablesDialog from '@/components/shared/ReceivablesDialog';
 import { toast } from 'sonner';
 
 const INVOICE_SORT_OPTS = [
@@ -26,10 +31,15 @@ const invoiceBalance = (invoice) =>
 
 const Invoices = () => {
   const navigate = useNavigate();
+  const { company } = useBrand();
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState({ field: 'date', dir: 'desc' });
+  const [paymentInvoice, setPaymentInvoice] = useState(null);
+  const [paymentData, setPaymentData] = useState({ amount: '', method: 'Cash', notes: '', date: new Date().toISOString().slice(0, 10) });
+  const [paymentSaving, setPaymentSaving] = useState(false);
+  const [receivablesOpen, setReceivablesOpen] = useState(false);
 
   const fetchInvoices = useCallback(async () => {
     setLoading(true);
@@ -92,6 +102,7 @@ const Invoices = () => {
           paidAmount: invoice.paidAmount || 0,
         },
         openWhatsApp: true,
+        sendEmail: false,
       });
       toast.message('WhatsApp opened — invoice link + pending payment');
     } catch (err) {
@@ -126,11 +137,66 @@ const Invoices = () => {
           paidAmount: invoice.paidAmount || 0,
         },
         openWhatsApp: true,
+        sendEmail: false,
       });
       toast.success('Payment reminder WhatsApp opened');
     } catch (err) {
       console.error(err);
       toast.error('Failed to send reminder');
+    }
+  };
+
+  const openInvoicePayment = (invoice) => {
+    const bal = invoiceBalance(invoice);
+    setPaymentInvoice(invoice);
+    setPaymentData({
+      amount: bal > 0 ? bal : '',
+      method: 'Cash',
+      notes: '',
+      date: new Date().toISOString().slice(0, 10),
+    });
+  };
+
+  const saveInvoicePayment = async (e) => {
+    e.preventDefault();
+    if (!paymentInvoice) return;
+    const amount = Number(paymentData.amount) || 0;
+    if (!(amount > 0)) {
+      toast.error('Enter a valid amount');
+      return;
+    }
+    setPaymentSaving(true);
+    try {
+      const res = await invoicesAPI.pay(paymentInvoice.id, {
+        amount,
+        method: paymentData.method,
+        notes: paymentData.notes,
+        date: paymentData.date,
+      });
+      const data = res.data || {};
+      await finishPaymentRecording(data.payment || data, {
+        company,
+        extras: {
+          customerName: paymentInvoice.customerName,
+          customerPhone: paymentInvoice.customerPhone,
+          customerEmail: paymentInvoice.customerEmail,
+          reference: paymentInvoice.invoiceNumber,
+          balanceDue: data.invoice?.balanceAmount,
+          totalAmount: paymentInvoice.totalAmount,
+        },
+        notify: true,
+        sendEmail: false,
+      });
+      if (Number(data.extra) > 0) {
+        toast.message(`Extra ${formatCurrency(data.extra)} saved as customer credit`);
+      }
+      toast.success('Payment recorded');
+      setPaymentInvoice(null);
+      fetchInvoices();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err?.message || 'Payment failed');
+    } finally {
+      setPaymentSaving(false);
     }
   };
 
@@ -194,10 +260,11 @@ const Invoices = () => {
             <p className="text-xl font-bold" style={{ color: '#F26522' }}>{formatCurrency(stats.totalAmount)}</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="cursor-pointer hover:border-orange-200" onClick={() => setReceivablesOpen(true)}>
           <CardContent className="p-4">
             <p className="text-xs text-gray-500 uppercase font-medium mb-1">Receivable</p>
             <p className="text-xl font-bold text-orange-700">{formatCurrency(stats.receivable)}</p>
+            <p className="text-[10px] text-gray-400 mt-1">Click for unpaid list</p>
           </CardContent>
         </Card>
       </div>
@@ -278,16 +345,28 @@ const Invoices = () => {
                       <WhatsAppIcon className="h-3 w-3" />
                     </Button>
                     {invoiceBalance(invoice) > 0 && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-[11px] px-2 text-amber-700 border-amber-300 hover:bg-amber-50"
-                        onClick={() => sendPaymentReminder(invoice)}
-                        title="Payment reminder"
-                        data-testid={`remind-invoice-${invoice.id}`}
-                      >
-                        <WhatsAppIcon className="h-3 w-3 mr-1" />Remind
-                      </Button>
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-[11px] px-2 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                          onClick={() => openInvoicePayment(invoice)}
+                          title="Record payment"
+                          data-testid={`pay-invoice-${invoice.id}`}
+                        >
+                          <Wallet className="h-3 w-3 mr-1" />Pay
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-[11px] px-2 text-amber-700 border-amber-300 hover:bg-amber-50"
+                          onClick={() => sendPaymentReminder(invoice)}
+                          title="Payment reminder"
+                          data-testid={`remind-invoice-${invoice.id}`}
+                        >
+                          <WhatsAppIcon className="h-3 w-3 mr-1" />Remind
+                        </Button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -296,6 +375,56 @@ const Invoices = () => {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!paymentInvoice} onOpenChange={(open) => { if (!open && !paymentSaving) setPaymentInvoice(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Record Invoice Payment</DialogTitle>
+            <DialogDescription>
+              {paymentInvoice?.invoiceNumber} · {paymentInvoice?.customerName}
+              {paymentInvoice?.orderId ? ` · Order ${paymentInvoice.orderId}` : ''}
+            </DialogDescription>
+          </DialogHeader>
+          {paymentInvoice && (
+            <form onSubmit={saveInvoicePayment} className="space-y-3 mt-2">
+              <div className="text-sm rounded-lg bg-gray-50 p-3">
+                <div className="flex justify-between"><span>Balance due</span><strong>{formatCurrency(invoiceBalance(paymentInvoice))}</strong></div>
+                {(paymentInvoice.paymentHistory?.length > 0) && (
+                  <p className="text-xs text-gray-500 mt-2">{paymentInvoice.paymentHistory.length} previous payment(s) — locked</p>
+                )}
+              </div>
+              <div>
+                <Label>Date</Label>
+                <Input type="date" value={paymentData.date} onChange={(e) => setPaymentData((p) => ({ ...p, date: e.target.value }))} required />
+              </div>
+              <div>
+                <Label>Amount *</Label>
+                <Input type="number" min="0.01" step="0.01" value={paymentData.amount} onChange={(e) => setPaymentData((p) => ({ ...p, amount: e.target.value }))} required autoFocus />
+              </div>
+              <div>
+                <Label>Method</Label>
+                <Select value={paymentData.method} onValueChange={(method) => setPaymentData((p) => ({ ...p, method }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {['Cash', 'Bank Transfer', 'UPI', 'Card', 'Cheque'].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Notes</Label>
+                <Input value={paymentData.notes} onChange={(e) => setPaymentData((p) => ({ ...p, notes: e.target.value }))} placeholder="Receipt / reference" />
+              </div>
+              <DialogFooter className="gap-2">
+                <Button type="button" variant="outline" onClick={() => setPaymentInvoice(null)} disabled={paymentSaving}>Cancel</Button>
+                <Button type="submit" className="text-white" style={{ backgroundColor: '#F26522' }} disabled={paymentSaving}>
+                  <Wallet className="h-4 w-4 mr-1" />{paymentSaving ? 'Saving…' : 'Record & print receipt'}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+      <ReceivablesDialog open={receivablesOpen} onOpenChange={setReceivablesOpen} />
     </div>
   );
 };

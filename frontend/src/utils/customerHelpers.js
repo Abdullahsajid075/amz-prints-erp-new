@@ -1,5 +1,6 @@
 import { formatCurrency } from '@/utils/helpers';
 import { openWhatsAppChat } from '@/services/notifications/whatsappChannel';
+import { canAccessModule } from '@/utils/permissions';
 
 export function isCustomerBlocked(customer) {
   if (!customer) return false;
@@ -24,6 +25,11 @@ export function getBlockMessage(customer) {
 export function isAdminUser(user) {
   const role = String(user?.role || '').trim().toLowerCase();
   return ['super admin', 'admin', 'administrator', 'owner'].includes(role);
+}
+
+/** Unblock is Settings-admin only. */
+export function canUnblockCustomer(user) {
+  return canAccessModule(user, 'settings');
 }
 
 export function customerDisplayCode(customer) {

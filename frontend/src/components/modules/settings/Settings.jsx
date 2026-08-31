@@ -1039,13 +1039,11 @@ const Settings = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-xs text-gray-500">
-                Placeholders: {'{Customer Name}'}, {'{Order Number}'}, {'{Tracking Number}'}, {'{Status}'}, {'{Company Name}'}
+                Write your own messages below — no footer is added automatically. Empty = message not sent until you fill it in.
+                Placeholders: {'{Customer Name}'}, {'{Order Number}'}, {'{Tracking Number}'}, {'{Status}'}, {'{Company Name}'}, {'{Invoice Link}'}, {'{payment_amount}'}, {'{balance_due}'}
               </p>
               {['quotation', 'created', 'Order Received', 'Designing', 'Proof Approval', 'Printing', 'Finishing', 'Packing', 'Ready', 'Delivered', 'Cancelled', 'status', 'invoice_generated', 'payment_reminder', 'balance_reminder', 'payment_received', 'payment_sent'].map((key) => {
-                const templates = {
-                  ...DEFAULT_WHATSAPP_TEMPLATES,
-                  ...(settings.notifications.whatsappTemplates || {}),
-                };
+                const saved = settings.notifications.whatsappTemplates || {};
                 const labelMap = {
                   quotation: 'Quotation',
                   created: 'Order Created / Received',
@@ -1063,7 +1061,8 @@ const Settings = () => {
                     <Label className="mb-1 block">{label}</Label>
                     <Textarea
                       rows={key === 'created' ? 8 : 5}
-                      value={templates[key] || ''}
+                      value={saved[key] || ''}
+                      placeholder={DEFAULT_WHATSAPP_TEMPLATES[key] ? `Example:\n${DEFAULT_WHATSAPP_TEMPLATES[key].slice(0, 120)}…` : 'Your message…'}
                       onChange={(e) => update('notifications', 'whatsappTemplates', {
                         ...(settings.notifications.whatsappTemplates || {}),
                         [key]: e.target.value,

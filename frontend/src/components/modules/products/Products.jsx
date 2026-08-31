@@ -200,12 +200,16 @@ const Products = () => {
         added.push(dataUrl);
       }
       setFormData((prev) => {
-        const images = fitImagesForSheets([...(prev.images || []), ...added]);
+        const merged = [...(prev.images || []), ...added];
+        const images = fitImagesForSheets(merged);
+        if (images.length < merged.length) {
+          toast.message('Some extra gallery photos skipped — Sheets storage limit. Main image kept at full quality.');
+        }
         return { ...prev, images, image: images[0] || '' };
       });
-      toast.success(added.length > 1 ? `${added.length} photos ready` : 'Photo ready');
+      toast.success(added.length > 1 ? `${added.length} photos ready (original resolution)` : 'Photo ready (original resolution)');
     } catch (err) {
-      toast.error(err.message || 'Photo failed — try a smaller image');
+      toast.error(err.message || 'Photo failed — try a smaller file');
     } finally {
       setImageBusy(false);
     }
@@ -623,7 +627,7 @@ const Products = () => {
                 )}
               </div>
               <p className="text-[11px] text-gray-500">
-                {imageBusy ? 'Compressing…' : 'Select multiple photos — first is the main / website image.'}
+                {imageBusy ? 'Processing…' : 'Select photos — saved at original resolution (main image used on website).'}
               </p>
             </div>
 
