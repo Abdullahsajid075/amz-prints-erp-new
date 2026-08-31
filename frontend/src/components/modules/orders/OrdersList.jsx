@@ -14,6 +14,7 @@ import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
 import PageHeader from '@/components/shared/PageHeader';
 import { openWhatsAppChat, fillTemplate, buildTemplateVars, resolveWhatsAppTemplate } from '@/services/notifications';
+import { orderIsDeliveredWithBalance, openUrduBalanceWhatsApp } from '@/utils/customerHelpers';
 import { Plus, Search, Eye, Edit, Copy, Trash2, User, Phone, Mail, MapPin, Calendar, Package, FileText, X, Printer, Receipt, Truck, Link2, Bell, StickyNote, Wallet } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
@@ -37,6 +38,12 @@ function orderDisplayTotal(order) {
   const fromProducts = (Array.isArray(order?.products) ? order.products : [])
     .reduce((s, p) => s + (Number(p.quantity) || 0) * (Number(p.rate) || 0), 0);
   return fromProducts || 0;
+}
+
+function orderBalanceDue(order) {
+  const stored = Number(order?.balanceAmount);
+  if (Number.isFinite(stored) && stored >= 0) return stored;
+  return Math.max(0, orderDisplayTotal(order) - Number(order?.advancePayment || 0));
 }
 
 function trackingLinkFor(order) {
@@ -241,6 +248,30 @@ const OrdersList = () => {
       if (!result.ok) toast.error('Could not open WhatsApp');
       else toast.message('WhatsApp opened — tap Send');
     } catch (err) { console.error(err); toast.error('Failed to open WhatsApp'); }
+  };
+
+  const handleUrduBalanceRequest = async (order) => {
+    try {
+      const full = order.customerPhone ? order : (await ordersAPI.getById(order.id)).data;
+      if (!orderIsDeliveredWithBalance(full)) {
+        toast.error('Balance reminder is for delivered/completed orders with remaining amount');
+        return;
+      }
+      if (!full.customerPhone) {
+        toast.error('Customer phone required for WhatsApp');
+        return;
+      }
+      const outstanding = orderBalanceDue(full);
+      const result = openUrduBalanceWhatsApp(
+        { name: full.customerName, phone: full.customerPhone, customerCode: full.customerCode },
+        { outstanding, orderId: full.orderId || full.id },
+      );
+      if (result?.ok) toast.message('WhatsApp opened — Urdu balance reminder (tap Send)');
+      else toast.error('Could not open WhatsApp');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to open balance reminder');
+    }
   };
 
   const sendOrderReminder = async (order, type) => {
@@ -523,6 +554,19 @@ const OrdersList = () => {
           <Wallet className="h-3 w-3 mr-1 shrink-0" />
           {hasAdvanceReceived(order) ? 'Advance paid' : 'Advance'}
         </Button>
+        {orderIsDeliveredWithBalance(order) && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="flex-1 min-w-[30%] h-7 text-[10px] px-1.5 text-green-800 border-green-200 hover:bg-green-50"
+            title="WhatsApp: Urdu remaining balance reminder"
+            onClick={() => handleUrduBalanceRequest(order)}
+            data-testid={`balance-urdu-${order.id}`}
+          >
+            <WhatsAppIcon className="h-3 w-3 mr-1 shrink-0" />باقی رقم
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -794,6 +838,16 @@ const OrdersList = () => {
                   <Wallet className="h-4 w-4 mr-1" />
                   {hasAdvanceReceived(viewOrder) ? 'Advance paid' : 'Advance reminder'}
                 </Button>
+                {orderIsDeliveredWithBalance(viewOrder) && (
+                  <Button
+                    variant="outline"
+                    className="text-green-800 border-green-200"
+                    onClick={() => handleUrduBalanceRequest(viewOrder)}
+                    title="Urdu WhatsApp — remaining balance"
+                  >
+                    <WhatsAppIcon className="h-4 w-4 mr-1" />باقی رقم (WhatsApp)
+                  </Button>
+                )}
                 <Button variant="outline" className="text-green-700" onClick={() => handleWhatsApp(viewOrder)}><WhatsAppIcon className="h-4 w-4 mr-1" />WhatsApp</Button>
                 <Button variant="outline" onClick={() => handleGenerateInvoice(viewOrder)}><Receipt className="h-4 w-4 mr-1" style={{ color: '#F26522' }} />Invoice</Button>
                 <Button variant="outline" className="text-emerald-700 border-emerald-200" onClick={() => openPayment(viewOrder)}>

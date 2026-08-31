@@ -6,7 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { customersAPI } from '@/services/api';
 import { customerMatchesQuery } from '@/utils/customerSearch';
-import { UserPlus, User, Search, X, ChevronDown } from 'lucide-react';
+import {
+  isCustomerBlocked, getBlockMessage, customerDisplayCode, openCustomerWelcomeWhatsApp,
+} from '@/utils/customerHelpers';
+import { UserPlus, User, Search, X, ChevronDown, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 
 /**
@@ -31,6 +34,7 @@ export default function CustomerPicker({
   const [draft, setDraft] = useState({ name: '', phone: '', email: '', address: '' });
   const [query, setQuery] = useState('');
   const [listOpen, setListOpen] = useState(false);
+  const [blockedCustomer, setBlockedCustomer] = useState(null);
   const wrapRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -71,6 +75,10 @@ export default function CustomerPicker({
   }, [listOpen]);
 
   const applyCustomer = (c) => {
+    if (isCustomerBlocked(c)) {
+      setBlockedCustomer(c);
+      return;
+    }
     onChange?.({
       customerId: c.id || '',
       customerName: c.name || '',
@@ -135,6 +143,10 @@ export default function CustomerPicker({
       setOpen(false);
       setDraft({ name: '', phone: '', email: '', address: '' });
       toast.success('Customer added');
+      const welcome = openCustomerWelcomeWhatsApp(c);
+      if (welcome.ok) {
+        toast.message('Welcome WhatsApp opened — tap Send with Customer ID');
+      }
     } catch (err) {
       console.error(err);
       toast.error(err.response?.data?.message || 'Failed to add customer');
@@ -158,6 +170,9 @@ export default function CustomerPicker({
             <User className="h-4 w-4 mt-0.5 shrink-0" style={{ color: accent }} />
             <div className="min-w-0 flex-1 text-sm">
               <p className="font-semibold text-gray-900 truncate">{customerName}</p>
+              <p className="text-[10px] font-mono text-orange-700">
+                ID: {customerDisplayCode(options.find((x) => String(x.id) === String(customerId)) || { id: customerId })}
+              </p>
               <p className="text-gray-600 text-xs truncate">
                 {[customerPhone, customerEmail].filter(Boolean).join(' · ') || 'No contact details'}
               </p>
@@ -232,12 +247,17 @@ export default function CustomerPicker({
                     <button
                       key={c.id}
                       type="button"
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-orange-50 border-b last:border-0"
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-orange-50 border-b last:border-0 ${isCustomerBlocked(c) ? 'bg-red-50' : ''}`}
                       onClick={() => applyCustomer(c)}
                     >
                       <span className="font-medium text-gray-900">{c.name}</span>
                       {c.phone ? <span className="text-gray-500"> — {c.phone}</span> : null}
-                      {c.city ? <span className="block text-[11px] text-gray-400">{c.city}</span> : null}
+                      <span className="block text-[10px] font-mono text-orange-700">{customerDisplayCode(c)}</span>
+                      {isCustomerBlocked(c) ? (
+                        <span className="block text-[11px] text-red-600 font-semibold">Blocked</span>
+                      ) : c.city ? (
+                        <span className="block text-[11px] text-gray-400">{c.city}</span>
+                      ) : null}
                     </button>
                   ))
                 )}
@@ -337,6 +357,22 @@ export default function CustomerPicker({
             >
               {saving ? 'Saving…' : 'Save Customer'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!blockedCustomer} onOpenChange={(open) => { if (!open) setBlockedCustomer(null); }}>
+        <DialogContent className="max-w-md" data-testid="blocked-customer-dialog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-700">
+              <ShieldAlert className="h-5 w-5" />Customer Blocked
+            </DialogTitle>
+            <DialogDescription>
+              {blockedCustomer ? getBlockMessage(blockedCustomer) : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" onClick={() => setBlockedCustomer(null)}>OK</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

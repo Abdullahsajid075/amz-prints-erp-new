@@ -42,7 +42,8 @@ var DEFAULT_HEADERS = {
   Users: ['Username', 'Password', 'Name', 'Role', 'Status', 'Permissions', 'EmployeeId'],
   Customers: [
     'Id', 'Name', 'Phone', 'Email', 'Address', 'City', 'Notes',
-    'InCrm', 'Stage', 'StageUpdatedAt', 'NotifyWhatsApp', 'NotifyEmail', 'PortalPassword'
+    'InCrm', 'Stage', 'StageUpdatedAt', 'NotifyWhatsApp', 'NotifyEmail', 'PortalPassword',
+    'CustomerCode', 'Blocked', 'BlockReason', 'BlockedAt', 'BlockedBy'
   ],
   CrmNotes: ['Id', 'CustomerId', 'Note', 'CreatedAt', 'CreatedBy'],
   Employees: [
@@ -739,13 +740,84 @@ function normalizeCustomer_(body) {
     stageupdatedat: body.stageUpdatedAt || body.stageupdatedat || '',
     notifywhatsapp: body.notifyWhatsApp != null ? body.notifyWhatsApp : (body.notifywhatsapp != null ? body.notifywhatsapp : true),
     notifyemail: body.notifyEmail != null ? body.notifyEmail : (body.notifyemail != null ? body.notifyemail : true),
+    customercode: body.customerCode != null ? body.customerCode : (body.customercode != null ? body.customercode : undefined),
+    blocked: body.blocked != null ? body.blocked : undefined,
+    blockreason: body.blockReason != null ? body.blockReason : (body.blockreason != null ? body.blockreason : undefined),
+    blockedat: body.blockedAt != null ? body.blockedAt : (body.blockedat != null ? body.blockedat : undefined),
+    blockedby: body.blockedBy != null ? body.blockedBy : (body.blockedby != null ? body.blockedby : undefined),
   };
+}
+
+function isAdminRole_(user) {
+  var role = String(user && user.role || '').trim().toLowerCase();
+  return role === 'super admin' || role === 'admin' || role === 'administrator' || role === 'owner';
+}
+
+function isCustomerBlocked_(row) {
+  if (!row) return false;
+  var v = row.blocked;
+  if (v === true || v === 1) return true;
+  var s = String(v || '').trim().toLowerCase();
+  return s === '1' || s === 'true' || s === 'yes' || s === 'blocked';
+}
+
+function nextCustomerCode_() {
+  var settings = getSettings_() || {};
+  var custSettings = settings.customers;
+  if (typeof custSettings === 'string') {
+    try { custSettings = JSON.parse(custSettings); } catch (e) { custSettings = {}; }
+  }
+  if (!custSettings || typeof custSettings !== 'object') custSettings = {};
+  var prefix = String(custSettings.codePrefix || 'CUST-').trim() || 'CUST-';
+  var customers = getSheetRows_(SHEET_NAMES.CUSTOMERS);
+  var max = 0;
+  customers.forEach(function (c) {
+    var code = String(c.customercode || c.code || '').trim();
+    var m = code.match(/(\d+)/);
+    if (m) max = Math.max(max, Number(m[1]));
+  });
+  return prefix + pad_(max + 1, 4);
+}
+
+function computeCustomerOutstanding_(customer, orders) {
+  if (!customer) return 0;
+  orders = orders || getSheetRows_(SHEET_NAMES.ORDERS);
+  return orders.filter(function (o) {
+    return String(o.customerid) === String(customer.id)
+      || (customer.phone && String(o.customerphone) === String(customer.phone));
+  }).reduce(function (s, o) {
+    return s + Number(o.balanceamount || 0);
+  }, 0);
+}
+
+function buildWelcomeWhatsAppPayload_(cust) {
+  var phone = String(cust.phone || '').trim();
+  if (!phone) return null;
+  var code = cust.customerCode || cust.customercode || cust.id || '';
+  var text = 'Assalam-o-Alaikum ' + (cust.name || 'Customer') + '!\n\n'
+    + 'Amazon Printing Services mein *khush amdeed*.\n\n'
+    + 'Aap ka Customer ID: *' + code + '*\n'
+    + 'Is number ko office tracking ke liye save rakhein.\n\n'
+    + 'Shukriya!\n📍 King Road, Mandi Bahauddin\n🌐 amzprints.com';
+  return { phone: phone, text: text };
+}
+
+function assertCustomerNotBlocked_(customerId) {
+  if (!customerId || String(customerId) === 'cust_walkin') return;
+  var customers = getSheetRows_(SHEET_NAMES.CUSTOMERS);
+  var idx = findById_(customers, customerId);
+  if (idx < 0) return;
+  if (isCustomerBlocked_(customers[idx])) {
+    var reason = String(customers[idx].blockreason || 'Contact Admin to unblock.').trim();
+    throw new Error('Customer is blocked: ' + reason);
+  }
 }
 
 function toApiCustomer_(c) {
   var inCrm = isInCrm_(c.incrm);
   return {
     id: c.id,
+    customerCode: c.customercode || c.code || '',
     name: c.name || '',
     phone: c.phone || '',
     email: c.email || '',
@@ -757,7 +829,56 @@ function toApiCustomer_(c) {
     stageUpdatedAt: c.stageupdatedat || '',
     notifyWhatsApp: isNotifyOn_(c.notifywhatsapp),
     notifyEmail: isNotifyOn_(c.notifyemail),
+    blocked: isCustomerBlocked_(c),
+    blockReason: c.blockreason || '',
+    blockedAt: c.blockedat || '',
+    blockedBy: c.blockedby || '',
   };
+}
+
+function enrichApiCustomer_(c, orders) {
+  var api = toApiCustomer_(c);
+  api.outstanding = computeCustomerOutstanding_(c, orders);
+  return api;
+}
+
+function handleCustomerBlock_(customerId, action, body, user) {
+  var sheet = getSheet_(SHEET_NAMES.CUSTOMERS);
+  ensureHeaders_(sheet, SHEET_NAMES.CUSTOMERS);
+  var customers = getSheetRows_(SHEET_NAMES.CUSTOMERS);
+  var index = findById_(customers, customerId);
+  if (index < 0) throw new Error('Customer not found');
+  var prev = customers[index];
+  if (String(prev.id) === 'cust_walkin') throw new Error('Walk-in customer cannot be blocked');
+
+  if (action === 'block') {
+    var reason = String(body.blockReason || body.reason || '').trim();
+    if (!reason) throw new Error('Block reason is required');
+    var blockUpdates = {
+      blocked: true,
+      blockreason: reason,
+      blockedat: new Date().toISOString(),
+      blockedby: String(user && (user.name || user.username) || 'staff'),
+    };
+    updateObjectProps_(sheet, SHEET_NAMES.CUSTOMERS, prev._row, blockUpdates);
+    invalidateSheetCache_(SHEET_NAMES.CUSTOMERS);
+    return enrichApiCustomer_(Object.assign({}, prev, blockUpdates), getSheetRows_(SHEET_NAMES.ORDERS));
+  }
+
+  if (action === 'unblock') {
+    if (!isAdminRole_(user)) throw new Error('Only Admin can unblock customers');
+    var unblockUpdates = {
+      blocked: false,
+      blockreason: '',
+      blockedat: '',
+      blockedby: '',
+    };
+    updateObjectProps_(sheet, SHEET_NAMES.CUSTOMERS, prev._row, unblockUpdates);
+    invalidateSheetCache_(SHEET_NAMES.CUSTOMERS);
+    return enrichApiCustomer_(Object.assign({}, prev, unblockUpdates), getSheetRows_(SHEET_NAMES.ORDERS));
+  }
+
+  throw new Error('Invalid action');
 }
 
 function toApiCrmNote_(n) {
@@ -884,6 +1005,9 @@ function upsertCustomer_(body) {
       city: data.city || existing.city,
       notes: data.notes || existing.notes,
     };
+    if (!existing.customercode && !existing.code) {
+      updates.customercode = nextCustomerCode_();
+    }
     // Only touch CRM fields when explicitly requested (never auto-add to CRM)
     if (data.incrm !== undefined) {
       updates.incrm = data.incrm;
@@ -906,6 +1030,7 @@ function upsertCustomer_(body) {
   }
 
   data.id = data.id || ('cust_' + Date.now());
+  if (!data.customercode) data.customercode = nextCustomerCode_();
   // Regular customers stay out of CRM unless inCrm is explicitly true
   data.incrm = data.incrm === true;
   if (data.incrm) {
@@ -919,13 +1044,21 @@ function upsertCustomer_(body) {
   if (data.notifyemail === undefined || data.notifyemail === '') data.notifyemail = true;
   ensureHeaders_(sheet, SHEET_NAMES.CUSTOMERS);
   appendObject_(sheet, SHEET_NAMES.CUSTOMERS, data);
-  return toApiCustomer_(data);
+  invalidateSheetCache_(SHEET_NAMES.CUSTOMERS);
+  var apiNew = enrichApiCustomer_(data, getSheetRows_(SHEET_NAMES.ORDERS));
+  apiNew._welcomeWhatsApp = buildWelcomeWhatsAppPayload_(apiNew);
+  return apiNew;
 }
 
-function handleCustomers_(path, method, body) {
+function handleCustomers_(path, method, body, user) {
   var sheet = getSheet_(SHEET_NAMES.CUSTOMERS);
   ensureHeaders_(sheet, SHEET_NAMES.CUSTOMERS);
   var customers = getSheetRows_(SHEET_NAMES.CUSTOMERS);
+
+  var blockMatch = path.match(/^\/customers\/([^/]+)\/(block|unblock)$/);
+  if (blockMatch && method === 'POST') {
+    return handleCustomerBlock_(decodeURIComponent(blockMatch[1]), blockMatch[2], body || {}, user);
+  }
 
   if (path.endsWith('/ledger')) {
     var ledgerId = path.split('/')[2];
@@ -957,7 +1090,7 @@ function handleCustomers_(path, method, body) {
     // Prefer order balances for outstanding; payments already reflected when applied to orders
     var outstanding = orders.reduce(function (s, o) { return s + Number(o.balanceamount || 0); }, 0);
     return {
-      customer: toApiCustomer_(customer),
+      customer: enrichApiCustomer_(customer, orders),
       invoices: invRows.map(toApiInvoice_),
       orders: orders.map(toApiOrder_),
       payments: payRows.map(function (p) {
@@ -1027,7 +1160,8 @@ function handleCustomers_(path, method, body) {
 
   if (path === '/customers') {
     if (method === 'GET') {
-      return customers.map(toApiCustomer_);
+      var orderRows = getSheetRows_(SHEET_NAMES.ORDERS);
+      return customers.map(function (c) { return enrichApiCustomer_(c, orderRows); });
     }
     if (method === 'POST') return upsertCustomer_(body);
   }
@@ -1036,7 +1170,7 @@ function handleCustomers_(path, method, body) {
   var index = findById_(customers, id);
   if (index < 0) throw new Error('Customer not found');
 
-  if (method === 'GET') return toApiCustomer_(customers[index]);
+  if (method === 'GET') return enrichApiCustomer_(customers[index], getSheetRows_(SHEET_NAMES.ORDERS));
   if (method === 'PUT') {
     var prev = customers[index];
     var updates = normalizeCustomer_(Object.assign({}, prev, body));
@@ -1051,7 +1185,8 @@ function handleCustomers_(path, method, body) {
       updates.stageupdatedat = prev.stageupdatedat || '';
     }
     updateObjectProps_(sheet, SHEET_NAMES.CUSTOMERS, prev._row, updates);
-    return toApiCustomer_(updates);
+    invalidateSheetCache_(SHEET_NAMES.CUSTOMERS);
+    return enrichApiCustomer_(Object.assign({}, prev, updates), getSheetRows_(SHEET_NAMES.ORDERS));
   }
   if (method === 'DELETE') {
     deleteRow_(sheet, customers[index]._row, SHEET_NAMES.CUSTOMERS);
@@ -1835,6 +1970,7 @@ function handleQuotations_(path, method, body) {
         });
         body.customerId = cust.id;
       }
+      assertCustomerNotBlocked_(body.customerId);
       body.docType = 'Quotation';
       body.doctype = 'Quotation';
       if (!body.status) body.status = 'Draft';
@@ -2026,6 +2162,7 @@ function handleOrders_(method, body) {
       });
       body.customerId = cust.id;
     }
+    assertCustomerNotBlocked_(body.customerId);
     if (!body.trackingNumber && !body.trackingnumber) {
       body.trackingNumber = 'TRK-' + String(Math.floor(1000 + Math.random() * 9000));
     }
@@ -2896,6 +3033,7 @@ function handleTokens_(path, method, body, params) {
       // Don't block token booking if Customers sheet has a temporary issue
       customer = { id: 'cust_temp_' + Date.now(), name: customerName, phone: customerPhone, email: customerEmail };
     }
+    if (customer && customer.id) assertCustomerNotBlocked_(customer.id);
 
     // Re-read counter row after possible cache changes
     invalidateSheetCache_(SHEET_NAMES.COUNTERS);
@@ -4312,7 +4450,7 @@ function handleRequest_(e) {
     }
 
     if (path === '/customers' || path.indexOf('/customers/') === 0) {
-      return jsonResponse_(handleCustomers_(path, method, body));
+      return jsonResponse_(handleCustomers_(path, method, body, user));
     }
 
     if (path === '/employees' || path.indexOf('/employees/') === 0) {

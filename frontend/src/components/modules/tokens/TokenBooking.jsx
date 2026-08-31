@@ -9,6 +9,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { tokensAPI, customersAPI, debugAPI } from '@/services/api';
 import { notifyTokenEvent } from '@/services/notifications';
 import { documentFileName } from '@/utils/printHelpers';
+import { isCustomerBlocked, getBlockMessage } from '@/utils/customerHelpers';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import {
   Ticket, Printer, Monitor, Search, Plus, XCircle,
@@ -113,6 +115,8 @@ const TokenBooking = () => {
   const [tokens, setTokens] = useState([]);
   const [listLoading, setListLoading] = useState(false);
   const [listFilter, setListFilter] = useState('today'); // today | all
+  const [blockedCustomer, setBlockedCustomer] = useState(null);
+  const [matchedCustomer, setMatchedCustomer] = useState(null);
 
   const loadMeta = useCallback(async () => {
     try {
@@ -211,6 +215,12 @@ const TokenBooking = () => {
         return p && (p === digits || p.slice(-10) === digits.slice(-10));
       });
       if (match) {
+        if (isCustomerBlocked(match)) {
+          setBlockedCustomer(match);
+          setMatchedCustomer(match);
+          return;
+        }
+        setMatchedCustomer(match);
         setForm((prev) => ({
           ...prev,
           customerName: match.name || prev.customerName,
@@ -219,6 +229,7 @@ const TokenBooking = () => {
         }));
         toast.success('Existing customer found');
       } else {
+        setMatchedCustomer(null);
         toast.message('New customer — will be created on booking');
       }
     } catch (error) {
@@ -248,6 +259,10 @@ const TokenBooking = () => {
       || '';
     if (!counterName) {
       toast.error('No counter mapped for this service');
+      return;
+    }
+    if (matchedCustomer && isCustomerBlocked(matchedCustomer)) {
+      setBlockedCustomer(matchedCustomer);
       return;
     }
 
@@ -320,6 +335,9 @@ const TokenBooking = () => {
     } catch (error) {
       console.error(error);
       const msg = error.response?.data?.message || error.message || 'Failed to book token';
+      if (/blocked/i.test(msg)) {
+        setBlockedCustomer(matchedCustomer || { name: form.customerName, blockReason: msg.replace(/^Customer is blocked:\s*/i, '') });
+      }
       toast.error(msg);
       setDbStatus(msg);
     } finally {
@@ -657,6 +675,18 @@ const TokenBooking = () => {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!blockedCustomer} onOpenChange={(open) => { if (!open) setBlockedCustomer(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-red-700">Customer Blocked</DialogTitle>
+            <DialogDescription>{blockedCustomer ? getBlockMessage(blockedCustomer) : ''}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" onClick={() => setBlockedCustomer(null)}>OK</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

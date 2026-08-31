@@ -10,12 +10,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { customersAPI } from '@/services/api';
-import { notifyBalanceReminder } from '@/services/notifications';
 import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
 import { customerMatchesQuery } from '@/utils/customerSearch';
+import {
+  isCustomerBlocked, getBlockMessage, isAdminUser, customerDisplayCode,
+  openUrduBalanceWhatsApp, openCustomerWelcomeWhatsApp,
+} from '@/utils/customerHelpers';
+import { useAuth } from '@/context/AuthContext';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
-import { Plus, Search, Edit, Trash2, User, Phone, Mail, MapPin, FileText, Receipt, CreditCard, TrendingUp, X, Save, BookOpen, Bell, Kanban } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, User, Phone, Mail, MapPin, FileText, Receipt, CreditCard, TrendingUp, X, Save, BookOpen, Bell, Kanban, ShieldBan, ShieldCheck } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
 
@@ -32,6 +36,8 @@ const empty = {
 
 const Customers = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = isAdminUser(user);
   const [searchParams, setSearchParams] = useSearchParams();
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -45,6 +51,19 @@ const Customers = () => {
   const [ledger, setLedger] = useState(null);
   const [ledgerLoading, setLedgerLoading] = useState(false);
   const [balanceSending, setBalanceSending] = useState(false);
+  const [blockDialogOpen, setBlockDialogOpen] = useState(false);
+  const [blockTarget, setBlockTarget] = useState(null);
+  const [blockReason, setBlockReason] = useState('');
+  const [blockSaving, setBlockSaving] = useState(false);
+
+  const withBalanceCount = useMemo(
+    () => customers.filter((c) => Number(c.outstanding) > 0).length,
+    [customers],
+  );
+  const blockedCount = useMemo(
+    () => customers.filter((c) => isCustomerBlocked(c)).length,
+    [customers],
+  );
 
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
@@ -99,7 +118,13 @@ const Customers = () => {
     setSaving(true);
     try {
       if (editing) { await customersAPI.update(editing.id, formData); toast.success('Customer updated'); }
-      else { await customersAPI.create(formData); toast.success('Customer added'); }
+      else {
+        const res = await customersAPI.create(formData);
+        toast.success('Customer added');
+        const created = res.data || {};
+        const welcome = openCustomerWelcomeWhatsApp(created);
+        if (welcome.ok) toast.message('Welcome WhatsApp opened — tap Send with Customer ID');
+      }
       setDialogOpen(false); fetchCustomers();
     } catch (err) { console.error(err); toast.error('Failed to save'); }
     finally { setSaving(false); }
@@ -111,34 +136,66 @@ const Customers = () => {
     catch (err) { console.error(err); toast.error('Failed to delete'); }
   };
 
-  const sendBalanceRequest = async () => {
-    if (!ledger?.customer || !(Number(ledger.outstanding) > 0)) {
+  const sendBalanceRequest = (customer, outstanding) => {
+    const amount = Number(outstanding ?? customer?.outstanding ?? 0);
+    if (!(amount > 0)) {
       toast.error('No outstanding balance to request');
       return;
     }
-    const customer = ledger.customer;
-    if (!customer.phone && !customer.email) {
-      toast.error('Customer needs phone (WhatsApp) or email');
+    if (!customer?.phone) {
+      toast.error('Customer phone required for WhatsApp');
       return;
     }
     setBalanceSending(true);
     try {
-      const result = await notifyBalanceReminder(customer, ledger, { openWhatsApp: true, sendEmail: true });
-      if (result?.whatsappOpened) {
-        toast.message('WhatsApp opened — tap Send to request remaining balance');
-      }
-      if (result?.emailSent) {
-        toast.success(`Balance reminder email sent to ${customer.email}`);
-      } else if (result?.results?.email?.reason === 'missing_email') {
-        toast.message('No customer email — WhatsApp only');
-      } else if (!result?.whatsappOpened && !result?.emailSent) {
-        toast.error('Could not open WhatsApp or email — check customer contact details');
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error('Failed to send balance request');
+      const result = openUrduBalanceWhatsApp(customer, { outstanding: amount });
+      if (result?.ok) toast.message('WhatsApp opened — tap Send (Urdu balance reminder)');
+      else toast.error('Could not open WhatsApp — check customer phone');
     } finally {
       setBalanceSending(false);
+    }
+  };
+
+  const openBlockDialog = (c) => {
+    setBlockTarget(c);
+    setBlockReason('');
+    setBlockDialogOpen(true);
+  };
+
+  const handleBlock = async () => {
+    if (!blockTarget?.id) return;
+    const reason = blockReason.trim();
+    if (!reason) {
+      toast.error('Block reason is required');
+      return;
+    }
+    setBlockSaving(true);
+    try {
+      await customersAPI.block(blockTarget.id, { blockReason: reason });
+      toast.success('Customer blocked');
+      setBlockDialogOpen(false);
+      fetchCustomers();
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || 'Failed to block customer');
+    } finally {
+      setBlockSaving(false);
+    }
+  };
+
+  const handleUnblock = async (c) => {
+    if (!isAdmin) {
+      toast.error('Only Admin can unblock — contact Admin');
+      return;
+    }
+    if (!window.confirm(`Unblock ${c.name}?`)) return;
+    try {
+      await customersAPI.unblock(c.id);
+      toast.success('Customer unblocked');
+      fetchCustomers();
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || 'Failed to unblock');
     }
   };
 
@@ -170,11 +227,11 @@ const Customers = () => {
         </CardContent></Card>
         <Card><CardContent className="p-4 flex items-center gap-3">
           <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#8B5CF6' }}><BookOpen className="h-5 w-5 text-white" /></div>
-          <div><p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">With Balance</p><p className="text-lg font-bold">—</p></div>
+          <div><p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">With Balance</p><p className="text-lg font-bold">{withBalanceCount}</p></div>
         </CardContent></Card>
         <Card><CardContent className="p-4 flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#3B82F6' }}><MapPin className="h-5 w-5 text-white" /></div>
-          <div><p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Cities</p><p className="text-lg font-bold">{new Set(customers.map(c => c.city).filter(Boolean)).size || '—'}</p></div>
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-red-100"><ShieldBan className="h-5 w-5 text-red-700" /></div>
+          <div><p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Blocked</p><p className="text-lg font-bold text-red-700">{blockedCount}</p></div>
         </CardContent></Card>
       </div>
 
@@ -201,14 +258,21 @@ const Customers = () => {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {sorted.map(c => (
-                  <div key={c.id} className="bg-white border border-gray-100 rounded-xl p-4 hover:shadow-md hover:border-orange-200 transition-all" data-testid={`customer-card-${c.id}`}>
+                  <div key={c.id} className={`bg-white border rounded-xl p-4 hover:shadow-md transition-all ${isCustomerBlocked(c) ? 'border-red-200 bg-red-50/30' : 'border-gray-100 hover:border-orange-200'}`} data-testid={`customer-card-${c.id}`}>
                     <div className="flex items-start gap-3 mb-3">
-                      <div className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: '#FFF3ED' }}>
-                        <User className="h-5 w-5" style={{ color: '#F26522' }} />
+                      <div className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: isCustomerBlocked(c) ? '#FEE2E2' : '#FFF3ED' }}>
+                        <User className="h-5 w-5" style={{ color: isCustomerBlocked(c) ? '#DC2626' : '#F26522' }} />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <h3 className="font-bold truncate" style={{ color: '#1F2937' }}>{c.name}</h3>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-bold truncate" style={{ color: '#1F2937' }}>{c.name}</h3>
+                          {isCustomerBlocked(c) && <Badge className="bg-red-100 text-red-800 text-[10px]">Blocked</Badge>}
+                        </div>
+                        <p className="text-[10px] font-mono text-orange-700">ID: {customerDisplayCode(c)}</p>
                         {c.city && <p className="text-xs text-gray-500">{c.city}</p>}
+                        {Number(c.outstanding) > 0 && (
+                          <p className="text-xs font-semibold text-rose-600 mt-0.5">Balance: {formatCurrency(c.outstanding)}</p>
+                        )}
                       </div>
                     </div>
                     <div className="space-y-1 text-xs text-gray-600 mb-3">
@@ -216,10 +280,33 @@ const Customers = () => {
                       {c.email && <p className="flex items-center gap-1.5"><Mail className="h-3 w-3" />{c.email}</p>}
                       {c.address && <p className="flex items-start gap-1.5"><MapPin className="h-3 w-3 mt-0.5 shrink-0" /><span className="truncate">{c.address}</span></p>}
                     </div>
-                    <div className="flex gap-1">
-                      <Button size="sm" className="flex-1 text-white h-8 text-xs" style={{ backgroundColor: '#F26522' }} onClick={() => openLedger(c)} data-testid={`ledger-${c.id}`}>
+                    <div className="flex gap-1 flex-wrap">
+                      <Button size="sm" className="flex-1 text-white h-8 text-xs min-w-[40%]" style={{ backgroundColor: '#F26522' }} onClick={() => openLedger(c)} data-testid={`ledger-${c.id}`}>
                         <BookOpen className="h-3 w-3 mr-1" />Ledger
                       </Button>
+                      {Number(c.outstanding) > 0 && c.phone && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 h-8 text-xs text-green-700 border-green-200 min-w-[40%]"
+                          disabled={balanceSending}
+                          onClick={() => sendBalanceRequest(c, c.outstanding)}
+                          data-testid={`balance-wa-${c.id}`}
+                        >
+                          <WhatsAppIcon className="h-3 w-3 mr-1" />باقی رقم (WhatsApp)
+                        </Button>
+                      )}
+                      {isCustomerBlocked(c) ? (
+                        isAdmin && (
+                          <Button size="sm" variant="outline" className="h-8 text-xs text-emerald-700" onClick={() => handleUnblock(c)} data-testid={`unblock-${c.id}`}>
+                            <ShieldCheck className="h-3 w-3 mr-1" />Unblock
+                          </Button>
+                        )
+                      ) : (
+                        <Button size="sm" variant="outline" className="h-8 text-xs text-red-700 border-red-200" onClick={() => openBlockDialog(c)} data-testid={`block-${c.id}`}>
+                          <ShieldBan className="h-3 w-3 mr-1" />Block
+                        </Button>
+                      )}
                       <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => openEdit(c)} data-testid={`edit-customer-${c.id}`}><Edit className="h-3.5 w-3.5" /></Button>
                       <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleDelete(c.id)} data-testid={`delete-customer-${c.id}`}><Trash2 className="h-3.5 w-3.5 text-red-600" /></Button>
                     </div>
@@ -280,7 +367,9 @@ const Customers = () => {
             <DialogTitle className="flex items-center gap-2"><BookOpen className="h-5 w-5" style={{ color: '#F26522' }} />
               Customer Ledger — {ledger?.customer?.name || '...'}
             </DialogTitle>
-            <DialogDescription>Orders, invoices and payments recorded against this customer.</DialogDescription>
+            <DialogDescription>
+              {ledger?.customer ? `Customer ID: ${customerDisplayCode(ledger.customer)}` : 'Orders, invoices and payments recorded against this customer.'}
+            </DialogDescription>
           </DialogHeader>
           {ledgerLoading ? <div className="text-center py-8 text-gray-500">Loading ledger...</div>
             : !ledger ? <div className="text-center py-8 text-gray-500">No data</div>
@@ -307,15 +396,13 @@ const Customers = () => {
                       className="text-white"
                       style={{ backgroundColor: '#F26522' }}
                       disabled={balanceSending}
-                      onClick={sendBalanceRequest}
+                      onClick={() => sendBalanceRequest(ledger.customer, ledger.outstanding)}
                       data-testid="send-balance-request"
                     >
                       <WhatsAppIcon className="h-4 w-4 mr-2" />
-                      {balanceSending ? 'Sending…' : 'Request remaining balance'}
+                      {balanceSending ? 'Opening…' : 'باقی رقم — WhatsApp (Urdu)'}
                     </Button>
-                    <p className="text-xs text-gray-500 self-center">
-                      Opens WhatsApp and sends email (if customer email is on file).
-                    </p>
+                    <p className="text-xs text-gray-500 self-center">WhatsApp only — Urdu balance reminder</p>
                   </div>
                 )}
                 <Tabs defaultValue="invoices">
@@ -351,6 +438,35 @@ const Customers = () => {
                 </Tabs>
               </div>
             )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={blockDialogOpen} onOpenChange={setBlockDialogOpen}>
+        <DialogContent className="max-w-md" data-testid="block-customer-dialog">
+          <DialogHeader>
+            <DialogTitle className="text-red-700 flex items-center gap-2">
+              <ShieldBan className="h-5 w-5" />Block Customer
+            </DialogTitle>
+            <DialogDescription>
+              {blockTarget?.name} ({customerDisplayCode(blockTarget)}) will not be able to book orders or tokens. Contact Admin to unblock.
+            </DialogDescription>
+          </DialogHeader>
+          <div>
+            <Label>Reason for blocking *</Label>
+            <Textarea
+              rows={3}
+              value={blockReason}
+              onChange={(e) => setBlockReason(e.target.value)}
+              placeholder="e.g. Repeated non-payment, abusive behaviour…"
+              className="mt-1"
+            />
+          </div>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setBlockDialogOpen(false)}>Cancel</Button>
+            <Button type="button" className="bg-red-600 text-white hover:bg-red-700" disabled={blockSaving} onClick={handleBlock}>
+              {blockSaving ? 'Blocking…' : 'Block Customer'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
