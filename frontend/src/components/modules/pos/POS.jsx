@@ -3,13 +3,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { productsAPI, ordersAPI, invoicesAPI, customersAPI } from '@/services/api';
 import { applyServerNotificationHint } from '@/services/notifications';
 import { formatCurrency } from '@/utils/helpers';
 import { customerMatchesQuery } from '@/utils/customerSearch';
 import { barcodeBlock, openPrintWindow, printOnLoadScript, POS_MAJOR_SERVICES } from '@/utils/printHelpers';
 import { useBrand } from '@/context/BrandContext';
-import { Search, Plus, Minus, Trash2, Printer, ShoppingCart, FileSpreadsheet, PackagePlus, UserPlus, Package, Wrench } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, Printer, ShoppingCart, FileSpreadsheet, PackagePlus, UserPlus, Package, Wrench, Ban, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 
@@ -38,6 +39,7 @@ const POS = () => {
   const [discountValue, setDiscountValue] = useState('');
   const [checkingOut, setCheckingOut] = useState(false);
   const [lastSale, setLastSale] = useState(null);
+  const [blockedInfo, setBlockedInfo] = useState(null);
 
   const loadProducts = useCallback(async () => {
     try {
@@ -500,9 +502,14 @@ const POS = () => {
                       <button
                         key={c.id}
                         type="button"
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-orange-50 border-b last:border-0"
+                        className={`w-full text-left px-3 py-2 text-sm border-b last:border-0 ${c.blocked ? 'bg-rose-50/60 hover:bg-rose-50' : 'hover:bg-orange-50'}`}
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => {
+                          if (c.blocked) {
+                            setBlockedInfo({ name: c.name || 'This customer', reason: c.blockReason || c.block_reason || '' });
+                            setCustomerListOpen(false);
+                            return;
+                          }
                           setCustomerId(c.id);
                           setCustomerQuery('');
                           setCustomerListOpen(false);
@@ -510,6 +517,7 @@ const POS = () => {
                       >
                         <span className="font-medium">{c.name || 'Customer'}</span>
                         {c.phone ? <span className="text-gray-500"> · {c.phone}</span> : null}
+                        {c.blocked ? <span className="ml-1 text-[10px] font-semibold text-rose-600">(Blocked)</span> : null}
                       </button>
                     ))}
                     {!filteredCustomers.length && (
@@ -643,6 +651,30 @@ const POS = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Blocked customer — cannot be served at POS */}
+      <Dialog open={!!blockedInfo} onOpenChange={(v) => !v && setBlockedInfo(null)}>
+        <DialogContent className="max-w-md" data-testid="pos-blocked-dialog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-rose-700">
+              <Ban className="h-5 w-5" />Customer Blocked
+            </DialogTitle>
+            <DialogDescription>
+              <span className="font-semibold text-gray-800">{blockedInfo?.name}</span> is blocked and cannot place orders or use our services.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-1 flex items-start gap-2 rounded-md border border-rose-100 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+            <span><span className="font-semibold">Reason:</span> {blockedInfo?.reason || 'Not specified'}</span>
+          </div>
+          <p className="text-xs text-gray-500 mt-2">To unblock this customer, please contact your Admin.</p>
+          <DialogFooter className="pt-3">
+            <Button type="button" className="text-white" style={{ backgroundColor: primary || '#F26522' }} onClick={() => setBlockedInfo(null)}>
+              Understood
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

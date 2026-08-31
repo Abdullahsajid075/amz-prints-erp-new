@@ -13,6 +13,7 @@ export function customerMatchesQuery(customer, query) {
   const city = String(c.city || '').toLowerCase();
   const address = String(c.address || '').toLowerCase();
   const id = String(c.id || '').toLowerCase();
+  const code = String(c.customerCode || c.customer_code || '').toLowerCase();
   const phone = String(c.phone || c.customerPhone || '');
   const phoneDigits = digitsOnly(phone);
   const qDigits = digitsOnly(q);
@@ -22,6 +23,7 @@ export function customerMatchesQuery(customer, query) {
   if (city.includes(q)) return true;
   if (address.includes(q)) return true;
   if (id.includes(q)) return true;
+  if (code.includes(q)) return true;
   if (phone.toLowerCase().includes(q)) return true;
   // Phone digit match: "300" finds "0300-1234567" / "+92300..."
   if (qDigits.length >= 3 && phoneDigits.includes(qDigits)) return true;

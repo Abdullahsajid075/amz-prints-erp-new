@@ -14,8 +14,12 @@ import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
 import { customerMatchesQuery } from '@/utils/customerSearch';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
-import { Plus, Search, Edit, Trash2, User, Phone, Mail, MapPin, FileText, Receipt, CreditCard, TrendingUp, X, Save, BookOpen, Bell, Kanban } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, User, Phone, Mail, MapPin, FileText, Receipt, CreditCard, TrendingUp, X, Save, BookOpen, Bell, Kanban, MessageCircle, Ban, ShieldCheck, Hash, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '@/context/AuthContext';
+import { openWhatsAppChat } from '@/services/notifications';
+import { buildWelcomeMessage, buildReminderMessage } from '@/utils/customerMessages';
+import { isAdmin } from '@/utils/roles';
 
 const CUSTOMER_SORT_OPTS = [
   { value: 'name', label: 'Name' },
@@ -30,6 +34,8 @@ const empty = {
 
 const Customers = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const admin = isAdmin(user);
   const [searchParams, setSearchParams] = useSearchParams();
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -42,6 +48,10 @@ const Customers = () => {
   const [ledgerOpen, setLedgerOpen] = useState(false);
   const [ledger, setLedger] = useState(null);
   const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [blockOpen, setBlockOpen] = useState(false);
+  const [blockTarget, setBlockTarget] = useState(null);
+  const [blockReason, setBlockReason] = useState('');
+  const [blocking, setBlocking] = useState(false);
 
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
@@ -60,6 +70,18 @@ const Customers = () => {
     phone: (c) => c.phone || '',
     city: (c) => c.city || '',
   }), [filtered, sort]);
+
+  const stats = useMemo(() => {
+    let withBalance = 0;
+    let totalReceivable = 0;
+    let blocked = 0;
+    customers.forEach((c) => {
+      const out = Number(c.outstanding || 0);
+      if (out > 0) { withBalance += 1; totalReceivable += out; }
+      if (c.blocked) blocked += 1;
+    });
+    return { withBalance, totalReceivable, blocked, active: customers.length - blocked };
+  }, [customers]);
 
   const openCreate = useCallback(() => { setEditing(null); setFormData(empty); setDialogOpen(true); }, []);
 
@@ -91,15 +113,71 @@ const Customers = () => {
     finally { setLedgerLoading(false); }
   };
 
+  // Feature: WhatsApp-only Urdu reminder for customers with a pending/receivable balance.
+  const sendReminder = (c) => {
+    const outstanding = Number(c.outstanding || 0);
+    if (!c.phone) { toast.error('This customer has no phone number for WhatsApp'); return; }
+    if (outstanding <= 0) { toast.info('No pending amount for this customer'); return; }
+    const msg = buildReminderMessage(c, outstanding);
+    const r = openWhatsAppChat(c.phone, msg);
+    if (r?.ok) toast.success('WhatsApp reminder opened'); else toast.error('Could not open WhatsApp');
+  };
+
+  const openBlock = (c) => { setBlockTarget(c); setBlockReason(''); setBlockOpen(true); };
+
+  const confirmBlock = async () => {
+    if (!blockTarget) return;
+    const reason = blockReason.trim();
+    if (!reason) { toast.error('Please enter a reason for blocking'); return; }
+    setBlocking(true);
+    try {
+      await customersAPI.block(blockTarget.id, reason);
+      toast.success('Customer blocked');
+      setBlockOpen(false); setBlockTarget(null); setBlockReason('');
+      fetchCustomers();
+    } catch (err) { console.error(err); toast.error(err.response?.data?.message || 'Failed to block'); }
+    finally { setBlocking(false); }
+  };
+
+  const handleUnblock = async (c) => {
+    if (!admin) { toast.error('Only an Admin can unblock a customer. Please contact your Admin.'); return; }
+    if (!window.confirm(`Unblock ${c.name}? They will be able to place orders again.`)) return;
+    try {
+      await customersAPI.unblock(c.id);
+      toast.success('Customer unblocked');
+      fetchCustomers();
+    } catch (err) { console.error(err); toast.error(err.response?.data?.message || 'Failed to unblock'); }
+  };
+
   const handleSave = async (e) => {
     e.preventDefault();
+    // Pre-open a window on the user gesture so the welcome WhatsApp survives the async create.
+    let pending = null;
+    if (!editing) {
+      try { pending = window.open('', '_blank'); } catch { pending = null; }
+    }
     setSaving(true);
     try {
-      if (editing) { await customersAPI.update(editing.id, formData); toast.success('Customer updated'); }
-      else { await customersAPI.create(formData); toast.success('Customer added'); }
+      if (editing) {
+        await customersAPI.update(editing.id, formData);
+        toast.success('Customer updated');
+      } else {
+        const res = await customersAPI.create(formData);
+        const created = res.data || {};
+        toast.success(created.customerCode ? `Customer added (ID: ${created.customerCode})` : 'Customer added');
+        // First-time registration: send welcome + office ID over WhatsApp.
+        const wantsWhatsApp = created.notifyWhatsApp !== false && formData.notifyWhatsApp !== false;
+        if (created._isNew && created.phone && wantsWhatsApp) {
+          openWhatsAppChat(created.phone, buildWelcomeMessage(created), { pendingWindow: pending });
+          pending = null;
+        }
+      }
       setDialogOpen(false); fetchCustomers();
-    } catch (err) { console.error(err); toast.error('Failed to save'); }
-    finally { setSaving(false); }
+    } catch (err) { console.error(err); toast.error(err.response?.data?.message || 'Failed to save'); }
+    finally {
+      setSaving(false);
+      if (pending && !pending.closed) { try { pending.close(); } catch { /* ignore */ } }
+    }
   };
 
   const handleDelete = async (id) => {
@@ -131,12 +209,12 @@ const Customers = () => {
           <div><p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Total Customers</p><p className="text-lg font-bold">{customers.length}</p></div>
         </CardContent></Card>
         <Card><CardContent className="p-4 flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#10B981' }}><TrendingUp className="h-5 w-5 text-white" /></div>
-          <div><p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Active</p><p className="text-lg font-bold text-emerald-700">{customers.length}</p></div>
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: stats.blocked ? '#EF4444' : '#10B981' }}>{stats.blocked ? <Ban className="h-5 w-5 text-white" /> : <TrendingUp className="h-5 w-5 text-white" />}</div>
+          <div><p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Active / Blocked</p><p className="text-lg font-bold text-emerald-700">{stats.active}{stats.blocked ? <span className="text-rose-600"> / {stats.blocked}</span> : ''}</p></div>
         </CardContent></Card>
         <Card><CardContent className="p-4 flex items-center gap-3">
           <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#8B5CF6' }}><BookOpen className="h-5 w-5 text-white" /></div>
-          <div><p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">With Balance</p><p className="text-lg font-bold">—</p></div>
+          <div><p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">With Balance</p><p className="text-lg font-bold">{stats.withBalance || 0}</p>{stats.totalReceivable > 0 && <p className="text-[11px] text-rose-600 font-semibold">{formatCurrency(stats.totalReceivable)}</p>}</div>
         </CardContent></Card>
         <Card><CardContent className="p-4 flex items-center gap-3">
           <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#3B82F6' }}><MapPin className="h-5 w-5 text-white" /></div>
@@ -166,15 +244,23 @@ const Customers = () => {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {sorted.map(c => (
-                  <div key={c.id} className="bg-white border border-gray-100 rounded-xl p-4 hover:shadow-md hover:border-orange-200 transition-all" data-testid={`customer-card-${c.id}`}>
+                {sorted.map(c => {
+                  const outstanding = Number(c.outstanding || 0);
+                  return (
+                  <div key={c.id} className={`bg-white border rounded-xl p-4 hover:shadow-md transition-all ${c.blocked ? 'border-rose-300 bg-rose-50/40' : 'border-gray-100 hover:border-orange-200'}`} data-testid={`customer-card-${c.id}`}>
                     <div className="flex items-start gap-3 mb-3">
-                      <div className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: '#FFF3ED' }}>
-                        <User className="h-5 w-5" style={{ color: '#F26522' }} />
+                      <div className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: c.blocked ? '#FEE2E2' : '#FFF3ED' }}>
+                        <User className="h-5 w-5" style={{ color: c.blocked ? '#DC2626' : '#F26522' }} />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <h3 className="font-bold truncate" style={{ color: '#1F2937' }}>{c.name}</h3>
-                        {c.city && <p className="text-xs text-gray-500">{c.city}</p>}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-bold truncate" style={{ color: '#1F2937' }}>{c.name}</h3>
+                          {c.blocked && <Badge className="bg-rose-100 text-rose-700 text-[10px] gap-1"><Ban className="h-3 w-3" />Blocked</Badge>}
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {c.customerCode && <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-600"><Hash className="h-3 w-3" style={{ color: '#F26522' }} />{c.customerCode}</span>}
+                          {c.city && <span className="text-xs text-gray-500">{c.city}</span>}
+                        </div>
                       </div>
                     </div>
                     <div className="space-y-1 text-xs text-gray-600 mb-3">
@@ -182,15 +268,43 @@ const Customers = () => {
                       {c.email && <p className="flex items-center gap-1.5"><Mail className="h-3 w-3" />{c.email}</p>}
                       {c.address && <p className="flex items-start gap-1.5"><MapPin className="h-3 w-3 mt-0.5 shrink-0" /><span className="truncate">{c.address}</span></p>}
                     </div>
-                    <div className="flex gap-1">
-                      <Button size="sm" className="flex-1 text-white h-8 text-xs" style={{ backgroundColor: '#F26522' }} onClick={() => openLedger(c)} data-testid={`ledger-${c.id}`}>
-                        <BookOpen className="h-3 w-3 mr-1" />Ledger
-                      </Button>
-                      <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => openEdit(c)} data-testid={`edit-customer-${c.id}`}><Edit className="h-3.5 w-3.5" /></Button>
-                      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleDelete(c.id)} data-testid={`delete-customer-${c.id}`}><Trash2 className="h-3.5 w-3.5 text-red-600" /></Button>
+                    {outstanding > 0 && (
+                      <div className="mb-3 flex items-center justify-between rounded-lg bg-rose-50 border border-rose-100 px-2.5 py-1.5">
+                        <span className="text-[11px] font-semibold uppercase tracking-wide text-rose-600">Pending</span>
+                        <span className="text-sm font-bold text-rose-700">{formatCurrency(outstanding)}</span>
+                      </div>
+                    )}
+                    {c.blocked && c.blockReason && (
+                      <p className="mb-3 flex items-start gap-1.5 text-[11px] text-rose-700 bg-rose-50 border border-rose-100 rounded-md px-2 py-1.5">
+                        <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" /><span>Reason: {c.blockReason}</span>
+                      </p>
+                    )}
+                    <div className="space-y-1.5">
+                      <div className="flex gap-1">
+                        <Button size="sm" className="flex-1 text-white h-8 text-xs" style={{ backgroundColor: '#F26522' }} onClick={() => openLedger(c)} data-testid={`ledger-${c.id}`}>
+                          <BookOpen className="h-3 w-3 mr-1" />Ledger
+                        </Button>
+                        <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => openEdit(c)} data-testid={`edit-customer-${c.id}`}><Edit className="h-3.5 w-3.5" /></Button>
+                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleDelete(c.id)} data-testid={`delete-customer-${c.id}`}><Trash2 className="h-3.5 w-3.5 text-red-600" /></Button>
+                      </div>
+                      {outstanding > 0 && (
+                        <Button size="sm" className="w-full h-8 text-xs text-white bg-[#25D366] hover:bg-[#1EBE5A]" onClick={() => sendReminder(c)} data-testid={`remind-${c.id}`}>
+                          <MessageCircle className="h-3.5 w-3.5 mr-1" />بقایا رقم کی یاد دہانی (WhatsApp)
+                        </Button>
+                      )}
+                      {c.blocked ? (
+                        <Button size="sm" variant="outline" className="w-full h-8 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50" onClick={() => handleUnblock(c)} data-testid={`unblock-${c.id}`}>
+                          <ShieldCheck className="h-3.5 w-3.5 mr-1" />{admin ? 'Unblock' : 'Unblock (Admin only)'}
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="outline" className="w-full h-8 text-xs border-rose-300 text-rose-700 hover:bg-rose-50" onClick={() => openBlock(c)} data-testid={`block-${c.id}`}>
+                          <Ban className="h-3.5 w-3.5 mr-1" />Block Customer
+                        </Button>
+                      )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
         </CardContent>
@@ -299,6 +413,34 @@ const Customers = () => {
                 </Tabs>
               </div>
             )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Block customer dialog */}
+      <Dialog open={blockOpen} onOpenChange={setBlockOpen}>
+        <DialogContent className="max-w-md" data-testid="block-dialog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-rose-700"><Ban className="h-5 w-5" />Block {blockTarget?.name || 'Customer'}</DialogTitle>
+            <DialogDescription>
+              A blocked customer cannot place any orders or use our services. The reason is recorded and shown during order booking. Unblocking requires an Admin.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 mt-2">
+            <Label>Reason for blocking *</Label>
+            <Textarea
+              rows={3}
+              value={blockReason}
+              onChange={(e) => setBlockReason(e.target.value)}
+              placeholder="e.g. Unpaid dues, repeated cancellations, misconduct…"
+              data-testid="block-reason-input"
+            />
+          </div>
+          <DialogFooter className="gap-2 pt-3">
+            <Button type="button" variant="outline" onClick={() => setBlockOpen(false)}><X className="h-4 w-4 mr-1" />Cancel</Button>
+            <Button type="button" className="bg-rose-600 hover:bg-rose-700 text-white" disabled={blocking} onClick={confirmBlock} data-testid="confirm-block">
+              <Ban className="h-4 w-4 mr-1" />{blocking ? 'Blocking…' : 'Block Customer'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -36,6 +36,8 @@ export const customersAPI = {
   getNotes: (id) => gasRequest('GET', `/customers/${id}/notes`, withToken()),
   addNote: (id, data) => gasRequest('POST', `/customers/${id}/notes`, withToken({ data })),
   deleteNote: (id, noteId) => gasRequest('DELETE', `/customers/${id}/notes/${noteId}`, withToken()),
+  block: (id, reason) => gasRequest('POST', `/customers/${id}/block`, withToken({ data: { reason } })),
+  unblock: (id) => gasRequest('POST', `/customers/${id}/unblock`, withToken()),
 };
 
 export const employeesAPI = {
