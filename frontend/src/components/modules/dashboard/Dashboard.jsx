@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { dashboardAPI, expensesAPI, purchasesAPI } from '@/services/api';
 import { totalVendorPayables } from '@/utils/vendorPayables';
 import { useAuth, getUserDisplayName } from '@/context/AuthContext';
+import { useBrand } from '@/context/BrandContext';
 import ReceivablesDialog from '@/components/shared/ReceivablesDialog';
 import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
 import {
