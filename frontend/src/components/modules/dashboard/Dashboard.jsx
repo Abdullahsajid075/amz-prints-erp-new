@@ -8,7 +8,7 @@ import { totalVendorPayables } from '@/utils/vendorPayables';
 import { useAuth, getUserDisplayName } from '@/context/AuthContext';
 import { useBrand } from '@/context/BrandContext';
 import ReceivablesDialog from '@/components/shared/ReceivablesDialog';
-import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
+import { formatCurrency, formatDate, getStatusColor, isExpenseApproved } from '@/utils/helpers';
 import {
   TrendingUp, TrendingDown, ShoppingCart, CheckCircle, DollarSign,
   Receipt, Users, Calendar, Activity, FileText, FileSpreadsheet, RefreshCw,
@@ -171,7 +171,7 @@ const Dashboard = () => {
 
       const [expensesRes, purchasesRes] = await Promise.all([expensesPromise, purchasesPromise]);
       const allExpenses = Array.isArray(expensesRes.data) ? expensesRes.data : [];
-      const list = allExpenses.filter((e) => inDateRange(e.date, from, to));
+      const list = allExpenses.filter((e) => inDateRange(e.date, from, to) && isExpenseApproved(e));
       setRecentExpenses(list.slice(0, 6));
       const expenseTotal = list.reduce((s, e) => s + Number(e.amount || 0), 0);
       const purchaseList = (Array.isArray(purchasesRes.data) ? purchasesRes.data : [])

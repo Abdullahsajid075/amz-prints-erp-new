@@ -243,8 +243,8 @@ const InvoiceView = ({ isPublic = false }) => {
               {invoice.dueDate && (
                 <p><span className="text-gray-500">Due:</span> <span className="font-semibold">{formatDate(invoice.dueDate)}</span></p>
               )}
-              {invoice.orderId && (
-                <p><span className="text-gray-500">Order:</span> <span className="font-semibold" style={{ color: accent }}>{invoice.orderId}</span></p>
+              {(invoice.orderIds?.length ? invoice.orderIds : (invoice.orderId ? [invoice.orderId] : [])).length > 0 && (
+                <p><span className="text-gray-500">Order:</span> <span className="font-semibold" style={{ color: accent }}>{(invoice.orderIds?.length ? invoice.orderIds : [invoice.orderId]).join(', ')}</span></p>
               )}
             </div>
           </div>

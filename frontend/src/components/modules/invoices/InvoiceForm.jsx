@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { DndContext, PointerSensor, useSensor, useSensors, useDraggable, useDroppable } from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,13 +9,13 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { invoicesAPI, customersAPI, productsAPI, settingsAPI } from '@/services/api';
+import { invoicesAPI, customersAPI, productsAPI, settingsAPI, ordersAPI } from '@/services/api';
 import { notifyOrderEvent, printPaymentSlip, openWhatsAppChat, buildWhatsAppAppUrl, fillTemplate, resolveWhatsAppTemplate, buildTemplateVars } from '@/services/notifications';
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import { formatCurrency } from '@/utils/helpers';
 import { catalogFieldsForOrderLine } from '@/utils/productImage';
 import { useBrand } from '@/context/BrandContext';
-import { ArrowLeft, Save, Plus, Trash2, PackagePlus, Receipt, User } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Trash2, PackagePlus, Receipt, User, GripVertical, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 const emptyItem = () => ({
@@ -27,6 +29,7 @@ const emptyItem = () => ({
   description: '',
   notes: '',
   productType: 'Product',
+  sourceOrderId: '',
 });
 
 const isServiceLine = (line, catalog = []) => {
@@ -38,6 +41,7 @@ const isServiceLine = (line, catalog = []) => {
 const emptyInvoice = {
   invoiceNumber: '',
   orderId: '',
+  orderIds: [],
   customerId: '',
   customerName: '',
   customerEmail: '',
@@ -54,6 +58,91 @@ const emptyInvoice = {
   notes: 'Thank you for your business!',
 };
 
+const orderRef = (order) => String(order?.orderId || order?.id || '').trim();
+
+const isCancelledOrder = (order) => /cancel/i.test(String(order?.status || ''));
+
+const isPlaceholderItems = (items) => (
+  Array.isArray(items)
+  && items.length === 1
+  && !items[0].productId
+  && !String(items[0].name || '').trim()
+);
+
+const linesFromOrder = (order, catalog = []) => {
+  const products = Array.isArray(order?.products) ? order.products : [];
+  const oid = orderRef(order);
+  return products.map((p) => {
+    const service = String(p.productType || '').toLowerCase() === 'service'
+      || isServiceLine(p, catalog);
+    const lineNote = p.description || p.notes || '';
+    return {
+      _key: `ord_${oid}_${Math.random().toString(36).slice(2, 6)}`,
+      productId: p.productId || '',
+      name: p.name || '',
+      quantity: service ? 1 : (Number(p.quantity) || 1),
+      rate: Number(p.rate) || 0,
+      size: service ? '' : (p.size || ''),
+      material: service ? '' : (p.material || ''),
+      description: lineNote,
+      notes: lineNote,
+      productType: service ? 'Service' : 'Product',
+      sourceOrderId: oid,
+    };
+  });
+};
+
+function OpenOrderCard({ order, accent, onAdd }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `open-order-${order.id || order.orderId}`,
+    data: { order },
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    opacity: isDragging ? 0.4 : 1,
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="rounded-xl border border-orange-100 bg-white p-2.5 shadow-sm touch-none"
+      data-testid={`open-order-card-${order.id}`}
+    >
+      <div className="flex items-start gap-2">
+        <button
+          type="button"
+          className="mt-0.5 cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600"
+          title="Drag onto invoice"
+          {...listeners}
+          {...attributes}
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-bold truncate" style={{ color: '#1F2937' }}>{order.orderId}</p>
+          <p className="text-[10px] text-gray-500 truncate">{order.status}</p>
+          <p className="text-xs font-semibold mt-0.5" style={{ color: accent }}>{formatCurrency(order.totalAmount)}</p>
+        </div>
+        <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={() => onAdd(order)}>
+          Add
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function InvoiceItemsDropZone({ children }) {
+  const { setNodeRef, isOver } = useDroppable({ id: 'invoice-items' });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`rounded-xl transition-colors ${isOver ? 'ring-2 ring-orange-400 bg-orange-50/70' : ''}`}
+    >
+      {children}
+    </div>
+  );
+}
+
 const InvoiceForm = () => {
   const navigate = useNavigate();
   const { invoiceId } = useParams();
@@ -68,6 +157,12 @@ const InvoiceForm = () => {
   const [loaded, setLoaded] = useState(!isEdit);
   const [pageLoading, setPageLoading] = useState(isEdit);
   const [originalPaid, setOriginalPaid] = useState(0);
+  const [openOrders, setOpenOrders] = useState([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
 
   const loadCustomers = useCallback(async () => {
     try {
@@ -127,13 +222,18 @@ const InvoiceForm = () => {
           description: lineNote,
           notes: lineNote,
           productType: service ? 'Service' : 'Product',
+          sourceOrderId: i.sourceOrderId || '',
         };
       });
+      const orderIds = Array.isArray(inv.orderIds) && inv.orderIds.length
+        ? inv.orderIds.map(String).filter(Boolean)
+        : (inv.orderId ? [String(inv.orderId)] : []);
       setFormData({
         ...emptyInvoice,
         id: inv.id || invoiceId,
         invoiceNumber: inv.invoiceNumber || '',
-        orderId: inv.orderId || '',
+        orderId: orderIds[0] || inv.orderId || '',
+        orderIds,
         customerId: inv.customerId || '',
         customerName: inv.customerName || '',
         customerEmail: inv.customerEmail || '',
@@ -169,6 +269,57 @@ const InvoiceForm = () => {
     loadInvoice();
   }, [loadCustomers, loadCatalog, loadInvoice]);
 
+  useEffect(() => {
+    const cid = formData.customerId;
+    const phone = String(formData.customerPhone || '').trim();
+    if (!cid && !phone) {
+      setOpenOrders([]);
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      setOrdersLoading(true);
+      try {
+        const [ordRes, invRes] = await Promise.all([
+          ordersAPI.getAll(),
+          invoicesAPI.getAll(),
+        ]);
+        if (cancelled) return;
+        const orders = Array.isArray(ordRes.data) ? ordRes.data : [];
+        const invoices = Array.isArray(invRes.data) ? invRes.data : [];
+        const linked = new Set((formData.orderIds || []).concat(formData.orderId || '').filter(Boolean).map(String));
+        const claimed = new Set();
+        invoices.forEach((inv) => {
+          if (invoiceId && String(inv.id) === String(invoiceId)) return;
+          const ids = [
+            ...(Array.isArray(inv.orderIds) ? inv.orderIds : []),
+            inv.orderId,
+          ].filter(Boolean).map(String);
+          ids.forEach((id) => claimed.add(id));
+        });
+        const available = orders.filter((o) => {
+          if (String(o.docType || 'Order').toLowerCase() === 'quotation') return false;
+          if (isCancelledOrder(o)) return false;
+          const sameCustomer = String(o.customerId || '') === String(cid || '')
+            || (phone && String(o.customerPhone || '') === phone);
+          if (!sameCustomer) return false;
+          const oid = orderRef(o);
+          if (linked.has(oid) || linked.has(String(o.id || ''))) return false;
+          if (o.invoiceId && String(o.invoiceId) !== String(invoiceId || '')) return false;
+          if (claimed.has(oid) || claimed.has(String(o.id || ''))) return false;
+          return true;
+        });
+        setOpenOrders(available);
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) setOpenOrders([]);
+      } finally {
+        if (!cancelled) setOrdersLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [formData.customerId, formData.customerPhone, formData.orderId, formData.orderIds, invoiceId]);
+
   const selectCustomer = async (next) => {
     let prev = formData.previousBalance || 0;
     if (next.customerId) {
@@ -179,7 +330,15 @@ const InvoiceForm = () => {
         prev = 0;
       }
     }
-    setFormData((f) => ({ ...f, ...next, previousBalance: prev }));
+    setFormData((f) => {
+      const changed = String(f.customerId || '') !== String(next.customerId || '');
+      return {
+        ...f,
+        ...next,
+        previousBalance: prev,
+        ...(changed && !isEdit ? { items: [emptyItem()], orderIds: [], orderId: '', paidAmount: 0 } : {}),
+      };
+    });
   };
 
   const catalogValueFor = (line) => {
@@ -223,6 +382,56 @@ const InvoiceForm = () => {
     ...prev,
     items: prev.items.filter((_, x) => x !== i),
   }));
+
+  const addOrderToInvoice = useCallback((order) => {
+    const oid = orderRef(order);
+    if (!oid) return;
+    let added = false;
+    let emptyLines = false;
+    setFormData((prev) => {
+      const already = (prev.orderIds || []).map(String).includes(oid) || String(prev.orderId || '') === oid;
+      if (already) return prev;
+      const newLines = linesFromOrder(order, catalog);
+      if (!newLines.length) {
+        emptyLines = true;
+        return prev;
+      }
+      added = true;
+      const items = isPlaceholderItems(prev.items) ? newLines : [...prev.items, ...newLines];
+      const orderIds = [...(prev.orderIds || []).filter(Boolean).map(String), oid];
+      return {
+        ...prev,
+        items,
+        orderIds,
+        orderId: prev.orderId || oid,
+        paidAmount: Number(prev.paidAmount || 0) + Number(order.advancePayment || 0),
+      };
+    });
+    if (emptyLines) toast.error(`Order ${oid} has no line items`);
+    else if (added) toast.success(`Order ${oid} added to invoice`);
+  }, [catalog]);
+
+  const unlinkOrder = (oid) => {
+    const key = String(oid || '');
+    if (!key) return;
+    setFormData((prev) => {
+      const orderIds = (prev.orderIds || []).map(String).filter((id) => id !== key);
+      const items = (prev.items || []).filter((it) => String(it.sourceOrderId || '') !== key);
+      return {
+        ...prev,
+        orderIds,
+        orderId: orderIds[0] || '',
+        items: items.length ? items : [emptyItem()],
+      };
+    });
+  };
+
+  const handleDragEnd = (event) => {
+    const order = event.active?.data?.current?.order;
+    if (order && event.over?.id === 'invoice-items') {
+      addOrderToInvoice(order);
+    }
+  };
 
   const goAddProduct = () => navigate('/warehouse/products?new=1');
 
@@ -317,7 +526,8 @@ const InvoiceForm = () => {
       }
       const payload = {
         invoiceNumber: formData.invoiceNumber,
-        orderId: formData.orderId || '',
+        orderId: (formData.orderIds && formData.orderIds[0]) || formData.orderId || '',
+        orderIds: (formData.orderIds || []).filter(Boolean),
         customerId: formData.customerId || '',
         customerName: formData.customerName || '',
         customerEmail: formData.customerEmail || '',
@@ -347,6 +557,7 @@ const InvoiceForm = () => {
             description: lineNote,
             notes: lineNote,
             productType: service ? 'Service' : 'Product',
+            sourceOrderId: it.sourceOrderId || '',
           };
         }),
       };
@@ -499,6 +710,7 @@ const InvoiceForm = () => {
       </div>
 
       <form id="invoice-form-el" onSubmit={handleSave} className="space-y-4">
+        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <Card className="border-orange-100/80 shadow-sm rounded-2xl">
             <CardHeader className="py-3"><CardTitle className="text-base">Customer</CardTitle></CardHeader>
@@ -555,16 +767,52 @@ const InvoiceForm = () => {
                 />
               </div>
               <div className="md:col-span-3">
-                <Label className="text-xs">Order Ref</Label>
-                <Input
-                  value={formData.orderId}
-                  onChange={(e) => setFormData((f) => ({ ...f, orderId: e.target.value }))}
-                  placeholder="ORD-001"
-                />
+                <Label className="text-xs">Linked orders</Label>
+                {(formData.orderIds || []).filter(Boolean).length ? (
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {(formData.orderIds || []).filter(Boolean).map((oid) => (
+                      <Badge key={oid} variant="outline" className="gap-1 pl-2 pr-1 py-1 text-xs">
+                        {oid}
+                        <button
+                          type="button"
+                          className="rounded-full p-0.5 hover:bg-gray-200"
+                          onClick={() => unlinkOrder(oid)}
+                          title="Remove from this invoice"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400 mt-1">Drag open orders onto the products area, or tap Add</p>
+                )}
               </div>
             </CardContent>
           </Card>
         </div>
+
+        {formData.customerId && (ordersLoading || openOrders.length > 0) && (
+          <Card className="border-orange-100/80 shadow-sm rounded-2xl" data-testid="open-orders-tray">
+            <CardHeader className="py-3">
+              <CardTitle className="text-base">Open / pending orders</CardTitle>
+              <p className="text-xs text-gray-500 font-normal">
+                Drag a card onto the invoice, or tap Add. An order already on another invoice cannot be added again.
+              </p>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {ordersLoading && !openOrders.length ? (
+                <p className="text-sm text-gray-400">Loading orders…</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                  {openOrders.map((order) => (
+                    <OpenOrderCard key={order.id || order.orderId} order={order} accent={accent} onAdd={addOrderToInvoice} />
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="border-orange-100/80 shadow-sm rounded-2xl">
           <CardHeader className="py-3 flex flex-row items-center justify-between space-y-0 gap-2">
@@ -579,6 +827,12 @@ const InvoiceForm = () => {
             </div>
           </CardHeader>
           <CardContent className="space-y-2 pt-0">
+            <InvoiceItemsDropZone>
+            {openOrders.length > 0 && (
+              <div className="rounded-xl border border-dashed border-orange-300 bg-orange-50/40 p-2 text-center text-xs text-orange-800 mb-2">
+                Drop open orders here to add their items
+              </div>
+            )}
             {!catalog.length && (
               <div className="rounded-xl border border-dashed border-orange-300 bg-orange-50/60 p-3 text-center text-sm mb-2">
                 Catalog empty —{' '}
@@ -667,6 +921,7 @@ const InvoiceForm = () => {
               </div>
               );
             })}
+            </InvoiceItemsDropZone>
           </CardContent>
         </Card>
 
@@ -729,6 +984,7 @@ const InvoiceForm = () => {
           </Button>
           <Button type="button" variant="outline" onClick={() => navigate('/invoices')}>Cancel</Button>
         </div>
+        </DndContext>
       </form>
     </div>
   );

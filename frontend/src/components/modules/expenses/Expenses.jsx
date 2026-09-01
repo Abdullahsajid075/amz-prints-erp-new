@@ -8,13 +8,14 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { expensesAPI } from '@/services/api';
-import { formatCurrency, formatDate } from '@/utils/helpers';
+import { formatCurrency, formatDate, isExpenseApproved } from '@/utils/helpers';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
 import PageHeader from '@/components/shared/PageHeader';
+import { useAuth } from '@/context/AuthContext';
 import {
   Plus, Search, Edit, Trash2, Receipt, TrendingDown, Calendar, Filter, X, Save,
-  Building, Zap, Wrench, Fuel, Users as UsersIcon, ShoppingBag, MoreHorizontal
+  Building, Zap, Wrench, Fuel, Users as UsersIcon, ShoppingBag, MoreHorizontal, Check, Clock
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -48,6 +49,8 @@ const emptyExpense = {
 };
 
 const Expenses = () => {
+  const { canAccessModule } = useAuth();
+  const canApprove = canAccessModule('settings');
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({ search: '', category: undefined, from: '', to: '' });
@@ -90,22 +93,27 @@ const Expenses = () => {
     description: (e) => e.description || '',
   }), [filtered, sort]);
 
+  const approvedList = filtered.filter(isExpenseApproved);
+  const pendingList = filtered.filter((e) => !isExpenseApproved(e));
+
   const totals = {
-    total: filtered.reduce((s, e) => s + (e.amount || 0), 0),
-    thisMonth: filtered.filter(e => {
+    total: approvedList.reduce((s, e) => s + (e.amount || 0), 0),
+    thisMonth: approvedList.filter(e => {
       const d = new Date(e.date);
       const now = new Date();
       return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     }).reduce((s, e) => s + (e.amount || 0), 0),
-    today: filtered.filter(e => e.date === new Date().toISOString().split('T')[0])
+    today: approvedList.filter(e => e.date === new Date().toISOString().split('T')[0])
       .reduce((s, e) => s + (e.amount || 0), 0),
-    count: filtered.length
+    count: approvedList.length,
+    pendingCount: pendingList.length,
+    pendingAmount: pendingList.reduce((s, e) => s + (e.amount || 0), 0),
   };
 
   const categoryTotals = CATEGORIES.map(cat => ({
     ...cat,
-    total: filtered.filter(e => e.category === cat.key).reduce((s, e) => s + (e.amount || 0), 0),
-    count: filtered.filter(e => e.category === cat.key).length
+    total: approvedList.filter(e => e.category === cat.key).reduce((s, e) => s + (e.amount || 0), 0),
+    count: approvedList.filter(e => e.category === cat.key).length
   })).filter(c => c.count > 0);
 
   const openCreate = () => {
@@ -128,8 +136,13 @@ const Expenses = () => {
         await expensesAPI.update(editing.id, formData);
         toast.success('Expense updated');
       } else {
-        await expensesAPI.create(formData);
-        toast.success('Expense recorded');
+        const res = await expensesAPI.create(formData);
+        const created = res?.data || {};
+        if (created.approved === false) {
+          toast.success('Expense submitted — waiting for Settings admin approval');
+        } else {
+          toast.success('Expense recorded');
+        }
       }
       setDialogOpen(false);
       fetchExpenses();
@@ -152,6 +165,16 @@ const Expenses = () => {
     }
   };
 
+  const handleApprove = async (expense, approve = true) => {
+    try {
+      await expensesAPI.approve(expense.id, { approved: approve });
+      toast.success(approve ? 'Expense approved' : 'Expense sent back to pending');
+      fetchExpenses();
+    } catch (error) {
+      toast.error(error?.response?.data?.message || error?.message || 'Approval failed');
+    }
+  };
+
   const applyFilter = () => fetchExpenses();
   const resetFilter = () => {
     setFilters({ search: '', category: undefined, from: '', to: '' });
@@ -165,7 +188,7 @@ const Expenses = () => {
       <PageHeader
         eyebrow="Finance"
         title="Expenses"
-        subtitle="Track and manage all business expenses"
+        subtitle={canApprove ? 'Approve staff expenses, then they count in reports' : 'Record expenses — Settings admin must approve before they count'}
         actions={(
           <Button
             onClick={openCreate}
@@ -179,7 +202,7 @@ const Expenses = () => {
         )}
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
         <div className="erp-kpi flex items-center gap-3">
           <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#EF4444' }}>
             <TrendingDown className="h-5 w-5 text-white" />
@@ -212,8 +235,20 @@ const Expenses = () => {
             <Filter className="h-5 w-5 text-white" />
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-[0.12em] text-slate-500 font-bold">Total Entries</p>
+            <p className="text-[10px] uppercase tracking-[0.12em] text-slate-500 font-bold">Approved entries</p>
             <p className="font-display text-xl font-bold text-ink">{totals.count}</p>
+          </div>
+        </div>
+        <div className="erp-kpi flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#F59E0B' }}>
+            <Clock className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.12em] text-slate-500 font-bold">Pending approval</p>
+            <p className="font-display text-xl font-bold text-ink">{totals.pendingCount}</p>
+            {totals.pendingAmount > 0 && (
+              <p className="text-[10px] text-amber-700">{formatCurrency(totals.pendingAmount)}</p>
+            )}
           </div>
         </div>
       </div>
@@ -307,6 +342,7 @@ const Expenses = () => {
                     <th className="text-left py-3 px-4 text-xs font-semibold uppercase text-gray-600">Description</th>
                     <th className="text-left py-3 px-4 text-xs font-semibold uppercase text-gray-600">Paid To</th>
                     <th className="text-left py-3 px-4 text-xs font-semibold uppercase text-gray-600">Method</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold uppercase text-gray-600">Status</th>
                     <th className="text-right py-3 px-4 text-xs font-semibold uppercase text-gray-600">Amount</th>
                     <th className="text-right py-3 px-4 text-xs font-semibold uppercase text-gray-600">Actions</th>
                   </tr>
@@ -315,8 +351,10 @@ const Expenses = () => {
                   {sorted.map(expense => {
                     const cat = getCategoryConfig(expense.category);
                     const Icon = cat.icon;
+                    const approved = isExpenseApproved(expense);
+                    const canEditRow = canApprove || !approved;
                     return (
-                      <tr key={expense.id} className="border-b hover:bg-orange-50 transition-colors" data-testid={`expense-row-${expense.id}`}>
+                      <tr key={expense.id} className={`border-b hover:bg-orange-50 transition-colors ${approved ? '' : 'bg-amber-50/60'}`} data-testid={`expense-row-${expense.id}`}>
                         <td className="py-3 px-4 text-sm text-gray-600">{formatDate(expense.date)}</td>
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2">
@@ -331,17 +369,33 @@ const Expenses = () => {
                         <td className="py-3 px-4">
                           <Badge variant="outline" className="text-xs">{expense.paymentMethod}</Badge>
                         </td>
+                        <td className="py-3 px-4">
+                          {approved ? (
+                            <Badge className="bg-green-100 text-green-800 text-[10px]">Approved</Badge>
+                          ) : (
+                            <Badge className="bg-amber-100 text-amber-800 text-[10px]">Pending</Badge>
+                          )}
+                        </td>
                         <td className="py-3 px-4 text-right text-sm font-bold text-red-600">
                           -{formatCurrency(expense.amount)}
                         </td>
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center gap-1 justify-end">
-                            <Button size="icon" variant="ghost" onClick={() => openEdit(expense)} data-testid={`edit-expense-${expense.id}`}>
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button size="icon" variant="ghost" onClick={() => handleDelete(expense.id)} data-testid={`delete-expense-${expense.id}`}>
-                              <Trash2 className="h-4 w-4 text-red-600" />
-                            </Button>
+                            {canApprove && !approved && (
+                              <Button size="sm" variant="outline" className="h-8 text-[11px] text-green-700 border-green-200" onClick={() => handleApprove(expense, true)} data-testid={`approve-expense-${expense.id}`}>
+                                <Check className="h-3.5 w-3.5 mr-1" />Approve
+                              </Button>
+                            )}
+                            {canEditRow && (
+                              <Button size="icon" variant="ghost" onClick={() => openEdit(expense)} data-testid={`edit-expense-${expense.id}`}>
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {canEditRow && (
+                              <Button size="icon" variant="ghost" onClick={() => handleDelete(expense.id)} data-testid={`delete-expense-${expense.id}`}>
+                                <Trash2 className="h-4 w-4 text-red-600" />
+                              </Button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -350,7 +404,7 @@ const Expenses = () => {
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 font-bold" style={{ backgroundColor: '#FFF3ED' }}>
-                    <td colSpan="5" className="py-3 px-4 text-right uppercase text-sm">Total:</td>
+                    <td colSpan="6" className="py-3 px-4 text-right uppercase text-sm">Approved total:</td>
                     <td className="py-3 px-4 text-right text-lg" style={{ color: '#F26522' }}>{formatCurrency(totals.total)}</td>
                     <td></td>
                   </tr>

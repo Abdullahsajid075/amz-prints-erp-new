@@ -49,6 +49,15 @@ export const getStatusColor = (status) => {
   return colors[status] || 'bg-gray-100 text-gray-800';
 };
 
+/** Legacy blank / missing approved counts as approved so old expenses stay on the books. */
+export const isExpenseApproved = (expense) => {
+  if (!expense) return false;
+  if (expense.approved === false) return false;
+  const s = String(expense.approved ?? expense.status ?? '').trim().toLowerCase();
+  if (s === 'false' || s === '0' || s === 'no' || s === 'pending' || s === 'rejected') return false;
+  return true;
+};
+
 export const debounce = (func, wait) => {
   let timeout;
   return function executedFunction(...args) {

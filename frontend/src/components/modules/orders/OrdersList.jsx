@@ -485,6 +485,10 @@ const OrdersList = () => {
   };
 
   const handleGenerateInvoice = async (order) => {
+    if (order?.invoiceId) {
+      navigate(`/invoices/${order.invoiceId}`);
+      return;
+    }
     try {
       const res = await ordersAPI.getById(order.id);
       const full = res.data;
@@ -495,6 +499,8 @@ const OrdersList = () => {
       const inv = {
         invoiceNumber: `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`,
         orderId: full.orderId,
+        orderIds: full.orderId ? [full.orderId] : [],
+        customerId: full.customerId || '',
         customerName: full.customerName,
         customerEmail: full.customerEmail,
         customerPhone: full.customerPhone,
@@ -568,9 +574,29 @@ const OrdersList = () => {
             <Truck className="h-3.5 w-3.5" style={{ color: '#F26522' }} />
           </Button>
         )}
-        <Button size="icon" variant="outline" className="h-8 w-8" title="Generate Invoice" onClick={() => handleGenerateInvoice(order)} data-testid={`invoice-order-${order.id}`}>
-          <Receipt className="h-3.5 w-3.5" style={{ color: '#F26522' }} />
-        </Button>
+        {order.invoiceId ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 px-2 text-[11px] font-semibold"
+            title={order.invoiceNumber || 'Open invoice'}
+            onClick={() => navigate(`/invoices/${order.invoiceId}`)}
+            data-testid={`invoice-order-${order.id}`}
+          >
+            {order.invoiceNumber || 'Invoice'}
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 px-2 text-[11px]"
+            title="Create invoice"
+            onClick={() => handleGenerateInvoice(order)}
+            data-testid={`invoice-order-${order.id}`}
+          >
+            Create invoice
+          </Button>
+        )}
         <Button size="icon" variant="outline" className="h-8 w-8 text-green-600 hover:bg-green-50" title="WhatsApp" onClick={() => handleWhatsApp(order)} data-testid={`whatsapp-order-${order.id}`}>
           <WhatsAppIcon className="h-3.5 w-3.5" />
         </Button>
@@ -742,7 +768,15 @@ const OrdersList = () => {
                       <td className="py-2.5 px-3 text-right">
                         <div className="flex items-center gap-1 justify-end">
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleView(order.id)} title="View"><Eye className="h-4 w-4" /></Button>
-                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleGenerateInvoice(order)} title="Invoice"><Receipt className="h-4 w-4" style={{ color: '#F26522' }} /></Button>
+                          {order.invoiceId ? (
+                            <Button size="sm" variant="ghost" className="h-8 px-2 text-[11px] font-semibold" onClick={() => navigate(`/invoices/${order.invoiceId}`)} title={order.invoiceNumber || 'Open invoice'}>
+                              {order.invoiceNumber || 'Invoice'}
+                            </Button>
+                          ) : (
+                            <Button size="sm" variant="ghost" className="h-8 px-2 text-[11px]" onClick={() => handleGenerateInvoice(order)} title="Create invoice">
+                              Create invoice
+                            </Button>
+                          )}
                           <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-700" onClick={() => openPayment(order)} title="Record payment on invoice"><Wallet className="h-4 w-4" /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600" onClick={() => handleWhatsApp(order)} title="WhatsApp"><WhatsAppIcon className="h-4 w-4" /></Button>
                           {needsDesignDocsReminder(order) && (
@@ -932,7 +966,15 @@ const OrdersList = () => {
                   </Button>
                 )}
                 <Button variant="outline" className="text-green-700" onClick={() => handleWhatsApp(viewOrder)}><WhatsAppIcon className="h-4 w-4 mr-1" />WhatsApp</Button>
-                <Button variant="outline" onClick={() => handleGenerateInvoice(viewOrder)}><Receipt className="h-4 w-4 mr-1" style={{ color: '#F26522' }} />Invoice</Button>
+                {viewOrder.invoiceId ? (
+                  <Button variant="outline" onClick={() => navigate(`/invoices/${viewOrder.invoiceId}`)}>
+                    <Receipt className="h-4 w-4 mr-1" style={{ color: '#F26522' }} />{viewOrder.invoiceNumber || 'Invoice'}
+                  </Button>
+                ) : (
+                  <Button variant="outline" onClick={() => handleGenerateInvoice(viewOrder)}>
+                    <Receipt className="h-4 w-4 mr-1" style={{ color: '#F26522' }} />Create invoice
+                  </Button>
+                )}
                 <Button variant="outline" className="text-emerald-700 border-emerald-200" onClick={() => openPayment(viewOrder)}>
                   <Wallet className="h-4 w-4 mr-1" />Pay on invoice
                 </Button>

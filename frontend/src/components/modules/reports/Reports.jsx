@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { reportsAPI, ordersAPI, expensesAPI, paymentsAPI, purchasesAPI } from '@/services/api';
-import { formatCurrency, formatDate } from '@/utils/helpers';
+import { formatCurrency, formatDate, isExpenseApproved } from '@/utils/helpers';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
 import { useBrand } from '@/context/BrandContext';
@@ -103,7 +103,7 @@ const Reports = () => {
 
       // Build client-side summary when GAS reports are thin
       const filteredOrders = orderList.filter((o) => inRange(o.date, dateRange.from, dateRange.to) && String(o.docType || 'Order').toLowerCase() !== 'quotation');
-      const filteredExpenses = expenseList.filter((e) => inRange(e.date, dateRange.from, dateRange.to));
+      const filteredExpenses = expenseList.filter((e) => inRange(e.date, dateRange.from, dateRange.to) && isExpenseApproved(e));
       const filteredPurchases = purchaseList.filter((p) => inRange(p.purchaseDate || p.date, dateRange.from, dateRange.to));
       const orderAmt = (o) => {
         const direct = Number(o.totalAmount || 0);
@@ -199,7 +199,7 @@ const Reports = () => {
     [payments, dateRange.from, dateRange.to]
   );
   const filteredExpenseDetails = useMemo(
-    () => expenseRows.filter((e) => inRange(e.date, dateRange.from, dateRange.to)),
+    () => expenseRows.filter((e) => inRange(e.date, dateRange.from, dateRange.to) && isExpenseApproved(e)),
     [expenseRows, dateRange.from, dateRange.to]
   );
   const filteredPurchaseDetails = useMemo(

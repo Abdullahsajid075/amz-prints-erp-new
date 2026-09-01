@@ -88,6 +88,7 @@ export const expensesAPI = {
   create: (data) => gasRequest('POST', '/expenses', withToken({ data })),
   update: (id, data) => gasRequest('PUT', `/expenses/${id}`, withToken({ data })),
   delete: (id) => gasRequest('DELETE', `/expenses/${id}`, withToken()),
+  approve: (id, data) => gasRequest('POST', `/expenses/${id}/approve`, withToken({ data: data || {} })),
 };
 
 export const settingsAPI = {

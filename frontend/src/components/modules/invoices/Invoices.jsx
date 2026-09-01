@@ -316,7 +316,11 @@ const Invoices = () => {
                     <div className="min-w-0">
                       <p className="text-[9px] text-gray-500 uppercase tracking-wider font-semibold">Invoice</p>
                       <h3 className="text-sm font-bold truncate" style={{ color: '#1F2937' }}>{invoice.invoiceNumber}</h3>
-                      {invoice.orderId && <p className="text-[10px] text-orange-600 truncate">Ord: {invoice.orderId}</p>}
+                      {(invoice.orderIds?.length ? invoice.orderIds : (invoice.orderId ? [invoice.orderId] : [])).length > 0 && (
+                        <p className="text-[10px] text-orange-600 truncate">
+                          Ord: {(invoice.orderIds?.length ? invoice.orderIds : [invoice.orderId]).join(', ')}
+                        </p>
+                      )}
                     </div>
                     <Badge className={`${getStatusBadge(invoice.status)} text-[9px] shrink-0`}>{invoice.status}</Badge>
                   </div>
