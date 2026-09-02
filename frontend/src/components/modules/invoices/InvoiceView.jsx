@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { invoicesAPI } from '@/services/api';
 import { notifyOrderEvent } from '@/services/notifications';
-import { formatCurrency, formatDate } from '@/utils/helpers';
+import { formatCurrency, formatDate, invoiceOrderIds, invoiceLineItems } from '@/utils/helpers';
 import { documentFileName, printWithDocumentTitle } from '@/utils/printHelpers';
 import { useBrand } from '@/context/BrandContext';
 import { ArrowLeft, Printer, Copy, Download, CheckCircle2, Edit } from 'lucide-react';
@@ -31,7 +31,12 @@ const InvoiceView = ({ isPublic = false }) => {
       const invRes = isPublic
         ? await invoicesAPI.getByToken(shareToken)
         : await invoicesAPI.getById(invoiceId);
-      setInvoice(invRes.data);
+      const data = invRes.data;
+      if (!data || data.message || (!data.id && !data.invoiceNumber)) {
+        setInvoice(null);
+        return;
+      }
+      setInvoice(data);
     } catch (err) {
       console.error('Failed to load invoice', err);
       toast.error('Failed to load invoice');
@@ -115,7 +120,9 @@ const InvoiceView = ({ isPublic = false }) => {
 
   const verifyUrl = `${window.location.origin}/invoice/${invoice.shareToken}`;
   const balance = pendingBalance();
-  const itemCount = Array.isArray(invoice.items) ? invoice.items.length : 0;
+  const items = invoiceLineItems(invoice);
+  const linkedOrders = invoiceOrderIds(invoice);
+  const itemCount = items.length;
   const fitOnePage = itemCount <= 10;
 
   const shellClass = {
@@ -132,7 +139,7 @@ const InvoiceView = ({ isPublic = false }) => {
   const tableHeadClass = template === 'minimal' ? 'border-b-2 border-gray-800' : '';
 
   const LogoBlock = () => (
-    company.logo ? (
+    company?.logo ? (
       <img
         src={company.logo}
         alt="logo"
@@ -243,8 +250,8 @@ const InvoiceView = ({ isPublic = false }) => {
               {invoice.dueDate && (
                 <p><span className="text-gray-500">Due:</span> <span className="font-semibold">{formatDate(invoice.dueDate)}</span></p>
               )}
-              {(invoice.orderIds?.length ? invoice.orderIds : (invoice.orderId ? [invoice.orderId] : [])).length > 0 && (
-                <p><span className="text-gray-500">Order:</span> <span className="font-semibold" style={{ color: accent }}>{(invoice.orderIds?.length ? invoice.orderIds : [invoice.orderId]).join(', ')}</span></p>
+              {linkedOrders.length > 0 && (
+                <p><span className="text-gray-500">Order:</span> <span className="font-semibold" style={{ color: accent }}>{linkedOrders.join(', ')}</span></p>
               )}
             </div>
           </div>
@@ -284,7 +291,7 @@ const InvoiceView = ({ isPublic = false }) => {
               </tr>
             </thead>
             <tbody>
-              {(invoice.items || []).map((item, i) => {
+              {items.map((item, i) => {
                 const itemMeta = [item.size, item.material].filter(Boolean).join(' • ');
                 const lineNote = String(item.description || item.notes || '').trim();
                 return (
@@ -368,7 +375,7 @@ const InvoiceView = ({ isPublic = false }) => {
           {showStamp && (
             <div className="text-center pt-4 border-t border-gray-200">
               <div className="relative h-16 mb-1 flex items-center justify-center">
-                {company.stamp ? (
+                {company?.stamp ? (
                   <img src={company.stamp} alt="Company stamp" className="h-16 object-contain opacity-90" />
                 ) : (
                   <div className="w-20 h-20 rounded-full border-2 border-double flex items-center justify-center opacity-30 rotate-[-8deg]" style={{ borderColor: accent, color: accent }}>
@@ -385,7 +392,7 @@ const InvoiceView = ({ isPublic = false }) => {
           {showSignature && (
             <div className={`text-center pt-4 border-t border-gray-200 ${!showStamp ? 'col-span-2' : ''}`}>
               <div className="h-16 flex items-end justify-center">
-                {company.signature ? (
+                {company?.signature ? (
                   <img src={company.signature} alt="Authorized signature" className="max-h-14 object-contain" />
                 ) : (
                   <div className="italic text-base font-serif text-gray-700 pb-0.5 opacity-70" style={{ fontFamily: '"Brush Script MT", cursive' }}>

@@ -11,7 +11,7 @@ import { invoicesAPI } from '@/services/api';
 import { notifyOrderEvent } from '@/services/notifications';
 import { finishPaymentRecording } from '@/utils/paymentActions';
 import { useBrand } from '@/context/BrandContext';
-import { formatCurrency, formatDate } from '@/utils/helpers';
+import { formatCurrency, formatDate, invoiceOrderIds } from '@/utils/helpers';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
 import { Plus, Search, Eye, Edit, FileText, Copy as CopyIcon, Wallet } from 'lucide-react';
@@ -45,9 +45,11 @@ const Invoices = () => {
     setLoading(true);
     try {
       const response = await invoicesAPI.getAll();
-      setInvoices(response.data || []);
+      const list = Array.isArray(response.data) ? response.data : [];
+      setInvoices(list);
     } catch (error) {
       console.error('Error fetching invoices:', error);
+      toast.error(error?.response?.data?.message || 'Failed to load invoices');
       setInvoices([]);
     } finally {
       setLoading(false);
@@ -58,11 +60,11 @@ const Invoices = () => {
     fetchInvoices();
   }, [fetchInvoices]);
 
-  const filtered = invoices.filter(inv =>
+  const filtered = (Array.isArray(invoices) ? invoices : []).filter(inv =>
     !search ||
     inv.invoiceNumber?.toLowerCase().includes(search.toLowerCase()) ||
     inv.customerName?.toLowerCase().includes(search.toLowerCase()) ||
-    inv.orderId?.toLowerCase().includes(search.toLowerCase())
+    invoiceOrderIds(inv).some((id) => id.toLowerCase().includes(search.toLowerCase()))
   );
 
   const sorted = useMemo(() => sortBy(filtered, sort, {
@@ -316,9 +318,9 @@ const Invoices = () => {
                     <div className="min-w-0">
                       <p className="text-[9px] text-gray-500 uppercase tracking-wider font-semibold">Invoice</p>
                       <h3 className="text-sm font-bold truncate" style={{ color: '#1F2937' }}>{invoice.invoiceNumber}</h3>
-                      {(invoice.orderIds?.length ? invoice.orderIds : (invoice.orderId ? [invoice.orderId] : [])).length > 0 && (
+                      {invoiceOrderIds(invoice).length > 0 && (
                         <p className="text-[10px] text-orange-600 truncate">
-                          Ord: {(invoice.orderIds?.length ? invoice.orderIds : [invoice.orderId]).join(', ')}
+                          Ord: {invoiceOrderIds(invoice).join(', ')}
                         </p>
                       )}
                     </div>

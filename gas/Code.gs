@@ -3180,6 +3180,7 @@ function toApiInvoice_(inv) {
     try { items = JSON.parse(items); } catch (eItems) { items = []; }
   }
   if (!Array.isArray(items)) items = [];
+  items = items.filter(function (it) { return !!it; });
   var paymentHistory = parsePaymentHistory_(inv.paymenthistory);
   var totalDue = invoiceTotalDue_(inv);
   var paid = Number(inv.paid || inv.paidamount || 0);
@@ -3220,7 +3221,40 @@ function handleInvoices_(path, method, body) {
   var rows = getSheetRows_(SHEET_NAMES.INVOICES);
 
   if (path === '/invoices') {
-    if (method === 'GET') return rows.map(toApiInvoice_);
+    if (method === 'GET') {
+      return rows.map(function (r) {
+        try {
+          return toApiInvoice_(r);
+        } catch (eInv) {
+          return {
+            id: r.id || '',
+            invoiceNumber: r.invoiceno || '',
+            date: r.date || '',
+            dueDate: r.duedate || '',
+            orderId: r.orderid || '',
+            orderIds: parseInvoiceOrderIds_(r),
+            customerId: r.customerid || '',
+            customerName: r.customername || '',
+            customerPhone: r.customerphone || '',
+            customerEmail: r.customeremail || '',
+            customerAddress: r.customeraddress || '',
+            items: [],
+            subtotal: Number(r.subtotal || 0),
+            taxRate: Number(r.taxrate || 0),
+            tax: Number(r.tax || 0),
+            discount: Number(r.discount || 0),
+            previousBalance: Number(r.previousbalance || 0),
+            totalAmount: Number(r.total || r.totalamount || 0),
+            paidAmount: Number(r.paid || r.paidamount || 0),
+            balanceAmount: 0,
+            paymentHistory: [],
+            status: r.status || 'Unpaid',
+            notes: r.notes || '',
+            shareToken: r.sharetoken || '',
+          };
+        }
+      });
+    }
     if (method === 'POST') {
       var existingInvId = body.id || body.invoiceNumber || body.invoiceno || body.invoiceNo;
       if (existingInvId) {
@@ -3297,7 +3331,11 @@ function handleInvoices_(path, method, body) {
   }
   if (index < 0) throw new Error('Invoice not found');
 
-  if (method === 'GET') return toApiInvoice_(rows[index]);
+  if (method === 'GET') {
+    try { return toApiInvoice_(rows[index]); } catch (eGet) {
+      throw new Error('Invoice could not be read: ' + (eGet.message || eGet));
+    }
+  }
   if (method === 'PUT') {
     var prevInv = rows[index];
     var prevHistory = parsePaymentHistory_(prevInv.paymenthistory);

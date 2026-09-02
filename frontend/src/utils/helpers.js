@@ -34,6 +34,35 @@ export const calculateOrderTotal = (products = []) => {
   }, 0);
 };
 
+/** Always a string array — never crash .join() if the API sent a JSON string. */
+export const invoiceOrderIds = (invoice) => {
+  if (!invoice) return [];
+  const ids = [];
+  const push = (v) => {
+    const s = String(v || '').trim();
+    if (s && !ids.includes(s)) ids.push(s);
+  };
+  let extra = invoice.orderIds ?? invoice.orderids;
+  if (typeof extra === 'string') {
+    const t = extra.trim();
+    if (!t) extra = [];
+    else if (t.startsWith('[')) {
+      try { extra = JSON.parse(t); } catch { extra = t.split(/[,|]/); }
+    } else extra = t.split(/[,|]/);
+  }
+  if (Array.isArray(extra)) extra.forEach(push);
+  push(invoice.orderId || invoice.orderid);
+  return ids;
+};
+
+export const invoiceLineItems = (invoice) => {
+  let items = invoice?.items;
+  if (typeof items === 'string') {
+    try { items = JSON.parse(items); } catch { items = []; }
+  }
+  return Array.isArray(items) ? items.filter(Boolean) : [];
+};
+
 export const getStatusColor = (status) => {
   const colors = {
     'Order Received': 'bg-blue-100 text-blue-800',

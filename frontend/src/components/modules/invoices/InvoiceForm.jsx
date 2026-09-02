@@ -76,10 +76,15 @@ const linesFromOrder = (order, catalog = []) => {
     const service = String(p.productType || '').toLowerCase() === 'service'
       || isServiceLine(p, catalog);
     const lineNote = p.description || p.notes || '';
+    const byId = p.productId && catalog.find((x) => String(x.id) === String(p.productId));
+    const byName = !byId && p.name
+      ? catalog.find((x) => String(x.name || '').toLowerCase() === String(p.name).toLowerCase())
+      : null;
+    const matched = byId || byName;
     return {
       _key: `ord_${oid}_${Math.random().toString(36).slice(2, 6)}`,
-      productId: p.productId || '',
-      name: p.name || '',
+      productId: matched?.id || p.productId || '',
+      name: matched?.name || p.name || '',
       quantity: service ? 1 : (Number(p.quantity) || 1),
       rate: Number(p.rate) || 0,
       size: service ? '' : (p.size || ''),
@@ -505,12 +510,8 @@ const InvoiceForm = () => {
   const handleSave = async (e) => {
     e.preventDefault();
     if (!requireCustomer(formData)) return;
-    if (!catalog.length) {
-      toast.error('Pehle catalog me product add karein');
-      return;
-    }
-    if (!formData.items.every(lineHasCatalogProduct)) {
-      toast.error('Har line pe catalog se product select karein');
+    if (!formData.items.every((line) => lineHasCatalogProduct(line) || String(line.name || '').trim())) {
+      toast.error('Har line pe product name ya catalog select lazmi hai');
       return;
     }
     if (isEdit && !invoiceId) {
@@ -855,12 +856,12 @@ const InvoiceForm = () => {
               <div key={it._key} className="grid grid-cols-12 gap-2 items-end p-2 border rounded-xl bg-gray-50/50" data-testid={`item-${i}`}>
                 <div className={service ? 'col-span-12 md:col-span-5' : 'col-span-12 md:col-span-4'}>
                   <Label className="text-xs">{service ? 'Service * (catalog)' : 'Product * (catalog)'}</Label>
-                  <Select value={catalogValueFor(it)} onValueChange={(v) => pickProduct(i, v)}>
+                  <Select value={catalogValueFor(it) || undefined} onValueChange={(v) => pickProduct(i, v)}>
                     <SelectTrigger className="bg-white" data-testid={`invoice-product-${i}`}>
-                      <SelectValue placeholder={service ? 'Select service' : 'Select product from catalog'} />
+                      <SelectValue placeholder={it.name || (service ? 'Select service' : 'Select product from catalog')} />
                     </SelectTrigger>
                     <SelectContent>
-                      {catalog.map((p) => (
+                      {catalog.filter((p) => p.id).map((p) => (
                         <SelectItem key={p.id} value={String(p.id)}>
                           {String(p.productType || '').toLowerCase() === 'service' ? 'Svc · ' : ''}
                           {p.name}
@@ -868,8 +869,11 @@ const InvoiceForm = () => {
                       ))}
                     </SelectContent>
                   </Select>
-                  {!lineHasCatalogProduct(it) && (
+                  {!lineHasCatalogProduct(it) && !String(it.name || '').trim() && (
                     <p className="text-[11px] text-red-600 mt-1">Product select lazmi hai</p>
+                  )}
+                  {!lineHasCatalogProduct(it) && String(it.name || '').trim() && (
+                    <p className="text-[11px] text-gray-500 mt-1">{it.name}</p>
                   )}
                 </div>
                 {service ? (
