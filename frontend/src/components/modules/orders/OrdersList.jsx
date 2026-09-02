@@ -279,7 +279,8 @@ const OrdersList = () => {
       if (Number(data.extra) > 0) {
         toast.message(`Extra ${formatCurrency(data.extra)} saved as customer credit`);
       }
-      toast.success('Payment recorded on invoice');
+      const invNo = data.invoice?.invoiceNumber || data.invoice?.invoiceNo;
+      toast.success(invNo ? `Payment recorded on invoice ${invNo}` : 'Payment recorded on invoice');
       setPaymentOrder(null);
       fetchOrders();
     } catch (err) {
@@ -994,7 +995,10 @@ const OrdersList = () => {
           <DialogHeader>
             <DialogTitle>Record payment on invoice</DialogTitle>
             <DialogDescription>
-              {paymentOrder?.orderId} · {paymentOrder?.customerName} — saved on the invoice / customer ledger
+              {paymentOrder?.orderId} · {paymentOrder?.customerName}
+              {paymentOrder?.invoiceNumber
+                ? ` — will be recorded on invoice ${paymentOrder.invoiceNumber}`
+                : ' — linked to this customer\'s unpaid invoice if one exists, otherwise a new invoice is created'}
             </DialogDescription>
           </DialogHeader>
           {paymentOrder && (

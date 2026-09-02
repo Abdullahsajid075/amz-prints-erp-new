@@ -2161,6 +2161,8 @@ function handleOrders_(method, body) {
         updatedDup.orderid = orders[dupIdx].orderid;
         updateObjectProps_(sheet, SHEET_NAMES.ORDERS, orders[dupIdx]._row, updatedDup);
         var apiDup = toApiOrder_(updatedDup);
+        var extraDup = Math.max(0, Number(apiDup.advancePayment || 0) - Number(prevDup.advancePayment || 0));
+        apiDup = withAdvanceInvoice_(apiDup, updatedDup, extraDup);
         if (String(prevDup.status || '') !== String(apiDup.status || '')) {
           return withNotifications_(apiDup, 'status');
         }
@@ -2206,7 +2208,7 @@ function handleOrders_(method, body) {
       }];
     }
     appendObject_(sheet, SHEET_NAMES.ORDERS, record);
-    return withNotifications_(toApiOrder_(record), 'created');
+    return withNotifications_(withAdvanceInvoice_(toApiOrder_(record), record, 0), 'created');
   }
   throw new Error('Method not allowed');
 }
@@ -2247,9 +2249,11 @@ function handleOrderById_(path, method, body) {
       throw new Error('Quotations are estimates only. Convert to an order before recording payment.');
     }
     var invoiceForPay = findOrCreateInvoiceForOrder_(orderForPayment);
-    var invPayResult = recordInvoicePayment_(invoiceForPay.id || invoiceForPay.invoiceno, body || {});
+    var invPayResult = recordInvoicePayment_(invoiceForPay.id || invoiceForPay.invoiceno, Object.assign({}, body || {}, {
+      orderId: orderForPayment.orderid || orderForPayment.id,
+    }));
     return {
-      order: withInvoiceMeta_(snapshotOrderPaid_(orderForPayment.orderid || orderForPayment.id, (invPayResult.invoice && invPayResult.invoice.paidAmount) || 0) || toApiOrder_(orderForPayment)),
+      order: withInvoiceMeta_(invPayResult.order || toApiOrder_(orderForPayment)),
       invoice: invPayResult.invoice,
       payment: invPayResult.payment,
       applied: invPayResult.applied,
@@ -2269,10 +2273,12 @@ function handleOrderById_(path, method, body) {
     updated.orderid = orders[index].orderid;
     updateObjectProps_(sheet, SHEET_NAMES.ORDERS, orders[index]._row, updated);
     var apiUpdated = toApiOrder_(updated);
+    var extraAdv = Math.max(0, Number(apiUpdated.advancePayment || 0) - Number(prev.advancePayment || 0));
+    apiUpdated = withAdvanceInvoice_(apiUpdated, updated, extraAdv);
     if (String(prev.status || '') !== String(apiUpdated.status || '')) {
-      return withNotifications_(withInvoiceMeta_(apiUpdated), 'status');
+      return withNotifications_(apiUpdated, 'status');
     }
-    return withInvoiceMeta_(apiUpdated);
+    return apiUpdated;
   }
   if (method === 'DELETE') {
     if (/^(delivered|completed|complete)$/i.test(String(orders[index].status || ''))) {
@@ -2780,6 +2786,21 @@ function withInvoiceMeta_(api, map) {
   return api;
 }
 
+/** After an order is saved with advance, attach an invoice (existing unpaid or new). */
+function withAdvanceInvoice_(apiOrder, sheetRecord, extraPayment) {
+  extraPayment = Number(extraPayment || 0);
+  if (isQuotation_(sheetRecord)) return withInvoiceMeta_(apiOrder);
+  var advance = Number((sheetRecord && sheetRecord.advancepayment) || 0);
+  if (!(advance > 0) && extraPayment <= 0) return withInvoiceMeta_(apiOrder);
+  try {
+    ensureInvoicedForAdvance_(sheetRecord, extraPayment, { skipOrderSnapshot: true });
+  } catch (eInv) {
+    apiOrder = apiOrder || {};
+    apiOrder._invoiceError = String(eInv.message || eInv);
+  }
+  return withInvoiceMeta_(apiOrder);
+}
+
 function assertOrdersNotOnOtherInvoice_(orderIds, exceptInvoiceId) {
   var map = buildOrderInvoiceMap_();
   (orderIds || []).forEach(function (oid) {
@@ -2790,40 +2811,144 @@ function assertOrdersNotOnOtherInvoice_(orderIds, exceptInvoiceId) {
   });
 }
 
-function findInvoiceForOrder_(order) {
-  if (!order) return null;
-  var map = buildOrderInvoiceMap_();
-  return map[String(order.orderid || '')] || map[String(order.id || '')] || null;
+function invoiceIsUnpaidOpen_(inv) {
+  if (!inv) return false;
+  var status = String(inv.status || '').toLowerCase();
+  if (status === 'paid' || status === 'cancelled' || status === 'canceled' || status === 'void') return false;
+  return Number(inv.paid || inv.paidamount || 0) <= 0.009;
 }
 
-function findOrCreateInvoiceForOrder_(order) {
-  if (isQuotation_(order)) {
-    throw new Error('Quotations are estimates only. Convert to an order before recording payment.');
-  }
-  var existing = findInvoiceForOrder_(order);
-  if (existing) return existing;
-  var items = order.products;
+function isWalkInOrPosOrder_(order) {
+  var dt = String((order && (order.doctype || order.docType)) || '').toLowerCase();
+  if (dt === 'pos') return true;
+  var cid = String((order && (order.customerid || order.customerId)) || '');
+  if (cid === 'cust_walkin') return true;
+  return /walk-?in/i.test(String((order && (order.customername || order.customerName)) || ''));
+}
+
+function sameInvoiceCustomer_(inv, order) {
+  if (!inv || !order) return false;
+  var cid = String(order.customerid || order.customerId || '');
+  var phone = String(order.customerphone || order.customerPhone || '').trim();
+  if (cid && String(inv.customerid || '') === cid) return true;
+  if (phone && String(inv.customerphone || '') === phone) return true;
+  return false;
+}
+
+function findUnpaidInvoiceForCustomer_(order) {
+  var invoices = [];
+  try { invoices = getSheetRows_(SHEET_NAMES.INVOICES); } catch (eInv) { return null; }
+  var matches = invoices.filter(function (inv) {
+    return invoiceIsUnpaidOpen_(inv) && sameInvoiceCustomer_(inv, order);
+  });
+  if (!matches.length) return null;
+  matches.sort(function (a, b) {
+    return String(b.date || '').localeCompare(String(a.date || ''));
+  });
+  return matches[0];
+}
+
+function mapOrderProductsToInvoiceItems_(order) {
+  var items = order && order.products;
   if (typeof items === 'string') {
-    try { items = JSON.parse(items); } catch (e) { items = []; }
+    try { items = JSON.parse(items); } catch (eMap) { items = []; }
   }
   if (!Array.isArray(items)) items = [];
-  var mapped = items.map(function (p) {
+  var oid = String((order && (order.orderid || order.id)) || '');
+  return items.map(function (p) {
+    p = p || {};
     return {
+      productId: p.productId || p.productid || '',
       name: p.name || '',
       quantity: Number(p.quantity || 0),
       rate: Number(p.rate || 0),
       size: p.size || '',
       material: p.material || '',
+      description: p.description || p.notes || '',
+      notes: p.notes || p.description || '',
+      productType: p.productType || p.producttype || 'Product',
+      sourceOrderId: oid,
     };
   });
+}
+
+function addOrderAdvanceSnapshot_(orderRef, addAmount) {
+  if (!orderRef) return null;
+  var sheet = getSheet_(SHEET_NAMES.ORDERS);
+  var orders = getSheetRows_(SHEET_NAMES.ORDERS);
+  var idx = orders.findIndex(function (o) {
+    return String(o.id) === String(orderRef) || String(o.orderid) === String(orderRef);
+  });
+  if (idx < 0) return null;
+  var order = orders[idx];
+  var total = Number(order.totalamount || order.total || 0);
+  var prev = Number(order.advancepayment || 0);
+  var paid = Math.min(total, Math.max(0, prev + Number(addAmount || 0)));
+  var balance = Math.max(0, total - paid);
+  updateObjectProps_(sheet, SHEET_NAMES.ORDERS, order._row, {
+    advancepayment: paid,
+    balanceamount: balance,
+  });
+  invalidateSheetCache_(SHEET_NAMES.ORDERS);
+  return toApiOrder_(Object.assign({}, order, {
+    advancepayment: paid,
+    balanceamount: balance,
+  }));
+}
+
+function linkOrderOntoInvoice_(inv, order) {
+  var oid = String((order && (order.orderid || order.id)) || '');
+    if (!oid) throw new Error('Order is missing an ID and cannot be linked to an invoice.');
+  assertOrdersNotOnOtherInvoice_([oid], inv.id);
+  var ids = parseInvoiceOrderIds_(inv);
+  if (ids.indexOf(oid) < 0) ids.push(oid);
+  var extraItems = mapOrderProductsToInvoiceItems_(order);
+  var items = inv.items;
+  if (typeof items === 'string') {
+    try { items = JSON.parse(items); } catch (eItems) { items = []; }
+  }
+  if (!Array.isArray(items)) items = [];
+  extraItems.forEach(function (it) { items.push(it); });
+  var subtotal = items.reduce(function (s, it) {
+    return s + Number(it.quantity || 0) * Number(it.rate || 0);
+  }, 0);
+  var taxRate = Number(inv.taxrate || 0);
+  var tax = (subtotal * taxRate) / 100;
+  var discount = Number(inv.discount || 0);
+  var total = Math.max(0, subtotal + tax - discount);
+  var sheet = getSheet_(SHEET_NAMES.INVOICES);
+  ensureHeaders_(sheet, SHEET_NAMES.INVOICES);
+  var notes = String(inv.notes || '');
+  if (notes.indexOf(oid) < 0) {
+    notes = (notes ? notes + '\n' : '') + 'Linked order ' + oid;
+  }
+  var paid = Number(inv.paid || 0);
+  var updated = Object.assign({}, inv, {
+    orderid: ids[0] || oid,
+    orderids: ids,
+    items: items,
+    subtotal: subtotal,
+    tax: tax,
+    total: total,
+    notes: notes,
+    status: invoiceStatusFromPaid_(total + Number(inv.previousbalance || 0), paid),
+  });
+  updateObjectProps_(sheet, SHEET_NAMES.INVOICES, inv._row, updated);
+  invalidateSheetCache_(SHEET_NAMES.INVOICES);
+  return updated;
+}
+
+function createInvoiceFromOrder_(order) {
+  var mapped = mapOrderProductsToInvoiceItems_(order);
   var subtotal = mapped.reduce(function (s, it) {
-    return s + (Number(it.quantity || 0) * Number(it.rate || 0));
+    return s + Number(it.quantity || 0) * Number(it.rate || 0);
   }, 0);
   if (!(subtotal > 0)) subtotal = Number(order.totalamount || order.total || 0);
   var sheet = getSheet_(SHEET_NAMES.INVOICES);
   ensureHeaders_(sheet, SHEET_NAMES.INVOICES);
   var created = normalizeInvoice_({
     orderId: order.orderid || order.id,
+    orderIds: [order.orderid || order.id].filter(Boolean),
     customerId: order.customerid,
     customerName: order.customername,
     customerPhone: order.customerphone,
@@ -2846,6 +2971,45 @@ function findOrCreateInvoiceForOrder_(order) {
   appendObject_(sheet, SHEET_NAMES.INVOICES, created);
   invalidateSheetCache_(SHEET_NAMES.INVOICES);
   return created;
+}
+
+function findInvoiceForOrder_(order) {
+  if (!order) return null;
+  var map = buildOrderInvoiceMap_();
+  return map[String(order.orderid || '')] || map[String(order.id || '')] || null;
+}
+
+function findOrCreateInvoiceForOrder_(order) {
+  if (isQuotation_(order)) {
+    throw new Error('Quotations are estimates only. Convert to an order before recording payment.');
+  }
+  var existing = findInvoiceForOrder_(order);
+  if (existing) return existing;
+  if (!isWalkInOrPosOrder_(order)) {
+    var unpaid = findUnpaidInvoiceForCustomer_(order);
+    if (unpaid) return linkOrderOntoInvoice_(unpaid, order);
+  }
+  return createInvoiceFromOrder_(order);
+}
+
+function ensureInvoicedForAdvance_(order, extraPayment, opts) {
+  opts = opts || {};
+  extraPayment = Number(extraPayment || 0);
+  var advance = Number((order && (order.advancepayment || order.advancePayment)) || 0);
+  if (!(advance > 0) && !(extraPayment > 0)) return null;
+  var inv = findOrCreateInvoiceForOrder_(order);
+  var paid = Number(inv.paid || inv.paidamount || 0);
+  var amountToRecord = extraPayment > 0 ? extraPayment : ((advance > 0 && paid <= 0.01) ? advance : 0);
+  if (!(amountToRecord > 0)) return inv;
+  var pay = recordInvoicePayment_(inv.id || inv.invoiceno, {
+    amount: amountToRecord,
+    method: opts.method || order.paymentmethod || 'Cash',
+    notes: opts.notes || ('Advance payment for order ' + (order.orderid || order.id)),
+    date: opts.date || order.date || nowDate_(),
+    skipOrderSnapshot: opts.skipOrderSnapshot !== false,
+    orderId: order.orderid || order.id,
+  });
+  return pay.invoice || inv;
 }
 
 function recordInvoicePayment_(invoiceId, body) {
@@ -2909,8 +3073,16 @@ function recordInvoicePayment_(invoiceId, body) {
   });
 
   var linkedOrder = null;
-  if (inv.orderid) {
-    linkedOrder = snapshotOrderPaid_(inv.orderid, paidAfter);
+  if (!body.skipOrderSnapshot) {
+    var snapRef = body.orderId || body.linkedOrderId;
+    if (snapRef) {
+      linkedOrder = addOrderAdvanceSnapshot_(snapRef, applied);
+    } else {
+      var snapIds = parseInvoiceOrderIds_(inv);
+      if (snapIds.length === 1) {
+        linkedOrder = addOrderAdvanceSnapshot_(snapIds[0], applied);
+      }
+    }
   }
 
   var creditBalance = 0;
@@ -2964,7 +3136,9 @@ function recordCustomerPayment_(customerId, body) {
     });
     if (oIdx >= 0) {
       var invForOrder = findOrCreateInvoiceForOrder_(orders[oIdx]);
-      var invPay = recordInvoicePayment_(invForOrder.id || invForOrder.invoiceno, body);
+      var invPay = recordInvoicePayment_(invForOrder.id || invForOrder.invoiceno, Object.assign({}, body, {
+        orderId: orders[oIdx].orderid || orders[oIdx].id,
+      }));
       return Object.assign({
         customer: enrichApiCustomer_(cust, getSheetRows_(SHEET_NAMES.ORDERS)),
       }, invPay);

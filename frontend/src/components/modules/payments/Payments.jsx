@@ -259,49 +259,31 @@ const Payments = () => {
     }
   };
 
-  const applyPaymentToDocument = async (payment) => {
-    const amt = Number(payment.amount) || 0;
-    if (amt <= 0) return;
-    if (payment.linkedInvoiceId) {
-      try {
-        const res = await invoicesAPI.getById(payment.linkedInvoiceId);
-        const inv = res.data || {};
-        const total = Number(inv.total ?? inv.totalAmount ?? payment.totalAmount ?? 0) || 0;
-        const prevPaid = Number(inv.paidAmount ?? inv.paid ?? 0) || 0;
-        const paidAmount = prevPaid + amt;
-        const balance = Math.max(0, total - paidAmount);
-        const status = balance <= 0 ? 'Paid' : (paidAmount > 0 ? 'Partial' : 'Unpaid');
-        await invoicesAPI.update(payment.linkedInvoiceId, {
-          ...inv,
-          paidAmount,
-          status,
-        });
-        toast.message(`Invoice updated — paid ${formatCurrency(paidAmount)}`);
-      } catch (err) {
-        console.warn('Invoice apply failed', err);
-        toast.error('Payment saved, but invoice balance not updated');
-      }
-      return;
+  const recordLinkedInflow = async (payload) => {
+    if (payload.linkedInvoiceId) {
+      const res = await invoicesAPI.pay(payload.linkedInvoiceId, {
+        amount: payload.amount,
+        method: payload.method,
+        notes: payload.notes,
+        date: payload.date,
+        orderId: payload.linkedOrderId || undefined,
+      });
+      const data = res.data || {};
+      const invNo = data.invoice?.invoiceNumber || data.invoice?.invoiceNo;
+      if (invNo) toast.message(`Recorded on invoice ${invNo}`);
+      return normalizePayment({ ...payload, ...(data.payment || {}) });
     }
-    if (payment.linkedOrderId) {
-      try {
-        const res = await ordersAPI.getById(payment.linkedOrderId);
-        const order = res.data || {};
-        const total = Number(order.totalAmount || payment.totalAmount || 0) || 0;
-        const prevAdv = Number(order.advancePayment || 0) || 0;
-        const advancePayment = prevAdv + amt;
-        const balanceAmount = Math.max(0, total - advancePayment);
-        await ordersAPI.update(payment.linkedOrderId, {
-          ...order,
-          advancePayment,
-          balanceAmount,
-        });
-        toast.message(`Order updated — advance ${formatCurrency(advancePayment)}`);
-      } catch (err) {
-        console.warn('Order apply failed', err);
-        toast.error('Payment saved, but order advance not updated');
-      }
-    }
+    const res = await ordersAPI.pay(payload.linkedOrderId, {
+      amount: payload.amount,
+      method: payload.method,
+      notes: payload.notes,
+      date: payload.date,
+    });
+    const data = res.data || {};
+    const invNo = data.invoice?.invoiceNumber || data.invoice?.invoiceNo;
+    if (invNo) toast.message(`Order linked to invoice ${invNo}`);
+    if (Number(data.extra) > 0) toast.message(`Extra ${formatCurrency(data.extra)} saved as customer credit`);
+    return normalizePayment({ ...payload, ...(data.payment || {}) });
   };
 
   const afterSaveActions = async (payment, { pendingWindow = null } = {}) => {
@@ -411,14 +393,13 @@ const Payments = () => {
         const res = await paymentsAPI.update(editing.id, payload);
         saved = normalizePayment(res.data || { ...editing, ...payload });
         toast.success('Payment updated');
+      } else if (payload.type === 'inflow' && (payload.linkedOrderId || payload.linkedInvoiceId)) {
+        saved = await recordLinkedInflow(payload);
+        toast.success('Cash In recorded');
       } else {
         const res = await paymentsAPI.create(payload);
         saved = normalizePayment({ ...payload, ...(res.data || {}) });
         toast.success(payload.type === 'outflow' ? 'Cash Out recorded' : 'Cash In recorded');
-        // Apply to linked order/invoice balances (optional link)
-        if (payload.type === 'inflow' && (payload.linkedOrderId || payload.linkedInvoiceId)) {
-          await applyPaymentToDocument({ ...saved, ...payload });
-        }
       }
       clearGasCache();
       setDialogOpen(false);
@@ -684,9 +665,9 @@ const Payments = () => {
                 </Button>
               </div>
               {formData.linkedLabel ? (
-                <p className="text-[11px] text-emerald-700 mt-1">Linked: {formData.linkedLabel} — amount auto-filled from balance</p>
+                <p className="text-[11px] text-emerald-700 mt-1">Linked: {formData.linkedLabel} — saved on that invoice (or a new one if the order has none)</p>
               ) : (
-                <p className="text-[11px] text-gray-500 mt-1">Optional. Lookup fills customer + amount. Blank = general cash (still in Payments + Net position).</p>
+                <p className="text-[11px] text-gray-500 mt-1">An order payment must go on an invoice. Lookup an order to attach it to this customer&apos;s unpaid invoice, or a new invoice is created. Blank = general cash in.</p>
               )}
             </div>
             <div className="grid grid-cols-2 gap-4">

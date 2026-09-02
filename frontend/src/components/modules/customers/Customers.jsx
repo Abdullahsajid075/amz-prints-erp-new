@@ -544,8 +544,9 @@ const Customers = () => {
                 <Input type="number" min="0.01" step="0.01" value={payData.amount} onChange={(e) => setPayData((p) => ({ ...p, amount: e.target.value }))} required />
               </div>
               <div>
-                <Label>Apply to invoice # or leave blank for general ledger</Label>
-                <Input value={payData.reference} onChange={(e) => setPayData((p) => ({ ...p, reference: e.target.value }))} placeholder="INV-2026-1234 (blank = customer credit)" />
+                <Label>Invoice or order # (optional)</Label>
+                <Input value={payData.reference} onChange={(e) => setPayData((p) => ({ ...p, reference: e.target.value }))} placeholder="INV-… or ORD-… (blank = customer credit)" />
+                <p className="text-[11px] text-gray-500 mt-1">An order number creates or links an invoice before the payment is saved.</p>
               </div>
               <div>
                 <Label>Method</Label>

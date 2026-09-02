@@ -367,6 +367,8 @@ const POS = () => {
       };
       setLastSale(sale);
       toast.success(`Sale ${sale.orderId} completed`);
+      if (created.data?._invoiceError) toast.error(created.data._invoiceError);
+      else if (created.data?.invoiceNumber) toast.message(`Invoice ${created.data.invoiceNumber} created`);
       if (sale.customerPhone && applyServerNotificationHint(created.data)) {
         toast.message('WhatsApp opened — tap Send');
       }
@@ -378,7 +380,7 @@ const POS = () => {
       printReceipt(sale);
     } catch (err) {
       console.error(err);
-      toast.error('Checkout failed');
+      toast.error(err.response?.data?.message || err.message || 'Checkout failed');
     } finally {
       setCheckingOut(false);
     }

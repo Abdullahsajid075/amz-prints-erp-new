@@ -358,6 +358,8 @@ const OrderForm = () => {
         const updated = await ordersAPI.update(orderId, orderData);
         toast.success('Order updated successfully');
         const server = updated.data || {};
+        if (server._invoiceError) toast.error(server._invoiceError);
+        else if (server.invoiceNumber) toast.message(`Invoice ${server.invoiceNumber} linked to this order`);
         const data = {
           ...orderData,
           ...server,
@@ -402,6 +404,8 @@ const OrderForm = () => {
         }
         toast.success('Order created successfully');
         const data = { ...orderData, ...(created.data || {}) };
+        if (created.data?._invoiceError) toast.error(created.data._invoiceError);
+        else if (created.data?.invoiceNumber) toast.message(`Invoice ${created.data.invoiceNumber} linked for this payment`);
         await notifyOrderEvent({ event: 'created', order: data, sendEmail: false });
         toast.message('WhatsApp opened — tap Send to notify customer');
         const gasEmail = created.data?._notifications?.email;
@@ -730,7 +734,7 @@ const OrderForm = () => {
               </div>
             </div>
             <p className="text-xs text-gray-500">
-              Payments are recorded on the Invoice, POS, or customer ledger — not as order payment lines.
+              Any amount received here is saved on an invoice. If this customer already has an unpaid invoice, the order is added to it; otherwise a new invoice is created.
             </p>
           </CardContent>
         </Card>
