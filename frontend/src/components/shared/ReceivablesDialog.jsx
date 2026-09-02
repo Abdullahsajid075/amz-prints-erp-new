@@ -22,7 +22,7 @@ export default function ReceivablesDialog({ open, onOpenChange }) {
     invoicesAPI.getAll()
       .then((res) => {
         if (cancelled) return;
-        const list = (res.data || []).filter((inv) => invoiceBalance(inv) > 0);
+        const list = (Array.isArray(res.data) ? res.data : []).filter((inv) => invoiceBalance(inv) > 0);
         list.sort((a, b) => invoiceBalance(b) - invoiceBalance(a));
         setRows(list);
       })

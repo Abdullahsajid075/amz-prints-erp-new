@@ -15,6 +15,7 @@ import { formatCurrency, formatDate, invoiceOrderIds } from '@/utils/helpers';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
 import { Plus, Search, Eye, Edit, FileText, Copy as CopyIcon, Wallet } from 'lucide-react';
+import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import ReceivablesDialog from '@/components/shared/ReceivablesDialog';
 import { toast } from 'sonner';
 
