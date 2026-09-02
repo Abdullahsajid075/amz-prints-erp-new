@@ -29,6 +29,35 @@ export const ORDER_STATUS = {
   CANCELLED: 'Cancelled'
 };
 
+export const OPEN_ORDER_STATUSES = [
+  ORDER_STATUS.RECEIVED,
+  ORDER_STATUS.DESIGNING,
+  ORDER_STATUS.PROOF_APPROVAL,
+  ORDER_STATUS.PRINTING,
+  ORDER_STATUS.FINISHING,
+  ORDER_STATUS.PACKING,
+  ORDER_STATUS.READY,
+];
+
+export function isBookingOrder(order) {
+  const dt = String(order?.docType || order?.doctype || 'Order').toLowerCase();
+  if (dt === 'pos' || dt === 'quotation') return false;
+  if (/pos\s*sale/i.test(String(order?.remarks || ''))) return false;
+  return true;
+}
+
+export function isOpenOrder(order) {
+  if (!isBookingOrder(order)) return false;
+  const s = String(order?.status || '').trim().toLowerCase();
+  return OPEN_ORDER_STATUSES.some((st) => st.toLowerCase() === s);
+}
+
+/** Job has not moved into production yet — keep these at the top of the list. */
+export function isNotStartedOrder(order) {
+  const s = String(order?.status || '').trim().toLowerCase();
+  return !s || s === 'order received' || s === 'received' || s === 'pending' || s === 'new';
+}
+
 export const PAYMENT_METHODS = {
   CASH: 'Cash',
   BANK: 'Bank Transfer',

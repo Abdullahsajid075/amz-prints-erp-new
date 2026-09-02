@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useBrand } from '@/context/BrandContext';
 import { useAuth } from '@/context/AuthContext';
+import { ordersAPI } from '@/services/api';
+import { isOpenOrder } from '@/utils/constants';
 
 const menuGroups = [
   {
@@ -110,6 +112,7 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
   const { canAccessModule } = useAuth();
   const location = useLocation();
   const [openGroup, setOpenGroup] = useState('');
+  const [openOrderCount, setOpenOrderCount] = useState(0);
   const accent = primary || '#F26522';
 
   const visibleGroups = useMemo(() => {
@@ -145,6 +148,24 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
     );
     setOpenGroup(active ? active.path : '');
   }, [location.pathname, flatItems]);
+
+  useEffect(() => {
+    if (!canAccessModule('orders')) {
+      setOpenOrderCount(0);
+      return undefined;
+    }
+    let cancelled = false;
+    ordersAPI.getAll()
+      .then((res) => {
+        if (cancelled) return;
+        const list = Array.isArray(res.data) ? res.data : [];
+        setOpenOrderCount(list.filter(isOpenOrder).length);
+      })
+      .catch(() => {
+        if (!cancelled) setOpenOrderCount(0);
+      });
+    return () => { cancelled = true; };
+  }, [location.pathname, canAccessModule]);
 
   const toggleGroup = (path) => {
     setOpenGroup((prev) => (prev === path ? '' : path));
@@ -242,7 +263,20 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
                             {({ isActive }) => (
                               <>
                                 <item.icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-white' : 'text-sidebar-muted')} />
-                                <span>{item.label}</span>
+                                <span className="flex-1 truncate">{item.label}</span>
+                                {item.path === '/orders' && openOrderCount > 0 && (
+                                  <span
+                                    className="ml-auto min-w-[1.25rem] h-5 px-1.5 rounded-full text-[10px] font-bold leading-5 text-center tabular-nums"
+                                    style={{
+                                      backgroundColor: isActive ? 'rgba(255,255,255,0.22)' : accent,
+                                      color: '#fff',
+                                    }}
+                                    title={`${openOrderCount} open orders`}
+                                    aria-label={`${openOrderCount} open orders`}
+                                  >
+                                    {openOrderCount > 99 ? '99+' : openOrderCount}
+                                  </span>
+                                )}
                               </>
                             )}
                           </NavLink>

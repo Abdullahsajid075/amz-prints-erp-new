@@ -63,6 +63,23 @@ export const invoiceLineItems = (invoice) => {
   return Array.isArray(items) ? items.filter(Boolean) : [];
 };
 
+export const invoiceBalanceDue = (invoice) =>
+  Math.max(
+    0,
+    Number(invoice?.totalAmount ?? invoice?.total ?? 0)
+      + Number(invoice?.previousBalance ?? invoice?.previousbalance ?? 0)
+      - Number(invoice?.paidAmount ?? invoice?.paid ?? 0)
+  );
+
+/** 2 = unpaid, 1 = partial due, 0 = paid / cancelled — used to pin pending invoices on top. */
+export function invoicePendingScore(invoice) {
+  const st = String(invoice?.status || '').toLowerCase();
+  if (st === 'paid' || st === 'cancelled' || st === 'canceled' || st === 'void') return 0;
+  if (!(invoiceBalanceDue(invoice) > 0.009)) return 0;
+  const paid = Number(invoice?.paidAmount ?? invoice?.paid ?? 0);
+  return paid <= 0.009 ? 2 : 1;
+}
+
 export const getStatusColor = (status) => {
   const colors = {
     'Order Received': 'bg-blue-100 text-blue-800',

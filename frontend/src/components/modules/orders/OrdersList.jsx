@@ -9,8 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { ordersAPI, invoicesAPI, settingsAPI } from '@/services/api';
 import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
 import { documentFileName } from '@/utils/printHelpers';
-import { ORDER_STATUS } from '@/utils/constants';
-import { sortBy } from '@/utils/sortBy';
+import { ORDER_STATUS, isOpenOrder, isNotStartedOrder } from '@/utils/constants';
+import { sortBy, pinFirst } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
 import PageHeader from '@/components/shared/PageHeader';
 import { openWhatsAppChat, fillTemplate, buildTemplateVars, resolveWhatsAppTemplate, notifyOrderEvent } from '@/services/notifications';
@@ -28,7 +28,6 @@ const ORDER_SORT_OPTS = [
   { value: 'totalAmount', label: 'Amount' },
 ];
 
-const IN_PROGRESS_STATUSES = ['Order Received', 'Designing', 'Proof Approval', 'Printing', 'Finishing', 'Packing', 'Ready'];
 const COMPLETED_STATUSES = ['Delivered', 'Cancelled'];
 
 const isLockedOrder = (order) => /^(delivered|completed|complete)$/i.test(String(order?.status || ''));
@@ -150,8 +149,11 @@ const OrdersList = () => {
   }), [orders, sort]);
 
   const { inProgress, completed } = useMemo(() => {
-    const ip = sortedOrders.filter(o => IN_PROGRESS_STATUSES.includes(o.status));
-    const co = sortedOrders.filter(o => COMPLETED_STATUSES.includes(o.status));
+    const ip = pinFirst(
+      sortedOrders.filter(isOpenOrder),
+      (o) => (isNotStartedOrder(o) ? 1 : 0)
+    );
+    const co = sortedOrders.filter((o) => COMPLETED_STATUSES.includes(o.status));
     return { inProgress: ip, completed: co };
   }, [sortedOrders]);
 
@@ -523,7 +525,9 @@ const OrdersList = () => {
   };
 
   const renderCard = (order) => (
-    <div key={order.id} className="group relative overflow-hidden rounded-xl bg-white border border-gray-100 p-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300" data-testid={`order-card-${order.id}`}>
+    <div key={order.id} className={`group relative overflow-hidden rounded-xl bg-white border p-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 ${
+      isNotStartedOrder(order) ? 'border-orange-300 ring-1 ring-orange-100' : 'border-gray-100'
+    }`} data-testid={`order-card-${order.id}`}>
       <div className="absolute top-0 left-0 right-0 h-1" style={{ background: 'linear-gradient(90deg, #F26522, #FF8A50)' }} />
       <div className="flex items-start justify-between mb-3">
         <div className="min-w-0">
@@ -721,8 +725,9 @@ const OrdersList = () => {
 
       {/* In-progress orders as cards */}
       <div>
-        <div className="flex items-center justify-between mb-3">
+        <div className="mb-3">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-700">In Progress ({inProgress.length})</h2>
+          <p className="text-[11px] text-gray-500 mt-0.5">Not started orders stay at the top</p>
         </div>
         {loading ? (
           <div className="text-center py-8 text-gray-500">Loading...</div>

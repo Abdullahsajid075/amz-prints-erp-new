@@ -40,6 +40,24 @@ export function sortBy(rows, sort, getters = {}) {
   });
 }
 
+/**
+ * Keep the current sort, but move important rows first.
+ * Higher score floats to the top; equal scores stay in the original order.
+ */
+export function pinFirst(rows, scoreFn) {
+  if (!Array.isArray(rows) || !rows.length) return Array.isArray(rows) ? rows : [];
+  const decorated = rows.map((row, index) => ({
+    row,
+    index,
+    score: Number(typeof scoreFn === 'function' ? scoreFn(row) : 0) || 0,
+  }));
+  decorated.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return a.index - b.index;
+  });
+  return decorated.map((d) => d.row);
+}
+
 export const SORT_DIR_OPTIONS = [
   { value: 'asc', label: 'Asc ↑' },
   { value: 'desc', label: 'Desc ↓' },

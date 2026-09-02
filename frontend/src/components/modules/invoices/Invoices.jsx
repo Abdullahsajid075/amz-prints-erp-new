@@ -11,8 +11,8 @@ import { invoicesAPI } from '@/services/api';
 import { notifyOrderEvent } from '@/services/notifications';
 import { finishPaymentRecording } from '@/utils/paymentActions';
 import { useBrand } from '@/context/BrandContext';
-import { formatCurrency, formatDate, invoiceOrderIds } from '@/utils/helpers';
-import { sortBy } from '@/utils/sortBy';
+import { formatCurrency, formatDate, invoiceOrderIds, invoiceBalanceDue, invoicePendingScore } from '@/utils/helpers';
+import { sortBy, pinFirst } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
 import { Plus, Search, Eye, Edit, FileText, Copy as CopyIcon, Wallet } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
@@ -27,8 +27,7 @@ const INVOICE_SORT_OPTS = [
   { value: 'status', label: 'Status' },
 ];
 
-const invoiceBalance = (invoice) =>
-  Math.max(0, Number(invoice.totalAmount || 0) + Number(invoice.previousBalance || 0) - Number(invoice.paidAmount || 0));
+const invoiceBalance = invoiceBalanceDue;
 
 const Invoices = () => {
   const navigate = useNavigate();
@@ -68,14 +67,14 @@ const Invoices = () => {
     invoiceOrderIds(inv).some((id) => id.toLowerCase().includes(search.toLowerCase()))
   );
 
-  const sorted = useMemo(() => sortBy(filtered, sort, {
+  const sorted = useMemo(() => pinFirst(sortBy(filtered, sort, {
     date: (inv) => inv.date || '',
     invoiceNumber: (inv) => inv.invoiceNumber || '',
     customerName: (inv) => inv.customerName || '',
     totalAmount: (inv) => Number(inv.totalAmount ?? inv.total ?? 0) || 0,
     total: (inv) => Number(inv.totalAmount ?? inv.total ?? 0) || 0,
     status: (inv) => inv.status || '',
-  }), [filtered, sort]);
+  }), invoicePendingScore), [filtered, sort]);
 
   const copyShareLink = (invoice) => {
     if (!invoice.shareToken) {
@@ -293,6 +292,7 @@ const Invoices = () => {
       <Card>
         <CardHeader>
           <CardTitle>All Invoices</CardTitle>
+          <p className="text-xs text-gray-500 font-normal mt-1">Unpaid and partial invoices stay at the top</p>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -311,7 +311,11 @@ const Invoices = () => {
               {sorted.map(invoice => (
                 <div
                   key={invoice.id}
-                  className="group relative bg-white border border-gray-100 rounded-xl p-3.5 hover:shadow-md hover:border-orange-200 transition-all"
+                  className={`group relative bg-white border rounded-xl p-3.5 hover:shadow-md hover:border-orange-200 transition-all ${
+                    invoicePendingScore(invoice)
+                      ? 'border-orange-300 ring-1 ring-orange-100'
+                      : 'border-gray-100'
+                  }`}
                   data-testid={`invoice-card-${invoice.id}`}
                 >
                   <div className="absolute top-0 left-0 right-0 h-0.5 rounded-t-xl" style={{ background: 'linear-gradient(90deg, #F26522, #FF8A50)' }} />
@@ -335,7 +339,7 @@ const Invoices = () => {
 
                   <div className="grid grid-cols-2 gap-2 mb-2">
                     <div><p className="text-[9px] text-gray-500 uppercase">Total</p><p className="text-sm font-bold" style={{ color: '#F26522' }}>{formatCurrency(invoice.totalAmount)}</p></div>
-                    <div><p className="text-[9px] text-gray-500 uppercase">Balance</p><p className="text-sm font-bold text-gray-700">{formatCurrency(invoiceBalance(invoice))}</p></div>
+                    <div><p className="text-[9px] text-gray-500 uppercase">Balance</p><p className={`text-sm font-bold ${invoicePendingScore(invoice) ? 'text-red-600' : 'text-gray-700'}`}>{formatCurrency(invoiceBalance(invoice))}</p></div>
                   </div>
 
                   <div className="flex gap-1 flex-wrap">
