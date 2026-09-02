@@ -71,8 +71,9 @@ Edit the Gallery page and add a WordPress **Gallery** or image blocks. Until the
 
 Matches your ERP brand:
 
-- Primary: `#F26522`
-- Secondary: `#1A1A1A`
+- Primary (blue): `#055ca4`
+- Accent (orange): `#FF6D00`
+- Text: `#111111`
 - Company: AMZ Prints
 
 ## Tips

@@ -11,14 +11,14 @@
 .catalog-atelier .stf-book .page-content.cp {
   font-family: "Source Sans 3", Manrope, sans-serif;
   background:
-    radial-gradient(120% 80% at 100% 0%, rgba(242, 101, 34, 0.05), transparent 55%),
+    radial-gradient(120% 80% at 100% 0%, rgba(255, 109, 0, 0.05), transparent 55%),
     linear-gradient(180deg, #fbf6ee 0%, #f3eadc 100%);
-  color: #1a1612;
+  color: #111111;
   overflow: hidden;
 }
 
 .catalog-atelier .cp:not(.cp--cover):not(.cp--back) {
-  box-shadow: inset 0 0 0 1px rgba(90, 62, 40, 0.18), inset 0 0 0 5px rgba(251, 246, 238, 0.9), inset 0 0 0 6px rgba(242, 101, 34, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(90, 62, 40, 0.18), inset 0 0 0 5px rgba(251, 246, 238, 0.9), inset 0 0 0 6px rgba(255, 109, 0, 0.28);
 }
 
 .catalog-atelier .cp-h1,
@@ -46,7 +46,7 @@
   margin: 0.55rem 0 0.28rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #F26522;
+  color: var(--amz-accent);
   font-weight: 700;
 }
 .catalog-atelier .cp-kicker {
@@ -55,7 +55,7 @@
   letter-spacing: 0.2em;
   text-transform: uppercase;
   font-weight: 600;
-  color: #F26522;
+  color: var(--amz-accent);
 }
 .catalog-atelier .cp-lead { margin: 0 0 0.45rem; font-size: 0.74rem; line-height: 1.42; color: #3a342e; }
 .catalog-atelier .cp-note { font-size: 0.64rem; color: #6b635a; margin: 0.45rem 0 0; font-style: italic; }
@@ -67,7 +67,7 @@
   width: 42px;
   height: 2px;
   margin-top: 0.4rem;
-  background: linear-gradient(90deg, #F26522, rgba(242, 101, 34, 0));
+  background: linear-gradient(90deg, var(--amz-accent), rgba(255, 109, 0, 0));
 }
 .catalog-atelier .cp-head--gold .cp-head__rule {
   background: linear-gradient(90deg, #e8c547, rgba(232, 197, 71, 0));
@@ -90,7 +90,7 @@
 .catalog-atelier .cp-foot__mark {
   width: 7px;
   height: 7px;
-  background: #F26522;
+  background: var(--amz-accent);
   transform: rotate(45deg);
 }
 .catalog-atelier .cp--ink .cp-foot__mark { background: #e8c547; }
@@ -98,7 +98,7 @@
 /* Cover */
 .catalog-atelier .cp--cover {
   background:
-    linear-gradient(165deg, rgba(14, 20, 27, 0.82) 0%, rgba(14, 20, 27, 0.55) 40%, rgba(242, 101, 34, 0.55) 100%),
+    linear-gradient(165deg, rgba(14, 20, 27, 0.82) 0%, rgba(14, 20, 27, 0.55) 40%, rgba(255, 109, 0, 0.55) 100%),
     var(--cp-cover) center/cover;
   color: #fff;
   padding: 0.85rem;
@@ -141,7 +141,7 @@
   font-family: Cinzel, serif;
   font-size: 0.78rem;
   letter-spacing: 0.12em;
-  color: #ffb088;
+  color: var(--amz-accent-soft);
   box-shadow: inset 0 0 0 4px rgba(14, 20, 27, 0.35);
 }
 .catalog-atelier .cp-cover__crest--gold {
@@ -169,7 +169,7 @@
 }
 .catalog-atelier .cp-cover__brand {
   margin: 0;
-  color: #ffb088;
+  color: var(--amz-accent-soft);
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -180,7 +180,7 @@
   width: 64px;
   height: 2px;
   margin: 0.7rem auto;
-  background: #F26522;
+  background: var(--amz-accent);
 }
 .catalog-atelier .cp-cover__rule--gold { background: linear-gradient(90deg, #9a7b1a, #e8c547, #c9a227); }
 .catalog-atelier .cp-cover__tag,
@@ -190,7 +190,7 @@
   opacity: 0.9;
 }
 .catalog-atelier .cp--back {
-  background: linear-gradient(165deg, #0E141B 0%, #1a120e 55%, #F26522);
+  background: linear-gradient(165deg, #0E141B 0%, #1a120e 55%, var(--amz-accent));
   color: #fff;
   justify-content: center;
   align-items: center;
@@ -211,7 +211,7 @@
 .catalog-atelier .cp-rail {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
-  background: #F26522;
+  background: var(--amz-accent);
   color: #fff;
   letter-spacing: 0.28em;
   text-transform: uppercase;
@@ -243,7 +243,7 @@
 }
 .catalog-atelier .cp-meta-table th {
   width: 34%;
-  color: #F26522;
+  color: var(--amz-accent);
   font-size: 0.56rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -259,7 +259,7 @@
 .catalog-atelier .cp--packages { padding: 0; }
 
 .catalog-atelier .cp-plate {
-  background: linear-gradient(90deg, #c24e16, #F26522 45%, #ff8a4a);
+  background: linear-gradient(90deg, var(--amz-accent-deep), var(--amz-accent) 45%, var(--amz-accent));
   color: #fff;
   text-align: center;
   padding: 0.72rem 0.6rem;
@@ -298,7 +298,7 @@
   border-bottom: 1px dotted rgba(90, 62, 40, 0.28);
   z-index: 0;
 }
-.catalog-atelier .cp-toc span { color: #F26522; font-weight: 800; z-index: 1; }
+.catalog-atelier .cp-toc span { color: var(--amz-accent); font-weight: 800; z-index: 1; }
 .catalog-atelier .cp-toc em {
   font-style: normal;
   font-weight: 600;
@@ -350,7 +350,7 @@
   font-size: 2.1rem;
   line-height: 0.8;
   padding: 0.12rem 0.28rem 0 0;
-  color: #F26522;
+  color: var(--amz-accent);
   font-weight: 700;
 }
 .catalog-atelier .cp--ink .cp-drop::first-letter { color: #e8c547; }
@@ -361,21 +361,21 @@
   width: 42px;
   height: 42px;
   margin: 0.15rem 0.85rem 0.35rem;
-  border: 1px solid #F26522;
+  border: 1px solid var(--amz-accent);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: Cinzel, serif;
   font-size: 0.72rem;
-  color: #F26522;
+  color: var(--amz-accent);
 }
 .catalog-atelier .cp-monogram--gold { border-color: #e8c547; color: #e8c547; }
 .catalog-atelier .cp-quote {
   margin: 0.2rem 0.85rem 0.45rem;
   padding: 0.65rem 0.7rem;
-  border-left: 3px solid #F26522;
-  background: rgba(242, 101, 34, 0.07);
+  border-left: 3px solid var(--amz-accent);
+  background: rgba(255, 109, 0, 0.07);
   font-family: "Cormorant Garamond", Georgia, serif;
   font-size: 0.9rem;
   line-height: 1.4;
@@ -397,7 +397,7 @@
 .catalog-atelier .cp-sign strong {
   font-family: "Cormorant Garamond", Georgia, serif;
   font-size: 1.05rem;
-  color: #F26522;
+  color: var(--amz-accent);
 }
 .catalog-atelier .cp--ink .cp-sign strong { color: #e8c547; }
 
@@ -432,7 +432,7 @@
   font-family: "Cormorant Garamond", Georgia, serif;
   font-size: 1.7rem;
   line-height: 1;
-  color: #F26522;
+  color: var(--amz-accent);
 }
 .catalog-atelier .cp-vm-card span {
   display: block;
@@ -440,11 +440,11 @@
   letter-spacing: 0.14em;
   text-transform: uppercase;
   font-weight: 800;
-  color: #F26522;
+  color: var(--amz-accent);
   margin-bottom: 0.2rem;
 }
 .catalog-atelier .cp-vm-card p { margin: 0; font-size: 0.68rem; line-height: 1.38; }
-.catalog-atelier .cp-vm-card--mission { background: #fff4ec; border-color: rgba(242, 101, 34, 0.28); }
+.catalog-atelier .cp-vm-card--mission { background: #fff4ec; border-color: rgba(255, 109, 0, 0.28); }
 
 .catalog-atelier .cp-value-grid {
   display: grid;
@@ -456,7 +456,7 @@
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  border: 1px solid rgba(242, 101, 34, 0.28);
+  border: 1px solid rgba(255, 109, 0, 0.28);
   background: #fff;
   padding: 0.4rem 0.4rem;
   font-size: 0.64rem;
@@ -464,7 +464,7 @@
 }
 .catalog-atelier .cp-value i {
   font-style: normal;
-  color: #F26522;
+  color: var(--amz-accent);
   font-size: 0.58rem;
   font-weight: 800;
 }
@@ -491,7 +491,7 @@
   top: 0.38rem;
   width: 0.34rem;
   height: 0.34rem;
-  background: #F26522;
+  background: var(--amz-accent);
   transform: rotate(45deg);
 }
 .catalog-atelier .cp--ink .cp-check li { border-bottom-color: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.82); }
@@ -508,7 +508,7 @@
 .catalog-atelier .cp-chips li {
   font-size: 0.58rem;
   padding: 0.18rem 0.38rem;
-  border: 1px solid rgba(242, 101, 34, 0.32);
+  border: 1px solid rgba(255, 109, 0, 0.32);
   background: #fff7f2;
   color: #0E141B;
   font-weight: 600;
@@ -532,7 +532,7 @@
   font-family: "Cormorant Garamond", Georgia, serif;
   font-size: 1.7rem;
   line-height: 0.85;
-  color: #F26522;
+  color: var(--amz-accent);
   font-weight: 600;
 }
 .catalog-atelier .cp-ch-head h2 {
@@ -547,7 +547,7 @@
 }
 
 .catalog-atelier .cp-lay-a .cp-ch-head {
-  background: linear-gradient(90deg, #c24e16, #F26522);
+  background: linear-gradient(90deg, var(--amz-accent-deep), var(--amz-accent));
   color: #fff;
 }
 .catalog-atelier .cp-lay-a .cp-ch-head span,
@@ -571,7 +571,7 @@
   flex-direction: column;
   gap: 0.4rem;
 }
-.catalog-atelier .cp-lay-b .cp-ch-head span { color: #F26522; font-size: 1.2rem; }
+.catalog-atelier .cp-lay-b .cp-ch-head span { color: var(--amz-accent); font-size: 1.2rem; }
 .catalog-atelier .cp-lay-b .cp-ch-head h2 { color: #fff; font-size: 0.92rem; text-align: center; }
 .catalog-atelier .cp-lay-b .cp-chapter-body { padding-top: 0.65rem; }
 .catalog-atelier .cp-lay-b .cp-foot { grid-column: 2; }
@@ -587,7 +587,7 @@
 .catalog-atelier .cp-lay-c .cp-ch-head { position: relative; padding-right: 2.4rem; }
 
 .catalog-atelier .cp-lay-d .cp-ch-head {
-  border-bottom: 3px solid #F26522;
+  border-bottom: 3px solid var(--amz-accent);
   background: transparent;
 }
 
@@ -617,7 +617,7 @@
   border-bottom: 1px solid rgba(90, 62, 40, 0.1);
   font-size: 0.7rem;
 }
-.catalog-atelier .cp-index-list b { color: #F26522; }
+.catalog-atelier .cp-index-list b { color: var(--amz-accent); }
 .catalog-atelier .cp-index-list em { font-style: normal; color: #8a8278; font-size: 0.58rem; }
 .catalog-atelier .cp-index-list--gold li { border-bottom-color: rgba(232, 197, 71, 0.16); color: rgba(255, 255, 255, 0.88); }
 .catalog-atelier .cp-index-list--gold b { color: #e8c547; }
@@ -630,7 +630,7 @@
 }
 .catalog-atelier .cp-stat {
   background: #fff;
-  border: 1px solid rgba(242, 101, 34, 0.25);
+  border: 1px solid rgba(255, 109, 0, 0.25);
   padding: 0.45rem 0.35rem;
   text-align: center;
 }
@@ -638,7 +638,7 @@
   display: block;
   font-family: "Cormorant Garamond", Georgia, serif;
   font-size: 1.35rem;
-  color: #F26522;
+  color: var(--amz-accent);
   line-height: 1;
 }
 .catalog-atelier .cp-stat span { font-size: 0.58rem; color: #5a5248; }
@@ -678,18 +678,18 @@
   border-bottom: 1px solid rgba(90, 62, 40, 0.1);
   font-size: 0.66rem;
 }
-.catalog-atelier .cp-why-list b { color: #F26522; }
+.catalog-atelier .cp-why-list b { color: var(--amz-accent); }
 .catalog-atelier .cp-why-list--gold li { border-bottom-color: rgba(232, 197, 71, 0.16); color: rgba(255, 255, 255, 0.88); }
 .catalog-atelier .cp-why-list--gold b { color: #e8c547; }
 
 .catalog-atelier .cp-group-card {
   margin: 0.35rem 0.85rem;
   padding: 0.55rem 0.6rem;
-  border-left: 3px solid #F26522;
+  border-left: 3px solid var(--amz-accent);
   background: #fff;
   box-shadow: 0 1px 0 rgba(90, 62, 40, 0.08);
 }
-.catalog-atelier .cp-group-card strong { display: block; color: #F26522; margin-bottom: 0.18rem; }
+.catalog-atelier .cp-group-card strong { display: block; color: var(--amz-accent); margin-bottom: 0.18rem; }
 .catalog-atelier .cp-group-card p { margin: 0; font-size: 0.68rem; line-height: 1.38; }
 .catalog-atelier .cp-group-card--gold {
   background: #141414;
@@ -702,7 +702,7 @@
   margin: 0.55rem 0.85rem 0.3rem;
   padding: 0.7rem 0.75rem;
   background: #fff;
-  border: 1px solid rgba(242, 101, 34, 0.28);
+  border: 1px solid rgba(255, 109, 0, 0.28);
   font-size: 0.74rem;
   line-height: 1.42;
 }

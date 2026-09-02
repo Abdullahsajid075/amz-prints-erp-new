@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AMZ_PRINTS_VERSION', '3.4.3' );
+define( 'AMZ_PRINTS_VERSION', '3.4.4' );
 
 /**
  * Avoid long Hostinger CDN HTML cache hiding theme updates.
@@ -137,15 +137,26 @@ function amz_prints_mod( $key, $default = '' ) {
  * Output inline CSS variables from Customizer
  */
 function amz_prints_custom_css_vars() {
-	$primary   = sanitize_hex_color( amz_prints_mod( 'amz_primary_color', '#F26522' ) );
-	$secondary = sanitize_hex_color( amz_prints_mod( 'amz_secondary_color', '#1A1A1A' ) );
-	$accent    = sanitize_hex_color( amz_prints_mod( 'amz_accent_color', '#10B981' ) );
+	$primary   = sanitize_hex_color( amz_prints_mod( 'amz_primary_color', '#055ca4' ) );
+	$secondary = sanitize_hex_color( amz_prints_mod( 'amz_secondary_color', '#111111' ) );
+	$accent    = sanitize_hex_color( amz_prints_mod( 'amz_accent_color', '#FF6D00' ) );
+	if ( ! $primary ) {
+		$primary = '#055ca4';
+	}
+	if ( ! $secondary ) {
+		$secondary = '#111111';
+	}
+	if ( ! $accent ) {
+		$accent = '#FF6D00';
+	}
 	?>
 	<style id="amz-prints-vars">
 		:root {
 			--amz-primary: <?php echo esc_attr( $primary ); ?>;
 			--amz-secondary: <?php echo esc_attr( $secondary ); ?>;
 			--amz-accent: <?php echo esc_attr( $accent ); ?>;
+			--amz-ink: <?php echo esc_attr( $secondary ); ?>;
+			--amz-text: <?php echo esc_attr( $secondary ); ?>;
 		}
 	</style>
 	<?php
@@ -308,12 +319,15 @@ add_action( 'after_switch_theme', 'amz_prints_after_switch' );
  * Create missing pages on upgrade (fixes Services 404 without re-activating theme)
  */
 function amz_prints_maybe_upgrade_pages() {
-	if ( get_option( 'amz_prints_pages_ver' ) === '3.4.2' ) {
+	if ( get_option( 'amz_prints_pages_ver' ) === '3.4.4' ) {
 		return;
 	}
 	amz_prints_ensure_pages();
 	flush_rewrite_rules( false );
-	update_option( 'amz_prints_pages_ver', '3.4.2' );
+	set_theme_mod( 'amz_primary_color', '#055ca4' );
+	set_theme_mod( 'amz_secondary_color', '#111111' );
+	set_theme_mod( 'amz_accent_color', '#FF6D00' );
+	update_option( 'amz_prints_pages_ver', '3.4.4' );
 }
 add_action( 'init', 'amz_prints_maybe_upgrade_pages', 20 );
 
