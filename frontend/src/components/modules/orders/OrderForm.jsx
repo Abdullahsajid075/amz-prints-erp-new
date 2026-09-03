@@ -43,7 +43,7 @@ const OrderForm = () => {
   const isEdit = !!orderId;
   const prefillTokenNo = searchParams.get('tokenNo') || '';
   const { primary, company } = useBrand();
-  const accent = primary || '#F26522';
+  const accent = primary || '#ff6d00';
 
   const [formData, setFormData] = useState({
     customerName: '',
@@ -440,7 +440,7 @@ const OrderForm = () => {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <ClipboardList className="h-5 w-5 shrink-0" style={{ color: accent }} />
-                <h1 className="text-xl font-bold truncate" style={{ color: '#2E2E2E' }}>
+                <h1 className="text-xl font-bold truncate" style={{ color: '#0747a3' }}>
                   {isEdit ? 'Edit Order' : 'New Order'}
                 </h1>
               </div>
@@ -712,7 +712,7 @@ const OrderForm = () => {
           <CardHeader className="py-3"><CardTitle className="text-base">Payment summary</CardTitle></CardHeader>
           <CardContent className="pt-0 space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="rounded-xl p-3 bg-[#FFF9F5] border border-orange-100">
+              <div className="rounded-xl p-3 bg-[#FFF6ED] border border-orange-100">
                 <p className="text-[10px] uppercase tracking-wide text-gray-500">Order Total</p>
                 <p className="font-bold text-xl" style={{ color: accent }}>{formatCurrency(calculateTotal())}</p>
               </div>

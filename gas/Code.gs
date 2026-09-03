@@ -32,7 +32,7 @@ var DEFAULT_CRM_STAGES = [
   { key: 'lead', label: 'Lead', color: '#3B82F6' },
   { key: 'contacted', label: 'Contacted', color: '#8B5CF6' },
   { key: 'qualified', label: 'Qualified', color: '#F59E0B' },
-  { key: 'proposal', label: 'Proposal', color: '#F26522' },
+  { key: 'proposal', label: 'Proposal', color: '#ff6d00' },
   { key: 'negotiation', label: 'Negotiation', color: '#06B6D4' },
   { key: 'won', label: 'Won', color: '#10B981' },
   { key: 'lost', label: 'Lost', color: '#EF4444' },
@@ -1343,10 +1343,10 @@ function buildOrderEmailHtml_(orderApi, company, bodyText) {
   var logo = company.logo
     ? '<img src="' + company.logo + '" alt="logo" style="max-height:64px;max-width:180px;margin-bottom:12px" />'
     : '';
-  var primary = '#F26522';
+  var primary = '#ff6d00';
   return ''
     + '<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#1F2937">'
-    + '<div style="background:linear-gradient(135deg,' + primary + ',#FF8A50);padding:20px;border-radius:12px 12px 0 0;color:#fff">'
+    + '<div style="background:linear-gradient(135deg,' + primary + ',#0747a3);padding:20px;border-radius:12px 12px 0 0;color:#fff">'
     + '<h2 style="margin:0">' + (company.name || 'AMZ Prints') + '</h2>'
     + '<p style="margin:6px 0 0;opacity:.9">' + (company.tagline || 'Professional Printing Services') + '</p>'
     + '</div>'
@@ -4177,6 +4177,13 @@ function getSettings_() {
   ['invoice', 'theme', 'orders', 'customers', 'crm', 'products', 'payments', 'users', 'notifications', 'system', 'designers', 'employees'].forEach(function (sec) {
     if (typeof obj[sec] === 'string') obj[sec] = parseSettingsValue_(obj[sec]);
   });
+
+  if (!obj.theme || typeof obj.theme !== 'object') obj.theme = {};
+  var prim = String(obj.theme.primary || '').toLowerCase();
+  var sec = String(obj.theme.secondary || '').toLowerCase();
+  if (!prim || prim === '#f26522') obj.theme.primary = '#ff6d00';
+  if (!sec || sec === '#2e2e2e') obj.theme.secondary = '#0747a3';
+  if (!obj.theme.accent) obj.theme.accent = '#10B981';
 
   return obj;
 }

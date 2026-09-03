@@ -455,7 +455,7 @@ const Payments = () => {
         title="Payments"
         subtitle="Complete transaction history — money in & out"
         actions={(
-          <Button onClick={openCreate} style={{ backgroundColor: '#F26522' }} className="text-white rounded-xl" data-testid="add-payment-button">
+          <Button onClick={openCreate} style={{ backgroundColor: '#ff6d00' }} className="text-white rounded-xl" data-testid="add-payment-button">
             <Plus className="h-4 w-4 mr-2" />Record Transaction
           </Button>
         )}
@@ -475,7 +475,7 @@ const Payments = () => {
           <div><p className="text-[10px] uppercase tracking-[0.12em] text-slate-500 font-bold">Money Out</p><p className="font-display text-lg font-bold text-rose-600">{formatCurrency(stats.outflow)}</p></div>
         </div>
         <div className="erp-kpi flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#F26522' }}>
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#ff6d00' }}>
             <Wallet className="h-5 w-5 text-white" />
           </div>
           <div><p className="text-[10px] uppercase tracking-[0.12em] text-slate-500 font-bold">Net Balance</p><p className={`font-display text-lg font-bold ${stats.net >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{formatCurrency(stats.net)}</p></div>
@@ -502,7 +502,7 @@ const Payments = () => {
             <SelectTrigger data-testid="method-filter"><SelectValue placeholder="All Methods" /></SelectTrigger>
             <SelectContent><SelectItem value="all">All Methods</SelectItem>{methods.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
           </Select>
-          <Button onClick={loadPayments} style={{ backgroundColor: '#F26522' }} className="text-white rounded-xl">Apply</Button>
+          <Button onClick={loadPayments} style={{ backgroundColor: '#ff6d00' }} className="text-white rounded-xl">Apply</Button>
         </div>
         <div className="mt-3 max-w-md">
           <SortBar value={sort} onChange={setSort} options={PAYMENT_SORT_OPTS} />
@@ -519,7 +519,7 @@ const Payments = () => {
               <div className="text-center py-12">
                 <CreditCard className="h-12 w-12 mx-auto text-slate-300 mb-3" />
                 <p className="text-slate-500 mb-4">No transactions yet.</p>
-                <Button onClick={openCreate} style={{ backgroundColor: '#F26522' }} className="text-white rounded-xl"><Plus className="h-4 w-4 mr-2" />Record First Transaction</Button>
+                <Button onClick={openCreate} style={{ backgroundColor: '#ff6d00' }} className="text-white rounded-xl"><Plus className="h-4 w-4 mr-2" />Record First Transaction</Button>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -548,7 +548,7 @@ const Payments = () => {
                           </td>
                           <td className="py-3 px-3 text-sm">{p.category}</td>
                           <td className="py-3 px-3 text-sm font-medium">{p.party}</td>
-                          <td className="py-3 px-3 text-xs" style={{ color: '#F26522' }}>{p.reference || '-'}</td>
+                          <td className="py-3 px-3 text-xs" style={{ color: '#ff6d00' }}>{p.reference || '-'}</td>
                           <td className="py-3 px-3"><Badge variant="outline" className="text-xs gap-1"><Building className="h-3 w-3" />{p.method}</Badge></td>
                           <td className={`py-3 px-3 text-right font-bold ${isIn ? 'text-emerald-700' : 'text-rose-600'}`}>{isIn ? '+' : '-'}{formatCurrency(p.amount)}</td>
                           <td className="py-3 px-3 text-right">
@@ -678,7 +678,7 @@ const Payments = () => {
             <p className="text-xs text-gray-500">Save → updates order/invoice balance (if linked) · mini slip · WhatsApp · Dashboard / Reports / Ledger refresh.</p>
             <DialogFooter className="gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}><X className="h-4 w-4 mr-1" />Cancel</Button>
-              <Button type="submit" style={{ backgroundColor: '#F26522' }} className="text-white" disabled={saving} data-testid="save-payment-button"><Save className="h-4 w-4 mr-1" />{saving ? 'Saving...' : editing ? 'Update' : 'Record'}</Button>
+              <Button type="submit" style={{ backgroundColor: '#ff6d00' }} className="text-white" disabled={saving} data-testid="save-payment-button"><Save className="h-4 w-4 mr-1" />{saving ? 'Saving...' : editing ? 'Update' : 'Record'}</Button>
             </DialogFooter>
           </form>
         </DialogContent>

@@ -201,10 +201,7 @@ const Products = () => {
       }
       setFormData((prev) => {
         const merged = [...(prev.images || []), ...added];
-        const images = fitImagesForSheets(merged);
-        if (images.length < merged.length) {
-          toast.message('Some extra gallery photos skipped — Sheets storage limit. Main image kept at full quality.');
-        }
+        const images = merged.slice(0, MAX_PRODUCT_IMAGES);
         return { ...prev, images, image: images[0] || '' };
       });
       toast.success(added.length > 1 ? `${added.length} photos ready (original resolution)` : 'Photo ready (original resolution)');
@@ -362,7 +359,7 @@ const Products = () => {
         title="Products"
         subtitle="Catalog with photos · manual stock edit"
         actions={(
-          <Button onClick={openCreateDialog} style={{ backgroundColor: '#F26522' }} className="text-white h-9 rounded-xl" data-testid="add-product-button">
+          <Button onClick={openCreateDialog} style={{ backgroundColor: '#ff6d00' }} className="text-white h-9 rounded-xl" data-testid="add-product-button">
             <Plus className="h-4 w-4 mr-1.5" />
             Add
           </Button>
@@ -381,7 +378,7 @@ const Products = () => {
                 type="button"
                 size="sm"
                 variant={typeFilter === tab.value ? 'default' : 'outline'}
-                style={typeFilter === tab.value ? { backgroundColor: '#F26522' } : undefined}
+                style={typeFilter === tab.value ? { backgroundColor: '#ff6d00' } : undefined}
                 className={`h-7 text-xs rounded-lg ${typeFilter === tab.value ? 'text-white' : ''}`}
                 onClick={() => setTypeFilter(tab.value)}
               >
@@ -428,7 +425,7 @@ const Products = () => {
             <div className="text-center py-10">
               <Package className="h-8 w-8 mx-auto text-slate-300 mb-2" />
               <p className="text-sm text-slate-500 mb-3">No items yet.</p>
-              <Button onClick={openCreateDialog} style={{ backgroundColor: '#F26522' }} className="text-white h-8 text-sm rounded-xl">
+              <Button onClick={openCreateDialog} style={{ backgroundColor: '#ff6d00' }} className="text-white h-8 text-sm rounded-xl">
                 <Plus className="h-3.5 w-3.5 mr-1" />Add first
               </Button>
             </div>
@@ -479,18 +476,18 @@ const Products = () => {
                       ) : null}
                     </div>
                     <div className="p-3 space-y-1.5">
-                      <p className="text-sm font-semibold leading-snug line-clamp-2 min-h-[2.5rem]" style={{ color: '#2E2E2E' }}>
+                      <p className="text-sm font-semibold leading-snug line-clamp-2 min-h-[2.5rem]" style={{ color: '#0747a3' }}>
                         {product.name}
                       </p>
                       {Number(product.salePrice) > 0 ? (
-                        <p className="text-base font-bold" style={{ color: '#F26522' }}>
+                        <p className="text-base font-bold" style={{ color: '#ff6d00' }}>
                           <span className="text-gray-400 text-xs font-medium line-through mr-1.5">
                             {formatCurrency(product.basePrice ?? product.rate ?? 0)}
                           </span>
                           {formatCurrency(product.salePrice)}
                         </p>
                       ) : (
-                        <p className="text-base font-bold" style={{ color: '#F26522' }}>
+                        <p className="text-base font-bold" style={{ color: '#ff6d00' }}>
                           {formatCurrency(product.basePrice ?? product.rate ?? 0)}
                         </p>
                       )}
@@ -568,7 +565,7 @@ const Products = () => {
             <Button
               type="button"
               className="text-white"
-              style={{ backgroundColor: '#F26522' }}
+              style={{ backgroundColor: '#ff6d00' }}
               disabled={stockSaving}
               onClick={saveStock}
             >
@@ -581,7 +578,7 @@ const Products = () => {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" data-testid="product-dialog">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold" style={{ color: '#2E2E2E' }}>
+            <DialogTitle className="text-xl font-bold" style={{ color: '#0747a3' }}>
               {editingProduct ? (isService ? 'Edit Service' : 'Edit Product') : (isService ? 'Add Service' : 'Add Product')}
             </DialogTitle>
             <DialogDescription>
@@ -627,7 +624,7 @@ const Products = () => {
                 )}
               </div>
               <p className="text-[11px] text-gray-500">
-                {imageBusy ? 'Processing…' : 'Select photos — saved at original resolution (main image used on website).'}
+                {imageBusy ? 'Processing…' : 'Up to 5 photos. HD copies go to the website gallery when Show on website is on.'}
               </p>
             </div>
 
@@ -650,7 +647,7 @@ const Products = () => {
               </Select>
             </div>
 
-            <div className="flex items-center justify-between gap-3 rounded-lg border border-orange-100 bg-[#FFF9F5] px-3 py-2.5">
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-orange-100 bg-[#FFF6ED] px-3 py-2.5">
               <div>
                 <Label htmlFor="show-on-website" className="text-sm font-semibold">Show on website</Label>
                 <p className="text-[11px] text-gray-500 mt-0.5">Off = hidden from storefront catalog &amp; checkout</p>
@@ -663,7 +660,7 @@ const Products = () => {
               />
             </div>
 
-            <div className="flex items-center justify-between gap-3 rounded-lg border border-orange-100 bg-[#FFF9F5] px-3 py-2.5">
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-orange-100 bg-[#FFF6ED] px-3 py-2.5">
               <div>
                 <Label htmlFor="show-on-top" className="text-sm font-semibold">Show on top of website products</Label>
                 <p className="text-[11px] text-gray-500 mt-0.5">Pinned to the top of the Products page listing</p>
@@ -946,7 +943,7 @@ const Products = () => {
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                 <X className="h-4 w-4 mr-1" />Cancel
               </Button>
-              <Button type="submit" style={{ backgroundColor: '#F26522' }} className="text-white" disabled={saving || imageBusy}>
+              <Button type="submit" style={{ backgroundColor: '#ff6d00' }} className="text-white" disabled={saving || imageBusy}>
                 <Save className="h-4 w-4 mr-1" />
                 {saving ? 'Saving…' : 'Save'}
               </Button>

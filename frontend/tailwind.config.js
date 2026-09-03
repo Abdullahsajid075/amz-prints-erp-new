@@ -51,18 +51,19 @@ module.exports = {
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
         ink: {
-          DEFAULT: '#1C2430',
-          soft: '#2E2E2E',
+          DEFAULT: '#0747a3',
+          soft: '#05357c',
         },
         sidebar: {
-          DEFAULT: '#151B24',
-          foreground: '#E8EDF5',
-          muted: '#8B96A8',
-          border: 'rgba(255,255,255,0.08)',
+          DEFAULT: 'var(--sidebar)',
+          foreground: '#F4F7FC',
+          muted: '#C5D4EE',
+          border: 'rgba(255,255,255,0.14)',
         },
         brand: {
           DEFAULT: 'var(--brand-primary)',
-          orange: '#F26522',
+          orange: '#ff6d00',
+          blue: '#0747a3',
         },
         chart: {
           '1': 'hsl(var(--chart-1))',

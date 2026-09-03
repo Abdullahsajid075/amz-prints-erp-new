@@ -44,7 +44,7 @@ const Navbar = ({ toggleSidebar }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const displayName = getUserDisplayName(user);
-  const accent = primary || '#F26522';
+  const accent = primary || '#ff6d00';
 
   const pageTitle = useMemo(() => {
     const hit = TITLE_MAP.find((t) => location.pathname.startsWith(t.match));

@@ -5,13 +5,14 @@
 @tailwind utilities;
 
 :root {
-  --brand-primary: #F26522;
-  --ink: #1C2430;
-  --ink-soft: #2E2E2E;
-  --sidebar: #151B24;
-  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --brand-primary: #ff6d00;
+  --brand-secondary: #0747a3;
+  --ink: #0747a3;
+  --ink-soft: #05357c;
+  --sidebar: #0747a3;
+  --sidebar-border: rgba(255, 255, 255, 0.12);
   --surface-elevated: #FFFFFF;
-  --canvas-tint: #F3F5F9;
+  --canvas-tint: #F3F6FB;
   --erp-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -39,24 +40,24 @@ code {
     --card-foreground: 215 22% 15%;
     --popover: 0 0% 100%;
     --popover-foreground: 215 22% 15%;
-    --primary: 18 95% 54%;
+    --primary: 26 100% 50%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 215 22% 18%;
+    --secondary: 215 92% 33%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 220 18% 95%;
-    --muted-foreground: 215 12% 42%;
-    --accent: 18 95% 54%;
+    --muted: 214 40% 96%;
+    --muted-foreground: 215 20% 40%;
+    --accent: 26 100% 50%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
-    --border: 220 16% 88%;
-    --input: 220 16% 88%;
-    --ring: 18 95% 54%;
-    --chart-1: 18 95% 54%;
-    --chart-2: 215 28% 28%;
+    --border: 214 24% 88%;
+    --input: 214 24% 88%;
+    --ring: 26 100% 50%;
+    --chart-1: 26 100% 50%;
+    --chart-2: 215 92% 33%;
     --chart-3: 43 74% 52%;
     --chart-4: 160 50% 36%;
-    --chart-5: 27 87% 55%;
+    --chart-5: 26 100% 50%;
     --radius: 0.65rem;
   }
 }
@@ -68,8 +69,8 @@ code {
   body {
     @apply text-foreground;
     background:
-      radial-gradient(920px 420px at 0% 0%, rgba(242, 101, 34, 0.07), transparent 55%),
-      radial-gradient(780px 360px at 100% 0%, rgba(28, 36, 48, 0.05), transparent 50%),
+      radial-gradient(920px 420px at 0% 0%, rgba(255, 109, 0, 0.08), transparent 55%),
+      radial-gradient(780px 360px at 100% 0%, rgba(7, 71, 163, 0.07), transparent 50%),
       var(--canvas-tint);
   }
 }
@@ -142,19 +143,19 @@ code {
 }
 
 .amz-orange {
-  color: #F26522;
+  color: #ff6d00;
 }
 
 .amz-bg-orange {
-  background-color: #F26522;
+  background-color: #ff6d00;
 }
 
 .amz-dark-gray {
-  color: #2E2E2E;
+  color: #0747a3;
 }
 
 .amz-bg-dark-gray {
-  background-color: #2E2E2E;
+  background-color: #0747a3;
 }
 
 /* 3D Card Effects */
@@ -177,7 +178,7 @@ code {
     0 1px 3px rgba(0, 0, 0, 0.05),
     0 4px 12px rgba(0, 0, 0, 0.05),
     0 12px 24px rgba(0, 0, 0, 0.03);
-  border: 1px solid rgba(242, 101, 34, 0.08);
+  border: 1px solid rgba(255, 109, 0, 0.10);
   overflow: hidden;
   transform: translateZ(0);
 }
@@ -185,11 +186,11 @@ code {
 .order-card-3d:hover .order-card-3d-inner {
   transform: translateY(-8px) rotateX(4deg) rotateY(-4deg);
   box-shadow:
-    0 4px 8px rgba(242, 101, 34, 0.08),
-    0 16px 32px rgba(242, 101, 34, 0.12),
-    0 24px 48px rgba(242, 101, 34, 0.15),
+    0 4px 8px rgba(255, 109, 0, 0.08),
+    0 16px 32px rgba(255, 109, 0, 0.12),
+    0 24px 48px rgba(7, 71, 163, 0.12),
     0 32px 64px rgba(0, 0, 0, 0.08);
-  border-color: rgba(242, 101, 34, 0.25);
+  border-color: rgba(255, 109, 0, 0.28);
 }
 
 .order-card-3d-accent {
@@ -199,14 +200,14 @@ code {
   width: 100px;
   height: 100px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(242, 101, 34, 0.15) 0%, rgba(242, 101, 34, 0) 70%);
+  background: radial-gradient(circle, rgba(255, 109, 0, 0.15) 0%, rgba(255, 109, 0, 0) 70%);
   transition: all 0.4s ease;
   z-index: 0;
 }
 
 .order-card-3d:hover .order-card-3d-accent {
   transform: scale(2);
-  background: radial-gradient(circle, rgba(242, 101, 34, 0.2) 0%, rgba(242, 101, 34, 0) 70%);
+  background: radial-gradient(circle, rgba(7, 71, 163, 0.18) 0%, rgba(7, 71, 163, 0) 70%);
 }
 
 .order-card-3d-inner::before {
@@ -216,7 +217,7 @@ code {
   left: 0;
   width: 100%;
   height: 4px;
-  background: linear-gradient(90deg, #F26522, #FF8A50, #F26522);
+  background: linear-gradient(90deg, #ff6d00, #0747a3, #ff6d00);
   background-size: 200% 100%;
   transform: translateY(-100%);
   transition: transform 0.3s ease;

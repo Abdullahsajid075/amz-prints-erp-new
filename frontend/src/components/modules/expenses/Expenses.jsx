@@ -192,7 +192,7 @@ const Expenses = () => {
         actions={(
           <Button
             onClick={openCreate}
-            style={{ backgroundColor: '#F26522' }}
+            style={{ backgroundColor: '#ff6d00' }}
             className="text-white rounded-xl"
             data-testid="add-expense-button"
           >
@@ -222,7 +222,7 @@ const Expenses = () => {
           </div>
         </div>
         <div className="erp-kpi flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#F26522' }}>
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#ff6d00' }}>
             <Receipt className="h-5 w-5 text-white" />
           </div>
           <div>
@@ -266,7 +266,7 @@ const Expenses = () => {
                     <cat.icon className="h-4 w-4 text-white" />
                   </div>
                   <p className="text-xs text-gray-500 truncate">{cat.label}</p>
-                  <p className="text-sm font-bold" style={{ color: '#2E2E2E' }}>{formatCurrency(cat.total)}</p>
+                  <p className="text-sm font-bold" style={{ color: '#0747a3' }}>{formatCurrency(cat.total)}</p>
                   <p className="text-xs text-gray-400">{cat.count} entries</p>
                 </div>
               ))}
@@ -303,7 +303,7 @@ const Expenses = () => {
               data-testid="expense-to-date"
             />
             <div className="flex gap-2">
-              <Button onClick={applyFilter} style={{ backgroundColor: '#F26522' }} className="text-white flex-1">
+              <Button onClick={applyFilter} style={{ backgroundColor: '#ff6d00' }} className="text-white flex-1">
                 <Filter className="h-4 w-4 mr-1" />
                 Apply
               </Button>
@@ -327,7 +327,7 @@ const Expenses = () => {
             <div className="text-center py-12">
               <Receipt className="h-12 w-12 mx-auto text-gray-300 mb-3" />
               <p className="text-gray-500 mb-4">No expenses recorded yet.</p>
-              <Button onClick={openCreate} style={{ backgroundColor: '#F26522' }} className="text-white">
+              <Button onClick={openCreate} style={{ backgroundColor: '#ff6d00' }} className="text-white">
                 <Plus className="h-4 w-4 mr-2" />
                 Record First Expense
               </Button>
@@ -364,7 +364,7 @@ const Expenses = () => {
                             <span className="text-sm font-medium">{cat.label}</span>
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-sm" style={{ color: '#2E2E2E' }}>{expense.description}</td>
+                        <td className="py-3 px-4 text-sm" style={{ color: '#0747a3' }}>{expense.description}</td>
                         <td className="py-3 px-4 text-sm text-gray-600">{expense.paidTo || '-'}</td>
                         <td className="py-3 px-4">
                           <Badge variant="outline" className="text-xs">{expense.paymentMethod}</Badge>
@@ -403,9 +403,9 @@ const Expenses = () => {
                   })}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t-2 font-bold" style={{ backgroundColor: '#FFF3ED' }}>
+                  <tr className="border-t-2 font-bold" style={{ backgroundColor: '#FFF4EB' }}>
                     <td colSpan="6" className="py-3 px-4 text-right uppercase text-sm">Approved total:</td>
-                    <td className="py-3 px-4 text-right text-lg" style={{ color: '#F26522' }}>{formatCurrency(totals.total)}</td>
+                    <td className="py-3 px-4 text-right text-lg" style={{ color: '#ff6d00' }}>{formatCurrency(totals.total)}</td>
                     <td></td>
                   </tr>
                 </tfoot>
@@ -418,7 +418,7 @@ const Expenses = () => {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg" data-testid="expense-dialog">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-bold" style={{ color: '#2E2E2E' }}>
+            <DialogTitle className="text-2xl font-bold" style={{ color: '#0747a3' }}>
               {editing ? 'Edit Expense' : 'Record New Expense'}
             </DialogTitle>
           </DialogHeader>
@@ -515,7 +515,7 @@ const Expenses = () => {
               </Button>
               <Button
                 type="submit"
-                style={{ backgroundColor: '#F26522' }}
+                style={{ backgroundColor: '#ff6d00' }}
                 className="text-white"
                 disabled={saving}
                 data-testid="save-expense-button"

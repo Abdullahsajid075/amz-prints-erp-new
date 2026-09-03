@@ -649,17 +649,17 @@ const Purchases = () => {
     <div className="space-y-6" data-testid="purchases-page">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold" style={{ color: '#2E2E2E' }}>Purchases</h1>
+          <h1 className="text-3xl font-bold" style={{ color: '#0747a3' }}>Purchases</h1>
           <p className="text-gray-600 mt-1">Manage purchase orders, deliveries & vendor payments</p>
         </div>
-        <Button onClick={openCreate} style={{ backgroundColor: '#F26522' }} className="text-white" data-testid="add-purchase-button"><Plus className="h-4 w-4 mr-2" />New PO</Button>
+        <Button onClick={openCreate} style={{ backgroundColor: '#ff6d00' }} className="text-white" data-testid="add-purchase-button"><Plus className="h-4 w-4 mr-2" />New PO</Button>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card><CardContent className="p-4"><p className="text-xs text-gray-500 uppercase font-medium mb-1">Total POs</p><p className="text-2xl font-bold">{stats.total}</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-xs text-gray-500 uppercase font-medium mb-1">Pending</p><p className="text-2xl font-bold text-yellow-600">{stats.pending}</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-xs text-gray-500 uppercase font-medium mb-1">Received</p><p className="text-2xl font-bold text-green-600">{stats.received}</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 uppercase font-medium mb-1">Total Value</p><p className="text-xl font-bold" style={{ color: '#F26522' }}>{formatCurrency(stats.totalValue)}</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 uppercase font-medium mb-1">Total Value</p><p className="text-xl font-bold" style={{ color: '#ff6d00' }}>{formatCurrency(stats.totalValue)}</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-xs text-gray-500 uppercase font-medium mb-1">Payable</p><p className="text-xl font-bold text-red-600">{formatCurrency(stats.unpaid)}</p></CardContent></Card>
       </div>
 
@@ -687,7 +687,7 @@ const Purchases = () => {
               <div className="text-center py-12">
                 <ShoppingBag className="h-12 w-12 mx-auto text-gray-300 mb-3" />
                 <p className="text-gray-500 mb-4">No purchase orders yet.</p>
-                <Button onClick={openCreate} style={{ backgroundColor: '#F26522' }} className="text-white"><Plus className="h-4 w-4 mr-2" />Create First PO</Button>
+                <Button onClick={openCreate} style={{ backgroundColor: '#ff6d00' }} className="text-white"><Plus className="h-4 w-4 mr-2" />Create First PO</Button>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -710,9 +710,9 @@ const Purchases = () => {
                       return (
                         <tr key={p.id} className="border-b hover:bg-orange-50 transition-colors" data-testid={`purchase-row-${p.id}`}>
                           <td className="py-3 px-3">
-                            <p className="font-bold" style={{ color: '#2E2E2E' }}>{p.poNumber}</p>
+                            <p className="font-bold" style={{ color: '#0747a3' }}>{p.poNumber}</p>
                             {p.vendorInvoiceNumber && <p className="text-xs text-gray-500">Inv: {p.vendorInvoiceNumber}</p>}
-                            {p.linkedOrderId && <p className="text-xs" style={{ color: '#F26522' }}><Link2 className="h-3 w-3 inline" /> {p.linkedOrderId}</p>}
+                            {p.linkedOrderId && <p className="text-xs" style={{ color: '#ff6d00' }}><Link2 className="h-3 w-3 inline" /> {p.linkedOrderId}</p>}
                           </td>
                           <td className="py-3 px-3 text-sm">{p.vendorName}</td>
                           <td className="py-3 px-3 text-sm text-gray-600">{formatDate(p.purchaseDate)}</td>
@@ -726,7 +726,7 @@ const Purchases = () => {
                           </td>
                           <td className="py-3 px-3"><Badge className={statusColor(p.status)}>{p.status}</Badge></td>
                           <td className="py-3 px-3 text-right text-sm">{formatCurrency(p.paidAmount || 0)}</td>
-                          <td className="py-3 px-3 text-right font-bold" style={{ color: '#F26522' }}>{formatCurrency(p.totalAmount)}</td>
+                          <td className="py-3 px-3 text-right font-bold" style={{ color: '#ff6d00' }}>{formatCurrency(p.totalAmount)}</td>
                           <td className="py-3 px-3">
                             <div className="flex items-center gap-1 justify-end">
                               {p.status !== 'Received' && (
@@ -781,7 +781,7 @@ const Purchases = () => {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle className="text-2xl font-bold" style={{ color: '#2E2E2E' }}>{editing ? 'Edit PO' : 'New Purchase Order'}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="text-2xl font-bold" style={{ color: '#0747a3' }}>{editing ? 'Edit PO' : 'New Purchase Order'}</DialogTitle></DialogHeader>
           <form onSubmit={handleSave} className="space-y-4 mt-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -791,7 +791,7 @@ const Purchases = () => {
                     type="button"
                     variant="link"
                     className="h-auto p-0 text-xs"
-                    style={{ color: '#F26522' }}
+                    style={{ color: '#ff6d00' }}
                     onClick={() => navigate('/accounts/vendors?new=1')}
                   >
                     <Building2 className="h-3 w-3 mr-1" />Add New Vendor
@@ -906,11 +906,11 @@ const Purchases = () => {
                   </div>
                 ))}
               </div>
-              <div className="text-right mt-3 pt-3 border-t"><span className="text-sm text-gray-500">Total: </span><span className="text-xl font-bold" style={{ color: '#F26522' }}>{formatCurrency(calcTotal())}</span></div>
+              <div className="text-right mt-3 pt-3 border-t"><span className="text-sm text-gray-500">Total: </span><span className="text-xl font-bold" style={{ color: '#ff6d00' }}>{formatCurrency(calcTotal())}</span></div>
             </div>
 
             <div className="p-3 bg-orange-50 rounded border border-orange-200">
-              <div className="flex items-center gap-2 mb-2"><Paperclip className="h-4 w-4" style={{ color: '#F26522' }} /><span className="text-sm font-semibold">Attachments</span></div>
+              <div className="flex items-center gap-2 mb-2"><Paperclip className="h-4 w-4" style={{ color: '#ff6d00' }} /><span className="text-sm font-semibold">Attachments</span></div>
               <Input type="file" multiple accept=".pdf,.jpg,.png,.doc,.docx,.xls,.xlsx" className="text-sm" />
               <p className="text-xs text-gray-500 mt-1">Supplier invoices, bills, quotations, receipts (uploads to Google Drive)</p>
             </div>
@@ -919,7 +919,7 @@ const Purchases = () => {
 
             <DialogFooter className="gap-2 pt-4">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}><X className="h-4 w-4 mr-1" />Cancel</Button>
-              <Button type="submit" style={{ backgroundColor: '#F26522' }} className="text-white" disabled={saving}><Save className="h-4 w-4 mr-1" />{saving ? 'Saving...' : editing ? 'Update' : 'Create PO'}</Button>
+              <Button type="submit" style={{ backgroundColor: '#ff6d00' }} className="text-white" disabled={saving}><Save className="h-4 w-4 mr-1" />{saving ? 'Saving...' : editing ? 'Update' : 'Create PO'}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -930,8 +930,8 @@ const Purchases = () => {
           <DialogHeader><DialogTitle className="flex items-center gap-2"><FileText className="h-5 w-5" />Purchase Order Details</DialogTitle></DialogHeader>
           {viewData && (
             <div className="space-y-4">
-              <div className="flex justify-between items-start p-3 rounded-lg" style={{ backgroundColor: '#FFF3ED' }}>
-                <div><p className="text-xs uppercase text-gray-500">PO Number</p><p className="text-xl font-bold" style={{ color: '#F26522' }}>{viewData.poNumber}</p></div>
+              <div className="flex justify-between items-start p-3 rounded-lg" style={{ backgroundColor: '#FFF4EB' }}>
+                <div><p className="text-xs uppercase text-gray-500">PO Number</p><p className="text-xl font-bold" style={{ color: '#ff6d00' }}>{viewData.poNumber}</p></div>
                 <div className="space-y-1 text-right"><Badge className={statusColor(viewData.status)}>{viewData.status}</Badge></div>
               </div>
               <div className="grid grid-cols-2 gap-4 text-sm">
@@ -940,7 +940,7 @@ const Purchases = () => {
                 <div><p className="text-xs text-gray-500">Purchase Date</p><p className="font-semibold">{formatDate(viewData.purchaseDate)}</p></div>
                 <div><p className="text-xs text-gray-500">Expected Delivery</p><p className="font-semibold">{formatDate(viewData.expectedDeliveryDate)}</p></div>
                 <div><p className="text-xs text-gray-500">Actual Delivery</p><p className="font-semibold">{formatDate(viewData.actualDeliveryDate) || 'Not received'}</p></div>
-                <div><p className="text-xs text-gray-500">Linked Order</p><p className="font-semibold" style={{ color: '#F26522' }}>{viewData.linkedOrderId || 'None'}</p></div>
+                <div><p className="text-xs text-gray-500">Linked Order</p><p className="font-semibold" style={{ color: '#ff6d00' }}>{viewData.linkedOrderId || 'None'}</p></div>
               </div>
               <div>
                 <p className="text-xs text-gray-500 uppercase mb-2">Items</p>
@@ -953,7 +953,7 @@ const Purchases = () => {
                   </tbody>
                 </table>
               </div>
-              <div className="p-3 rounded-lg text-white" style={{ backgroundColor: '#F26522' }}>
+              <div className="p-3 rounded-lg text-white" style={{ backgroundColor: '#ff6d00' }}>
                 <div className="flex justify-between"><span>Total</span><span className="text-xl font-bold">{formatCurrency(viewData.totalAmount)}</span></div>
                 <div className="flex justify-between"><span>Paid</span><span>{formatCurrency(viewData.paidAmount || 0)}</span></div>
                 <div className="flex justify-between border-t border-white/20 pt-2 mt-2"><span>Balance</span><span className="font-bold">{formatCurrency((viewData.totalAmount || 0) - (viewData.paidAmount || 0))}</span></div>
@@ -964,7 +964,7 @@ const Purchases = () => {
                   <Button
                     type="button"
                     className="text-white"
-                    style={{ backgroundColor: '#F26522' }}
+                    style={{ backgroundColor: '#ff6d00' }}
                     onClick={() => openPayment(viewData)}
                   >
                     <CreditCard className="h-4 w-4 mr-2" />Pay vendor bill
@@ -1006,7 +1006,7 @@ const Purchases = () => {
                 <p className="text-gray-600 mt-1">PO: {paymentPurchase.poNumber || paymentPurchase.purchaseNo || '-'}</p>
                 <div className="mt-3 flex justify-between">
                   <span className="text-gray-600">Balance due</span>
-                  <strong style={{ color: '#F26522' }}>{formatCurrency(Math.max(0, paymentPurchase.totalAmount - paymentPurchase.paidAmount))}</strong>
+                  <strong style={{ color: '#ff6d00' }}>{formatCurrency(Math.max(0, paymentPurchase.totalAmount - paymentPurchase.paidAmount))}</strong>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -1041,7 +1041,7 @@ const Purchases = () => {
               </div>
               <DialogFooter className="gap-2">
                 <Button type="button" variant="outline" onClick={() => setPaymentPurchase(null)} disabled={paying}>Cancel</Button>
-                <Button type="submit" style={{ backgroundColor: '#F26522' }} className="text-white" disabled={paying} data-testid="save-vendor-payment">
+                <Button type="submit" style={{ backgroundColor: '#ff6d00' }} className="text-white" disabled={paying} data-testid="save-vendor-payment">
                   <CreditCard className="h-4 w-4 mr-2" />{paying ? 'Saving…' : 'Record payment'}
                 </Button>
               </DialogFooter>

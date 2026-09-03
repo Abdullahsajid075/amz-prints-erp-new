@@ -79,12 +79,12 @@ export const USER_ROLES = {
 };
 
 export const COLORS = {
-  PRIMARY: '#F26522',
-  SECONDARY: '#2E2E2E',
+  PRIMARY: '#ff6d00',
+  SECONDARY: '#0747a3',
   BACKGROUND: '#F5F7FB',
   CARD: '#FFFFFF',
   SUCCESS: '#10B981',
   WARNING: '#F59E0B',
   ERROR: '#EF4444',
-  INFO: '#3B82F6'
+  INFO: '#0747a3'
 };

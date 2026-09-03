@@ -389,7 +389,7 @@ const TokenBooking = () => {
     <div className="space-y-6" data-testid="token-booking">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold" style={{ color: '#2E2E2E' }}>Token Booking</h1>
+          <h1 className="text-3xl font-bold" style={{ color: '#0747a3' }}>Token Booking</h1>
           <p className="text-sm text-gray-500 mt-1">Select service → counter auto-assigned · list · print · WhatsApp</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -421,7 +421,7 @@ const TokenBooking = () => {
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Ticket className="h-5 w-5" style={{ color: '#F26522' }} />
+              <Ticket className="h-5 w-5" style={{ color: '#ff6d00' }} />
               New Token
             </CardTitle>
           </CardHeader>
@@ -518,7 +518,7 @@ const TokenBooking = () => {
                 type="submit"
                 disabled={loading}
                 className="text-white"
-                style={{ backgroundColor: '#F26522' }}
+                style={{ backgroundColor: '#ff6d00' }}
                 data-testid="token-book-submit"
               >
                 <Plus className="h-4 w-4 mr-2" />
@@ -539,7 +539,7 @@ const TokenBooking = () => {
               <>
                 <div className="rounded-xl p-4 text-center" style={{ backgroundColor: '#FFF4EE' }}>
                   <div className="text-xs uppercase tracking-wide text-gray-500">Token</div>
-                  <div className="text-4xl font-bold mt-1" style={{ color: '#F26522' }}>{lastToken.tokenNo}</div>
+                  <div className="text-4xl font-bold mt-1" style={{ color: '#ff6d00' }}>{lastToken.tokenNo}</div>
                   <div className="text-sm mt-2 text-gray-700">{lastToken.counterName}</div>
                   <div className="text-sm text-gray-600">{lastToken.customerName}</div>
                   <div className="text-sm text-gray-600">{lastToken.service}</div>
@@ -588,7 +588,7 @@ const TokenBooking = () => {
             <Button
               size="sm"
               variant={listFilter === 'today' ? 'default' : 'outline'}
-              style={listFilter === 'today' ? { backgroundColor: '#F26522' } : undefined}
+              style={listFilter === 'today' ? { backgroundColor: '#ff6d00' } : undefined}
               className={listFilter === 'today' ? 'text-white' : ''}
               onClick={() => setListFilter('today')}
             >
@@ -597,7 +597,7 @@ const TokenBooking = () => {
             <Button
               size="sm"
               variant={listFilter === 'all' ? 'default' : 'outline'}
-              style={listFilter === 'all' ? { backgroundColor: '#F26522' } : undefined}
+              style={listFilter === 'all' ? { backgroundColor: '#ff6d00' } : undefined}
               className={listFilter === 'all' ? 'text-white' : ''}
               onClick={() => setListFilter('all')}
             >
@@ -629,7 +629,7 @@ const TokenBooking = () => {
                 <tbody>
                   {tokens.map((t) => (
                     <tr key={t.id || t.tokenNo} className="border-b border-gray-100 hover:bg-orange-50/40">
-                      <td className="py-2.5 pr-3 font-bold" style={{ color: '#F26522' }}>{t.tokenNo}</td>
+                      <td className="py-2.5 pr-3 font-bold" style={{ color: '#ff6d00' }}>{t.tokenNo}</td>
                       <td className="py-2.5 pr-3">
                         <div className="font-medium">{t.customerName}</div>
                         <div className="text-xs text-gray-500">{t.customerPhone}</div>

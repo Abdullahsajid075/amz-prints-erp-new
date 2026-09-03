@@ -18,8 +18,8 @@ function amz_prints_customize_register( $wp_customize ) {
 	) );
 
 	foreach ( array(
-		'amz_primary_color'   => array( 'label' => 'Primary Color', 'default' => '#F26522' ),
-		'amz_secondary_color' => array( 'label' => 'Secondary Color', 'default' => '#1A1A1A' ),
+		'amz_primary_color'   => array( 'label' => 'Primary Color', 'default' => '#ff6d00' ),
+		'amz_secondary_color' => array( 'label' => 'Secondary Color', 'default' => '#0747a3' ),
 		'amz_accent_color'    => array( 'label' => 'Accent Color', 'default' => '#10B981' ),
 	) as $id => $args ) {
 		$wp_customize->add_setting( $id, array(

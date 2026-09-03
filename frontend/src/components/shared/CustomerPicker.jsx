@@ -25,7 +25,7 @@ export default function CustomerPicker({
   customerAddress = '',
   onChange,
   onCustomersChange,
-  accent = '#F26522',
+  accent = '#ff6d00',
   testId = 'customer-select',
   locked = false,
 }) {
@@ -164,7 +164,7 @@ export default function CustomerPicker({
 
         {customerId && !listOpen ? (
           <div
-            className="mt-1 rounded-xl border border-orange-100 bg-[#FFF9F5] px-3 py-2.5 flex items-start gap-2"
+            className="mt-1 rounded-xl border border-orange-100 bg-[#FFF6ED] px-3 py-2.5 flex items-start gap-2"
             data-testid={testId}
           >
             <User className="h-4 w-4 mt-0.5 shrink-0" style={{ color: accent }} />

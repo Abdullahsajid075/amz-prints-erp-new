@@ -113,7 +113,7 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
   const location = useLocation();
   const [openGroup, setOpenGroup] = useState('');
   const [openOrderCount, setOpenOrderCount] = useState(0);
-  const accent = primary || '#F26522';
+  const accent = primary || '#ff6d00';
 
   const visibleGroups = useMemo(() => {
     return menuGroups

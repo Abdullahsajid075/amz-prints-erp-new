@@ -278,7 +278,7 @@ const Customers = () => {
           <Button variant="outline" onClick={() => navigate('/crm')} data-testid="open-crm-button">
             <Kanban className="h-4 w-4 mr-2" />Open CRM
           </Button>
-          <Button onClick={openCreate} style={{ backgroundColor: '#F26522' }} className="text-white" data-testid="add-customer-button">
+          <Button onClick={openCreate} style={{ backgroundColor: '#ff6d00' }} className="text-white" data-testid="add-customer-button">
             <Plus className="h-4 w-4 mr-2" />Add Customer
           </Button>
         </div>
@@ -286,7 +286,7 @@ const Customers = () => {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card><CardContent className="p-4 flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#F26522' }}><User className="h-5 w-5 text-white" /></div>
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#ff6d00' }}><User className="h-5 w-5 text-white" /></div>
           <div><p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Total Customers</p><p className="text-lg font-bold">{customers.length}</p></div>
         </CardContent></Card>
         <Card><CardContent className="p-4 flex items-center gap-3">
@@ -321,15 +321,15 @@ const Customers = () => {
               <div className="text-center py-12">
                 <User className="h-12 w-12 mx-auto text-gray-300 mb-3" />
                 <p className="text-gray-500 mb-4">No customers yet.</p>
-                <Button onClick={openCreate} style={{ backgroundColor: '#F26522' }} className="text-white"><Plus className="h-4 w-4 mr-2" />Add First Customer</Button>
+                <Button onClick={openCreate} style={{ backgroundColor: '#ff6d00' }} className="text-white"><Plus className="h-4 w-4 mr-2" />Add First Customer</Button>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {sorted.map(c => (
                   <div key={c.id} className={`bg-white border rounded-xl p-4 hover:shadow-md transition-all ${isCustomerBlocked(c) ? 'border-red-200 bg-red-50/30' : 'border-gray-100 hover:border-orange-200'}`} data-testid={`customer-card-${c.id}`}>
                     <div className="flex items-start gap-3 mb-3">
-                      <div className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: isCustomerBlocked(c) ? '#FEE2E2' : '#FFF3ED' }}>
-                        <User className="h-5 w-5" style={{ color: isCustomerBlocked(c) ? '#DC2626' : '#F26522' }} />
+                      <div className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: isCustomerBlocked(c) ? '#FEE2E2' : '#FFF4EB' }}>
+                        <User className="h-5 w-5" style={{ color: isCustomerBlocked(c) ? '#DC2626' : '#ff6d00' }} />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -349,7 +349,7 @@ const Customers = () => {
                       {c.address && <p className="flex items-start gap-1.5"><MapPin className="h-3 w-3 mt-0.5 shrink-0" /><span className="truncate">{c.address}</span></p>}
                     </div>
                     <div className="flex gap-1 flex-wrap">
-                      <Button size="sm" className="flex-1 text-white h-8 text-xs min-w-[40%]" style={{ backgroundColor: '#F26522' }} onClick={() => openLedger(c)} data-testid={`ledger-${c.id}`}>
+                      <Button size="sm" className="flex-1 text-white h-8 text-xs min-w-[40%]" style={{ backgroundColor: '#ff6d00' }} onClick={() => openLedger(c)} data-testid={`ledger-${c.id}`}>
                         <BookOpen className="h-3 w-3 mr-1" />Ledger
                       </Button>
                       {Number(c.outstanding) > 0 && c.phone && (
@@ -410,9 +410,9 @@ const Customers = () => {
             <div><Label>Address</Label><Textarea rows={2} value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} /></div>
             <div><Label>City</Label><Input value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} /></div>
             <div><Label>Notes</Label><Textarea rows={2} value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} /></div>
-            <div className="rounded-lg border p-3 space-y-3" style={{ backgroundColor: '#FFF9F5' }}>
-              <p className="text-sm font-semibold flex items-center gap-2" style={{ color: '#2E2E2E' }}>
-                <Bell className="h-4 w-4" style={{ color: '#F26522' }} /> Notification preferences
+            <div className="rounded-lg border p-3 space-y-3" style={{ backgroundColor: '#FFF6ED' }}>
+              <p className="text-sm font-semibold flex items-center gap-2" style={{ color: '#0747a3' }}>
+                <Bell className="h-4 w-4" style={{ color: '#ff6d00' }} /> Notification preferences
               </p>
               <div className="flex items-center justify-between">
                 <Label>WhatsApp notifications</Label>
@@ -431,7 +431,7 @@ const Customers = () => {
             </div>
             <DialogFooter className="gap-2 pt-3">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}><X className="h-4 w-4 mr-1" />Cancel</Button>
-              <Button type="submit" style={{ backgroundColor: '#F26522' }} className="text-white" disabled={saving}><Save className="h-4 w-4 mr-1" />{saving ? 'Saving...' : editing ? 'Update' : 'Add'}</Button>
+              <Button type="submit" style={{ backgroundColor: '#ff6d00' }} className="text-white" disabled={saving}><Save className="h-4 w-4 mr-1" />{saving ? 'Saving...' : editing ? 'Update' : 'Add'}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -441,7 +441,7 @@ const Customers = () => {
       <Dialog open={ledgerOpen} onOpenChange={setLedgerOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" data-testid="ledger-dialog">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><BookOpen className="h-5 w-5" style={{ color: '#F26522' }} />
+            <DialogTitle className="flex items-center gap-2"><BookOpen className="h-5 w-5" style={{ color: '#ff6d00' }} />
               Customer Ledger — {ledger?.customer?.name || '...'}
             </DialogTitle>
             <DialogDescription>
@@ -453,9 +453,9 @@ const Customers = () => {
             : (
               <div className="space-y-4 mt-3">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="p-3 rounded-lg" style={{ backgroundColor: '#FFF3ED' }}>
+                  <div className="p-3 rounded-lg" style={{ backgroundColor: '#FFF4EB' }}>
                     <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Total Billed</p>
-                    <p className="text-lg font-bold" style={{ color: '#F26522' }}>{formatCurrency(ledger.totalBilled)}</p>
+                    <p className="text-lg font-bold" style={{ color: '#ff6d00' }}>{formatCurrency(ledger.totalBilled)}</p>
                   </div>
                   <div className="p-3 rounded-lg bg-emerald-50">
                     <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Total Paid</p>
@@ -471,7 +471,7 @@ const Customers = () => {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button type="button" className="text-white" style={{ backgroundColor: '#F26522' }} onClick={() => openCustomerPayment(ledger.customer)}>
+                  <Button type="button" className="text-white" style={{ backgroundColor: '#ff6d00' }} onClick={() => openCustomerPayment(ledger.customer)}>
                     <Wallet className="h-4 w-4 mr-2" />Record payment
                   </Button>
                   {ledger.outstanding > 0 && (
@@ -513,7 +513,7 @@ const Customers = () => {
                             <p className="font-medium text-gray-800">{line.particular}</p>
                             {line.method ? <p className="text-[11px] text-gray-400">{line.method}</p> : null}
                           </td>
-                          <td className="py-2 px-2 text-xs" style={{ color: '#F26522' }}>{line.reference || line.invoiceNumber || '—'}</td>
+                          <td className="py-2 px-2 text-xs" style={{ color: '#ff6d00' }}>{line.reference || line.invoiceNumber || '—'}</td>
                           <td className="py-2 px-2 text-right text-rose-600">{line.debit ? formatCurrency(line.debit) : '—'}</td>
                           <td className="py-2 px-2 text-right text-emerald-700">{line.credit ? formatCurrency(line.credit) : '—'}</td>
                           <td className={`py-2 px-2 text-right font-semibold ${Number(line.balance) > 0 ? 'text-gray-900' : 'text-emerald-700'}`}>{formatCurrency(line.balance)}</td>
@@ -564,7 +564,7 @@ const Customers = () => {
               <p className="text-xs text-gray-500">Extra amount is saved as customer credit for future invoices/orders.</p>
               <DialogFooter className="gap-2">
                 <Button type="button" variant="outline" onClick={() => setPayCustomer(null)} disabled={paySaving}>Cancel</Button>
-                <Button type="submit" className="text-white" style={{ backgroundColor: '#F26522' }} disabled={paySaving}>
+                <Button type="submit" className="text-white" style={{ backgroundColor: '#ff6d00' }} disabled={paySaving}>
                   <Wallet className="h-4 w-4 mr-1" />{paySaving ? 'Saving…' : 'Record & print receipt'}
                 </Button>
               </DialogFooter>

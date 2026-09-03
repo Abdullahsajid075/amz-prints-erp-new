@@ -28,7 +28,7 @@ const PIPELINE = [
 ];
 
 const QUICK_ACTIONS = [
-  { label: 'New Order', path: '/orders/new', module: 'orders', icon: Plus, tint: '#F26522' },
+  { label: 'New Order', path: '/orders/new', module: 'orders', icon: Plus, tint: '#ff6d00' },
   { label: 'Token Booking', path: '/tokens', module: 'tokens', icon: Ticket, tint: '#0EA5E9' },
   { label: 'POS Sale', path: '/pos', module: 'pos', icon: Store, tint: '#10B981' },
   { label: 'Quotation', path: '/quotations/new', module: 'quotations', icon: FileText, tint: '#8B5CF6' },
@@ -120,7 +120,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const { user, canAccessModule } = useAuth();
   const { company, primary } = useBrand();
-  const brand = primary || '#F26522';
+  const brand = primary || '#ff6d00';
 
   const quickActions = useMemo(
     () => QUICK_ACTIONS.filter((a) => canAccessModule(a.module)),
@@ -260,7 +260,7 @@ const Dashboard = () => {
         style={{
           background: `
             radial-gradient(700px 280px at 0% 0%, ${brand}66, transparent 55%),
-            linear-gradient(145deg, #151B24 0%, #1C2430 55%, #10151C 100%)
+            linear-gradient(145deg, #0747a3 0%, #05357c 55%, #042a63 100%)
           `,
         }}
       >

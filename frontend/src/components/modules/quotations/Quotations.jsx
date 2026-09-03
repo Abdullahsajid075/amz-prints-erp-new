@@ -127,13 +127,13 @@ const Quotations = () => {
     <div className="space-y-6" data-testid="quotations-page">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold" style={{ color: '#2E2E2E' }}>Quotations</h1>
+          <h1 className="text-3xl font-bold" style={{ color: '#0747a3' }}>Quotations</h1>
           <p className="text-gray-600 mt-1">Create quotes, follow up, convert to orders, print</p>
         </div>
         <Button
           onClick={() => navigate('/quotations/new')}
           className="text-white"
-          style={{ backgroundColor: primary || '#F26522' }}
+          style={{ backgroundColor: primary || '#ff6d00' }}
           data-testid="create-quotation-button"
         >
           <Plus className="h-4 w-4 mr-2" />
@@ -187,7 +187,7 @@ const Quotations = () => {
                         <div className="text-xs text-gray-500">{q.customerPhone}</div>
                       </td>
                       <td className="py-2.5 px-3 text-gray-600 hidden md:table-cell">{formatDate(q.date)}</td>
-                      <td className="py-2.5 px-3 text-right font-bold" style={{ color: primary || '#F26522' }}>
+                      <td className="py-2.5 px-3 text-right font-bold" style={{ color: primary || '#ff6d00' }}>
                         {formatCurrency(q.totalAmount)}
                       </td>
                       <td className="py-2.5 px-3">

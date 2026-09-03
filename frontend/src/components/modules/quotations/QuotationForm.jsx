@@ -32,7 +32,7 @@ const QuotationForm = ({ printMode = false }) => {
   const { quotationId } = useParams();
   const isEdit = !!quotationId;
   const { company, primary } = useBrand();
-  const accent = primary || '#F26522';
+  const accent = primary || '#ff6d00';
 
   const [form, setForm] = useState({
     customerId: '',
@@ -189,7 +189,7 @@ const QuotationForm = ({ printMode = false }) => {
       notes: notes || '',
     })),
     totalAmount: total,
-    balanceAmount: total,
+    balanceAmount: 0,
     advancePayment: 0,
     docType: 'Quotation',
   });
@@ -310,7 +310,7 @@ const QuotationForm = ({ printMode = false }) => {
         customerAddress: payload.customerAddress,
         products: payload.products,
         totalAmount: payload.totalAmount,
-        balanceAmount: payload.balanceAmount,
+        balanceAmount: payload.totalAmount,
         advancePayment: 0,
         remarks: payload.remarks
           ? `${payload.remarks}\n(From quotation ${savedQuote?.orderId || quoteId || ''})`
@@ -368,7 +368,7 @@ const QuotationForm = ({ printMode = false }) => {
                 </div>
               )}
               <div>
-                <h2 className="text-xl font-bold" style={{ color: '#2E2E2E' }}>{company.name || 'AMZ Prints'}</h2>
+                <h2 className="text-xl font-bold" style={{ color: '#0747a3' }}>{company.name || 'AMZ Prints'}</h2>
                 <p className="text-sm text-gray-600">{company.tagline}</p>
                 <p className="text-xs text-gray-500 mt-1">{[company.address, company.phone, company.email].filter(Boolean).join(' · ')}</p>
               </div>
@@ -396,7 +396,7 @@ const QuotationForm = ({ printMode = false }) => {
 
           <table className="w-full text-sm mb-6">
             <thead>
-              <tr style={{ backgroundColor: '#2E2E2E', color: '#fff' }}>
+              <tr style={{ backgroundColor: '#0747a3', color: '#fff' }}>
                 <th className="text-left p-3">#</th>
                 <th className="text-left p-3">Description</th>
                 <th className="text-right p-3">Qty</th>
@@ -478,7 +478,7 @@ const QuotationForm = ({ printMode = false }) => {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <FileText className="h-5 w-5 shrink-0" style={{ color: accent }} />
-                <h1 className="text-xl sm:text-2xl font-bold truncate" style={{ color: '#2E2E2E' }}>
+                <h1 className="text-xl sm:text-2xl font-bold truncate" style={{ color: '#0747a3' }}>
                   {isEdit ? 'Edit Quotation' : 'New Quotation'}
                 </h1>
               </div>
@@ -645,7 +645,7 @@ const QuotationForm = ({ printMode = false }) => {
               </div>
             ))}
 
-            <div className="rounded-xl p-3 flex items-center justify-between" style={{ backgroundColor: '#FFF9F5' }}>
+            <div className="rounded-xl p-3 flex items-center justify-between" style={{ backgroundColor: '#FFF6ED' }}>
               <span className="text-sm font-medium text-gray-600">Quotation total</span>
               <span className="text-xl font-bold" style={{ color: accent }}>{formatCurrency(total)}</span>
             </div>

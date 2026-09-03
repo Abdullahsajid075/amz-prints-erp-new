@@ -9,7 +9,7 @@ import { authAPI } from '@/services/api';
 import { tokenStorage } from '@/services/tokenStorage';
 import { clearGasCache } from '@/services/gasClient';
 
-const BRAND_CACHE_KEY = 'amz_erp_brand_v1';
+const BRAND_CACHE_KEY = 'amz_erp_brand_v2';
 
 const DEFAULT_COMPANY = {
   name: 'AMZ Prints',
@@ -21,16 +21,16 @@ const DEFAULT_COMPANY = {
 function readFrozenBrand() {
   try {
     const raw = localStorage.getItem(BRAND_CACHE_KEY);
-    if (!raw) return { company: DEFAULT_COMPANY, primary: '#F26522' };
+    if (!raw) return { company: DEFAULT_COMPANY, primary: '#ff6d00' };
     const parsed = JSON.parse(raw);
     const company = { ...DEFAULT_COMPANY, ...(parsed?.company || {}) };
     if (parsed?.companyLogo && !company.logo) company.logo = parsed.companyLogo;
     return {
       company,
-      primary: parsed?.theme?.primary || '#F26522',
+      primary: parsed?.theme?.primary || '#ff6d00',
     };
   } catch {
-    return { company: DEFAULT_COMPANY, primary: '#F26522' };
+    return { company: DEFAULT_COMPANY, primary: '#ff6d00' };
   }
 }
 
@@ -43,7 +43,7 @@ const Login = () => {
   const [credentials, setCredentials] = useState({ email: '', password: '' });
   const [loginError, setLoginError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
-  const accent = primary || '#F26522';
+  const accent = primary || '#ff6d00';
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -78,7 +78,7 @@ const Login = () => {
           background: `
             radial-gradient(800px 480px at 10% 20%, ${accent}55, transparent 55%),
             radial-gradient(600px 400px at 90% 80%, rgba(255,255,255,0.08), transparent 50%),
-            linear-gradient(155deg, #151B24 0%, #1C2430 55%, #10151C 100%)
+            linear-gradient(155deg, #0747a3 0%, #05357c 55%, #042a63 100%)
           `,
         }}
       >

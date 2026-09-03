@@ -89,7 +89,7 @@ export default function ReceivablesDialog({ open, onOpenChange }) {
               {rows.map((inv) => (
                 <tr key={inv.id} className="border-b last:border-0">
                   <td className="py-2.5 pr-2">
-                    <p className="font-semibold" style={{ color: '#F26522' }}>{inv.invoiceNumber}</p>
+                    <p className="font-semibold" style={{ color: '#ff6d00' }}>{inv.invoiceNumber}</p>
                     <p className="text-[11px] text-gray-500">{formatDate(inv.date)}{inv.orderId ? ` · ${inv.orderId}` : ''}</p>
                   </td>
                   <td className="py-2.5 pr-2">

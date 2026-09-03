@@ -1,7 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { gasRequest } from '@/services/gasClient';
+import { migrateThemeColors } from '@/utils/brandColors';
 
-const BRAND_CACHE_KEY = 'amz_erp_brand_v1';
+const BRAND_CACHE_KEY = 'amz_erp_brand_v2';
 
 const defaultBrand = {
   company: {
@@ -18,8 +19,8 @@ const defaultBrand = {
     signature: '',
   },
   theme: {
-    primary: '#F26522',
-    secondary: '#2E2E2E',
+    primary: '#ff6d00',
+    secondary: '#0747a3',
     accent: '#10B981',
   },
   invoice: {
@@ -41,7 +42,7 @@ function readCachedBrand() {
     if (!parsed?.company) return null;
     return {
       company: { ...defaultBrand.company, ...(parsed.company || {}) },
-      theme: { ...defaultBrand.theme, ...(parsed.theme || {}) },
+      theme: migrateThemeColors({ ...defaultBrand.theme, ...(parsed.theme || {}) }),
       invoice: { ...defaultBrand.invoice, ...(parsed.invoice || {}) },
     };
   } catch {
@@ -76,7 +77,7 @@ function normalizeBrandPayload(data) {
   company.signature = pickImageField(data, 'companySignature', company.signature);
   return {
     company,
-    theme: { ...defaultBrand.theme, ...(typeof data.theme === 'object' ? data.theme : {}) },
+    theme: migrateThemeColors({ ...defaultBrand.theme, ...(typeof data.theme === 'object' ? data.theme : {}) }),
     invoice: { ...defaultBrand.invoice, ...(typeof data.invoice === 'object' ? data.invoice : {}) },
   };
 }
@@ -98,6 +99,7 @@ function brandSignature(b) {
     imgSig(b.company?.stamp),
     imgSig(b.company?.signature),
     b.theme?.primary,
+    b.theme?.secondary,
     b.invoice?.showStamp,
     b.invoice?.showSignature,
     b.invoice?.template,
@@ -123,7 +125,10 @@ export const BrandProvider = ({ children }) => {
   const applyTheme = useCallback((theme) => {
     const root = document.documentElement;
     if (theme?.primary) root.style.setProperty('--brand-primary', theme.primary);
-    if (theme?.secondary) root.style.setProperty('--brand-secondary', theme.secondary);
+    if (theme?.secondary) {
+      root.style.setProperty('--brand-secondary', theme.secondary);
+      root.style.setProperty('--sidebar', theme.secondary);
+    }
     if (theme?.accent) root.style.setProperty('--brand-accent', theme.accent);
   }, []);
 
@@ -152,14 +157,21 @@ export const BrandProvider = ({ children }) => {
   useEffect(() => {
     if (booted.current) return;
     booted.current = true;
-    if (initial.current?.theme) applyTheme(initial.current.theme);
+    applyTheme((initial.current || defaultBrand).theme);
     setLoading(false);
     refreshBrand();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const value = useMemo(
-    () => ({ brand, loading, refreshBrand, primary: brand.theme.primary, company: brand.company }),
+    () => ({
+      brand,
+      loading,
+      refreshBrand,
+      primary: brand.theme.primary,
+      secondary: brand.theme.secondary,
+      company: brand.company,
+    }),
     [brand, loading, refreshBrand]
   );
 

@@ -136,7 +136,7 @@ function buildCostingPrintHtml({ title, company, form, result, mode }) {
 
 const PrintingCostCalculator = () => {
   const { company, primary } = useBrand();
-  const accent = primary || '#F26522';
+  const accent = primary || '#ff6d00';
   const [tab, setTab] = useState('full');
   const [rates, setRates] = useState(() => loadReamRates());
   const [plateCosts, setPlateCosts] = useState(() => loadColourPlateCosts());
@@ -313,11 +313,11 @@ const PrintingCostCalculator = () => {
         <div className="h-1.5" style={{ backgroundColor: accent }} />
         <div className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#FFF3ED' }}>
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#FFF4EB' }}>
               <Calculator className="h-5 w-5" style={{ color: accent }} />
             </div>
             <div>
-              <h1 className="text-2xl font-bold" style={{ color: '#2E2E2E' }}>Printing Cost Calculator</h1>
+              <h1 className="text-2xl font-bold" style={{ color: '#0747a3' }}>Printing Cost Calculator</h1>
               <p className="text-sm text-gray-600">
                 Paper = sheets÷500 × ream rate · Plates/tracing fixed by colour · extras manual
               </p>
@@ -430,7 +430,7 @@ const PrintingCostCalculator = () => {
                     <NumField label={`Print Height (${full.unit})`} value={full.printHeight} onChange={(v) => setFullField('printHeight', v)} step={0.01} />
                     <NumField label={`Grip / Margin (${full.sheetUnit})`} value={full.margin} onChange={(v) => setFullField('margin', v)} step={0.01} />
                   </div>
-                  <div className="rounded-xl bg-[#FFF9F5] border border-orange-100 p-3 text-sm space-y-2">
+                  <div className="rounded-xl bg-[#FFF6ED] border border-orange-100 p-3 text-sm space-y-2">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                       <div><p className="text-[10px] uppercase text-gray-500">Layout</p><p className="font-semibold capitalize">{fullResult.orientation} · {fullResult.cols}×{fullResult.rows}</p></div>
                       <div><p className="text-[10px] uppercase text-gray-500">Pieces / Sheet</p><p className="font-semibold">{fullResult.piecesPerSheet}</p></div>
@@ -582,7 +582,7 @@ const PrintingCostCalculator = () => {
                       <span className="font-semibold">{formatCurrency(val)}</span>
                     </div>
                   ))}
-                  <div className="rounded-xl p-3 mt-2" style={{ backgroundColor: '#FFF3ED' }}>
+                  <div className="rounded-xl p-3 mt-2" style={{ backgroundColor: '#FFF4EB' }}>
                     <p className="text-[10px] uppercase tracking-wide text-gray-500">Total Production Cost</p>
                     <p className="text-2xl font-bold" style={{ color: accent }}>{formatCurrency(fullResult.totalProductionCost)}</p>
                     <p className="text-sm text-gray-700 mt-1">
@@ -631,7 +631,7 @@ const PrintingCostCalculator = () => {
               </div>
             </CardHeader>
             <CardContent className="pt-0 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-xl border border-orange-100 bg-[#FFF9F5] p-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-xl border border-orange-100 bg-[#FFF6ED] p-3">
                 {[
                   { key: 1, label: 'Single colour plates + tracing' },
                   { key: 2, label: '2 colour plates + tracing' },

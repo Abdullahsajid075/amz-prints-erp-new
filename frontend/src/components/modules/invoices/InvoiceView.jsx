@@ -20,7 +20,7 @@ const InvoiceView = ({ isPublic = false }) => {
   const [loading, setLoading] = useState(true);
 
   const template = brand?.invoice?.template || 'classic';
-  const accent = primary || '#F26522';
+  const accent = primary || '#ff6d00';
   const showQR = brand?.invoice?.showQR !== false;
   const showStamp = brand?.invoice?.showStamp !== false;
   const showSignature = brand?.invoice?.showSignature !== false;
@@ -134,8 +134,8 @@ const InvoiceView = ({ isPublic = false }) => {
   const printFitClass = fitOnePage ? ' invoice-fit-one-page' : ' invoice-multi-page';
 
   const headerPad = template === 'minimal' ? 'p-6' : 'p-8';
-  const tableHeadBg = template === 'bold' ? accent : template === 'minimal' ? '#fff' : '#2E2E2E';
-  const tableHeadColor = template === 'minimal' ? '#2E2E2E' : '#fff';
+  const tableHeadBg = template === 'bold' ? accent : template === 'minimal' ? '#fff' : '#0747a3';
+  const tableHeadColor = template === 'minimal' ? '#0747a3' : '#fff';
   const tableHeadClass = template === 'minimal' ? 'border-b-2 border-gray-800' : '';
 
   const LogoBlock = () => (
@@ -215,14 +215,14 @@ const InvoiceView = ({ isPublic = false }) => {
         style={template === 'bold' ? { borderColor: accent } : undefined}
       >
         {template !== 'minimal' && (
-          <div className="h-1.5 inv-accent-bar" style={{ background: template === 'modern' ? accent : `linear-gradient(90deg, ${accent} 0%, #FF8A50 50%, ${accent} 100%)` }} />
+          <div className="h-1.5 inv-accent-bar" style={{ background: template === 'modern' ? accent : `linear-gradient(90deg, ${accent} 0%, #0747a3 50%, ${accent} 100%)` }} />
         )}
 
         <div className={`${headerPad} inv-section flex justify-between items-start gap-4 ${template === 'minimal' ? 'border-b border-gray-300' : 'border-b border-orange-100'}`}>
           <div className={`flex items-center gap-3 min-w-0 ${template === 'modern' ? 'flex-row-reverse' : ''}`}>
             <LogoBlock />
             <div className={`min-w-0 ${template === 'modern' ? 'text-right' : ''}`}>
-              <h1 className="inv-brand-name text-xl font-bold leading-tight truncate" style={{ color: '#2E2E2E' }}>
+              <h1 className="inv-brand-name text-xl font-bold leading-tight truncate" style={{ color: '#0747a3' }}>
                 {company.name || 'AMZ Prints'}
               </h1>
               <p className="inv-muted text-xs text-gray-600 mt-0.5">{company.tagline || 'Professional Printing & Advertising Services'}</p>
@@ -260,7 +260,7 @@ const InvoiceView = ({ isPublic = false }) => {
         <div className={`${headerPad} inv-section grid grid-cols-1 md:grid-cols-2 gap-4 border-b border-gray-200`}>
           <div>
             <p className="text-[10px] uppercase tracking-wider font-semibold mb-1" style={{ color: accent }}>Bill To</p>
-            <p className="inv-customer font-bold text-base leading-snug" style={{ color: '#2E2E2E' }}>{invoice.customerName}</p>
+            <p className="inv-customer font-bold text-base leading-snug" style={{ color: '#0747a3' }}>{invoice.customerName}</p>
             {invoice.customerAddress && <p className="text-xs text-gray-600 mt-0.5">{invoice.customerAddress}</p>}
             {invoice.customerPhone && <p className="text-xs text-gray-600">{invoice.customerPhone}</p>}
             {invoice.customerEmail && <p className="text-xs text-gray-600">{invoice.customerEmail}</p>}
@@ -298,7 +298,7 @@ const InvoiceView = ({ isPublic = false }) => {
                   <tr key={item.id || `${item.name}-${item.quantity}-${item.rate}-${i}`} className="border-b border-gray-100">
                     <td className="p-2 text-xs text-gray-600">{i + 1}</td>
                     <td className="p-2">
-                      <p className="font-semibold text-xs" style={{ color: '#2E2E2E' }}>{item.name}</p>
+                      <p className="font-semibold text-xs" style={{ color: '#0747a3' }}>{item.name}</p>
                       {itemMeta && <p className="text-[11px] text-gray-500 mt-0.5">{itemMeta}</p>}
                       {lineNote && (
                         <p className="text-[11px] text-gray-600 mt-0.5 whitespace-pre-line leading-snug">{lineNote}</p>
@@ -356,7 +356,7 @@ const InvoiceView = ({ isPublic = false }) => {
               <span className="text-xs font-semibold text-green-700">{formatCurrency(invoice.paidAmount || 0)}</span>
             </div>
             <div className="inv-balance-row flex justify-between py-2 border-t-2 border-gray-800 mt-1">
-              <span className="text-sm font-bold" style={{ color: '#2E2E2E' }}>Balance Due</span>
+              <span className="text-sm font-bold" style={{ color: '#0747a3' }}>Balance Due</span>
               <span className="inv-total text-lg font-bold" style={{ color: balance > 0 ? '#EF4444' : '#10B981' }}>
                 {formatCurrency(balance)}
               </span>
@@ -415,9 +415,9 @@ const InvoiceView = ({ isPublic = false }) => {
             </p>
             <div className="inline-flex flex-col items-center gap-2">
               <div className={`bg-white p-2.5 rounded-lg border-2 ${template === 'minimal' ? 'border-gray-300' : 'border-orange-200'}`}>
-                <QRCodeSVG value={verifyUrl} size={108} level="M" fgColor="#2E2E2E" />
+                <QRCodeSVG value={verifyUrl} size={108} level="M" fgColor="#0747a3" />
               </div>
-              <p className="inv-verify-code text-xl font-extrabold tracking-[0.14em]" style={{ color: '#2E2E2E' }}>
+              <p className="inv-verify-code text-xl font-extrabold tracking-[0.14em]" style={{ color: '#0747a3' }}>
                 {invoice.shareToken}
               </p>
               <p className="text-xs text-gray-600 max-w-sm">

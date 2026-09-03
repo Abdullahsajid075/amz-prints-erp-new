@@ -169,7 +169,7 @@ const Vendors = () => {
     <div className="space-y-6" data-testid="vendors-page">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold" style={{ color: '#2E2E2E' }}>Vendors</h1>
+          <h1 className="text-3xl font-bold" style={{ color: '#0747a3' }}>Vendors</h1>
           <p className="text-gray-600 mt-1">Suppliers, payables & purchase history</p>
           <p className="text-xs text-amber-700 mt-1 flex items-center gap-1">
             <Shield className="h-3.5 w-3.5" />
@@ -177,7 +177,7 @@ const Vendors = () => {
           </p>
         </div>
         {canManage && (
-          <Button onClick={openCreate} style={{ backgroundColor: '#F26522' }} className="text-white" data-testid="add-vendor-button">
+          <Button onClick={openCreate} style={{ backgroundColor: '#ff6d00' }} className="text-white" data-testid="add-vendor-button">
             <Plus className="h-4 w-4 mr-2" />Add Vendor
           </Button>
         )}
@@ -185,7 +185,7 @@ const Vendors = () => {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card><CardContent className="p-4 flex items-center gap-3">
-          <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#F26522' }}><Building2 className="h-6 w-6 text-white" /></div>
+          <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#ff6d00' }}><Building2 className="h-6 w-6 text-white" /></div>
           <div><p className="text-xs text-gray-500 uppercase font-medium">Total Vendors</p><p className="text-2xl font-bold">{stats.total}</p></div>
         </CardContent></Card>
         <Card><CardContent className="p-4 flex items-center gap-3">
@@ -221,7 +221,7 @@ const Vendors = () => {
                 <Building2 className="h-12 w-12 mx-auto text-gray-300 mb-3" />
                 <p className="text-gray-500 mb-4">No vendors yet.</p>
                 {canManage && (
-                  <Button onClick={openCreate} style={{ backgroundColor: '#F26522' }} className="text-white"><Plus className="h-4 w-4 mr-2" />Add First Vendor</Button>
+                  <Button onClick={openCreate} style={{ backgroundColor: '#ff6d00' }} className="text-white"><Plus className="h-4 w-4 mr-2" />Add First Vendor</Button>
                 )}
               </div>
             ) : (
@@ -230,9 +230,9 @@ const Vendors = () => {
                   <div key={v.id} className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-lg hover:border-orange-300 transition-all" data-testid={`vendor-card-${v.id}`}>
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#FFF3ED' }}><Building2 className="h-6 w-6" style={{ color: '#F26522' }} /></div>
+                        <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#FFF4EB' }}><Building2 className="h-6 w-6" style={{ color: '#ff6d00' }} /></div>
                         <div>
-                          <h3 className="font-bold" style={{ color: '#2E2E2E' }}>{v.name}</h3>
+                          <h3 className="font-bold" style={{ color: '#0747a3' }}>{v.name}</h3>
                           <p className="text-xs text-gray-500">{v.contactPerson}</p>
                         </div>
                       </div>
@@ -244,7 +244,7 @@ const Vendors = () => {
                       {v.address && <p className="flex items-start gap-1"><MapPin className="h-3 w-3 mt-0.5 flex-shrink-0" />{v.address}</p>}
                     </div>
                     <div className="grid grid-cols-2 gap-2 pb-3 border-b border-gray-100 mb-3">
-                      <div><p className="text-xs text-gray-500">Purchases</p><p className="font-bold" style={{ color: '#2E2E2E' }}>{formatCurrency(v.totalPurchases || 0)}</p></div>
+                      <div><p className="text-xs text-gray-500">Purchases</p><p className="font-bold" style={{ color: '#0747a3' }}>{formatCurrency(v.totalPurchases || 0)}</p></div>
                       <div><p className="text-xs text-gray-500">Payable</p><p className="font-bold" style={{ color: (v.outstandingBalance || 0) > 0 ? '#EF4444' : '#10B981' }}>{formatCurrency(v.outstandingBalance || 0)}</p></div>
                     </div>
                     {canManage && (
@@ -262,7 +262,7 @@ const Vendors = () => {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle className="text-2xl font-bold" style={{ color: '#2E2E2E' }}>{editing ? 'Edit Vendor' : 'Add New Vendor'}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="text-2xl font-bold" style={{ color: '#0747a3' }}>{editing ? 'Edit Vendor' : 'Add New Vendor'}</DialogTitle></DialogHeader>
           <form onSubmit={handleSave} className="space-y-4 mt-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2"><Label>Vendor Name *</Label><Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required data-testid="vendor-name-input" /></div>
@@ -287,7 +287,7 @@ const Vendors = () => {
             </div>
             <DialogFooter className="gap-2 pt-4">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}><X className="h-4 w-4 mr-1" />Cancel</Button>
-              <Button type="submit" style={{ backgroundColor: '#F26522' }} className="text-white" disabled={saving}><Save className="h-4 w-4 mr-1" />{saving ? 'Saving...' : editing ? 'Update' : 'Add'}</Button>
+              <Button type="submit" style={{ backgroundColor: '#ff6d00' }} className="text-white" disabled={saving}><Save className="h-4 w-4 mr-1" />{saving ? 'Saving...' : editing ? 'Update' : 'Add'}</Button>
             </DialogFooter>
           </form>
         </DialogContent>

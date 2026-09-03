@@ -102,7 +102,7 @@ const Inventory = () => {
   return (
     <div className="space-y-6" data-testid="inventory-page">
       <div>
-        <h1 className="text-3xl font-bold" style={{ color: '#2E2E2E' }}>Inventory</h1>
+        <h1 className="text-3xl font-bold" style={{ color: '#0747a3' }}>Inventory</h1>
         <p className="text-gray-600 mt-1">Stock levels, reserved qty & upcoming purchases</p>
       </div>
 
@@ -159,7 +159,7 @@ const Inventory = () => {
                   {rows.map((p) => (
                     <tr key={p.id} className="border-b hover:bg-orange-50 transition-colors" data-testid={`inventory-row-${p.id}`}>
                       <td className="py-3 px-3">
-                        <p className="font-semibold" style={{ color: '#2E2E2E' }}>{p.name}</p>
+                        <p className="font-semibold" style={{ color: '#0747a3' }}>{p.name}</p>
                         <p className="text-xs text-gray-500">{[p.sku, p.category].filter(Boolean).join(' · ')}</p>
                       </td>
                       <td className="py-3 px-3 text-right font-bold">{p.stock}</td>

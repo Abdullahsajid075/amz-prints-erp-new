@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AMZ_PRINTS_VERSION', '2.3.0' );
+define( 'AMZ_PRINTS_VERSION', '2.3.2' );
 define( 'AMZ_PRINTS_DIR', get_template_directory() );
 define( 'AMZ_PRINTS_URI', get_template_directory_uri() );
 
@@ -98,8 +98,8 @@ function amz_prints_mod( $key, $default = '' ) {
  * Output inline CSS variables from Customizer
  */
 function amz_prints_custom_css_vars() {
-	$primary   = sanitize_hex_color( amz_prints_mod( 'amz_primary_color', '#F26522' ) );
-	$secondary = sanitize_hex_color( amz_prints_mod( 'amz_secondary_color', '#1A1A1A' ) );
+	$primary   = sanitize_hex_color( amz_prints_mod( 'amz_primary_color', '#ff6d00' ) );
+	$secondary = sanitize_hex_color( amz_prints_mod( 'amz_secondary_color', '#0747a3' ) );
 	$accent    = sanitize_hex_color( amz_prints_mod( 'amz_accent_color', '#10B981' ) );
 	?>
 	<style id="amz-prints-vars">

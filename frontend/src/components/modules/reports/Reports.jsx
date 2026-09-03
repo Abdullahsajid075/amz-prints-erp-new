@@ -14,7 +14,7 @@ import { TrendingUp, TrendingDown, DollarSign, ShoppingBag, Calendar, Printer, F
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend, AreaChart, Area } from 'recharts';
 import { toast } from 'sonner';
 
-const COLORS = ['#F26522', '#2E2E2E', '#10B981', '#F59E0B', '#3B82F6', '#8B5CF6', '#EC4899'];
+const COLORS = ['#ff6d00', '#0747a3', '#10B981', '#F59E0B', '#3B82F6', '#8B5CF6', '#EC4899'];
 
 const REPORT_TYPES = [
   { value: 'pl', label: 'Profit & Loss' },
@@ -338,7 +338,7 @@ const Reports = () => {
     <div className="space-y-6" data-testid="reports-page">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 no-print">
         <div>
-          <h1 className="text-3xl font-bold" style={{ color: '#2E2E2E' }}>Reports & Analytics</h1>
+          <h1 className="text-3xl font-bold" style={{ color: '#0747a3' }}>Reports & Analytics</h1>
           <p className="text-gray-600 mt-1">Filter by date · export CSV · print PDF</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -387,7 +387,7 @@ const Reports = () => {
             <Input type="date" value={dateRange.to} onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })} data-testid="report-to" />
           </div>
           <div className="flex items-end lg:col-span-2">
-            <Button onClick={fetchReports} style={{ backgroundColor: primary || '#F26522' }} className="text-white w-full" disabled={loading}>
+            <Button onClick={fetchReports} style={{ backgroundColor: primary || '#ff6d00' }} className="text-white w-full" disabled={loading}>
               <Calendar className="h-4 w-4 mr-2" />{loading ? 'Loading…' : 'Apply'}
             </Button>
           </div>
@@ -413,8 +413,8 @@ const Reports = () => {
           <div><p className="text-xs text-gray-500 uppercase font-medium">Purchases</p><p className="text-xl font-bold">{formatCurrency(pl.purchases)}</p></div>
         </CardContent></Card>
         <Card><CardContent className="p-4 flex items-center gap-3">
-          <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: pl.profit >= 0 ? (primary || '#F26522') : '#EF4444' }}><DollarSign className="h-6 w-6 text-white" /></div>
-          <div><p className="text-xs text-gray-500 uppercase font-medium">{pl.profit >= 0 ? 'Net Profit' : 'Net Loss'}</p><p className="text-xl font-bold" style={{ color: pl.profit >= 0 ? (primary || '#F26522') : '#EF4444' }}>{formatCurrency(Math.abs(pl.profit))}</p></div>
+          <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: pl.profit >= 0 ? (primary || '#ff6d00') : '#EF4444' }}><DollarSign className="h-6 w-6 text-white" /></div>
+          <div><p className="text-xs text-gray-500 uppercase font-medium">{pl.profit >= 0 ? 'Net Profit' : 'Net Loss'}</p><p className="text-xl font-bold" style={{ color: pl.profit >= 0 ? (primary || '#ff6d00') : '#EF4444' }}>{formatCurrency(Math.abs(pl.profit))}</p></div>
         </CardContent></Card>
       </div>
 
@@ -442,7 +442,7 @@ const Reports = () => {
                 <Bar dataKey="income" fill="#10B981" name="Income" />
                 <Bar dataKey="expenses" fill="#EF4444" name="Expenses" />
                 <Bar dataKey="purchases" fill="#8B5CF6" name="Purchases" />
-                <Bar dataKey="profit" fill={primary || '#F26522'} name="Profit" />
+                <Bar dataKey="profit" fill={primary || '#ff6d00'} name="Profit" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent></Card>
@@ -450,9 +450,9 @@ const Reports = () => {
             <Card><CardHeader><CardTitle>Profit Trend</CardTitle></CardHeader><CardContent>
               <ResponsiveContainer width="100%" height={250}>
                 <AreaChart data={data.comparison}>
-                  <defs><linearGradient id="cP" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={primary || '#F26522'} stopOpacity={0.8} /><stop offset="95%" stopColor={primary || '#F26522'} stopOpacity={0.1} /></linearGradient></defs>
+                  <defs><linearGradient id="cP" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={primary || '#ff6d00'} stopOpacity={0.8} /><stop offset="95%" stopColor={primary || '#ff6d00'} stopOpacity={0.1} /></linearGradient></defs>
                   <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="period" /><YAxis /><Tooltip />
-                  <Area type="monotone" dataKey="profit" stroke={primary || '#F26522'} fill="url(#cP)" />
+                  <Area type="monotone" dataKey="profit" stroke={primary || '#ff6d00'} fill="url(#cP)" />
                 </AreaChart>
               </ResponsiveContainer>
             </CardContent></Card>
@@ -474,7 +474,7 @@ const Reports = () => {
             <ResponsiveContainer width="100%" height={280}>
               <LineChart data={data.sales}>
                 <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="period" /><YAxis /><Tooltip /><Legend />
-                <Line type="monotone" dataKey="amount" stroke={primary || '#F26522'} strokeWidth={2} name="Sales" />
+                <Line type="monotone" dataKey="amount" stroke={primary || '#ff6d00'} strokeWidth={2} name="Sales" />
                 <Line type="monotone" dataKey="orders" stroke="#10B981" strokeWidth={2} name="Orders" />
               </LineChart>
             </ResponsiveContainer>
@@ -493,7 +493,7 @@ const Reports = () => {
                       <td className="p-2">{o.customerName || '—'}</td>
                       <td className="p-2"><Badge variant="outline">{isPosOrder(o) ? 'POS' : 'Order'}</Badge></td>
                       <td className="p-2">{o.status}</td>
-                      <td className="p-2 text-right font-semibold" style={{ color: primary || '#F26522' }}>{formatCurrency(o.totalAmount)}</td>
+                      <td className="p-2 text-right font-semibold" style={{ color: primary || '#ff6d00' }}>{formatCurrency(o.totalAmount)}</td>
                     </tr>
                   ))}
                   {!sortedSalesOrders.length && <tr><td colSpan={6} className="p-6 text-center text-gray-500">No sales in range</td></tr>}
@@ -609,7 +609,7 @@ const Reports = () => {
                       <td className="p-2">{formatDate(o.date)}</td>
                       <td className="p-2">{o.customerName}</td>
                       <td className="p-2"><Badge variant="outline">{o.status}</Badge></td>
-                      <td className="p-2 text-right font-semibold" style={{ color: primary || '#F26522' }}>{formatCurrency(o.totalAmount)}</td>
+                      <td className="p-2 text-right font-semibold" style={{ color: primary || '#ff6d00' }}>{formatCurrency(o.totalAmount)}</td>
                       <td className="p-2 text-right">{formatCurrency(o.balanceAmount)}</td>
                     </tr>
                   ))}
@@ -640,7 +640,7 @@ const Reports = () => {
                         <td className="p-2">{o.customerName || 'Walk-in'}</td>
                         <td className="p-2">{o.customerPhone || '—'}</td>
                         <td className="p-2"><Badge variant="outline">{o.status}</Badge></td>
-                        <td className="p-2 text-right font-semibold" style={{ color: primary || '#F26522' }}>{formatCurrency(o.totalAmount)}</td>
+                        <td className="p-2 text-right font-semibold" style={{ color: primary || '#ff6d00' }}>{formatCurrency(o.totalAmount)}</td>
                       </tr>
                     ))}
                     {!sortedPosOrders.length && <tr><td colSpan={6} className="p-6 text-center text-gray-500">No POS sales in range</td></tr>}
@@ -684,7 +684,7 @@ const Reports = () => {
                   <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ backgroundColor: COLORS[i % COLORS.length] }}>{i + 1}</div>
                   <span className="font-medium">{c.name}</span>
                 </div>
-                <span className="font-bold" style={{ color: primary || '#F26522' }}>{formatCurrency(c.amount)}</span>
+                <span className="font-bold" style={{ color: primary || '#ff6d00' }}>{formatCurrency(c.amount)}</span>
               </div>
             ))}
             {!(data.topCustomers || []).length && <p className="text-sm text-gray-500 text-center py-6">No data</p>}
@@ -696,7 +696,7 @@ const Reports = () => {
                   <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ backgroundColor: COLORS[i % COLORS.length] }}>{i + 1}</div>
                   <span className="font-medium">{p.name}</span>
                 </div>
-                <div className="text-right"><p className="font-bold" style={{ color: primary || '#F26522' }}>{formatCurrency(p.revenue)}</p><p className="text-xs text-gray-500">{p.quantity} sold</p></div>
+                <div className="text-right"><p className="font-bold" style={{ color: primary || '#ff6d00' }}>{formatCurrency(p.revenue)}</p><p className="text-xs text-gray-500">{p.quantity} sold</p></div>
               </div>
             ))}
             {!(data.topProducts || []).length && <p className="text-sm text-gray-500 text-center py-6">No data</p>}

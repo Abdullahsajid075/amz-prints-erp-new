@@ -153,7 +153,7 @@ const InvoiceForm = () => {
   const { invoiceId } = useParams();
   const isEdit = !!invoiceId;
   const { primary, company } = useBrand();
-  const accent = primary || '#F26522';
+  const accent = primary || '#ff6d00';
 
   const [formData, setFormData] = useState(emptyInvoice);
   const [customers, setCustomers] = useState([]);
@@ -953,7 +953,7 @@ const InvoiceForm = () => {
                   <Textarea rows={2} value={formData.notes} onChange={(e) => setFormData((f) => ({ ...f, notes: e.target.value }))} />
                 </div>
               </div>
-              <div className="space-y-1.5 p-4 rounded-xl" style={{ backgroundColor: '#FFF9F5' }}>
+              <div className="space-y-1.5 p-4 rounded-xl" style={{ backgroundColor: '#FFF6ED' }}>
                 <div className="flex justify-between text-sm"><span className="text-gray-600">Subtotal</span><span className="font-semibold">{formatCurrency(subtotal)}</span></div>
                 <div className="flex justify-between text-sm"><span className="text-gray-600">Tax ({formData.taxRate}%)</span><span className="font-semibold">{formatCurrency(tax)}</span></div>
                 <div className="flex justify-between text-sm"><span className="text-gray-600">Discount</span><span className="font-semibold text-red-600">-{formatCurrency(formData.discount || 0)}</span></div>

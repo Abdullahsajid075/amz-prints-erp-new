@@ -6,7 +6,7 @@ const Designers = () => {
   return (
     <div className="space-y-6" data-testid="designers-page">
       <div>
-        <h1 className="text-3xl font-bold" style={{ color: '#2E2E2E' }}>Designers</h1>
+        <h1 className="text-3xl font-bold" style={{ color: '#0747a3' }}>Designers</h1>
         <p className="text-gray-600 mt-1">Manage designers and their workload</p>
       </div>
       <Card>
