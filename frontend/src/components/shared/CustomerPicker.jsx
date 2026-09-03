@@ -22,7 +22,7 @@ export default function CustomerPicker({
   customerAddress = '',
   onChange,
   onCustomersChange,
-  accent = '#F26522',
+  accent = '#ff6d00',
   testId = 'customer-select',
   locked = false,
 }) {

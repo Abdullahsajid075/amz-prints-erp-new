@@ -288,7 +288,7 @@ const Products = () => {
           <h1 className="text-2xl font-bold" style={{ color: '#2E2E2E' }}>Products</h1>
           <p className="text-sm text-gray-600">Catalog with photos · manual stock edit</p>
         </div>
-        <Button onClick={openCreateDialog} style={{ backgroundColor: '#F26522' }} className="text-white h-9" data-testid="add-product-button">
+        <Button onClick={openCreateDialog} style={{ backgroundColor: '#ff6d00' }} className="text-white h-9" data-testid="add-product-button">
           <Plus className="h-4 w-4 mr-1.5" />
           Add
         </Button>
@@ -307,7 +307,7 @@ const Products = () => {
                 type="button"
                 size="sm"
                 variant={typeFilter === tab.value ? 'default' : 'outline'}
-                style={typeFilter === tab.value ? { backgroundColor: '#F26522' } : undefined}
+                style={typeFilter === tab.value ? { backgroundColor: '#ff6d00' } : undefined}
                 className={`h-7 text-xs ${typeFilter === tab.value ? 'text-white' : ''}`}
                 onClick={() => setTypeFilter(tab.value)}
               >
@@ -355,7 +355,7 @@ const Products = () => {
             <div className="text-center py-10">
               <Package className="h-8 w-8 mx-auto text-gray-300 mb-2" />
               <p className="text-sm text-gray-500 mb-3">No items yet.</p>
-              <Button onClick={openCreateDialog} style={{ backgroundColor: '#F26522' }} className="text-white h-8 text-sm">
+              <Button onClick={openCreateDialog} style={{ backgroundColor: '#ff6d00' }} className="text-white h-8 text-sm">
                 <Plus className="h-3.5 w-3.5 mr-1" />Add first
               </Button>
             </div>
@@ -389,7 +389,7 @@ const Products = () => {
                       <p className="text-sm font-semibold leading-snug line-clamp-2 min-h-[2.5rem]" style={{ color: '#2E2E2E' }}>
                         {product.name}
                       </p>
-                      <p className="text-base font-bold" style={{ color: '#F26522' }}>
+                      <p className="text-base font-bold" style={{ color: '#ff6d00' }}>
                         {formatCurrency(product.basePrice ?? product.rate ?? 0)}
                       </p>
                       {!service && (
@@ -466,7 +466,7 @@ const Products = () => {
             <Button
               type="button"
               className="text-white"
-              style={{ backgroundColor: '#F26522' }}
+              style={{ backgroundColor: '#ff6d00' }}
               disabled={stockSaving}
               onClick={saveStock}
             >
@@ -672,7 +672,7 @@ const Products = () => {
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                 <X className="h-4 w-4 mr-1" />Cancel
               </Button>
-              <Button type="submit" style={{ backgroundColor: '#F26522' }} className="text-white" disabled={saving || imageBusy}>
+              <Button type="submit" style={{ backgroundColor: '#ff6d00' }} className="text-white" disabled={saving || imageBusy}>
                 <Save className="h-4 w-4 mr-1" />
                 {saving ? 'Saving…' : 'Save'}
               </Button>

@@ -19,7 +19,7 @@ const PublicOrderTracking = () => {
   const { code: routeCode } = useParams();
   const navigate = useNavigate();
   const { company, primary } = useBrand();
-  const accent = primary || '#F26522';
+  const accent = primary || '#ff6d00';
 
   const [query, setQuery] = useState(routeCode || '');
   const [order, setOrder] = useState(null);

@@ -36,7 +36,7 @@ const Navbar = ({ toggleSidebar }) => {
             {company.logo ? (
               <img src={company.logo} alt={company.name} className="h-10 w-auto max-w-[120px] object-contain bg-transparent" />
             ) : (
-              <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: primary || '#F26522' }}>
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: primary || '#ff6d00' }}>
                 <span className="text-white font-bold text-lg">{(company.name || 'A').charAt(0)}</span>
               </div>
             )}
@@ -55,7 +55,7 @@ const Navbar = ({ toggleSidebar }) => {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="flex items-center gap-2 h-10 px-2">
                 <Avatar className="h-8 w-8">
-                  <AvatarFallback style={{ backgroundColor: primary || '#F26522', color: 'white' }}>
+                  <AvatarFallback style={{ backgroundColor: primary || '#ff6d00', color: 'white' }}>
                     {getInitials(displayName)}
                   </AvatarFallback>
                 </Avatar>

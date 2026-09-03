@@ -225,7 +225,7 @@ const CounterScreen = () => {
           <CardContent className="p-0">
             <div
               className="min-h-[260px] flex flex-col items-center justify-center text-white p-8"
-              style={{ background: 'linear-gradient(135deg, #F26522 0%, #d4541a 100%)' }}
+              style={{ background: 'linear-gradient(135deg, #ff6d00 0%, #d4541a 100%)' }}
             >
               <div className="text-sm uppercase tracking-[0.2em] opacity-90">Now Serving</div>
               <div className="text-7xl font-bold mt-3" data-testid="now-serving">
@@ -247,7 +247,7 @@ const CounterScreen = () => {
                 disabled={!nextWaiting || loading}
                 onClick={() => callToken(nextWaiting)}
                 className="text-white"
-                style={{ backgroundColor: '#F26522' }}
+                style={{ backgroundColor: '#ff6d00' }}
                 data-testid="call-next"
               >
                 <Bell className="h-4 w-4 mr-2" />

@@ -7,7 +7,7 @@ import { BadgeCheck, BadgeX, Loader2 } from 'lucide-react';
 const PublicEmployeeVerify = () => {
   const { code } = useParams();
   const { company, primary } = useBrand();
-  const accent = primary || '#F26522';
+  const accent = primary || '#ff6d00';
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);

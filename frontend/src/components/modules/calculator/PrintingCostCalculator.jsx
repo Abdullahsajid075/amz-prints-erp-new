@@ -125,7 +125,7 @@ function buildCostingPrintHtml({ title, company, form, result, mode }) {
 
 const PrintingCostCalculator = () => {
   const { company, primary } = useBrand();
-  const accent = primary || '#F26522';
+  const accent = primary || '#ff6d00';
   const [tab, setTab] = useState('full');
   const [full, setFull] = useState(defaultFullForm);
   const [saved, setSaved] = useState([]);

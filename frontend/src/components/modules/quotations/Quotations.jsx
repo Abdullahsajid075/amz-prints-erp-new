@@ -95,7 +95,7 @@ const Quotations = () => {
         <Button
           onClick={() => navigate('/quotations/new')}
           className="text-white"
-          style={{ backgroundColor: primary || '#F26522' }}
+          style={{ backgroundColor: primary || '#ff6d00' }}
           data-testid="create-quotation-button"
         >
           <Plus className="h-4 w-4 mr-2" />
@@ -149,7 +149,7 @@ const Quotations = () => {
                         <div className="text-xs text-gray-500">{q.customerPhone}</div>
                       </td>
                       <td className="py-2.5 px-3 text-gray-600 hidden md:table-cell">{formatDate(q.date)}</td>
-                      <td className="py-2.5 px-3 text-right font-bold" style={{ color: primary || '#F26522' }}>
+                      <td className="py-2.5 px-3 text-right font-bold" style={{ color: primary || '#ff6d00' }}>
                         {formatCurrency(q.totalAmount)}
                       </td>
                       <td className="py-2.5 px-3">

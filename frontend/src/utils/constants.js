@@ -47,7 +47,7 @@ export const USER_ROLES = {
 };
 
 export const COLORS = {
-  PRIMARY: '#F26522',
+  PRIMARY: '#ff6d00',
   SECONDARY: '#2E2E2E',
   BACKGROUND: '#F5F7FB',
   CARD: '#FFFFFF',

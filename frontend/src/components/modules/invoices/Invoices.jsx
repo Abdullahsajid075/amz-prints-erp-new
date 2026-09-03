@@ -160,7 +160,7 @@ const Invoices = () => {
         </div>
         <Button
           onClick={() => navigate('/invoices/new')}
-          style={{ backgroundColor: '#F26522' }}
+          style={{ backgroundColor: '#ff6d00' }}
           className="text-white"
           data-testid="create-invoice-button"
         >
@@ -190,7 +190,7 @@ const Invoices = () => {
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-gray-500 uppercase font-medium mb-1">Total Value</p>
-            <p className="text-xl font-bold" style={{ color: '#F26522' }}>{formatCurrency(stats.totalAmount)}</p>
+            <p className="text-xl font-bold" style={{ color: '#ff6d00' }}>{formatCurrency(stats.totalAmount)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -230,7 +230,7 @@ const Invoices = () => {
             <div className="text-center py-12">
               <FileText className="h-12 w-12 mx-auto text-gray-300 mb-3" />
               <p className="text-gray-500 mb-4">No invoices found. Create your first invoice from an order.</p>
-              <Button onClick={() => navigate('/invoices/new')} style={{ backgroundColor: '#F26522' }} className="text-white">
+              <Button onClick={() => navigate('/invoices/new')} style={{ backgroundColor: '#ff6d00' }} className="text-white">
                 <Plus className="h-4 w-4 mr-2" />
                 Create Invoice
               </Button>
@@ -243,7 +243,7 @@ const Invoices = () => {
                   className="group relative bg-white border border-gray-100 rounded-xl p-3.5 hover:shadow-md hover:border-orange-200 transition-all"
                   data-testid={`invoice-card-${invoice.id}`}
                 >
-                  <div className="absolute top-0 left-0 right-0 h-0.5 rounded-t-xl" style={{ background: 'linear-gradient(90deg, #F26522, #FF8A50)' }} />
+                  <div className="absolute top-0 left-0 right-0 h-0.5 rounded-t-xl" style={{ background: 'linear-gradient(90deg, #ff6d00, #FF8A50)' }} />
                   <div className="flex items-start justify-between mb-2">
                     <div className="min-w-0">
                       <p className="text-[9px] text-gray-500 uppercase tracking-wider font-semibold">Invoice</p>
@@ -259,12 +259,12 @@ const Invoices = () => {
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 mb-2">
-                    <div><p className="text-[9px] text-gray-500 uppercase">Total</p><p className="text-sm font-bold" style={{ color: '#F26522' }}>{formatCurrency(invoice.totalAmount)}</p></div>
+                    <div><p className="text-[9px] text-gray-500 uppercase">Total</p><p className="text-sm font-bold" style={{ color: '#ff6d00' }}>{formatCurrency(invoice.totalAmount)}</p></div>
                     <div><p className="text-[9px] text-gray-500 uppercase">Balance</p><p className="text-sm font-bold text-gray-700">{formatCurrency(invoiceBalance(invoice))}</p></div>
                   </div>
 
                   <div className="flex gap-1 flex-wrap">
-                    <Button size="sm" className="flex-1 text-white h-7 text-[11px] px-2" style={{ backgroundColor: '#F26522' }} onClick={() => navigate(`/invoices/${invoice.id}`)} data-testid={`view-invoice-${invoice.id}`}>
+                    <Button size="sm" className="flex-1 text-white h-7 text-[11px] px-2" style={{ backgroundColor: '#ff6d00' }} onClick={() => navigate(`/invoices/${invoice.id}`)} data-testid={`view-invoice-${invoice.id}`}>
                       <Eye className="h-3 w-3 mr-1" />View
                     </Button>
                     <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => navigate(`/invoices/${invoice.id}/edit`)} title="Edit" data-testid={`edit-invoice-${invoice.id}`}>

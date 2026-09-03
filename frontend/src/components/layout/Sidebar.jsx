@@ -114,7 +114,7 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
                       data-testid={item.testId}
                       className={({ isActive }) => cn('flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
                         isActive ? 'text-white' : 'text-gray-700 hover:bg-gray-100')}
-                      style={({ isActive }) => ({ backgroundColor: isActive ? (primary || '#F26522') : 'transparent' })}
+                      style={({ isActive }) => ({ backgroundColor: isActive ? (primary || '#ff6d00') : 'transparent' })}
                     >
                       {({ isActive }) => (
                         <>
@@ -136,7 +136,7 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
                         'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left',
                         groupActive ? 'text-white' : 'text-gray-700 hover:bg-gray-100'
                       )}
-                      style={{ backgroundColor: groupActive ? (primary || '#F26522') : 'transparent' }}
+                      style={{ backgroundColor: groupActive ? (primary || '#ff6d00') : 'transparent' }}
                       aria-expanded={expanded}
                     >
                       <item.icon className={cn('h-5 w-5', groupActive ? 'text-white' : 'text-gray-500')} />
@@ -163,7 +163,7 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
                                 ? 'font-semibold bg-orange-50'
                                 : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                             )}
-                            style={({ isActive }) => ({ color: isActive ? (primary || '#F26522') : undefined })}
+                            style={({ isActive }) => ({ color: isActive ? (primary || '#ff6d00') : undefined })}
                           >
                             {child.label}
                           </NavLink>

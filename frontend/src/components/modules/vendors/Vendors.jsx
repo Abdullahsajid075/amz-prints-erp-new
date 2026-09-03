@@ -177,7 +177,7 @@ const Vendors = () => {
           </p>
         </div>
         {canManage && (
-          <Button onClick={openCreate} style={{ backgroundColor: '#F26522' }} className="text-white" data-testid="add-vendor-button">
+          <Button onClick={openCreate} style={{ backgroundColor: '#ff6d00' }} className="text-white" data-testid="add-vendor-button">
             <Plus className="h-4 w-4 mr-2" />Add Vendor
           </Button>
         )}
@@ -185,7 +185,7 @@ const Vendors = () => {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card><CardContent className="p-4 flex items-center gap-3">
-          <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#F26522' }}><Building2 className="h-6 w-6 text-white" /></div>
+          <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#ff6d00' }}><Building2 className="h-6 w-6 text-white" /></div>
           <div><p className="text-xs text-gray-500 uppercase font-medium">Total Vendors</p><p className="text-2xl font-bold">{stats.total}</p></div>
         </CardContent></Card>
         <Card><CardContent className="p-4 flex items-center gap-3">
@@ -221,7 +221,7 @@ const Vendors = () => {
                 <Building2 className="h-12 w-12 mx-auto text-gray-300 mb-3" />
                 <p className="text-gray-500 mb-4">No vendors yet.</p>
                 {canManage && (
-                  <Button onClick={openCreate} style={{ backgroundColor: '#F26522' }} className="text-white"><Plus className="h-4 w-4 mr-2" />Add First Vendor</Button>
+                  <Button onClick={openCreate} style={{ backgroundColor: '#ff6d00' }} className="text-white"><Plus className="h-4 w-4 mr-2" />Add First Vendor</Button>
                 )}
               </div>
             ) : (
@@ -230,7 +230,7 @@ const Vendors = () => {
                   <div key={v.id} className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-lg hover:border-orange-300 transition-all" data-testid={`vendor-card-${v.id}`}>
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#FFF3ED' }}><Building2 className="h-6 w-6" style={{ color: '#F26522' }} /></div>
+                        <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#FFF3ED' }}><Building2 className="h-6 w-6" style={{ color: '#ff6d00' }} /></div>
                         <div>
                           <h3 className="font-bold" style={{ color: '#2E2E2E' }}>{v.name}</h3>
                           <p className="text-xs text-gray-500">{v.contactPerson}</p>
@@ -287,7 +287,7 @@ const Vendors = () => {
             </div>
             <DialogFooter className="gap-2 pt-4">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}><X className="h-4 w-4 mr-1" />Cancel</Button>
-              <Button type="submit" style={{ backgroundColor: '#F26522' }} className="text-white" disabled={saving}><Save className="h-4 w-4 mr-1" />{saving ? 'Saving...' : editing ? 'Update' : 'Add'}</Button>
+              <Button type="submit" style={{ backgroundColor: '#ff6d00' }} className="text-white" disabled={saving}><Save className="h-4 w-4 mr-1" />{saving ? 'Saving...' : editing ? 'Update' : 'Add'}</Button>
             </DialogFooter>
           </form>
         </DialogContent>

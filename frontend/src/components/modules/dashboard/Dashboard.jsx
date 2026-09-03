@@ -27,7 +27,7 @@ const PIPELINE = [
 ];
 
 const QUICK_ACTIONS = [
-  { label: 'New Order', path: '/orders/new', icon: Plus, tint: '#F26522' },
+  { label: 'New Order', path: '/orders/new', icon: Plus, tint: '#ff6d00' },
   { label: 'Token Booking', path: '/tokens', icon: Ticket, tint: '#0EA5E9' },
   { label: 'POS Sale', path: '/pos', icon: Store, tint: '#10B981' },
   { label: 'Quotation', path: '/quotations/new', icon: FileText, tint: '#8B5CF6' },
@@ -119,7 +119,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { company, primary } = useBrand();
-  const brand = primary || '#F26522';
+  const brand = primary || '#ff6d00';
 
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
   const [loading, setLoading] = useState(true);
