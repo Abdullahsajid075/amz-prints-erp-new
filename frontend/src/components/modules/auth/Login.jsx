@@ -21,16 +21,16 @@ const DEFAULT_COMPANY = {
 function readFrozenBrand() {
   try {
     const raw = localStorage.getItem(BRAND_CACHE_KEY);
-    if (!raw) return { company: DEFAULT_COMPANY, primary: '#F26522' };
+    if (!raw) return { company: DEFAULT_COMPANY, primary: '#ff6d00' };
     const parsed = JSON.parse(raw);
     const company = { ...DEFAULT_COMPANY, ...(parsed?.company || {}) };
     if (parsed?.companyLogo && !company.logo) company.logo = parsed.companyLogo;
     return {
       company,
-      primary: parsed?.theme?.primary || '#F26522',
+      primary: parsed?.theme?.primary || '#ff6d00',
     };
   } catch {
-    return { company: DEFAULT_COMPANY, primary: '#F26522' };
+    return { company: DEFAULT_COMPANY, primary: '#ff6d00' };
   }
 }
 
@@ -148,7 +148,7 @@ const Login = () => {
             <Button
               type="submit"
               className="w-full h-12 text-base font-semibold"
-              style={{ backgroundColor: '#F26522' }}
+              style={{ backgroundColor: '#ff6d00' }}
               disabled={loginLoading}
               data-testid="login-submit-button"
             >

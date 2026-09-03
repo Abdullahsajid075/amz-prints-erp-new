@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Track Order — AMZ Prints Demo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/main.css">
+  <style>.demo-banner{position:fixed;bottom:0;left:0;right:0;z-index:300;background:#1A1A1A;color:#fff;font-size:.85rem;padding:.65rem 1rem;display:flex;justify-content:center;gap:1rem;flex-wrap:wrap;border-top:2px solid #F26522}.demo-banner a{color:#F26522;font-weight:600}body{padding-bottom:48px}</style>
+</head>
+<body>
+  <header class="site-header" id="site-header">
+    <div class="site-header__inner">
+      <div class="site-brand"><a class="site-brand__text" href="index.html"><span class="site-brand__name">AMZ Prints</span></a></div>
+      <nav class="site-nav" id="site-nav"><ul class="site-nav__list">
+        <li><a href="index.html">Home</a></li><li><a href="services.html">Services</a></li><li><a href="products.html">Products</a></li>
+        <li><a href="how-we-work.html">How We Work</a></li><li><a href="nadra.html">NADRA</a></li><li><a href="track-order.html">Track Order</a></li>
+      </ul></nav>
+      <div class="site-header__actions">
+        <a class="header-track" href="track-order.html">Track Order</a>
+        <a class="btn btn--primary btn--sm" href="quote.html">Get a Quote</a>
+        <button class="nav-toggle" id="nav-toggle" type="button" aria-expanded="false"><span class="nav-toggle__bar"></span><span class="nav-toggle__bar"></span><span class="nav-toggle__bar"></span></button>
+      </div>
+    </div>
+  </header>
+  <main id="main">
+    <section class="page-hero"><div class="container">
+      <p class="page-hero__brand">AMZ Prints</p>
+      <h1>Track Order</h1>
+      <p class="page-hero__lead">Enter your Order ID or registered phone number to see live status.</p>
+    </div></section>
+
+    <section class="section"><div class="container track-layout">
+      <div class="track-form-panel reveal" data-reveal>
+        <form class="amz-form track-form" id="track-form">
+          <label><span>Order ID</span><input type="text" id="order_id" placeholder="e.g. AMZ-1042"></label>
+          <label><span>Phone (optional)</span><input type="tel" id="phone" placeholder="03XX XXXXXXX"></label>
+          <button type="submit" class="btn btn--primary btn--lg">Track Order</button>
+          <p class="form-note">Demo: any Order ID shows a sample timeline. Live ERP data after WordPress + API connect.</p>
+        </form>
+      </div>
+      <div class="track-result-panel reveal" data-reveal>
+        <div class="track-empty" id="track-empty">
+          <div class="track-empty__art"></div>
+          <h3>Track any print job</h3>
+          <p>See whether your order is in design, on press, finishing, or ready for pickup.</p>
+        </div>
+        <div class="track-card" id="track-card" hidden>
+          <div class="track-card__top">
+            <div>
+              <p class="track-card__label">Order</p>
+              <h2 id="res-id">AMZ-1042</h2>
+            </div>
+            <span class="track-status-pill" id="res-status">Printing</span>
+          </div>
+          <p class="track-meta" id="res-meta">Valued Customer · Updated today</p>
+          <p class="track-items">Print job (details available at counter)</p>
+          <ol class="track-timeline" id="res-timeline"></ol>
+        </div>
+      </div>
+    </div></section>
+  </main>
+  <div class="demo-banner"><a href="index.html">Home</a><a href="how-we-work.html">How We Work</a><a href="nadra.html">NADRA</a><a href="products.html">Products</a></div>
+  <script src="assets/js/main.js"></script>
+  <script>
+    (function () {
+      var stages = ['Received', 'In Design', 'Printing', 'Finishing', 'Ready', 'Delivered'];
+      var form = document.getElementById('track-form');
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var id = (document.getElementById('order_id').value || 'AMZ-DEMO').toUpperCase();
+        var idx = parseInt(id.replace(/\D/g, '').slice(-1) || '2', 10) % 5;
+        document.getElementById('track-empty').hidden = true;
+        document.getElementById('track-card').hidden = false;
+        document.getElementById('res-id').textContent = id;
+        document.getElementById('res-status').textContent = stages[idx];
+        var tl = document.getElementById('res-timeline');
+        tl.innerHTML = '';
+        stages.forEach(function (label, i) {
+          var li = document.createElement('li');
+          li.className = 'track-timeline__item' + (i < idx ? ' is-done' : i === idx ? ' is-current' : '');
+          li.innerHTML = '<span class="track-timeline__dot"></span><span class="track-timeline__label">' + label + '</span>';
+          tl.appendChild(li);
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

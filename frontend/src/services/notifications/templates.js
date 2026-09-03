@@ -90,18 +90,19 @@ Thank you for choosing us!
 
 ${FOOTER}`,
 
-  Ready: `Dear *{CustomerName}*,
+  Ready: `Dear {CustomerName},
+Your order #{OrderNo} is ready for pickup/delivery.
 
-🎉 *Great News!*
+Please visit our office to receive your Order
 
-Your order *#{OrderNo}* is *ready for pickup/delivery*.
+*( Paid Home Delivery Available )*
 
-Please visit our office or wait for our delivery team to contact you.
-
-Thank you for choosing *Amazon Printing Services*.
+Thank you for choosing Amazon Printing Services.
 
 📍 King Road, Mandi Bahauddin
-🌐 amzprints.com`,
+🌐 amzprints.com
+
+Track your order : {TrackUrl}`,
 
   Delivered: `Dear *{CustomerName}*,
 
@@ -200,10 +201,11 @@ Thank you for your prompt payment.
 
   payment_sent: `Dear *{CustomerName}*,
 
-A payment of *{payment_amount}* has been sent to you via {payment_method}.
+Payment transfer of *{payment_amount}* has been sent to you.
 
-Txn: {transaction_number}
-Type: {payment_type}
+Method: {payment_method}
+Reference: {transaction_number}
+{payment_type}
 
 Thank you for your partnership with *Amazon Printing Services*.
 
@@ -250,6 +252,11 @@ export function buildTemplateVars(order = {}, company = {}, extras = {}) {
   const invoiceNumber = extras.invoice_number || extras.invoiceNumber || extras['Invoice Number'] || '';
   const invoiceDate = extras.invoice_date || extras.invoiceDate || '';
   const invoiceUrl = extras.invoice_url || extras.invoiceUrl || extras['Invoice Link'] || '';
+  const trackingNumber = order.trackingNumber || extras.trackingNumber || '';
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://erp.amzprints.com';
+  const trackUrl = extras.trackUrl
+    || extras.TrackUrl
+    || (trackingNumber ? `${origin}/track/${encodeURIComponent(trackingNumber)}` : '');
   const paymentAmount = extras.payment_amount != null
     ? extras.payment_amount
     : (extras.paidAmount != null ? extras.paidAmount
@@ -266,7 +273,10 @@ export function buildTemplateVars(order = {}, company = {}, extras = {}) {
     CustomerName: customerName,
     'Order Number': orderNo,
     OrderNo: orderNo,
-    'Tracking Number': order.trackingNumber || extras.trackingNumber || '',
+    'Tracking Number': trackingNumber,
+    TrackUrl: trackUrl,
+    'Track Url': trackUrl,
+    trackUrl,
     Status: order.status || extras.status || '',
     'Company Name': companyName,
     CompanyName: companyName,
@@ -284,7 +294,7 @@ export function buildTemplateVars(order = {}, company = {}, extras = {}) {
     balance_due: balanceDueStr,
     transaction_number: extras.transaction_number || extras.transactionNumber || extras.reference || '',
     ...extras,
-    // Keep formatted money after extras spread for known keys
+    // Keep formatted money / track after extras spread
     Amount: amountStr,
     payment_amount: paymentAmountStr,
     balance_due: balanceDueStr,
@@ -295,6 +305,10 @@ export function buildTemplateVars(order = {}, company = {}, extras = {}) {
     'Order Number': orderNo,
     OrderNo: orderNo,
     'Company Name': companyName,
+    TrackUrl: trackUrl || extras.TrackUrl || '',
+    'Track Url': trackUrl || extras.TrackUrl || '',
+    trackUrl: trackUrl || extras.trackUrl || '',
+    'Tracking Number': trackingNumber,
   };
 }
 
@@ -316,9 +330,11 @@ export function resolveWhatsAppTemplate(templates, event, status) {
   if (event === 'payment_sent') {
     return t.payment_sent || DEFAULT_WHATSAPP_TEMPLATES.payment_sent;
   }
+  // Prefer Settings templates (including Ready); fall back to defaults
   if (status && t[status]) return t[status];
-  if (status === 'Order Received' && (t.created || DEFAULT_WHATSAPP_TEMPLATES.created)) {
-    return t['Order Received'] || t.created || DEFAULT_WHATSAPP_TEMPLATES['Order Received'];
+  if (status === 'Ready') return DEFAULT_WHATSAPP_TEMPLATES.Ready;
+  if (status === 'Order Received') {
+    return t['Order Received'] || t.created || DEFAULT_WHATSAPP_TEMPLATES['Order Received'] || DEFAULT_WHATSAPP_TEMPLATES.created;
   }
   return t.status || DEFAULT_WHATSAPP_TEMPLATES.status;
 }

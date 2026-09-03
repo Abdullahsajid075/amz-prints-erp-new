@@ -14,7 +14,6 @@ import DeliverySlip from '@/components/modules/orders/DeliverySlip';
 import Customers from '@/components/modules/customers/Customers';
 import CustomerCRM from '@/components/modules/crm/CustomerCRM';
 import Products from '@/components/modules/products/Products';
-import Designers from '@/components/modules/designers/Designers';
 import Employees from '@/components/modules/employees/Employees';
 import Inventory from '@/components/modules/inventory/Inventory';
 import POSStatement from '@/components/modules/pos/POSStatement';
@@ -36,6 +35,7 @@ import Accounts from '@/components/modules/accounts/Accounts';
 import POS from '@/components/modules/pos/POS';
 import PrintingCostCalculator from '@/components/modules/calculator/PrintingCostCalculator';
 import PublicOrderTracking from '@/components/modules/tracking/PublicOrderTracking';
+import PublicEmployeeVerify from '@/components/modules/employees/PublicEmployeeVerify';
 
 /**
  * App shell (Brand + Auth) only mounts for protected routes.
@@ -90,6 +90,15 @@ function App() {
             </BrandProvider>
           )}
         />
+        <Route
+          path="/verify/employee/:code"
+          element={(
+            <BrandProvider>
+              <PublicEmployeeVerify />
+              <Toaster position="top-right" richColors closeButton />
+            </BrandProvider>
+          )}
+        />
 
         {/* Protected app */}
         <Route path="/" element={<AuthenticatedApp />}>
@@ -122,7 +131,7 @@ function App() {
           <Route path="purchases" element={<Purchases />} />
           <Route path="inventory" element={<Navigate to="/warehouse/inventory" replace />} />
           <Route path="production" element={<Navigate to="/warehouse" replace />} />
-          <Route path="designers" element={<Designers />} />
+          <Route path="designers" element={<Navigate to="/hr/employees" replace />} />
           <Route path="hr" element={<Navigate to="/hr/employees" replace />} />
           <Route path="hr/employees" element={<Employees />} />
           <Route path="employees" element={<Navigate to="/hr/employees" replace />} />
@@ -135,7 +144,7 @@ function App() {
           <Route path="accounts" element={<Accounts />} />
           <Route path="accounts/payments" element={<Payments />} />
           <Route path="accounts/expenses" element={<Expenses />} />
-          <Route path="accounts/vendors" element={<Vendors />} />
+          <Route path="accounts/vendors" element={<ProtectedRoute requireVendors><Vendors /></ProtectedRoute>} />
 
           <Route path="payments" element={<Navigate to="/accounts/payments" replace />} />
           <Route path="expenses" element={<Navigate to="/accounts/expenses" replace />} />

@@ -13,7 +13,14 @@ Usually one of these:
 ### 1. Redeploy Code.gs
 1. Open Apps Script project  
 2. Replace ALL code with repo file `gas/Code.gs`  
-3. **Deploy → Manage deployments → Edit → New version → Deploy**
+3. Project Settings → enable **Show "appsscript.json" manifesto file**  
+4. Paste repo `gas/appsscript.json` (**no Drive scope** — photos go into Sheets)  
+5. **Deploy → Manage deployments → Edit → New version → Deploy**  
+6. If an old auth popup asks for Drive, click through Sheets-only scopes (Drive not required)
+
+### Employee / product photos
+Photos save **directly in Google Sheets** (compressed). **Google Drive permission is not required.**  
+Do **not** run `authorizeDriveAccess` for Drive — that function is a no-op now.
 
 ### 2. Prepare database (pick one)
 

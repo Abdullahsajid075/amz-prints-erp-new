@@ -13,6 +13,7 @@ create table if not exists users (
   status text default 'Active',
   permissions jsonb default '[]'::jsonb,
   email text default '',
+  employee_id text default '',
   created_at timestamptz default now()
 );
 
@@ -30,8 +31,10 @@ create table if not exists customers (
   stage_updated_at text default '',
   notify_whatsapp boolean default true,
   notify_email boolean default true,
+  portal_password text default '',
   created_at timestamptz default now()
 );
+alter table customers add column if not exists portal_password text;
 create index if not exists customers_phone_idx on customers (phone);
 create index if not exists customers_in_crm_idx on customers (in_crm);
 
@@ -47,18 +50,33 @@ create index if not exists crm_notes_customer_idx on crm_notes (customer_id);
 -- ========== EMPLOYEES ==========
 create table if not exists employees (
   id text primary key,
+  employee_code text default '',
   name text default '',
   phone text default '',
   email text default '',
+  cnic text default '',
   role text default 'Staff',
+  designation text default '',
   department text default 'General',
   join_date text default '',
+  end_date text default '',
+  valid_from text default '',
+  valid_until text default '',
   salary numeric default 0,
   status text default 'Active',
   address text default '',
+  city text default '',
+  emergency_contact text default '',
+  emergency_phone text default '',
   notes text default '',
+  photo text default '',
   created_at timestamptz default now()
 );
+
+-- alter table employees add column if not exists end_date text default '';
+-- alter table employees add column if not exists valid_from text default '';
+-- alter table employees add column if not exists valid_until text default '';
+-- alter table users add column if not exists employee_id text default '';
 
 -- ========== PRODUCTS ==========
 create table if not exists products (
@@ -75,8 +93,11 @@ create table if not exists products (
   material text default '',
   size text default '',
   min_quantity numeric default 0,
+  image text default '',
   created_at timestamptz default now()
 );
+
+-- alter table products add column if not exists image text default '';
 
 -- ========== ORDERS (+ quotations / POS via doc_type) ==========
 create table if not exists orders (
@@ -105,6 +126,15 @@ create table if not exists orders (
   payment_method text default '',
   created_at timestamptz default now()
 );
+
+-- Optional website-commerce columns (safe to re-run)
+alter table orders add column if not exists payment_status text default '';
+alter table orders add column if not exists payment_history jsonb default '[]'::jsonb;
+alter table orders add column if not exists order_source text default '';
+alter table orders add column if not exists subtotal numeric default 0;
+alter table orders add column if not exists discount_amount numeric default 0;
+alter table orders add column if not exists delivery_charges numeric default 0;
+
 create index if not exists orders_doc_type_idx on orders (doc_type);
 create index if not exists orders_order_id_idx on orders (order_id);
 create index if not exists orders_tracking_idx on orders (tracking_number);
@@ -157,11 +187,25 @@ create table if not exists purchases (
   date text default '',
   vendor_id text default '',
   vendor_name text default '',
+  vendor_invoice_number text default '',
+  expected_delivery_date text default '',
+  actual_delivery_date text default '',
+  linked_order_id text default '',
   items jsonb default '[]'::jsonb,
   total numeric default 0,
-  status text default 'Pending',
+  paid_amount numeric default 0,
+  status text default 'Draft',
+  notes text default '',
   created_at timestamptz default now()
 );
+
+-- Existing projects: run once in SQL editor if columns missing
+-- alter table purchases add column if not exists paid_amount numeric default 0;
+-- alter table purchases add column if not exists vendor_invoice_number text default '';
+-- alter table purchases add column if not exists expected_delivery_date text default '';
+-- alter table purchases add column if not exists actual_delivery_date text default '';
+-- alter table purchases add column if not exists linked_order_id text default '';
+-- alter table purchases add column if not exists notes text default '';
 
 -- ========== EXPENSES / PAYMENTS ==========
 create table if not exists expenses (

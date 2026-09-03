@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,8 +11,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Switch } from '@/components/ui/switch';
 import { customersAPI } from '@/services/api';
 import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
+import { customerMatchesQuery } from '@/utils/customerSearch';
+import { sortBy } from '@/utils/sortBy';
+import SortBar from '@/components/shared/SortBar';
 import { Plus, Search, Edit, Trash2, User, Phone, Mail, MapPin, FileText, Receipt, CreditCard, TrendingUp, X, Save, BookOpen, Bell, Kanban } from 'lucide-react';
 import { toast } from 'sonner';
+
+const CUSTOMER_SORT_OPTS = [
+  { value: 'name', label: 'Name' },
+  { value: 'phone', label: 'Phone' },
+  { value: 'city', label: 'City' },
+];
 
 const empty = {
   name: '', phone: '', email: '', address: '', city: '', notes: '',
@@ -25,6 +34,7 @@ const Customers = () => {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const [sort, setSort] = useState({ field: 'name', dir: 'asc' });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [formData, setFormData] = useState(empty);
@@ -44,12 +54,12 @@ const Customers = () => {
 
   useEffect(() => { fetchCustomers(); }, [fetchCustomers]);
 
-  const filtered = customers.filter(c =>
-    !search ||
-    c.name?.toLowerCase().includes(search.toLowerCase()) ||
-    c.phone?.includes(search) ||
-    c.email?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = customers.filter((c) => customerMatchesQuery(c, search));
+  const sorted = useMemo(() => sortBy(filtered, sort, {
+    name: (c) => c.name || '',
+    phone: (c) => c.phone || '',
+    city: (c) => c.city || '',
+  }), [filtered, sort]);
 
   const openCreate = useCallback(() => { setEditing(null); setFormData(empty); setDialogOpen(true); }, []);
 
@@ -109,7 +119,7 @@ const Customers = () => {
           <Button variant="outline" onClick={() => navigate('/crm')} data-testid="open-crm-button">
             <Kanban className="h-4 w-4 mr-2" />Open CRM
           </Button>
-          <Button onClick={openCreate} style={{ backgroundColor: '#F26522' }} className="text-white" data-testid="add-customer-button">
+          <Button onClick={openCreate} style={{ backgroundColor: '#ff6d00' }} className="text-white" data-testid="add-customer-button">
             <Plus className="h-4 w-4 mr-2" />Add Customer
           </Button>
         </div>
@@ -117,7 +127,7 @@ const Customers = () => {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card><CardContent className="p-4 flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#F26522' }}><User className="h-5 w-5 text-white" /></div>
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#ff6d00' }}><User className="h-5 w-5 text-white" /></div>
           <div><p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Total Customers</p><p className="text-lg font-bold">{customers.length}</p></div>
         </CardContent></Card>
         <Card><CardContent className="p-4 flex items-center gap-3">
@@ -135,9 +145,12 @@ const Customers = () => {
       </div>
 
       <Card><CardContent className="p-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-          <Input placeholder="Search by name, phone, or email..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" data-testid="customer-search" />
+        <div className="flex flex-col sm:flex-row gap-3 items-end">
+          <div className="relative flex-1 w-full">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+            <Input placeholder="Search by name, phone, or email..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" data-testid="customer-search" />
+          </div>
+          <SortBar value={sort} onChange={setSort} options={CUSTOMER_SORT_OPTS} className="w-full sm:w-auto sm:min-w-[280px]" />
         </div>
       </CardContent></Card>
 
@@ -145,19 +158,19 @@ const Customers = () => {
         <CardHeader><CardTitle>Customer Directory</CardTitle></CardHeader>
         <CardContent>
           {loading ? <div className="text-center py-8 text-gray-500">Loading...</div>
-            : filtered.length === 0 ? (
+            : sorted.length === 0 ? (
               <div className="text-center py-12">
                 <User className="h-12 w-12 mx-auto text-gray-300 mb-3" />
                 <p className="text-gray-500 mb-4">No customers yet.</p>
-                <Button onClick={openCreate} style={{ backgroundColor: '#F26522' }} className="text-white"><Plus className="h-4 w-4 mr-2" />Add First Customer</Button>
+                <Button onClick={openCreate} style={{ backgroundColor: '#ff6d00' }} className="text-white"><Plus className="h-4 w-4 mr-2" />Add First Customer</Button>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filtered.map(c => (
+                {sorted.map(c => (
                   <div key={c.id} className="bg-white border border-gray-100 rounded-xl p-4 hover:shadow-md hover:border-orange-200 transition-all" data-testid={`customer-card-${c.id}`}>
                     <div className="flex items-start gap-3 mb-3">
                       <div className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: '#FFF3ED' }}>
-                        <User className="h-5 w-5" style={{ color: '#F26522' }} />
+                        <User className="h-5 w-5" style={{ color: '#ff6d00' }} />
                       </div>
                       <div className="min-w-0 flex-1">
                         <h3 className="font-bold truncate" style={{ color: '#1F2937' }}>{c.name}</h3>
@@ -170,7 +183,7 @@ const Customers = () => {
                       {c.address && <p className="flex items-start gap-1.5"><MapPin className="h-3 w-3 mt-0.5 shrink-0" /><span className="truncate">{c.address}</span></p>}
                     </div>
                     <div className="flex gap-1">
-                      <Button size="sm" className="flex-1 text-white h-8 text-xs" style={{ backgroundColor: '#F26522' }} onClick={() => openLedger(c)} data-testid={`ledger-${c.id}`}>
+                      <Button size="sm" className="flex-1 text-white h-8 text-xs" style={{ backgroundColor: '#ff6d00' }} onClick={() => openLedger(c)} data-testid={`ledger-${c.id}`}>
                         <BookOpen className="h-3 w-3 mr-1" />Ledger
                       </Button>
                       <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => openEdit(c)} data-testid={`edit-customer-${c.id}`}><Edit className="h-3.5 w-3.5" /></Button>
@@ -201,7 +214,7 @@ const Customers = () => {
             <div><Label>Notes</Label><Textarea rows={2} value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} /></div>
             <div className="rounded-lg border p-3 space-y-3" style={{ backgroundColor: '#FFF9F5' }}>
               <p className="text-sm font-semibold flex items-center gap-2" style={{ color: '#2E2E2E' }}>
-                <Bell className="h-4 w-4" style={{ color: '#F26522' }} /> Notification preferences
+                <Bell className="h-4 w-4" style={{ color: '#ff6d00' }} /> Notification preferences
               </p>
               <div className="flex items-center justify-between">
                 <Label>WhatsApp notifications</Label>
@@ -220,7 +233,7 @@ const Customers = () => {
             </div>
             <DialogFooter className="gap-2 pt-3">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}><X className="h-4 w-4 mr-1" />Cancel</Button>
-              <Button type="submit" style={{ backgroundColor: '#F26522' }} className="text-white" disabled={saving}><Save className="h-4 w-4 mr-1" />{saving ? 'Saving...' : editing ? 'Update' : 'Add'}</Button>
+              <Button type="submit" style={{ backgroundColor: '#ff6d00' }} className="text-white" disabled={saving}><Save className="h-4 w-4 mr-1" />{saving ? 'Saving...' : editing ? 'Update' : 'Add'}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -230,7 +243,7 @@ const Customers = () => {
       <Dialog open={ledgerOpen} onOpenChange={setLedgerOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" data-testid="ledger-dialog">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><BookOpen className="h-5 w-5" style={{ color: '#F26522' }} />
+            <DialogTitle className="flex items-center gap-2"><BookOpen className="h-5 w-5" style={{ color: '#ff6d00' }} />
               Customer Ledger — {ledger?.customer?.name || '...'}
             </DialogTitle>
             <DialogDescription>Orders, invoices and payments recorded against this customer.</DialogDescription>
@@ -242,7 +255,7 @@ const Customers = () => {
                 <div className="grid grid-cols-3 gap-3">
                   <div className="p-3 rounded-lg" style={{ backgroundColor: '#FFF3ED' }}>
                     <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Total Billed</p>
-                    <p className="text-lg font-bold" style={{ color: '#F26522' }}>{formatCurrency(ledger.totalBilled)}</p>
+                    <p className="text-lg font-bold" style={{ color: '#ff6d00' }}>{formatCurrency(ledger.totalBilled)}</p>
                   </div>
                   <div className="p-3 rounded-lg bg-emerald-50">
                     <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Total Paid</p>
@@ -263,7 +276,7 @@ const Customers = () => {
                     {ledger.invoices.length === 0 ? <p className="text-center py-6 text-gray-500 text-sm">No invoices yet.</p> : (
                       <table className="w-full text-sm">
                         <thead><tr className="border-b bg-gray-50"><th className="text-left py-2 px-2 text-xs uppercase text-gray-600">Invoice</th><th className="text-left py-2 px-2 text-xs uppercase text-gray-600">Date</th><th className="text-right py-2 px-2 text-xs uppercase text-gray-600">Total</th><th className="text-right py-2 px-2 text-xs uppercase text-gray-600">Paid</th><th className="text-left py-2 px-2 text-xs uppercase text-gray-600">Status</th></tr></thead>
-                        <tbody>{ledger.invoices.map(inv => (<tr key={inv.id} className="border-b"><td className="py-2 px-2 font-semibold" style={{ color: '#F26522' }}>{inv.invoiceNumber}</td><td className="py-2 px-2 text-gray-600">{formatDate(inv.date)}</td><td className="py-2 px-2 text-right font-semibold">{formatCurrency(inv.totalAmount)}</td><td className="py-2 px-2 text-right text-emerald-700">{formatCurrency(inv.paidAmount || 0)}</td><td className="py-2 px-2"><Badge className={`${inv.status === 'Paid' ? 'bg-green-100 text-green-800' : inv.status === 'Partial' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'} text-[10px]`}>{inv.status}</Badge></td></tr>))}</tbody>
+                        <tbody>{ledger.invoices.map(inv => (<tr key={inv.id} className="border-b"><td className="py-2 px-2 font-semibold" style={{ color: '#ff6d00' }}>{inv.invoiceNumber}</td><td className="py-2 px-2 text-gray-600">{formatDate(inv.date)}</td><td className="py-2 px-2 text-right font-semibold">{formatCurrency(inv.totalAmount)}</td><td className="py-2 px-2 text-right text-emerald-700">{formatCurrency(inv.paidAmount || 0)}</td><td className="py-2 px-2"><Badge className={`${inv.status === 'Paid' ? 'bg-green-100 text-green-800' : inv.status === 'Partial' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'} text-[10px]`}>{inv.status}</Badge></td></tr>))}</tbody>
                       </table>
                     )}
                   </TabsContent>
@@ -279,7 +292,7 @@ const Customers = () => {
                     {ledger.payments.length === 0 ? <p className="text-center py-6 text-gray-500 text-sm">No payments recorded yet.</p> : (
                       <table className="w-full text-sm">
                         <thead><tr className="border-b bg-gray-50"><th className="text-left py-2 px-2 text-xs uppercase text-gray-600">Date</th><th className="text-left py-2 px-2 text-xs uppercase text-gray-600">Reference</th><th className="text-left py-2 px-2 text-xs uppercase text-gray-600">Method</th><th className="text-right py-2 px-2 text-xs uppercase text-gray-600">Amount</th></tr></thead>
-                        <tbody>{ledger.payments.map(p => (<tr key={p.id} className="border-b"><td className="py-2 px-2 text-gray-600">{formatDate(p.date)}</td><td className="py-2 px-2 text-xs" style={{ color: '#F26522' }}>{p.reference || '-'}</td><td className="py-2 px-2"><Badge variant="outline" className="text-[10px]">{p.method}</Badge></td><td className={`py-2 px-2 text-right font-bold ${p.type === 'inflow' ? 'text-emerald-700' : 'text-rose-600'}`}>{p.type === 'inflow' ? '+' : '-'}{formatCurrency(p.amount)}</td></tr>))}</tbody>
+                        <tbody>{ledger.payments.map(p => (<tr key={p.id} className="border-b"><td className="py-2 px-2 text-gray-600">{formatDate(p.date)}</td><td className="py-2 px-2 text-xs" style={{ color: '#ff6d00' }}>{p.reference || '-'}</td><td className="py-2 px-2"><Badge variant="outline" className="text-[10px]">{p.method}</Badge></td><td className={`py-2 px-2 text-right font-bold ${p.type === 'inflow' ? 'text-emerald-700' : 'text-rose-600'}`}>{p.type === 'inflow' ? '+' : '-'}{formatCurrency(p.amount)}</td></tr>))}</tbody>
                       </table>
                     )}
                   </TabsContent>

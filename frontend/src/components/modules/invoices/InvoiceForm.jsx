@@ -7,10 +7,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { invoicesAPI, customersAPI, productsAPI } from '@/services/api';
-import { applyServerNotificationHint, notifyOrderEvent, printPaymentSlip, openWhatsAppChat, fillTemplate, resolveWhatsAppTemplate, buildTemplateVars, buildWhatsAppAppUrl } from '@/services/notifications';
+import { invoicesAPI, customersAPI, productsAPI, settingsAPI } from '@/services/api';
+import { notifyOrderEvent, printPaymentSlip, openWhatsAppChat, fillTemplate, resolveWhatsAppTemplate, buildTemplateVars } from '@/services/notifications';
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import { formatCurrency } from '@/utils/helpers';
+import { catalogFieldsForOrderLine } from '@/utils/productImage';
 import { useBrand } from '@/context/BrandContext';
 import { ArrowLeft, Save, Plus, Trash2, PackagePlus } from 'lucide-react';
 import { toast } from 'sonner';
@@ -23,7 +24,15 @@ const emptyItem = () => ({
   rate: 0,
   size: '',
   material: '',
+  description: '',
+  productType: 'Product',
 });
+
+const isServiceLine = (line, catalog = []) => {
+  if (String(line?.productType || '').toLowerCase() === 'service') return true;
+  const p = catalog.find((x) => String(x.id) === String(line?.productId || ''));
+  return String(p?.productType || '').toLowerCase() === 'service';
+};
 
 const emptyInvoice = {
   invoiceNumber: '',
@@ -49,7 +58,7 @@ const InvoiceForm = () => {
   const { invoiceId } = useParams();
   const isEdit = !!invoiceId;
   const { primary, company } = useBrand();
-  const accent = primary || '#F26522';
+  const accent = primary || '#ff6d00';
 
   const [formData, setFormData] = useState(emptyInvoice);
   const [customers, setCustomers] = useState([]);
@@ -97,17 +106,21 @@ const InvoiceForm = () => {
         if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
         try { return new Date(d).toISOString().slice(0, 10); } catch { return ''; }
       };
-      const items = (inv.items || []).map((i) => ({
-        ...emptyItem(),
-        ...i,
-        _key: i._key || `k_${Math.random().toString(36).slice(2, 8)}`,
-        productId: i.productId || '',
-        name: i.name || '',
-        quantity: Number(i.quantity) || 1,
-        rate: Number(i.rate) || 0,
-        size: i.size || '',
-        material: i.material || '',
-      }));
+      const items = (inv.items || []).map((i) => {
+        const productType = i.productType || 'Product';
+        const service = String(productType).toLowerCase() === 'service';
+        return {
+          _key: i._key || `k_${Math.random().toString(36).slice(2, 8)}`,
+          productId: i.productId || '',
+          name: i.name || '',
+          quantity: service ? 1 : (Number(i.quantity) || 1),
+          rate: Number(i.rate) || 0,
+          size: service ? '' : (i.size || ''),
+          material: service ? '' : (i.material || ''),
+          description: i.description || (service ? (i.notes || '') : ''),
+          productType: service ? 'Service' : 'Product',
+        };
+      });
       setFormData({
         ...emptyInvoice,
         invoiceNumber: inv.invoiceNumber || '',
@@ -170,16 +183,14 @@ const InvoiceForm = () => {
   const pickProduct = (index, productId) => {
     const p = catalog.find((x) => String(x.id) === String(productId));
     if (!p) return;
+    const fields = catalogFieldsForOrderLine(p);
     setFormData((prev) => {
       const items = prev.items.map((line, i) => (
         i === index
           ? {
               ...line,
-              productId: String(p.id),
-              name: p.name || line.name,
-              rate: Number(p.rate ?? p.basePrice ?? line.rate) || 0,
-              size: p.size || line.size || '',
-              material: p.material || line.material || '',
+              ...fields,
+              _key: line._key,
             }
           : line
       ));
@@ -234,7 +245,12 @@ const InvoiceForm = () => {
         balance_due: bal,
       }
     );
-    const template = resolveWhatsAppTemplate(null, 'invoice_generated');
+    let templates = null;
+    try {
+      const settingsRes = await settingsAPI.get();
+      templates = settingsRes.data?.notifications?.whatsappTemplates || null;
+    } catch { /* defaults */ }
+    const template = resolveWhatsAppTemplate(templates, 'invoice_generated');
     let text = fillTemplate(template, vars);
     if (invoiceUrl && !text.includes(invoiceUrl)) {
       text = `${text}\n\nInvoice link: ${invoiceUrl}`;
@@ -248,7 +264,10 @@ const InvoiceForm = () => {
     return result;
   };
 
-  const subtotal = formData.items.reduce((s, it) => s + (it.quantity || 0) * (it.rate || 0), 0);
+  const subtotal = formData.items.reduce((s, it) => {
+    const qty = isServiceLine(it, catalog) ? 1 : (Number(it.quantity) || 0);
+    return s + qty * (Number(it.rate) || 0);
+  }, 0);
   const tax = (subtotal * (formData.taxRate || 0)) / 100;
   const total = subtotal + tax - (formData.discount || 0);
   const grandTotal = total + (formData.previousBalance || 0);
@@ -289,14 +308,19 @@ const InvoiceForm = () => {
         tax,
         totalAmount: total,
         status: derivedStatus(),
-        items: formData.items.map(({ productId, name, quantity, rate, size, material }) => ({
-          productId: productId || '',
-          name,
-          quantity: Number(quantity) || 0,
-          rate: Number(rate) || 0,
-          size: size || '',
-          material: material || '',
-        })),
+        items: formData.items.map((it) => {
+          const service = isServiceLine(it, catalog);
+          return {
+            productId: it.productId || '',
+            name: it.name || '',
+            quantity: service ? 1 : (Number(it.quantity) || 0),
+            rate: Number(it.rate) || 0,
+            size: service ? '' : (it.size || ''),
+            material: service ? '' : (it.material || ''),
+            description: service ? (it.description || '') : '',
+            productType: service ? 'Service' : 'Product',
+          };
+        }),
       };
       let res;
       if (isEdit) {
@@ -354,8 +378,7 @@ const InvoiceForm = () => {
         res = await invoicesAPI.create(payload);
         toast.success(`Invoice ${payload.invoiceNumber} created`);
         const data = { ...payload, ...(res.data || {}) };
-        // Always open invoice WhatsApp (link + pending). Do not open a second payment chat.
-        applyServerNotificationHint(data);
+        // Single WhatsApp open (Settings invoice template) — skip GAS hint to avoid duplicate
         await sendInvoiceWhatsApp(data, grandTotal, balance, Number(payload.paidAmount) || 0, waWindow);
         waWindow = null;
         const paidNow = Number(payload.paidAmount) || 0;
@@ -518,17 +541,20 @@ const InvoiceForm = () => {
                 </button>
               </div>
             )}
-            {formData.items.map((it, i) => (
+            {formData.items.map((it, i) => {
+              const service = isServiceLine(it, catalog);
+              return (
               <div key={it._key} className="grid grid-cols-12 gap-2 items-end p-2 border rounded-xl bg-gray-50/50" data-testid={`item-${i}`}>
-                <div className="col-span-12 md:col-span-4">
-                  <Label className="text-xs">Product * (catalog)</Label>
+                <div className={service ? 'col-span-12 md:col-span-5' : 'col-span-12 md:col-span-4'}>
+                  <Label className="text-xs">{service ? 'Service * (catalog)' : 'Product * (catalog)'}</Label>
                   <Select value={catalogValueFor(it)} onValueChange={(v) => pickProduct(i, v)}>
                     <SelectTrigger className="bg-white" data-testid={`invoice-product-${i}`}>
-                      <SelectValue placeholder="Select product from catalog" />
+                      <SelectValue placeholder={service ? 'Select service' : 'Select product from catalog'} />
                     </SelectTrigger>
                     <SelectContent>
                       {catalog.map((p) => (
                         <SelectItem key={p.id} value={String(p.id)}>
+                          {String(p.productType || '').toLowerCase() === 'service' ? 'Svc · ' : ''}
                           {p.name} · {formatCurrency(p.rate || p.basePrice)}
                         </SelectItem>
                       ))}
@@ -538,29 +564,54 @@ const InvoiceForm = () => {
                     <p className="text-[11px] text-red-600 mt-1">Product select lazmi hai</p>
                   )}
                 </div>
-                <div className="col-span-4 md:col-span-2">
-                  <Label className="text-xs">Size</Label>
-                  <Input className="bg-white" value={it.size} onChange={(e) => updateItem(i, 'size', e.target.value)} />
-                </div>
-                <div className="col-span-4 md:col-span-1">
-                  <Label className="text-xs">Qty</Label>
-                  <Input className="bg-white" type="number" min="1" value={it.quantity} onChange={(e) => updateItem(i, 'quantity', parseInt(e.target.value, 10) || 0)} />
-                </div>
-                <div className="col-span-4 md:col-span-2">
-                  <Label className="text-xs">Rate</Label>
-                  <Input className="bg-white" type="number" step="0.01" min="0" value={it.rate} onChange={(e) => updateItem(i, 'rate', parseFloat(e.target.value) || 0)} />
-                </div>
-                <div className="col-span-8 md:col-span-2">
-                  <Label className="text-xs">Amount</Label>
-                  <Input disabled className="bg-white font-semibold" value={formatCurrency((it.quantity || 0) * (it.rate || 0))} />
-                </div>
+                {service ? (
+                  <>
+                    <div className="col-span-12 md:col-span-4">
+                      <Label className="text-xs">Description</Label>
+                      <Input
+                        className="bg-white"
+                        value={it.description || ''}
+                        onChange={(e) => updateItem(i, 'description', e.target.value)}
+                        placeholder="Service details…"
+                      />
+                    </div>
+                    <div className="col-span-6 md:col-span-2">
+                      <Label className="text-xs">Service Charges</Label>
+                      <Input className="bg-white" type="number" step="0.01" min="0" value={it.rate} onChange={(e) => updateItem(i, 'rate', parseFloat(e.target.value) || 0)} />
+                    </div>
+                    <div className="col-span-4 md:col-span-1">
+                      <Label className="text-xs">Amount</Label>
+                      <Input disabled className="bg-white font-semibold" value={formatCurrency(Number(it.rate) || 0)} />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="col-span-4 md:col-span-2">
+                      <Label className="text-xs">Size</Label>
+                      <Input className="bg-white" value={it.size} onChange={(e) => updateItem(i, 'size', e.target.value)} />
+                    </div>
+                    <div className="col-span-4 md:col-span-1">
+                      <Label className="text-xs">Qty</Label>
+                      <Input className="bg-white" type="number" min="1" value={it.quantity} onChange={(e) => updateItem(i, 'quantity', parseInt(e.target.value, 10) || 0)} />
+                    </div>
+                    <div className="col-span-4 md:col-span-2">
+                      <Label className="text-xs">Rate</Label>
+                      <Input className="bg-white" type="number" step="0.01" min="0" value={it.rate} onChange={(e) => updateItem(i, 'rate', parseFloat(e.target.value) || 0)} />
+                    </div>
+                    <div className="col-span-8 md:col-span-2">
+                      <Label className="text-xs">Amount</Label>
+                      <Input disabled className="bg-white font-semibold" value={formatCurrency((it.quantity || 0) * (it.rate || 0))} />
+                    </div>
+                  </>
+                )}
                 <div className="col-span-4 md:col-span-1 flex justify-end">
                   <Button type="button" size="icon" variant="ghost" onClick={() => removeItem(i)} disabled={formData.items.length === 1}>
                     <Trash2 className="h-4 w-4 text-red-600" />
                   </Button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </CardContent>
         </Card>
 

@@ -22,6 +22,11 @@ function mapOrder(row) {
   if (!row) return null;
   const total = num(row.total_amount);
   const advance = num(row.advance_payment);
+  let products = row.products;
+  if (typeof products === 'string') {
+    try { products = JSON.parse(products); } catch { products = []; }
+  }
+  if (!Array.isArray(products)) products = [];
   return {
     id: row.id,
     orderId: row.order_id || '',
@@ -33,7 +38,7 @@ function mapOrder(row) {
     customerAddress: row.customer_address || '',
     status: row.status || '',
     deliveryDate: row.delivery_date || '',
-    products: Array.isArray(row.products) ? row.products : [],
+    products,
     totalAmount: total,
     advancePayment: advance,
     balanceAmount: row.balance_amount != null && row.balance_amount !== ''
@@ -48,12 +53,35 @@ function mapOrder(row) {
     deliveryAddress: row.delivery_address || '',
     quotationId: row.quotation_id || '',
     paymentMethod: row.payment_method || '',
+    paymentStatus: row.payment_status || '',
+    paymentHistory: Array.isArray(row.payment_history) ? row.payment_history : [],
+    orderSource: row.order_source || '',
+    subtotal: num(row.subtotal),
+    discountAmount: num(row.discount_amount),
+    deliveryCharges: num(row.delivery_charges),
   };
 }
 
 function mapProduct(row) {
   if (!row) return null;
   const rate = num(row.rate);
+  const images = [];
+  const pushImg = (v) => {
+    const s = String(v || '').trim();
+    if (s && !images.includes(s)) images.push(s);
+  };
+  pushImg(row.image);
+  if (Array.isArray(row.images)) row.images.forEach(pushImg);
+  else if (typeof row.images === 'string' && row.images.trim()) {
+    try {
+      const parsed = JSON.parse(row.images);
+      if (Array.isArray(parsed)) parsed.forEach(pushImg);
+      else String(row.images).split(/[\n|,;]+/).forEach(pushImg);
+    } catch {
+      String(row.images).split(/[\n|,;]+/).forEach(pushImg);
+    }
+  }
+  const image = images[0] || row.image || '';
   return {
     id: row.id,
     name: row.name || '',
@@ -69,6 +97,10 @@ function mapProduct(row) {
     material: row.material || '',
     size: row.size || '',
     minQuantity: num(row.min_quantity),
+    image,
+    photo: image,
+    images,
+    active: String(row.status || 'Active').toLowerCase() !== 'inactive',
   };
 }
 
@@ -104,18 +136,30 @@ function mapInvoice(row) {
 
 function mapEmployee(row) {
   if (!row) return null;
+  const photo = row.photo || row.image || '';
   return {
     id: row.id,
+    employeeCode: row.employee_code || '',
     name: row.name || '',
     phone: row.phone || '',
     email: row.email || '',
+    cnic: row.cnic || '',
     role: row.role || 'Staff',
+    designation: row.designation || '',
     department: row.department || 'General',
     joinDate: row.join_date || '',
+    endDate: row.end_date || '',
+    validFrom: row.valid_from || '',
+    validUntil: row.valid_until || '',
     salary: num(row.salary),
     status: row.status || 'Active',
     address: row.address || '',
+    city: row.city || '',
+    emergencyContact: row.emergency_contact || '',
+    emergencyPhone: row.emergency_phone || '',
     notes: row.notes || '',
+    photo,
+    image: photo,
   };
 }
 
@@ -169,16 +213,30 @@ function mapExpense(row) {
 
 function mapPurchase(row) {
   if (!row) return null;
+  const total = num(row.total != null ? row.total : row.total_amount);
+  const paidAmount = num(row.paid_amount != null ? row.paid_amount : row.paid);
+  const po = row.purchase_no || row.po_number || '';
+  const date = row.date || row.purchase_date || '';
   return {
     id: row.id,
-    purchaseNo: row.purchase_no || '',
-    date: row.date || '',
+    poNumber: po,
+    purchaseNo: po,
+    purchaseDate: date,
+    date,
     vendorId: row.vendor_id || '',
     vendorName: row.vendor_name || '',
+    vendorInvoiceNumber: row.vendor_invoice_number || '',
+    expectedDeliveryDate: row.expected_delivery_date || '',
+    actualDeliveryDate: row.actual_delivery_date || '',
+    linkedOrderId: row.linked_order_id || '',
     items: Array.isArray(row.items) ? row.items : [],
-    total: num(row.total),
-    totalAmount: num(row.total),
-    status: row.status || '',
+    total,
+    totalAmount: total,
+    paidAmount,
+    paid: paidAmount,
+    status: row.status || 'Draft',
+    notes: row.notes || '',
+    outstanding: Math.max(0, total - paidAmount),
   };
 }
 
@@ -191,6 +249,7 @@ function mapUser(row, includePassword = false) {
     role: row.role || '',
     status: row.status || 'Active',
     email: row.email || row.username || '',
+    employeeId: row.employee_id || '',
     permissions: Array.isArray(row.permissions) ? row.permissions : [],
   };
   if (includePassword) base.password = row.password || '';

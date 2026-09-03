@@ -160,6 +160,9 @@ export const notificationsAPI = {
 export const trackPublic = (id) =>
   gasRequest('GET', `/public/track/${encodeURIComponent(String(id || '').trim())}`);
 
+export const verifyEmployeePublic = (code) =>
+  gasRequest('GET', `/public/employee/${encodeURIComponent(String(code || '').trim())}`);
+
 export const debugAPI = {
   schema: () => gasRequest('GET', '/debug/schema', withToken()),
   prepare: () => gasRequest('POST', '/debug/prepare', withToken()),
@@ -187,4 +190,5 @@ export default {
   usersAPI,
   notificationsAPI,
   trackPublic,
+  verifyEmployeePublic,
 };

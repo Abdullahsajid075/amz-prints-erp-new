@@ -25,7 +25,7 @@ function orderAmount(o) {
 const POSStatement = () => {
   const navigate = useNavigate();
   const { primary, company } = useBrand();
-  const accent = primary || '#F26522';
+  const accent = primary || '#ff6d00';
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [from, setFrom] = useState('');

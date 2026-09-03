@@ -1,6 +1,6 @@
 /**
  * WhatsApp channel — opens Desktop / Mobile app chat (not web.whatsapp.com).
- * Uses whatsapp:// protocol first, then api.whatsapp.com/send deep-link.
+ * Opens ONCE only (duplicate open was pasting the message twice).
  */
 
 import { registerChannel } from './channels';
@@ -28,8 +28,6 @@ export function buildWhatsAppAppUrl(phone, text) {
 /**
  * Open customer chat in WhatsApp Desktop (if installed) or Mobile app.
  * User only needs to tap Send.
- */
-/**
  * @param {string} phone
  * @param {string} text
  * @param {{ pendingWindow?: Window|null }} [opts] — window opened during user click (survives async)
@@ -43,7 +41,7 @@ export function openWhatsAppChat(phone, text, opts = {}) {
     return { ok: false, reason: 'missing_phone' };
   }
 
-  // Prefer pre-opened window (avoids popup blocker after await)
+  // Prefer pre-opened window (avoids popup blocker after await) — single navigation
   if (opts.pendingWindow && !opts.pendingWindow.closed) {
     try {
       opts.pendingWindow.location.href = urls.deepLink;
@@ -53,26 +51,18 @@ export function openWhatsAppChat(phone, text, opts = {}) {
     }
   }
 
-  // Native protocol — WhatsApp Desktop / Mobile
+  // Single open only — do NOT also fire delayed second click (that duplicated message text)
   try {
-    const iframe = document.createElement('iframe');
-    iframe.style.display = 'none';
-    iframe.src = urls.app;
-    document.body.appendChild(iframe);
-    setTimeout(() => {
-      try { document.body.removeChild(iframe); } catch { /* ignore */ }
-    }, 1500);
+    const opened = window.open(urls.deepLink, '_blank', 'noopener,noreferrer');
+    if (opened) {
+      return { ok: true, phone: urls.phone, channel: 'whatsapp' };
+    }
   } catch {
     /* ignore */
   }
 
-  // Immediate deep-link (best chance after async) + delayed anchor click
+  // Fallback: same-tab navigation (last resort when popups blocked and no pendingWindow)
   try {
-    window.open(urls.deepLink, '_blank', 'noopener,noreferrer');
-  } catch {
-    /* ignore */
-  }
-  setTimeout(() => {
     const a = document.createElement('a');
     a.href = urls.deepLink;
     a.target = '_blank';
@@ -80,9 +70,13 @@ export function openWhatsAppChat(phone, text, opts = {}) {
     document.body.appendChild(a);
     a.click();
     a.remove();
-  }, 400);
+    // Cannot reliably detect blocker after async — caller should pre-open pendingWindow
+    return { ok: true, phone: urls.phone, channel: 'whatsapp', weak: true };
+  } catch {
+    /* ignore */
+  }
 
-  return { ok: true, phone: urls.phone, channel: 'whatsapp' };
+  return { ok: false, reason: 'popup_blocked', phone: urls.phone };
 }
 
 const whatsappChannel = {

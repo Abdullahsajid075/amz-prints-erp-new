@@ -105,6 +105,8 @@ export async function notifyOrderEvent({
   company: companyOverride,
   notifications: notifOverride,
   openWhatsApp = true,
+  pendingWindow = null,
+  sendEmail = true,
 } = {}) {
   if (!order && !invoice && !payment) return { ok: false, reason: 'no_payload' };
 
@@ -129,13 +131,19 @@ export async function notifyOrderEvent({
     || payment?.phone
     || '';
 
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://erp.amzprints.com';
+  const trackingNumber = order?.trackingNumber || '';
+  const trackUrl = trackingNumber ? `${origin}/track/${encodeURIComponent(trackingNumber)}` : '';
   const vars = buildTemplateVars(order || {}, company, {
     status,
     customerName: order?.customerName || customer?.name || invoice?.customerName || payment?.party,
+    trackUrl,
+    TrackUrl: trackUrl,
+    trackingNumber,
     invoice_number: invoice?.invoiceNumber || invoice?.invoiceNo || payment?.reference || '',
     invoice_date: invoice?.date || invoice?.invoiceDate || '',
     invoice_url: invoice?.shareToken
-      ? `${typeof window !== 'undefined' ? window.location.origin : ''}/invoice/${invoice.shareToken}`
+      ? `${origin}/invoice/${invoice.shareToken}`
       : (invoice?.invoiceUrl || ''),
     amount: invoice?.totalAmount ?? invoice?.total ?? order?.totalAmount ?? payment?.amount,
     paidAmount: invoice?.paidAmount ?? payment?.amount ?? 0,
@@ -172,14 +180,17 @@ export async function notifyOrderEvent({
   ) {
     const template = resolveWhatsAppTemplate(notifications.whatsappTemplates, event, status);
     const text = fillTemplate(template, vars);
-    whatsappResult = openWhatsAppChat(phone, text);
+    whatsappResult = openWhatsAppChat(phone, text, { pendingWindow });
     channelIds.push('whatsapp');
     payloadBase.text = text;
+  } else if (pendingWindow && !pendingWindow.closed) {
+    try { pendingWindow.close(); } catch { /* ignore */ }
   }
 
   const emailTo = order?.customerEmail || customer?.email || invoice?.customerEmail || payment?.partyEmail;
   if (
-    emailTo
+    sendEmail
+    && emailTo
     && customerAllows(customer, 'email')
     && shouldSendEmail(notifications, event, status)
   ) {
@@ -236,6 +247,7 @@ export async function notifyPaymentEvent(payment, options = {}) {
       balanceAmount: balance,
     },
     openWhatsApp: options.openWhatsApp !== false,
+    pendingWindow: options.pendingWindow || null,
   });
 }
 

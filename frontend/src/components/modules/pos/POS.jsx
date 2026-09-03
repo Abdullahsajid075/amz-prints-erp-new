@@ -3,15 +3,22 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { productsAPI, ordersAPI, invoicesAPI, customersAPI } from '@/services/api';
 import { applyServerNotificationHint } from '@/services/notifications';
 import { formatCurrency } from '@/utils/helpers';
+import { customerMatchesQuery } from '@/utils/customerSearch';
 import { barcodeBlock, openPrintWindow, printOnLoadScript, POS_MAJOR_SERVICES } from '@/utils/printHelpers';
 import { useBrand } from '@/context/BrandContext';
-import { Search, Plus, Minus, Trash2, Printer, ShoppingCart, FileSpreadsheet, PackagePlus, UserPlus } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, Printer, ShoppingCart, FileSpreadsheet, PackagePlus, UserPlus, Package, Wrench } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+
+const isServiceItem = (p) => {
+  const type = String(p?.productType || '').toLowerCase();
+  if (type === 'service') return true;
+  if (type === 'product') return false;
+  return /service/i.test(String(p?.category || ''));
+};
 
 const WALK_IN = { id: 'cust_walkin', name: 'Walk-in', phone: '' };
 
@@ -24,7 +31,11 @@ const POS = () => {
   const [search, setSearch] = useState('');
   const [cart, setCart] = useState([]);
   const [customerId, setCustomerId] = useState(WALK_IN.id);
+  const [customerQuery, setCustomerQuery] = useState('');
+  const [customerListOpen, setCustomerListOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [discountType, setDiscountType] = useState('amount'); // amount | percent
+  const [discountValue, setDiscountValue] = useState('');
   const [checkingOut, setCheckingOut] = useState(false);
   const [lastSale, setLastSale] = useState(null);
 
@@ -75,20 +86,67 @@ const POS = () => {
     return [walkOpt, ...rest.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))];
   }, [customers]);
 
+  const filteredCustomers = useMemo(() => {
+    const q = customerQuery.trim();
+    if (!q) return customerOptions.slice(0, 60);
+    return customerOptions.filter((c) => customerMatchesQuery(c, q)).slice(0, 60);
+  }, [customerOptions, customerQuery]);
+
   const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
     return products.filter((p) => {
-      const type = String(p.productType || p.category || 'Product');
-      if (filter === 'product' && !/product/i.test(type)) return false;
-      if (filter === 'service' && !/service/i.test(type)) return false;
-      if (!search) return true;
-      return String(p.name || '').toLowerCase().includes(search.toLowerCase());
+      const service = isServiceItem(p);
+      if (filter === 'product' && service) return false;
+      if (filter === 'service' && !service) return false;
+      if (!q) return true;
+      return String(p.name || '').toLowerCase().includes(q);
     });
   }, [products, filter, search]);
 
-  const total = useMemo(
+  const productItems = useMemo(() => filtered.filter((p) => !isServiceItem(p)), [filtered]);
+  const serviceItems = useMemo(() => filtered.filter((p) => isServiceItem(p)), [filtered]);
+
+  const renderPosCard = (p) => {
+    const service = isServiceItem(p);
+    return (
+      <button
+        key={p.id}
+        type="button"
+        onClick={() => addToCart(p)}
+        className="text-left rounded-xl border-2 border-gray-700 bg-white p-4 hover:border-orange-500 hover:shadow-md transition-all"
+        data-testid={`pos-product-${p.id}`}
+      >
+        <div className="flex items-center gap-2 mb-2">
+          {service ? <Wrench className="h-4 w-4 text-gray-600" /> : <Package className="h-4 w-4 text-gray-600" />}
+          <span className="text-[10px] px-1.5 py-0.5 rounded border border-gray-600 text-gray-700">
+            {service ? 'Service' : 'Product'}
+          </span>
+        </div>
+        <div className="text-sm font-semibold leading-snug line-clamp-2 min-h-[2.5rem]" style={{ color: '#2E2E2E' }}>
+          {p.name}
+        </div>
+        <div className="text-base font-bold mt-2" style={{ color: primary || '#ff6d00' }}>
+          {formatCurrency(p.rate || p.basePrice)}
+        </div>
+      </button>
+    );
+  };
+
+  const subtotal = useMemo(
     () => cart.reduce((s, i) => s + i.quantity * i.rate, 0),
     [cart]
   );
+
+  const discountAmount = useMemo(() => {
+    const raw = Number(discountValue) || 0;
+    if (raw <= 0 || subtotal <= 0) return 0;
+    if (discountType === 'percent') {
+      return Math.min(subtotal, Math.round((subtotal * Math.min(100, raw)) / 100));
+    }
+    return Math.min(subtotal, Math.max(0, raw));
+  }, [discountType, discountValue, subtotal]);
+
+  const payable = Math.max(0, subtotal - discountAmount);
 
   const addToCart = (product) => {
     const rate = Number(product.rate || product.basePrice || 0);
@@ -119,6 +177,24 @@ const POS = () => {
         .map((c) => (c.productId === productId ? { ...c, quantity: c.quantity + delta } : c))
         .filter((c) => c.quantity > 0)
     );
+  };
+
+  const setQtyManual = (productId, raw) => {
+    const n = Math.floor(Number(raw));
+    if (!Number.isFinite(n)) return;
+    setCart((prev) =>
+      prev
+        .map((c) => (c.productId === productId ? { ...c, quantity: n } : c))
+        .filter((c) => c.quantity > 0)
+    );
+  };
+
+  const clearCart = () => {
+    if (!cart.length) return;
+    setCart([]);
+    setDiscountValue('');
+    setDiscountType('amount');
+    toast.message('Cart cleared');
   };
 
   const printReceipt = (sale) => {
@@ -169,6 +245,10 @@ const POS = () => {
         <tbody>${rows}</tbody>
       </table>
       <hr />
+      ${Number(sale.subtotal) > 0 && Number(sale.discount) > 0
+        ? `<div class="total" style="font-size:11px;font-weight:600"><span>SUBTOTAL</span><span>${formatCurrency(sale.subtotal)}</span></div>
+           <div class="total" style="font-size:11px;font-weight:600"><span>DISCOUNT</span><span>-${formatCurrency(sale.discount)}</span></div>`
+        : ''}
       <div class="total"><span>TOTAL</span><span>${formatCurrency(sale.totalAmount)}</span></div>
       <div class="total" style="font-size:11px;margin-top:2px"><span>PAID</span><span>${formatCurrency(sale.totalAmount)}</span></div>
       <hr />
@@ -197,16 +277,19 @@ const POS = () => {
         material,
       }));
       const cust = selectedCustomer || WALK_IN;
+      const discNote = discountAmount > 0
+        ? ` · Disc ${discountType === 'percent' ? `${Number(discountValue) || 0}%` : ''} Rs ${discountAmount} (sub ${subtotal})`
+        : '';
       const payload = {
         customerId: cust.id || WALK_IN.id,
         customerName: cust.name || 'Walk-in',
         customerPhone: cust.phone || '',
         products: productsPayload,
-        totalAmount: total,
-        advancePayment: total,
+        totalAmount: payable,
+        advancePayment: payable,
         balanceAmount: 0,
         status: 'Delivered',
-        remarks: `POS Sale · ${paymentMethod}`,
+        remarks: `POS Sale · ${paymentMethod}${discNote}`,
         docType: 'POS',
         paymentMethod,
       };
@@ -219,6 +302,10 @@ const POS = () => {
         id: created.data?.id,
         date: new Date().toLocaleString(),
         paymentMethod,
+        subtotal,
+        discount: discountAmount,
+        discountType,
+        discountValue: Number(discountValue) || 0,
       };
       setLastSale(sale);
       toast.success(`Sale ${sale.orderId} completed`);
@@ -227,6 +314,8 @@ const POS = () => {
       }
       setCart([]);
       setCustomerId(WALK_IN.id);
+      setDiscountValue('');
+      setDiscountType('amount');
       printReceipt(sale);
     } catch (err) {
       console.error(err);
@@ -273,9 +362,11 @@ const POS = () => {
                       })),
                       paidAmount: lastSale.totalAmount || 0,
                       taxRate: 0,
-                      discount: 0,
+                      discount: Number(lastSale.discount) || 0,
                       previousBalance: 0,
-                      notes: 'Converted from POS sale',
+                      notes: Number(lastSale.discount) > 0
+                        ? `Converted from POS sale · Discount Rs ${lastSale.discount}`
+                        : 'Converted from POS sale',
                       date: new Date().toISOString().slice(0, 10),
                     };
                     const created = await invoicesAPI.create(inv);
@@ -306,7 +397,7 @@ const POS = () => {
                 key={f}
                 size="sm"
                 variant={filter === f ? 'default' : 'outline'}
-                style={filter === f ? { backgroundColor: primary || '#F26522' } : undefined}
+                style={filter === f ? { backgroundColor: primary || '#ff6d00' } : undefined}
                 className={filter === f ? 'text-white' : ''}
                 onClick={() => setFilter(f)}
               >
@@ -314,28 +405,35 @@ const POS = () => {
               </Button>
             ))}
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[70vh] overflow-y-auto pr-1">
-            {filtered.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => addToCart(p)}
-                className="text-left rounded-xl border border-gray-100 bg-white p-3 hover:shadow-md transition-all"
-                data-testid={`pos-product-${p.id}`}
-              >
-                <div className="font-semibold text-sm truncate" style={{ color: '#2E2E2E' }}>{p.name}</div>
-                <Badge variant="outline" className="mt-1 text-[10px]">{p.productType || 'Product'}</Badge>
-                <div className="mt-2 font-bold" style={{ color: primary || '#F26522' }}>
-                  {formatCurrency(p.rate || p.basePrice)}
-                </div>
-              </button>
-            ))}
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
             {!filtered.length && (
-              <div className="col-span-full text-center text-gray-500 py-8 space-y-3">
+              <div className="text-center text-gray-500 py-8 space-y-3 border border-dashed rounded-xl">
                 <p>No items in catalog</p>
-                <Button size="sm" style={{ backgroundColor: primary || '#F26522' }} className="text-white" onClick={() => navigate('/warehouse/products?new=1')}>
+                <Button size="sm" style={{ backgroundColor: primary || '#ff6d00' }} className="text-white" onClick={() => navigate('/warehouse/products?new=1')}>
                   <PackagePlus className="h-4 w-4 mr-2" />Add New Product
                 </Button>
+              </div>
+            )}
+
+            {(filter === 'all' || filter === 'product') && productItems.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between sticky top-0 bg-[#fafafa]/z-10 py-1">
+                  <h3 className="text-xs font-bold uppercase tracking-wide text-gray-600">Products ({productItems.length})</h3>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {productItems.map(renderPosCard)}
+                </div>
+              </div>
+            )}
+
+            {(filter === 'all' || filter === 'service') && serviceItems.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between sticky top-0 bg-[#fafafa] z-10 py-1 border-t border-gray-100 pt-3">
+                  <h3 className="text-xs font-bold uppercase tracking-wide text-gray-600">Services ({serviceItems.length})</h3>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {serviceItems.map(renderPosCard)}
+                </div>
               </div>
             )}
           </div>
@@ -344,7 +442,7 @@ const POS = () => {
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <ShoppingCart className="h-5 w-5" style={{ color: primary || '#F26522' }} />
+              <ShoppingCart className="h-5 w-5" style={{ color: primary || '#ff6d00' }} />
               Cart
             </CardTitle>
           </CardHeader>
@@ -362,20 +460,66 @@ const POS = () => {
                   <UserPlus className="h-3.5 w-3.5 mr-1" />Add in Customers
                 </Button>
               </div>
-              <select
-                className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
-                value={customerId}
-                onChange={(e) => setCustomerId(e.target.value)}
-                data-testid="pos-customer-select"
-              >
-                {customerOptions.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name || 'Customer'}{c.phone ? ` · ${c.phone}` : ''}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <div className="rounded-md border bg-white px-3 py-2 text-sm mb-1">
+                  <span className="font-medium">{selectedCustomer?.name || 'Walk-in'}</span>
+                  {selectedCustomer?.phone ? (
+                    <span className="text-gray-500 text-xs"> · {selectedCustomer.phone}</span>
+                  ) : null}
+                </div>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
+                  <Input
+                    className="pl-8 h-9 text-sm"
+                    placeholder="Search customer name or phone…"
+                    value={customerQuery}
+                    data-testid="pos-customer-select"
+                    onFocus={() => setCustomerListOpen(true)}
+                    onChange={(e) => {
+                      setCustomerQuery(e.target.value);
+                      setCustomerListOpen(true);
+                    }}
+                    onBlur={() => setTimeout(() => setCustomerListOpen(false), 150)}
+                  />
+                </div>
+                {customerListOpen && (
+                  <div className="absolute z-40 mt-1 w-full rounded-lg border bg-white shadow-lg max-h-48 overflow-y-auto">
+                    <button
+                      type="button"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-orange-50 border-b font-medium"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setCustomerId(WALK_IN.id);
+                        setCustomerQuery('');
+                        setCustomerListOpen(false);
+                      }}
+                    >
+                      Walk-in
+                    </button>
+                    {filteredCustomers.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-orange-50 border-b last:border-0"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setCustomerId(c.id);
+                          setCustomerQuery('');
+                          setCustomerListOpen(false);
+                        }}
+                      >
+                        <span className="font-medium">{c.name || 'Customer'}</span>
+                        {c.phone ? <span className="text-gray-500"> · {c.phone}</span> : null}
+                      </button>
+                    ))}
+                    {!filteredCustomers.length && (
+                      <p className="px-3 py-2 text-xs text-gray-500">No match — add customer in Customers page</p>
+                    )}
+                  </div>
+                )}
+              </div>
               <p className="text-[11px] text-gray-500">
-                Default is Walk-in (one shared customer). Pick another only from saved customers — POS will not create new ones.
+                Default is Walk-in. Type name/phone to find saved customers.
               </p>
             </div>
             <div>
@@ -387,7 +531,7 @@ const POS = () => {
                     type="button"
                     size="sm"
                     variant={paymentMethod === m ? 'default' : 'outline'}
-                    style={paymentMethod === m ? { backgroundColor: primary || '#F26522' } : undefined}
+                    style={paymentMethod === m ? { backgroundColor: primary || '#ff6d00' } : undefined}
                     className={paymentMethod === m ? 'text-white' : ''}
                     onClick={() => setPaymentMethod(m)}
                   >
@@ -397,6 +541,14 @@ const POS = () => {
               </div>
             </div>
 
+            <div className="flex items-center justify-between gap-2">
+              <Label className="mb-0">Cart ({cart.length})</Label>
+              {!!cart.length && (
+                <Button type="button" size="sm" variant="outline" className="h-7 text-xs text-red-600 border-red-200" onClick={clearCart} data-testid="pos-clear-cart">
+                  Clear
+                </Button>
+              )}
+            </div>
             <div className="space-y-2 max-h-[36vh] overflow-y-auto">
               {!cart.length && <p className="text-sm text-gray-500 text-center py-6">Tap products to add</p>}
               {cart.map((item) => (
@@ -409,7 +561,15 @@ const POS = () => {
                     <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQty(item.productId, -1)}>
                       <Minus className="h-3 w-3" />
                     </Button>
-                    <span className="w-6 text-center text-sm font-semibold">{item.quantity}</span>
+                    <Input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={item.quantity}
+                      onChange={(e) => setQtyManual(item.productId, e.target.value)}
+                      className="h-7 w-14 text-center text-sm font-semibold px-1"
+                      data-testid={`pos-qty-${item.productId}`}
+                    />
                     <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQty(item.productId, 1)}>
                       <Plus className="h-3 w-3" />
                     </Button>
@@ -422,13 +582,58 @@ const POS = () => {
               ))}
             </div>
 
-            <div className="border-t pt-3 flex items-center justify-between">
-              <span className="font-semibold">Total</span>
-              <span className="text-2xl font-bold" style={{ color: primary || '#F26522' }}>{formatCurrency(total)}</span>
+            <div className="border-t pt-3 space-y-2">
+              <div>
+                <Label>Discount</Label>
+                <div className="flex gap-2 mt-1">
+                  <div className="flex gap-1">
+                    {[
+                      { key: 'amount', label: 'Rs' },
+                      { key: 'percent', label: '%' },
+                    ].map((m) => (
+                      <Button
+                        key={m.key}
+                        type="button"
+                        size="sm"
+                        variant={discountType === m.key ? 'default' : 'outline'}
+                        style={discountType === m.key ? { backgroundColor: primary || '#ff6d00' } : undefined}
+                        className={`h-9 ${discountType === m.key ? 'text-white' : ''}`}
+                        onClick={() => setDiscountType(m.key)}
+                      >
+                        {m.label}
+                      </Button>
+                    ))}
+                  </div>
+                  <Input
+                    type="number"
+                    min="0"
+                    step={discountType === 'percent' ? '1' : '1'}
+                    placeholder={discountType === 'percent' ? '0%' : '0'}
+                    value={discountValue}
+                    onChange={(e) => setDiscountValue(e.target.value)}
+                    className="h-9"
+                    data-testid="pos-discount-input"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-sm text-gray-600">
+                <span>Subtotal</span>
+                <span>{formatCurrency(subtotal)}</span>
+              </div>
+              {discountAmount > 0 && (
+                <div className="flex items-center justify-between text-sm text-emerald-700">
+                  <span>Discount{discountType === 'percent' ? ` (${Number(discountValue) || 0}%)` : ''}</span>
+                  <span>-{formatCurrency(discountAmount)}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="font-semibold">Total due</span>
+                <span className="text-2xl font-bold" style={{ color: primary || '#ff6d00' }}>{formatCurrency(payable)}</span>
+              </div>
             </div>
             <Button
               className="w-full text-white"
-              style={{ backgroundColor: primary || '#F26522' }}
+              style={{ backgroundColor: primary || '#ff6d00' }}
               disabled={checkingOut || !cart.length}
               onClick={checkout}
               data-testid="pos-checkout"

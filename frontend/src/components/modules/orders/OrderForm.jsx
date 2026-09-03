@@ -7,10 +7,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ordersAPI, customersAPI, designersAPI, tokensAPI, productsAPI } from '@/services/api';
-import { applyServerNotificationHint, notifyOrderEvent, printPaymentSlip } from '@/services/notifications';
+import { notifyOrderEvent, printPaymentSlip } from '@/services/notifications';
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import { ORDER_STATUS } from '@/utils/constants';
 import { formatCurrency } from '@/utils/helpers';
+import { catalogFieldsForOrderLine } from '@/utils/productImage';
 import { useBrand } from '@/context/BrandContext';
 import { Plus, Trash2, Save, ArrowLeft, ClipboardList, PackagePlus } from 'lucide-react';
 import { toast } from 'sonner';
@@ -24,7 +25,15 @@ const emptyProduct = () => ({
   size: '',
   material: '',
   notes: '',
+  description: '',
+  productType: 'Product',
 });
+
+const isServiceLine = (line, catalog = []) => {
+  if (String(line?.productType || '').toLowerCase() === 'service') return true;
+  const p = catalog.find((x) => String(x.id) === String(line?.productId || ''));
+  return String(p?.productType || '').toLowerCase() === 'service';
+};
 
 const OrderForm = () => {
   const navigate = useNavigate();
@@ -33,7 +42,7 @@ const OrderForm = () => {
   const isEdit = !!orderId;
   const prefillTokenNo = searchParams.get('tokenNo') || '';
   const { primary, company } = useBrand();
-  const accent = primary || '#F26522';
+  const accent = primary || '#ff6d00';
 
   const [formData, setFormData] = useState({
     customerName: '',
@@ -103,16 +112,22 @@ const OrderForm = () => {
         }
       };
       const products = Array.isArray(o.products) && o.products.length
-        ? o.products.map((p, i) => ({
-            _key: p._key || p.id || `p_${i}_${Date.now()}`,
-            name: p.name || '',
-            productId: p.productId || '',
-            quantity: Number(p.quantity) || 1,
-            rate: Number(p.rate) || 0,
-            size: p.size || '',
-            material: p.material || '',
-            notes: p.notes || '',
-          }))
+        ? o.products.map((p, i) => {
+            const productType = p.productType || (String(p.name || '').toLowerCase().includes('service') ? 'Service' : 'Product');
+            const service = String(productType).toLowerCase() === 'service';
+            return {
+              _key: p._key || p.id || `p_${i}_${Date.now()}`,
+              name: p.name || '',
+              productId: p.productId || '',
+              quantity: service ? 1 : (Number(p.quantity) || 1),
+              rate: Number(p.rate) || 0,
+              size: service ? '' : (p.size || ''),
+              material: service ? '' : (p.material || ''),
+              notes: p.notes || '',
+              description: p.description || (service ? (p.notes || '') : ''),
+              productType: service ? 'Service' : 'Product',
+            };
+          })
         : [emptyProduct()];
 
       setFormData({
@@ -123,6 +138,7 @@ const OrderForm = () => {
         customerId: o.customerId || '',
         assignedDesigner: o.assignedDesigner || '',
         deliveryDate: dateOnly(o.deliveryDate),
+        date: dateOnly(o.date) || dateOnly(new Date()),
         remarks: o.remarks || '',
         advancePayment: Number(o.advancePayment) || 0,
         status: o.status || ORDER_STATUS.RECEIVED,
@@ -130,6 +146,8 @@ const OrderForm = () => {
         products,
         orderId: o.orderId || '',
         quotationId: o.quotationId || '',
+        trackingNumber: o.trackingNumber || '',
+        deliveryAddress: o.deliveryAddress || o.customerAddress || '',
       });
       setOriginalStatus(o.status || ORDER_STATUS.RECEIVED);
       setOriginalAdvance(Number(o.advancePayment) || 0);
@@ -220,16 +238,15 @@ const OrderForm = () => {
   const pickProduct = (index, productId) => {
     const p = catalog.find((x) => String(x.id) === String(productId));
     if (!p) return;
+    const fields = catalogFieldsForOrderLine(p);
     setFormData((prev) => {
       const products = prev.products.map((line, i) => (
         i === index
           ? {
               ...line,
-              productId: String(p.id),
-              name: p.name || line.name,
-              rate: Number(p.rate ?? p.basePrice ?? line.rate) || 0,
-              size: p.size || line.size || '',
-              material: p.material || line.material || '',
+              ...fields,
+              _key: line._key,
+              notes: fields.productType === 'Service' ? (fields.description || '') : (line.notes || ''),
             }
           : line
       ));
@@ -292,12 +309,51 @@ const OrderForm = () => {
 
     setLoading(true);
     try {
+      const designerId = formData.assignedDesigner;
+      const designerRow = designers.find((d) => String(d.id) === String(designerId))
+        || designers.find((d) => String(d.name).toLowerCase() === String(designerId || '').toLowerCase());
+      const designerName = designerRow?.name || formData.assignedDesigner || '';
+
+      const cleanProducts = formData.products.map((p) => {
+        const service = isServiceLine(p, catalog);
+        return {
+          productId: p.productId || '',
+          name: p.name || '',
+          quantity: service ? 1 : (Number(p.quantity) || 0),
+          rate: Number(p.rate) || 0,
+          size: service ? '' : (p.size || ''),
+          material: service ? '' : (p.material || ''),
+          notes: service ? (p.description || p.notes || '') : (p.notes || ''),
+          description: service ? (p.description || p.notes || '') : '',
+          productType: service ? 'Service' : 'Product',
+          // never persist catalog photo onto order lines
+        };
+      });
+
+      const totalAmount = cleanProducts.reduce((t, p) => t + (p.quantity * p.rate), 0);
+      const advancePayment = Number(formData.advancePayment) || 0;
       const orderData = {
-        ...formData,
         id: isEdit ? orderId : formData.id,
         orderId: formData.orderId || undefined,
-        totalAmount: calculateTotal(),
-        balanceAmount: calculateBalance(),
+        date: formData.date || undefined,
+        customerId: formData.customerId || '',
+        customerName: formData.customerName || '',
+        customerPhone: formData.customerPhone || '',
+        customerEmail: formData.customerEmail || '',
+        customerAddress: formData.customerAddress || '',
+        assignedDesigner: designerName,
+        deliveryDate: formData.deliveryDate || '',
+        deliveryAddress: formData.deliveryAddress || formData.customerAddress || '',
+        remarks: formData.remarks || '',
+        advancePayment,
+        status: formData.status || ORDER_STATUS.RECEIVED,
+        tokenNo: formData.tokenNo || '',
+        quotationId: formData.quotationId || '',
+        trackingNumber: formData.trackingNumber || undefined,
+        products: cleanProducts,
+        totalAmount,
+        balanceAmount: Math.max(0, totalAmount - advancePayment),
+        docType: 'Order',
       };
 
       const prevStatus = isEdit ? originalStatus : '';
@@ -308,10 +364,31 @@ const OrderForm = () => {
       if (isEdit) {
         const updated = await ordersAPI.update(orderId, orderData);
         toast.success('Order updated successfully');
-        const data = { ...orderData, ...(updated.data || {}) };
+        const server = updated.data || {};
+        const data = {
+          ...orderData,
+          ...server,
+          // Prefer what we just saved if server omits / mis-parses products
+          products: (Array.isArray(server.products) && server.products.length)
+            ? server.products
+            : orderData.products,
+          customerName: server.customerName || orderData.customerName,
+          customerPhone: server.customerPhone || orderData.customerPhone,
+          customerAddress: server.customerAddress || orderData.customerAddress,
+          assignedDesigner: server.assignedDesigner || orderData.assignedDesigner,
+          remarks: server.remarks != null ? server.remarks : orderData.remarks,
+          trackingNumber: server.trackingNumber || orderData.trackingNumber,
+        };
 
+        // One WhatsApp only: status change wins; else payment_received. Always print slip for money.
         if (receivedDelta > 0) {
           printOrderPaymentReceipt(data, receivedDelta);
+        }
+        const statusChanged = String(prevStatus) !== String(data.status || orderData.status);
+        if (statusChanged) {
+          await notifyOrderEvent({ event: 'status', order: data, sendEmail: false });
+          toast.message('WhatsApp opened — tap Send (status update)');
+        } else if (receivedDelta > 0) {
           await notifyOrderEvent({
             event: 'payment_received',
             order: data,
@@ -325,17 +402,9 @@ const OrderForm = () => {
               balanceDue: data.balanceAmount,
               totalAmount: data.totalAmount,
             },
+            sendEmail: false,
           });
-          toast.message('Payment receipt printed + WhatsApp');
-        }
-
-        if (String(prevStatus) !== String(data.status || orderData.status)) {
-          if (applyServerNotificationHint(data)) {
-            toast.message('WhatsApp opened — tap Send to notify customer');
-          } else {
-            await notifyOrderEvent({ event: 'status', order: data });
-            toast.message('Status WhatsApp prepared');
-          }
+          toast.message('Payment slip + WhatsApp — tap Send');
         }
       } else {
         const created = await ordersAPI.create(orderData);
@@ -352,14 +421,11 @@ const OrderForm = () => {
         }
         toast.success('Order created successfully');
         const data = { ...orderData, ...(created.data || {}) };
-        if (applyServerNotificationHint(data)) {
-          toast.message('WhatsApp opened — tap Send to notify customer');
-        } else {
-          await notifyOrderEvent({ event: 'created', order: data });
-          toast.message('Customer notification prepared');
-        }
         if (nextAdvance > 0) {
           printOrderPaymentReceipt(data, nextAdvance);
+        }
+        // Single WhatsApp: prefer Settings templates via notifyOrderEvent (skip GAS hint = no double open)
+        if (nextAdvance > 0) {
           await notifyOrderEvent({
             event: 'payment_received',
             order: data,
@@ -373,7 +439,12 @@ const OrderForm = () => {
               balanceDue: data.balanceAmount,
               totalAmount: data.totalAmount,
             },
+            sendEmail: false,
           });
+          toast.message('Payment slip + WhatsApp — tap Send');
+        } else {
+          await notifyOrderEvent({ event: 'created', order: data, sendEmail: false });
+          toast.message('WhatsApp opened — tap Send to notify customer');
         }
       }
       navigate('/orders');
@@ -530,16 +601,74 @@ const OrderForm = () => {
                 </Button>
               </div>
             )}
-            {formData.products.map((product, index) => (
+            {formData.products.map((product, index) => {
+              const service = isServiceLine(product, catalog);
+              return (
               <div key={product._key} className="rounded-xl border border-gray-100 bg-white p-3 space-y-2 shadow-sm" data-testid={`product-${index}`}>
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Item {index + 1}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Item {index + 1}{service ? ' · Service' : ''}
+                  </p>
                   {formData.products.length > 1 && (
                     <Button type="button" variant="ghost" size="icon" onClick={() => removeProduct(index)}>
                       <Trash2 className="h-4 w-4 text-red-600" />
                     </Button>
                   )}
                 </div>
+                {service ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="sm:col-span-2">
+                      <Label className="text-xs">Service * (catalog)</Label>
+                      <Select value={catalogValueFor(product)} onValueChange={(v) => pickProduct(index, v)} required>
+                        <SelectTrigger className="bg-white h-9" data-testid={`product-select-${index}`}>
+                          <SelectValue placeholder="Select service from catalog" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {catalog.map((p) => (
+                            <SelectItem key={p.id} value={String(p.id)}>
+                              {String(p.productType || '').toLowerCase() === 'service' ? 'Svc · ' : ''}
+                              {p.name} · {formatCurrency(p.rate || p.basePrice)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label className="text-xs">Description *</Label>
+                      <Textarea
+                        className="bg-white min-h-[72px]"
+                        value={product.description || product.notes || ''}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setFormData((prev) => ({
+                            ...prev,
+                            products: prev.products.map((p, i) => (
+                              i === index ? { ...p, description: v, notes: v } : p
+                            )),
+                          }));
+                        }}
+                        placeholder="Service details…"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Service Charges *</Label>
+                      <Input
+                        className="bg-white h-9"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={product.rate}
+                        onChange={(e) => handleProductChange(index, 'rate', parseFloat(e.target.value) || 0)}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Amount</Label>
+                      <Input className="bg-orange-50 h-9 font-semibold" value={formatCurrency(Number(product.rate) || 0)} disabled />
+                    </div>
+                  </div>
+                ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
                   <div className="col-span-2 sm:col-span-3">
                     <Label className="text-xs">Product * (catalog se select)</Label>
@@ -550,6 +679,7 @@ const OrderForm = () => {
                       <SelectContent>
                         {catalog.map((p) => (
                           <SelectItem key={p.id} value={String(p.id)}>
+                            {String(p.productType || '').toLowerCase() === 'service' ? 'Svc · ' : ''}
                             {p.name} · {formatCurrency(p.rate || p.basePrice)}
                           </SelectItem>
                         ))}
@@ -599,8 +729,10 @@ const OrderForm = () => {
                     <Input className="bg-white h-9" value={product.notes} onChange={(e) => handleProductChange(index, 'notes', e.target.value)} />
                   </div>
                 </div>
+                )}
               </div>
-            ))}
+              );
+            })}
 
             <Button
               type="button"

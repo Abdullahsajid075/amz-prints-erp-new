@@ -73,6 +73,12 @@ function orderFromBody(body = {}, existing = {}) {
     delivery_address: body.deliveryAddress || existing.delivery_address || '',
     quotation_id: body.quotationId || existing.quotation_id || '',
     payment_method: body.paymentMethod || existing.payment_method || '',
+    payment_status: body.paymentStatus || existing.payment_status || '',
+    payment_history: body.paymentHistory || existing.payment_history || [],
+    order_source: body.orderSource || existing.order_source || '',
+    subtotal: num(body.subtotal != null ? body.subtotal : existing.subtotal, 0),
+    discount_amount: num(body.discountAmount != null ? body.discountAmount : existing.discount_amount, 0),
+    delivery_charges: num(body.deliveryCharges != null ? body.deliveryCharges : existing.delivery_charges, 0),
   };
 }
 
@@ -194,6 +200,654 @@ async function dispatch(req, res) {
           companyNote: 'For questions, contact Amazon Printing Services with your Order ID.',
         });
       }
+      if (method === 'GET' && path.startsWith('/public/employee/')) {
+        const code = decodeURIComponent(path.replace('/public/employee/', '')).trim().toLowerCase();
+        if (!code) return sendError(res, 'Employee code required', 400);
+        const { data: rows } = await supabase.from('employees').select('*');
+        const row = (rows || []).find((e) => {
+          const keys = [e.id, e.employee_code]
+            .map((v) => String(v || '').trim().toLowerCase())
+            .filter(Boolean);
+          return keys.includes(code);
+        });
+        if (!row) return sendError(res, 'Employee not found', 404);
+        const api = mapEmployee(row);
+        const status = String(api.status || 'Active');
+        let expired = false;
+        if (api.validUntil) {
+          const t = new Date(api.validUntil).getTime();
+          if (!Number.isNaN(t)) expired = t < Date.now();
+        }
+        const active = status.toLowerCase() === 'active' && !expired;
+        return send(res, {
+          verified: true,
+          employeeCode: api.employeeCode || api.id || '',
+          name: api.name || '',
+          designation: api.designation || api.role || '',
+          department: api.department || '',
+          joinDate: api.joinDate || '',
+          endDate: api.endDate || '',
+          validFrom: api.validFrom || '',
+          validUntil: api.validUntil || '',
+          status,
+          active,
+          expired,
+          companyNote: 'Verified employment record — Amazon Printing / AMZ Prints.',
+        });
+      }
+      if (method === 'GET' && path === '/public/products') {
+        const { data: rows } = await supabase.from('products').select('*');
+        const products = (rows || [])
+          .map(mapProduct)
+          .filter((p) => p && p.active !== false && String(p.status || 'Active').toLowerCase() !== 'inactive')
+          .map((p) => {
+            const images = Array.isArray(p.images) && p.images.length
+              ? p.images
+              : (p.image || p.photo ? [p.image || p.photo] : []);
+            return {
+              id: p.id || '',
+              name: p.name || '',
+              category: p.category || '',
+              productType: p.productType || 'Product',
+              basePrice: Number(p.basePrice || p.rate || 0),
+              unit: p.unit || 'per piece',
+              description: p.description || '',
+              material: p.material || '',
+              size: p.size || '',
+              minQuantity: Number(p.minQuantity || 1),
+              image: images[0] || p.image || p.photo || '',
+              images,
+            };
+          });
+        return send(res, products);
+      }
+      if (method === 'POST' && path === '/public/lead') {
+        const name = String(body.name || body.customerName || '').trim();
+        const phone = String(body.phone || body.customerPhone || '').trim();
+        const email = String(body.email || body.customerEmail || '').trim();
+        const company = String(body.company || '').trim();
+        const product = String(body.product || body.service || '').trim();
+        const quantity = String(body.quantity || '').trim();
+        const neededBy = String(body.neededBy || body.needed_by || '').trim();
+        const details = String(body.details || body.message || body.notes || '').trim();
+        const source = String(body.source || 'website').trim() || 'website';
+        if (!name) return sendError(res, 'Name is required', 400);
+        if (!phone && !email) return sendError(res, 'Phone or email is required', 400);
+
+        const noteLines = [
+          `Website inquiry (${source})`,
+          company ? `Company: ${company}` : '',
+          product ? `Product/Service: ${product}` : '',
+          quantity ? `Quantity: ${quantity}` : '',
+          neededBy ? `Needed by: ${neededBy}` : '',
+          details ? `Details: ${details}` : '',
+        ].filter(Boolean);
+        const noteText = noteLines.join('\n');
+
+        let existing = null;
+        if (phone) {
+          const { data } = await supabase.from('customers').select('*').eq('phone', phone).limit(1);
+          existing = data && data[0];
+        }
+        let customerId = existing?.id;
+        if (existing) {
+          const updates = {
+            name: name || existing.name,
+            phone: phone || existing.phone,
+            email: email || existing.email,
+            address: company ? `Company: ${company}` : (existing.address || ''),
+            notes: noteText || existing.notes,
+            in_crm: true,
+            stage: 'lead',
+            stage_updated_at: new Date().toISOString(),
+          };
+          await supabase.from('customers').update(updates).eq('id', existing.id);
+        } else {
+          customerId = id('cust');
+          await supabase.from('customers').insert({
+            id: customerId,
+            name,
+            phone,
+            email,
+            address: company ? `Company: ${company}` : '',
+            city: '',
+            notes: noteText,
+            in_crm: true,
+            stage: 'lead',
+            stage_updated_at: new Date().toISOString(),
+            notify_whatsapp: true,
+            notify_email: true,
+          });
+        }
+
+        try {
+          await supabase.from('crm_notes').insert({
+            id: id('note'),
+            customer_id: customerId,
+            note: noteText,
+            created_at: new Date().toISOString(),
+            created_by: 'website',
+          });
+        } catch {
+          /* note optional */
+        }
+
+        return send(res, { ok: true, customerId, stage: 'lead', inCrm: true });
+      }
+
+      // Customer portal (read-only website account)
+      if (path.startsWith('/public/customer/')) {
+        const issueCustomerToken = (cust) => Buffer.from(JSON.stringify({
+          type: 'customer',
+          id: String(cust.id || ''),
+          email: String(cust.email || '').trim().toLowerCase(),
+          exp: Date.now() + 7 * 24 * 60 * 60 * 1000,
+        })).toString('base64url');
+
+        const validateCustomerToken = async (raw) => {
+          if (!raw) return null;
+          try {
+            const payload = JSON.parse(Buffer.from(String(raw), 'base64url').toString('utf8'));
+            if (payload.type !== 'customer') return null;
+            if (payload.exp && Date.now() > payload.exp) return null;
+            const { data } = await supabase.from('customers').select('*').eq('id', payload.id).maybeSingle();
+            if (!data) return null;
+            if (String(data.email || '').trim().toLowerCase() !== String(payload.email || '').toLowerCase()) return null;
+            return data;
+          } catch {
+            return null;
+          }
+        };
+
+        const sanitizePortalCustomer = (c) => ({
+          id: c.id || '',
+          name: c.name || '',
+          email: c.email || '',
+          phone: c.phone || '',
+          city: c.city || '',
+          hasPassword: !!String(c.portal_password || '').trim(),
+        });
+
+        const ownsOrder = (customer, o) => {
+          const cid = String(customer.id || '');
+          const phone = String(customer.phone || '').trim();
+          const email = String(customer.email || '').trim().toLowerCase();
+          if (cid && String(o.customer_id || '') === cid) return true;
+          if (phone && String(o.customer_phone || '').trim() === phone) return true;
+          if (email && String(o.customer_email || '').trim().toLowerCase() === email) return true;
+          return false;
+        };
+
+        const ownsInvoice = (customer, inv) => {
+          const cid = String(customer.id || '');
+          const phone = String(customer.phone || '').trim();
+          const email = String(customer.email || '').trim().toLowerCase();
+          if (cid && String(inv.customer_id || '') === cid) return true;
+          if (phone && String(inv.customer_phone || '').trim() === phone) return true;
+          if (email && String(inv.customer_email || '').trim().toLowerCase() === email) return true;
+          return false;
+        };
+
+        const assertPortalKey = (portalKey) => {
+          const got = String(portalKey || '').trim();
+          if (got.length < 16) throw new Error('Invalid portal key');
+          const expected = String(process.env.CUSTOMER_PORTAL_KEY || '').trim();
+          // If not configured on API, accept first key from WordPress (dev/bootstrap).
+          if (!expected) return true;
+          if (got !== expected) throw new Error('Invalid portal key');
+          return true;
+        };
+
+        const resolveGoogleEmail = async (body) => {
+          if (body.googleVerified && body.email && body.portalKey) {
+            assertPortalKey(body.portalKey);
+            const email = String(body.email || '').trim().toLowerCase();
+            if (!email || !email.includes('@')) throw new Error('Valid email required');
+            return { email, name: '' };
+          }
+          return verifyGoogle(body.idToken || body.credential || '');
+        };
+
+        const verifyGoogle = async (idToken) => {
+          const token = String(idToken || '').trim();
+          if (!token) throw new Error('Google ID token required');
+          const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(token)}`);
+          if (!res.ok) throw new Error('Google verification failed');
+          const data = await res.json();
+          const email = String(data.email || '').trim().toLowerCase();
+          const verified = data.email_verified === true || data.email_verified === 'true';
+          if (!email || !verified) throw new Error('Google email not verified');
+          return { email, name: String(data.name || '') };
+        };
+
+        const listOrders = async (customer) => {
+          const { data: orders } = await supabase.from('orders').select('*');
+          return (orders || [])
+            .filter((o) => String(o.doc_type || 'Order').toLowerCase() !== 'quotation' && ownsOrder(customer, o))
+            .map((o) => {
+              const api = mapOrder(o);
+              return {
+                id: api.id || '',
+                orderId: api.orderId || '',
+                trackingNumber: api.trackingNumber || '',
+                date: api.date || '',
+                status: api.status || '',
+                deliveryDate: api.deliveryDate || '',
+                items: (api.products || []).map((p) => p.name || '').filter(Boolean),
+                totalAmount: Number(api.totalAmount || 0),
+                balanceAmount: Number(api.balanceAmount || 0),
+              };
+            })
+            .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+        };
+
+        const listInvoices = async (customer) => {
+          const { data: invoices } = await supabase.from('invoices').select('*');
+          const erpBase = 'https://erp.amzprints.com';
+          return (invoices || [])
+            .filter((inv) => ownsInvoice(customer, inv))
+            .map((inv) => {
+              const api = mapInvoice(inv);
+              const share = api.shareToken || '';
+              return {
+                id: api.id || '',
+                invoiceNumber: api.invoiceNumber || api.invoiceNo || '',
+                date: api.date || '',
+                dueDate: api.dueDate || '',
+                status: api.status || '',
+                totalAmount: Number(api.totalAmount != null ? api.totalAmount : api.total || 0),
+                paidAmount: Number(api.paidAmount != null ? api.paidAmount : api.paid || 0),
+                discount: Number(api.discount || 0),
+                shareToken: share,
+                pdfUrl: share ? `${erpBase}/invoice/${encodeURIComponent(share)}` : '',
+                viewOnly: true,
+              };
+            })
+            .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+        };
+
+        try {
+          if (method === 'POST' && path === '/public/customer/register') {
+            const name = String(body.name || '').trim();
+            const email = String(body.email || '').trim().toLowerCase();
+            const phone = String(body.phone || '').trim();
+            const password = String(body.password || body.newPassword || '').trim();
+            const address = String(body.address || '').trim();
+            if (!name) return sendError(res, 'Name is required', 400);
+            if (!email || !email.includes('@')) return sendError(res, 'Valid email is required', 400);
+            if (password.length < 6) return sendError(res, 'Password must be at least 6 characters', 400);
+            const { data: existingRows } = await supabase.from('customers').select('*').ilike('email', email).limit(5);
+            const exists = (existingRows || []).find((c) => String(c.email || '').trim().toLowerCase() === email);
+            if (exists) return sendError(res, 'An account already exists for this email. Please log in.', 400);
+            const customerId = id('cust');
+            const row = {
+              id: customerId,
+              name,
+              phone,
+              email,
+              address,
+              city: '',
+              notes: 'Website registration',
+              in_crm: true,
+              stage: 'lead',
+              stage_updated_at: new Date().toISOString(),
+              notify_whatsapp: true,
+              notify_email: true,
+              portal_password: password,
+            };
+            const { error } = await supabase.from('customers').insert(row);
+            if (error) return sendError(res, error.message || 'Could not create account', 500);
+            try {
+              await supabase.from('crm_notes').insert({
+                id: id('note'),
+                customer_id: customerId,
+                note: 'Website account created',
+                created_at: new Date().toISOString(),
+                created_by: 'website',
+              });
+            } catch { /* optional */ }
+            return send(res, {
+              ok: true,
+              token: issueCustomerToken(row),
+              customer: sanitizePortalCustomer(row),
+              message: 'Account created. You can place orders now.',
+            });
+          }
+
+          if (method === 'POST' && path === '/public/customer/login') {
+            const email = String(body.email || '').trim().toLowerCase();
+            const password = String(body.password || '');
+            if (!email || !password) return sendError(res, 'Email and password required', 400);
+            const { data: rows } = await supabase.from('customers').select('*').ilike('email', email).limit(5);
+            const customer = (rows || []).find((c) => String(c.email || '').trim().toLowerCase() === email);
+            if (!customer) return sendError(res, 'No customer account found for this email', 404);
+            const stored = String(customer.portal_password || '').trim();
+            if (!stored) return sendError(res, 'Password not set. Use Forgot password (email code) or continue with Google.', 400);
+            if (stored !== password) return sendError(res, 'Invalid email or password', 401);
+            return send(res, { token: issueCustomerToken(customer), customer: sanitizePortalCustomer(customer) });
+          }
+
+          if (method === 'POST' && path === '/public/customer/google') {
+            const g = await resolveGoogleEmail(body);
+            const { data: rows } = await supabase.from('customers').select('*').ilike('email', g.email).limit(5);
+            let customer = (rows || []).find((c) => String(c.email || '').trim().toLowerCase() === g.email);
+            if (!customer) {
+              if (body.createIfMissing) {
+                const name = String(body.name || g.name || g.email.split('@')[0]).trim();
+                const password = `g_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+                const customerId = id('cust');
+                const row = {
+                  id: customerId,
+                  name,
+                  phone: '',
+                  email: g.email,
+                  address: '',
+                  city: '',
+                  notes: 'Google signup',
+                  in_crm: true,
+                  stage: 'lead',
+                  stage_updated_at: new Date().toISOString(),
+                  notify_whatsapp: true,
+                  notify_email: true,
+                  portal_password: password,
+                };
+                const { error } = await supabase.from('customers').insert(row);
+                if (error) return sendError(res, error.message || 'Could not create account', 500);
+                return send(res, {
+                  ok: true,
+                  created: true,
+                  token: issueCustomerToken(row),
+                  customer: sanitizePortalCustomer(row),
+                  message: 'Account created. You can place orders now.',
+                });
+              }
+              return sendError(res, `No customer account found for ${g.email}. Please sign up first.`, 404);
+            }
+            const newPass = String(body.newPassword || body.password || '').trim();
+            if (newPass) {
+              if (newPass.length < 6) return sendError(res, 'Password must be at least 6 characters', 400);
+              await supabase.from('customers').update({ portal_password: newPass }).eq('id', customer.id);
+              customer.portal_password = newPass;
+            }
+            return send(res, {
+              token: issueCustomerToken(customer),
+              customer: sanitizePortalCustomer(customer),
+              passwordUpdated: !!newPass,
+            });
+          }
+
+          if (method === 'POST' && path === '/public/customer/reset-password') {
+            assertPortalKey(body.portalKey);
+            const email = String(body.email || '').trim().toLowerCase();
+            const pass = String(body.newPassword || body.password || '').trim();
+            if (!email || !email.includes('@')) return sendError(res, 'Valid email is required', 400);
+            if (pass.length < 6) return sendError(res, 'Password must be at least 6 characters', 400);
+            const { data: rows } = await supabase.from('customers').select('*').ilike('email', email).limit(5);
+            const customer = (rows || []).find((c) => String(c.email || '').trim().toLowerCase() === email);
+            if (!customer) return sendError(res, 'No customer account found for this email', 404);
+            await supabase.from('customers').update({ portal_password: pass }).eq('id', customer.id);
+            customer.portal_password = pass;
+            return send(res, {
+              ok: true,
+              token: issueCustomerToken(customer),
+              customer: sanitizePortalCustomer(customer),
+            });
+          }
+
+          if (method === 'POST' && path === '/public/customer/set-password') {
+            const g = await resolveGoogleEmail(body);
+            const { data: rows } = await supabase.from('customers').select('*').ilike('email', g.email).limit(5);
+            const customer = (rows || []).find((c) => String(c.email || '').trim().toLowerCase() === g.email);
+            if (!customer) return sendError(res, 'No customer account found for this Google email', 404);
+            const pass = String(body.password || body.newPassword || '').trim();
+            if (pass.length < 6) return sendError(res, 'Password must be at least 6 characters', 400);
+            await supabase.from('customers').update({ portal_password: pass }).eq('id', customer.id);
+            customer.portal_password = pass;
+            return send(res, {
+              ok: true,
+              token: issueCustomerToken(customer),
+              customer: sanitizePortalCustomer(customer),
+            });
+          }
+
+          if (method === 'POST' && path === '/public/customer/session') {
+            const customer = await validateCustomerToken(body.token);
+            if (!customer) return sendError(res, 'Unauthorized', 401);
+            const [orders, invoices] = await Promise.all([listOrders(customer), listInvoices(customer)]);
+            const discountItems = invoices.filter((inv) => Number(inv.discount || 0) > 0);
+            const totalDiscount = discountItems.reduce((s, r) => s + Number(r.discount || 0), 0);
+            return send(res, {
+              customer: sanitizePortalCustomer(customer),
+              orders,
+              invoices,
+              discounts: {
+                totalDiscount,
+                count: discountItems.length,
+                items: discountItems.map((inv) => ({
+                  invoiceNumber: inv.invoiceNumber,
+                  date: inv.date,
+                  discount: inv.discount,
+                  totalAmount: inv.totalAmount,
+                  status: inv.status,
+                  pdfUrl: inv.pdfUrl,
+                })),
+                note: 'Discounts already applied on your invoices (view only).',
+              },
+              readOnly: true,
+            });
+          }
+
+          if (method === 'POST' && path === '/public/customer/track') {
+            const customer = await validateCustomerToken(body.token);
+            if (!customer) return sendError(res, 'Unauthorized', 401);
+            const code = String(body.code || body.orderId || body.trackingNumber || '').trim().toLowerCase();
+            if (!code) return sendError(res, 'Order ID / Tracking Number required', 400);
+            const { data: orders } = await supabase.from('orders').select('*');
+            const order = (orders || []).find((o) => {
+              if (String(o.doc_type || 'Order').toLowerCase() === 'quotation') return false;
+              if (!ownsOrder(customer, o)) return false;
+              const keys = [o.tracking_number, o.order_id, o.id, o.token_no]
+                .map((v) => String(v || '').trim().toLowerCase())
+                .filter(Boolean);
+              return keys.includes(code);
+            });
+            if (!order) return sendError(res, 'Order not found on your account', 404);
+            const api = mapOrder(order);
+            const pipeline = ['Order Received', 'Designing', 'Proof Approval', 'Printing', 'Finishing', 'Packing', 'Ready', 'Delivered'];
+            const status = String(api.status || '');
+            const cancelled = status.toLowerCase() === 'cancelled';
+            let idx = cancelled ? -1 : pipeline.indexOf(status);
+            const timeline = pipeline.map((s, i) => ({
+              status: s,
+              done: !cancelled && idx >= 0 && i <= idx,
+              current: !cancelled && s === status,
+            }));
+            return send(res, {
+              orderId: api.orderId,
+              trackingNumber: api.trackingNumber || api.orderId,
+              status: api.status,
+              cancelled,
+              customerName: api.customerName,
+              products: (api.products || []).map((p) => ({ name: p.name || '' })).filter((p) => p.name),
+              timeline,
+              trackCode: api.trackingNumber || api.orderId || api.id,
+              companyNote: 'For questions, contact Amazon Printing Services with your Order ID.',
+            });
+          }
+
+          if (method === 'POST' && path === '/public/customer/order') {
+            const customer = await validateCustomerToken(body.token);
+            if (!customer) return sendError(res, 'Please log in to place an order', 401);
+            // Auto-add / keep customer in CRM on website order
+            try {
+              await supabase.from('customers').update({
+                in_crm: true,
+                stage: customer.stage || 'customer',
+                stage_updated_at: new Date().toISOString(),
+                phone: String(body.customerPhone || customer.phone || '').trim() || customer.phone,
+                address: String(body.deliveryAddress || body.address || customer.address || '').trim() || customer.address,
+              }).eq('id', customer.id);
+            } catch { /* best-effort */ }
+            const accepted = body.policyAccepted === true || body.policyAccepted === 'true' || body.policyAccepted === 1 || body.policyAccepted === '1';
+            if (!accepted) return sendError(res, 'Please accept the Order Processing Policy before placing your order', 400);
+
+            const methodRaw = String(body.paymentMethod || '').trim().toLowerCase();
+            let paymentMethod = '';
+            if (methodRaw === 'cod' || methodRaw.includes('cash')) paymentMethod = 'Cash on Delivery';
+            else if (methodRaw === 'online' || methodRaw.includes('online')) paymentMethod = 'Online Payment';
+            else return sendError(res, 'Select a payment method: Cash on Delivery or Online Payment', 400);
+
+            const { data: catalog } = await supabase.from('products').select('*');
+            const byId = {};
+            (catalog || []).forEach((p) => { if (p?.id) byId[String(p.id)] = p; });
+
+            const rawItems = body.items || body.products || [];
+            if (!Array.isArray(rawItems) || !rawItems.length) return sendError(res, 'Your cart is empty', 400);
+
+            const lineItems = [];
+            let subtotal = 0;
+            for (const item of rawItems) {
+              const pid = String(item.productId || item.id || '').trim();
+              let qty = Math.max(1, Math.floor(Number(item.quantity) || 1));
+              let prod = pid ? byId[pid] : null;
+              if (!prod) {
+                const nameNeedle = String(item.name || '').trim().toLowerCase();
+                prod = (catalog || []).find((p) => nameNeedle && String(p.name || '').trim().toLowerCase() === nameNeedle) || null;
+              }
+              if (!prod) return sendError(res, `Product not found: ${item.name || pid || 'unknown'}`, 404);
+              if (String(prod.status || 'Active').toLowerCase() === 'inactive') {
+                return sendError(res, `Product unavailable: ${prod.name || pid}`, 400);
+              }
+              const rate = Number(prod.rate || 0);
+              if (rate <= 0) {
+                return sendError(res, `Product "${prod.name || ''}" needs a quote — contact AMZ Prints or use Get a Quote.`, 400);
+              }
+              const minQ = Math.max(1, Number(prod.min_quantity || 1));
+              if (qty < minQ) qty = minQ;
+              lineItems.push({
+                productId: String(prod.id || ''),
+                name: String(prod.name || ''),
+                quantity: qty,
+                rate,
+                size: String(item.size || prod.size || ''),
+                material: String(item.material || prod.material || ''),
+                notes: String(item.notes || ''),
+              });
+              subtotal += rate * qty;
+            }
+
+            let discountAmount = Math.max(0, Number(body.discountAmount != null ? body.discountAmount : body.discount || 0));
+            if (discountAmount > subtotal) discountAmount = subtotal;
+            const deliveryCharges = Math.max(0, Number(body.deliveryCharges != null ? body.deliveryCharges : body.delivery || 0));
+            const totalAmount = Math.max(0, subtotal - discountAmount + deliveryCharges);
+            const paymentStatus = paymentMethod === 'Cash on Delivery' ? 'Unpaid' : 'Payment Pending';
+            const nowStamp = `${today()} ${nowTime()}`;
+            const deliveryAddress = String(body.deliveryAddress || body.address || customer.address || '').trim();
+            const remarks = [
+              'Website order',
+              `Payment: ${paymentMethod}`,
+              `Payment status: ${paymentStatus}`,
+              body.customerNote ? `Note: ${String(body.customerNote).trim()}` : '',
+              discountAmount > 0 ? `Discount: ${discountAmount}` : '',
+              deliveryCharges > 0 ? `Delivery: ${deliveryCharges}` : '',
+            ].filter(Boolean).join(' · ');
+
+            const orderId = await nextOrderId();
+            const row = orderFromBody({
+              customerId: customer.id,
+              customerName: customer.name || '',
+              customerPhone: String(body.customerPhone || customer.phone || '').trim(),
+              customerEmail: customer.email || '',
+              customerAddress: deliveryAddress || customer.address || '',
+              deliveryAddress,
+              products: lineItems,
+              totalAmount,
+              advancePayment: 0,
+              balanceAmount: totalAmount,
+              status: 'Order Received',
+              docType: 'Order',
+              paymentMethod,
+              paymentStatus,
+              paymentHistory: [{
+                status: paymentStatus,
+                method: paymentMethod,
+                amount: 0,
+                at: nowStamp,
+                note: paymentMethod === 'Cash on Delivery'
+                  ? 'Order placed under COD terms'
+                  : 'Online payment selected — order created; payment confirmation pending',
+              }],
+              orderSource: 'Website',
+              subtotal,
+              discountAmount,
+              deliveryCharges,
+              remarks,
+              trackingNumber: `TRK-${Math.floor(1000 + Math.random() * 9000)}`,
+              statusHistory: [{
+                status: 'Order Received',
+                at: nowStamp,
+                note: `Created from website checkout (${paymentMethod}) · ${paymentStatus}`,
+              }],
+              orderId,
+            });
+
+            let { error: orderErr } = await supabase.from('orders').insert(row);
+            if (orderErr) {
+              // Retry without optional commerce columns if schema not migrated yet
+              const fallback = { ...row };
+              delete fallback.payment_status;
+              delete fallback.payment_history;
+              delete fallback.order_source;
+              delete fallback.subtotal;
+              delete fallback.discount_amount;
+              delete fallback.delivery_charges;
+              const retry = await supabase.from('orders').insert(fallback);
+              orderErr = retry.error;
+              if (!orderErr) Object.assign(row, fallback);
+            }
+            if (orderErr) return sendError(res, orderErr.message || 'Could not create order', 500);
+
+            try {
+              await supabase.from('payments').insert({
+                id: id('pay'),
+                date: today(),
+                type: 'inflow',
+                category: 'Website Order',
+                ref_id: orderId,
+                customer_name: row.customer_name || '',
+                customer_id: row.customer_id || '',
+                party_phone: row.customer_phone || '',
+                amount: 0,
+                method: paymentMethod,
+                notes: `${paymentStatus} · website checkout`,
+                balance_due: totalAmount,
+                total_amount: totalAmount,
+              });
+            } catch {
+              /* payment log best-effort */
+            }
+
+            const api = mapOrder(row);
+            return send(res, {
+              ok: true,
+              order: { ...api, paymentStatus, subtotal, discountAmount, deliveryCharges },
+              orderId: api.orderId,
+              trackingNumber: api.trackingNumber,
+              paymentMethod,
+              paymentStatus,
+              totalAmount: api.totalAmount,
+              message: paymentMethod === 'Cash on Delivery'
+                ? 'Order placed under Cash on Delivery terms. Processing begins after payment confirmation per policy.'
+                : 'Order placed. Complete online payment as instructed — processing starts after payment confirmation.',
+            });
+          }
+        } catch (err) {
+          return sendError(res, err.message || 'Customer portal error', 400);
+        }
+
+        return sendError(res, 'Not found', 404);
+      }
+
       return sendError(res, 'Not found', 404);
     }
 
@@ -206,15 +860,40 @@ async function dispatch(req, res) {
 
     // Dashboard
     if (method === 'GET' && (path === '/dashboard/stats' || path === '/dashboard/bootstrap')) {
-      const [{ data: orders }, { data: customers }, { data: expenses }, { data: payments }] = await Promise.all([
+      const from = String(req.query?.from || '').slice(0, 10);
+      const to = String(req.query?.to || '').slice(0, 10);
+      const inRange = (raw) => {
+        if (!from && !to) return true;
+        const dk = String(raw || '').trim().slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dk)) return false;
+        if (from && dk < from) return false;
+        if (to && dk > to) return false;
+        return true;
+      };
+      const [{ data: orders }, { data: customers }, { data: expenses }, { data: purchases }] = await Promise.all([
         supabase.from('orders').select('*'),
         supabase.from('customers').select('id'),
-        supabase.from('expenses').select('amount'),
-        supabase.from('payments').select('*'),
+        supabase.from('expenses').select('*'),
+        supabase.from('purchases').select('*'),
       ]);
-      const realOrders = (orders || []).filter((o) => String(o.doc_type || 'Order').toLowerCase() !== 'quotation');
+      const realOrders = (orders || []).filter((o) => (
+        String(o.doc_type || 'Order').toLowerCase() !== 'quotation' && inRange(o.date)
+      ));
+      const expenseRows = (expenses || []).filter((e) => inRange(e.date));
+      const purchaseRows = (purchases || []).filter((p) => inRange(p.date));
       const revenue = realOrders.reduce((s, o) => s + num(o.total_amount), 0);
-      const expenseSum = (expenses || []).reduce((s, e) => s + num(e.amount), 0);
+      const expenseSum = expenseRows.reduce((s, e) => s + num(e.amount), 0);
+      const payables = purchaseRows.reduce((s, p) => {
+        const status = String(p.status || '').toLowerCase();
+        if (status.includes('cancel')) return s;
+        if (status.includes('fully paid') || status === 'paid') return s;
+        return s + Math.max(0, num(p.total) - num(p.paid_amount));
+      }, 0);
+      const statusMap = {};
+      realOrders.forEach((o) => {
+        const key = o.status || 'Unknown';
+        statusMap[key] = (statusMap[key] || 0) + 1;
+      });
       const stats = {
         totalOrders: realOrders.length,
         pendingOrders: realOrders.filter((o) => !['Delivered', 'Cancelled'].includes(o.status)).length,
@@ -222,14 +901,21 @@ async function dispatch(req, res) {
         revenue,
         expenses: expenseSum,
         receivables: realOrders.reduce((s, o) => s + num(o.balance_amount), 0),
-        payables: 0,
+        payables,
+        vendorPayables: payables,
         activeCustomers: (customers || []).length,
+        from: from || '',
+        to: to || '',
       };
       if (path === '/dashboard/bootstrap') {
         return send(res, {
           stats,
           recentOrders: realOrders.slice(-8).reverse().map(mapOrder),
-          charts: { sales: [], expenses: [] },
+          charts: {
+            monthlySales: [],
+            orderStatus: Object.keys(statusMap).map((name) => ({ name, value: statusMap[name] })),
+          },
+          attention: [],
         });
       }
       return send(res, stats);
@@ -262,6 +948,7 @@ async function dispatch(req, res) {
           status: body.status || 'Active',
           permissions: body.permissions || [],
           email: body.email || body.username || '',
+          employee_id: body.employeeId || body.employee_id || '',
         };
         await supabase.from('users').insert(row);
         return send(res, mapUser(row, true));
@@ -275,6 +962,7 @@ async function dispatch(req, res) {
           status: body.status,
           permissions: body.permissions,
           email: body.email,
+          employee_id: body.employeeId != null ? body.employeeId : body.employee_id,
         };
         if (body.password) updates.password = body.password;
         Object.keys(updates).forEach((k) => updates[k] === undefined && delete updates[k]);
@@ -478,36 +1166,51 @@ async function dispatch(req, res) {
     if (path === '/employees' || path.startsWith('/employees/')) {
       const done = await handleCollection('employees', '/employees', mapEmployee, (b, rid) => ({
         id: rid || b.id || id('emp'),
+        employee_code: b.employeeCode || b.employee_code || '',
         name: b.name || '',
         phone: b.phone || '',
         email: b.email || '',
+        cnic: b.cnic || '',
         role: b.role || 'Staff',
+        designation: b.designation || '',
         department: b.department || 'General',
         join_date: b.joinDate || b.join_date || '',
+        end_date: b.endDate || b.end_date || '',
+        valid_from: b.validFrom || b.valid_from || '',
+        valid_until: b.validUntil || b.valid_until || '',
         salary: num(b.salary),
         status: b.status || 'Active',
         address: b.address || '',
+        city: b.city || '',
+        emergency_contact: b.emergencyContact || b.emergency_contact || '',
+        emergency_phone: b.emergencyPhone || b.emergency_phone || '',
         notes: b.notes || '',
+        photo: b.photo || b.image || '',
       }));
       if (done !== null) return done;
     }
 
     if (path === '/products' || path.startsWith('/products/')) {
-      const done = await handleCollection('products', '/products', mapProduct, (b, rid) => ({
-        id: rid || b.id || id('prod'),
-        name: b.name || '',
-        category: b.category || '',
-        rate: num(b.rate != null ? b.rate : b.basePrice),
-        unit: b.unit || '',
-        description: b.description || '',
-        status: b.status || 'Active',
-        product_type: b.productType || b.product_type || 'Product',
-        designer: b.designer || '',
-        stock: num(b.stock),
-        material: b.material || '',
-        size: b.size || '',
-        min_quantity: num(b.minQuantity),
-      }));
+      const done = await handleCollection('products', '/products', mapProduct, (b, rid) => {
+        const productType = b.productType || b.product_type || 'Product';
+        const isService = String(productType).toLowerCase() === 'service';
+        return {
+          id: rid || b.id || id('prod'),
+          name: b.name || '',
+          category: isService ? (b.category || 'Services') : (b.category || ''),
+          rate: num(b.rate != null ? b.rate : b.basePrice),
+          unit: isService ? 'service' : (b.unit || ''),
+          description: b.description || '',
+          status: b.active === false ? 'Inactive' : (b.status || 'Active'),
+          product_type: productType,
+          designer: isService ? '' : (b.designer || ''),
+          stock: num(b.stock),
+          material: isService ? '' : (b.material || ''),
+          size: isService ? '' : (b.size || ''),
+          min_quantity: isService ? 1 : num(b.minQuantity),
+          image: b.image || b.photo || '',
+        };
+      });
       if (done !== null) return done;
     }
 
@@ -528,16 +1231,31 @@ async function dispatch(req, res) {
     }
 
     if (path === '/purchases' || path.startsWith('/purchases/')) {
-      const done = await handleCollection('purchases', '/purchases', mapPurchase, (b, rid) => ({
-        id: rid || b.id || id('pur'),
-        purchase_no: b.purchaseNo || b.purchase_no || '',
-        date: b.date || today(),
-        vendor_id: b.vendorId || '',
-        vendor_name: b.vendorName || '',
-        items: b.items || [],
-        total: num(b.total != null ? b.total : b.totalAmount),
-        status: b.status || 'Pending',
-      }));
+      const done = await handleCollection('purchases', '/purchases', mapPurchase, (b, rid) => {
+        const items = Array.isArray(b.items) ? b.items : [];
+        let total = num(b.total != null ? b.total : b.totalAmount);
+        if (!(total > 0) && items.length) {
+          total = items.reduce((s, it) => s + (num(it.quantity) * num(it.rate)), 0);
+        }
+        const year = new Date().getFullYear();
+        const autoPo = `PO-${year}-${String(Date.now()).slice(-4)}`;
+        return {
+          id: rid || b.id || id('pur'),
+          purchase_no: b.poNumber || b.purchaseNo || b.purchase_no || autoPo,
+          date: b.purchaseDate || b.date || today(),
+          vendor_id: b.vendorId || b.vendor_id || '',
+          vendor_name: b.vendorName || b.vendor_name || '',
+          vendor_invoice_number: b.vendorInvoiceNumber || '',
+          expected_delivery_date: b.expectedDeliveryDate || '',
+          actual_delivery_date: b.actualDeliveryDate || '',
+          linked_order_id: b.linkedOrderId || '',
+          items,
+          total,
+          paid_amount: num(b.paidAmount != null ? b.paidAmount : b.paid_amount),
+          status: b.status || 'Draft',
+          notes: b.notes || '',
+        };
+      });
       if (done !== null) return done;
     }
 
@@ -760,22 +1478,25 @@ async function dispatch(req, res) {
       }
     }
 
-    // Designers (from users)
+    // Designers from HR employees (role Designer)
     if (path === '/designers' && method === 'GET') {
-      const { data } = await supabase.from('users').select('*');
-      let designers = (data || []).filter((u) => String(u.role || '').toLowerCase().includes('designer') && isActive(u));
-      if (!designers.length) designers = (data || []).filter(isActive);
-      return send(res, designers.map((u) => ({
-        id: u.id || u.username,
-        name: u.name || u.username,
-        email: u.email || '',
-        role: u.role || '',
-      })));
-    }
-
-    function isActive(u) {
-      const s = String(u.status || 'Active').toLowerCase();
-      return s !== 'inactive';
+      const { data } = await supabase.from('employees').select('*');
+      const designers = (data || []).filter((e) => {
+        const role = String(e.role || '').toLowerCase();
+        const status = String(e.status || 'Active').toLowerCase();
+        return status !== 'inactive' && role.includes('designer');
+      });
+      return send(res, designers.map((e) => {
+        const emp = mapEmployee(e);
+        return {
+          id: emp.id,
+          name: emp.name,
+          email: emp.email || '',
+          phone: emp.phone || '',
+          role: emp.role || 'Designer',
+          photo: emp.photo || '',
+        };
+      }));
     }
 
     // Counters

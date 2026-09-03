@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,11 +9,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { expensesAPI } from '@/services/api';
 import { formatCurrency, formatDate } from '@/utils/helpers';
+import { sortBy } from '@/utils/sortBy';
+import SortBar from '@/components/shared/SortBar';
 import {
   Plus, Search, Edit, Trash2, Receipt, TrendingDown, Calendar, Filter, X, Save,
   Building, Zap, Wrench, Fuel, Users as UsersIcon, ShoppingBag, MoreHorizontal
 } from 'lucide-react';
 import { toast } from 'sonner';
+
+const EXPENSE_SORT_OPTS = [
+  { value: 'date', label: 'Date' },
+  { value: 'category', label: 'Category' },
+  { value: 'amount', label: 'Amount' },
+  { value: 'description', label: 'Description' },
+];
 
 const CATEGORIES = [
   { key: 'Office', label: 'Office Expenses', icon: Building, color: '#3B82F6' },
@@ -41,6 +50,7 @@ const Expenses = () => {
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({ search: '', category: undefined, from: '', to: '' });
+  const [sort, setSort] = useState({ field: 'date', dir: 'desc' });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [formData, setFormData] = useState(emptyExpense);
@@ -71,6 +81,13 @@ const Expenses = () => {
     e.description?.toLowerCase().includes(filters.search.toLowerCase()) ||
     e.paidTo?.toLowerCase().includes(filters.search.toLowerCase())
   );
+
+  const sorted = useMemo(() => sortBy(filtered, sort, {
+    date: (e) => e.date || '',
+    category: (e) => e.category || '',
+    amount: (e) => Number(e.amount || 0),
+    description: (e) => e.description || '',
+  }), [filtered, sort]);
 
   const totals = {
     total: filtered.reduce((s, e) => s + (e.amount || 0), 0),
@@ -151,7 +168,7 @@ const Expenses = () => {
         </div>
         <Button
           onClick={openCreate}
-          style={{ backgroundColor: '#F26522' }}
+          style={{ backgroundColor: '#ff6d00' }}
           className="text-white"
           data-testid="add-expense-button"
         >
@@ -185,7 +202,7 @@ const Expenses = () => {
         </Card>
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#F26522' }}>
+            <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#ff6d00' }}>
               <Receipt className="h-6 w-6 text-white" />
             </div>
             <div>
@@ -257,12 +274,15 @@ const Expenses = () => {
               data-testid="expense-to-date"
             />
             <div className="flex gap-2">
-              <Button onClick={applyFilter} style={{ backgroundColor: '#F26522' }} className="text-white flex-1">
+              <Button onClick={applyFilter} style={{ backgroundColor: '#ff6d00' }} className="text-white flex-1">
                 <Filter className="h-4 w-4 mr-1" />
                 Apply
               </Button>
               <Button onClick={resetFilter} variant="outline" className="flex-1">Reset</Button>
             </div>
+          </div>
+          <div className="mt-3 max-w-md">
+            <SortBar value={sort} onChange={setSort} options={EXPENSE_SORT_OPTS} />
           </div>
         </CardContent>
       </Card>
@@ -274,11 +294,11 @@ const Expenses = () => {
         <CardContent>
           {loading ? (
             <div className="text-center py-8 text-gray-500">Loading expenses...</div>
-          ) : filtered.length === 0 ? (
+          ) : sorted.length === 0 ? (
             <div className="text-center py-12">
               <Receipt className="h-12 w-12 mx-auto text-gray-300 mb-3" />
               <p className="text-gray-500 mb-4">No expenses recorded yet.</p>
-              <Button onClick={openCreate} style={{ backgroundColor: '#F26522' }} className="text-white">
+              <Button onClick={openCreate} style={{ backgroundColor: '#ff6d00' }} className="text-white">
                 <Plus className="h-4 w-4 mr-2" />
                 Record First Expense
               </Button>
@@ -298,7 +318,7 @@ const Expenses = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(expense => {
+                  {sorted.map(expense => {
                     const cat = getCategoryConfig(expense.category);
                     const Icon = cat.icon;
                     return (
@@ -337,7 +357,7 @@ const Expenses = () => {
                 <tfoot>
                   <tr className="border-t-2 font-bold" style={{ backgroundColor: '#FFF3ED' }}>
                     <td colSpan="5" className="py-3 px-4 text-right uppercase text-sm">Total:</td>
-                    <td className="py-3 px-4 text-right text-lg" style={{ color: '#F26522' }}>{formatCurrency(totals.total)}</td>
+                    <td className="py-3 px-4 text-right text-lg" style={{ color: '#ff6d00' }}>{formatCurrency(totals.total)}</td>
                     <td></td>
                   </tr>
                 </tfoot>
@@ -447,7 +467,7 @@ const Expenses = () => {
               </Button>
               <Button
                 type="submit"
-                style={{ backgroundColor: '#F26522' }}
+                style={{ backgroundColor: '#ff6d00' }}
                 className="text-white"
                 disabled={saving}
                 data-testid="save-expense-button"
