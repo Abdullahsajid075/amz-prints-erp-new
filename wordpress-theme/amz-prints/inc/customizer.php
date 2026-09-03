@@ -18,9 +18,9 @@ function amz_prints_customize_register( $wp_customize ) {
 	) );
 
 	foreach ( array(
-		'amz_primary_color'   => array( 'label' => 'Brand blue', 'default' => '#055ca4' ),
+		'amz_primary_color'   => array( 'label' => 'Brand blue', 'default' => '#0747a3' ),
 		'amz_secondary_color' => array( 'label' => 'Text black', 'default' => '#111111' ),
-		'amz_accent_color'    => array( 'label' => 'Brand orange', 'default' => '#FF6D00' ),
+		'amz_accent_color'    => array( 'label' => 'Brand orange', 'default' => '#ff6d00' ),
 	) as $id => $args ) {
 		$wp_customize->add_setting( $id, array(
 			'default'           => $args['default'],
@@ -466,7 +466,7 @@ function amz_prints_customize_register( $wp_customize ) {
 	/* ── Customer Portal ── */
 	$wp_customize->add_section( 'amz_customer_portal', array(
 		'title'       => __( 'Customer Portal', 'amz-prints' ),
-		'description' => __( 'Google Sign-In Client ID for customer password reset / verification. Create an OAuth Client ID (Web) in Google Cloud Console.', 'amz-prints' ),
+		'description' => __( 'Google Sign-In Client ID for Continue with Google on Log in and Sign up. Create an OAuth Client ID (Web) in Google Cloud Console.', 'amz-prints' ),
 		'priority'    => 37.7,
 	) );
 
@@ -476,7 +476,7 @@ function amz_prints_customize_register( $wp_customize ) {
 	) );
 	$wp_customize->add_control( 'amz_google_client_id', array(
 		'label'       => __( 'Google OAuth Client ID', 'amz-prints' ),
-		'description' => __( 'Used on Customer Login for Google verification / password reset. Authorized JS origin: your website domain.', 'amz-prints' ),
+		'description' => __( 'Used on Customer Login / Sign up for Continue with Google. Authorized JavaScript origin: your website domain (e.g. https://amzprints.com).', 'amz-prints' ),
 		'section'     => 'amz_customer_portal',
 		'type'        => 'text',
 	) );

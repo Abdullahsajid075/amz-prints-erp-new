@@ -2,6 +2,8 @@
 /**
  * Template Name: Customer Login
  *
+ * Login, signup, Google continue, and email password reset.
+ *
  * @package AMZ_Prints
  */
 
@@ -17,28 +19,41 @@ get_header();
 
 $google_client = trim( (string) amz_prints_mod( 'amz_google_client_id', '' ) );
 $tab           = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : 'login';
-if ( ! in_array( $tab, array( 'login', 'register' ), true ) ) {
+if ( ! in_array( $tab, array( 'login', 'register', 'forgot' ), true ) ) {
 	$tab = 'login';
 }
+$is_login    = ( 'login' === $tab );
+$is_register = ( 'register' === $tab );
+$is_forgot   = ( 'forgot' === $tab );
 ?>
 
 <section class="page-hero page-hero--light">
 	<div class="container">
 		<p class="page-hero__brand"><?php echo esc_html( amz_prints_mod( 'amz_company_name', 'AMZ Prints' ) ); ?></p>
-		<h1><?php the_title(); ?></h1>
-		<p class="page-hero__lead"><?php esc_html_e( 'Log in or create a customer account to shop, track orders, and view invoices.', 'amz-prints' ); ?></p>
+		<h1><?php echo $is_register ? esc_html__( 'Sign up', 'amz-prints' ) : ( $is_forgot ? esc_html__( 'Reset password', 'amz-prints' ) : esc_html__( 'Customer login', 'amz-prints' ) ); ?></h1>
+		<p class="page-hero__lead">
+			<?php
+			if ( $is_register ) {
+				esc_html_e( 'Create an account with email, or continue with Google (Google verifies your email).', 'amz-prints' );
+			} elseif ( $is_forgot ) {
+				esc_html_e( 'We will send a verification code to your email so you can set a new password.', 'amz-prints' );
+			} else {
+				esc_html_e( 'Log in with your email and password, or continue with Google if you already have an account.', 'amz-prints' );
+			}
+			?>
+		</p>
 	</div>
 </section>
 
 <section class="section">
 	<div class="container customer-auth-layout">
-		<div class="customer-auth-card reveal" data-reveal>
-			<div class="auth-tabs" data-auth-tabs>
-				<button type="button" class="<?php echo 'login' === $tab ? 'is-active' : ''; ?>" data-auth-tab="login"><?php esc_html_e( 'Log in', 'amz-prints' ); ?></button>
-				<button type="button" class="<?php echo 'register' === $tab ? 'is-active' : ''; ?>" data-auth-tab="register"><?php esc_html_e( 'Create account', 'amz-prints' ); ?></button>
+		<div class="customer-auth-card reveal" data-reveal data-auth-root data-auth-tab="<?php echo esc_attr( $tab ); ?>">
+			<div class="auth-tabs" data-auth-tabs <?php echo $is_forgot ? 'hidden' : ''; ?>>
+				<button type="button" class="<?php echo $is_login ? 'is-active' : ''; ?>" data-auth-tab="login"><?php esc_html_e( 'Log in', 'amz-prints' ); ?></button>
+				<button type="button" class="<?php echo $is_register ? 'is-active' : ''; ?>" data-auth-tab="register"><?php esc_html_e( 'Sign up', 'amz-prints' ); ?></button>
 			</div>
 
-			<form class="amz-form" id="amz-customer-login-form" <?php echo 'register' === $tab ? 'hidden' : ''; ?>>
+			<form class="amz-form" id="amz-customer-login-form" data-auth-panel="login" <?php echo $is_login ? '' : 'hidden'; ?>>
 				<input type="hidden" name="redirect" value="<?php echo esc_attr( $redirect ); ?>">
 				<label>
 					<span><?php esc_html_e( 'Email', 'amz-prints' ); ?></span>
@@ -49,10 +64,11 @@ if ( ! in_array( $tab, array( 'login', 'register' ), true ) ) {
 					<input type="password" name="password" required autocomplete="current-password" minlength="6">
 				</label>
 				<button type="submit" class="btn btn--primary btn--lg"><?php esc_html_e( 'Log in', 'amz-prints' ); ?></button>
+				<p class="form-note"><button type="button" class="linkish" data-auth-tab="forgot"><?php esc_html_e( 'Forgot password?', 'amz-prints' ); ?></button></p>
 				<p class="form-note" id="amz-customer-login-msg" hidden></p>
 			</form>
 
-			<form class="amz-form" id="amz-customer-register-form" <?php echo 'login' === $tab ? 'hidden' : ''; ?>>
+			<form class="amz-form" id="amz-customer-register-form" data-auth-panel="register" <?php echo $is_register ? '' : 'hidden'; ?>>
 				<input type="hidden" name="redirect" value="<?php echo esc_attr( $redirect ); ?>">
 				<label>
 					<span><?php esc_html_e( 'Full name', 'amz-prints' ); ?></span>
@@ -74,26 +90,45 @@ if ( ! in_array( $tab, array( 'login', 'register' ), true ) ) {
 					<span><?php esc_html_e( 'Address (optional)', 'amz-prints' ); ?></span>
 					<textarea name="address" rows="2"></textarea>
 				</label>
-				<button type="submit" class="btn btn--primary btn--lg"><?php esc_html_e( 'Create account', 'amz-prints' ); ?></button>
+				<button type="submit" class="btn btn--primary btn--lg"><?php esc_html_e( 'Sign up', 'amz-prints' ); ?></button>
 				<p class="form-note"><?php esc_html_e( 'New accounts are added to AMZ Prints CRM automatically.', 'amz-prints' ); ?></p>
 				<p class="form-note" id="amz-customer-register-msg" hidden></p>
 			</form>
 
-			<div class="customer-auth-divider"><span><?php esc_html_e( 'or', 'amz-prints' ); ?></span></div>
+			<div class="customer-auth-forgot" data-auth-panel="forgot" <?php echo $is_forgot ? '' : 'hidden'; ?>>
+				<form class="amz-form" id="amz-customer-forgot-form">
+					<label>
+						<span><?php esc_html_e( 'Account email', 'amz-prints' ); ?></span>
+						<input type="email" name="email" required autocomplete="email" placeholder="you@example.com">
+					</label>
+					<button type="submit" class="btn btn--primary btn--lg"><?php esc_html_e( 'Send verification code', 'amz-prints' ); ?></button>
+					<p class="form-note" id="amz-customer-forgot-msg" hidden></p>
+				</form>
+				<form class="amz-form" id="amz-customer-reset-confirm-form" hidden>
+					<input type="hidden" name="email" value="">
+					<label>
+						<span><?php esc_html_e( 'Verification code', 'amz-prints' ); ?></span>
+						<input type="text" name="code" required inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit code">
+					</label>
+					<label>
+						<span><?php esc_html_e( 'New password', 'amz-prints' ); ?></span>
+						<input type="password" name="new_password" required minlength="6" autocomplete="new-password">
+					</label>
+					<button type="submit" class="btn btn--primary btn--lg"><?php esc_html_e( 'Save new password', 'amz-prints' ); ?></button>
+					<p class="form-note" id="amz-customer-reset-msg" hidden></p>
+				</form>
+				<p class="form-note"><button type="button" class="linkish" data-auth-tab="login"><?php esc_html_e( 'Back to log in', 'amz-prints' ); ?></button></p>
+			</div>
 
-			<div class="customer-google-box">
-				<h3><?php esc_html_e( 'Forgot password? Verify with Google', 'amz-prints' ); ?></h3>
-				<p><?php esc_html_e( 'Sign in with the same Google/Gmail address on your customer account. Then set a new password.', 'amz-prints' ); ?></p>
+			<div class="customer-google-box" data-auth-google <?php echo $is_forgot ? 'hidden' : ''; ?>>
+				<div class="customer-auth-divider"><span><?php esc_html_e( 'or', 'amz-prints' ); ?></span></div>
+				<h3 data-google-login-copy><?php esc_html_e( 'Continue with Google', 'amz-prints' ); ?></h3>
+				<p data-google-login-copy><?php esc_html_e( 'Use the Google account you already signed up with.', 'amz-prints' ); ?></p>
+				<h3 data-google-register-copy hidden><?php esc_html_e( 'Continue with Google', 'amz-prints' ); ?></h3>
+				<p data-google-register-copy hidden><?php esc_html_e( 'Google will verify your email (code / 2-step on your Google account), then we create your AMZ account.', 'amz-prints' ); ?></p>
 
 				<?php if ( $google_client ) : ?>
 					<div id="amz-google-btn" class="amz-google-btn"></div>
-					<form class="amz-form" id="amz-customer-reset-form" hidden>
-						<label>
-							<span><?php esc_html_e( 'New password', 'amz-prints' ); ?></span>
-							<input type="password" name="new_password" minlength="6" required autocomplete="new-password">
-						</label>
-						<button type="submit" class="btn btn--ghost btn--lg"><?php esc_html_e( 'Save password & continue', 'amz-prints' ); ?></button>
-					</form>
 					<p class="form-note" id="amz-customer-google-msg" hidden></p>
 				<?php else : ?>
 					<p class="form-note"><?php esc_html_e( 'Ask admin to set Google Client ID in Appearance → Customize → Customer Portal.', 'amz-prints' ); ?></p>

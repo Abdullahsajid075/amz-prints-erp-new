@@ -3063,7 +3063,7 @@ function handlePublicCustomer_(path, method, body) {
     if (!customer) throw new Error('No customer account found for this email');
     var stored = String(customer.portalpassword || '').trim();
     if (!stored) {
-      throw new Error('Password not set. Use Google verification to set/reset your password.');
+      throw new Error('Password not set. Use Forgot password (email code) or continue with Google.');
     }
     if (stored !== password) throw new Error('Invalid email or password');
     return {
@@ -3075,8 +3075,21 @@ function handlePublicCustomer_(path, method, body) {
   if (method === 'POST' && path === '/public/customer/google') {
     var gEmail = resolveGooglePortalEmail_(body);
     var cust = findCustomerByEmail_(gEmail);
-    if (!cust) throw new Error('No customer account found for ' + gEmail + '. Contact AMZ Prints.');
-    // Optional password set/reset after Google verification
+    if (!cust) {
+      if (body.createIfMissing) {
+        var gName = String(body.name || '').trim() || gEmail.split('@')[0];
+        var gPass = Utilities.getUuid().replace(/-/g, '').slice(0, 12);
+        var created = createPublicCustomerAccount_({
+          name: gName,
+          email: gEmail,
+          password: gPass,
+          notes: 'Google signup'
+        });
+        created.created = true;
+        return created;
+      }
+      throw new Error('No customer account found for ' + gEmail + '. Please sign up first.');
+    }
     var newPass = String(body.newPassword || body.password || '').trim();
     if (newPass) {
       if (newPass.length < 6) throw new Error('Password must be at least 6 characters');
@@ -3089,6 +3102,24 @@ function handlePublicCustomer_(path, method, body) {
       token: issueCustomerToken_(cust),
       customer: sanitizePortalCustomer_(cust),
       passwordUpdated: !!newPass,
+    };
+  }
+
+  if (method === 'POST' && path === '/public/customer/reset-password') {
+    assertOrBootstrapPortalKey_(body.portalKey);
+    var resetEmail = String(body.email || '').trim().toLowerCase();
+    var resetPass = String(body.newPassword || body.password || '').trim();
+    if (!resetEmail || resetEmail.indexOf('@') < 0) throw new Error('Valid email is required');
+    if (resetPass.length < 6) throw new Error('Password must be at least 6 characters');
+    var resetCust = findCustomerByEmail_(resetEmail);
+    if (!resetCust) throw new Error('No customer account found for this email');
+    updateObjectProps_(getSheet_(SHEET_NAMES.CUSTOMERS), SHEET_NAMES.CUSTOMERS, resetCust._row, { portalpassword: resetPass });
+    invalidateSheetCache_(SHEET_NAMES.CUSTOMERS);
+    resetCust.portalpassword = resetPass;
+    return {
+      ok: true,
+      token: issueCustomerToken_(resetCust),
+      customer: sanitizePortalCustomer_(resetCust),
     };
   }
 

@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AMZ_PRINTS_VERSION', '3.4.4' );
+define( 'AMZ_PRINTS_VERSION', '3.4.5' );
 
 /**
  * Avoid long Hostinger CDN HTML cache hiding theme updates.
@@ -134,27 +134,69 @@ function amz_prints_mod( $key, $default = '' ) {
 }
 
 /**
+ * Hex color to RGB integers.
+ *
+ * @return int[]
+ */
+function amz_prints_hex_rgb( $hex ) {
+	$hex = ltrim( (string) $hex, '#' );
+	if ( 3 === strlen( $hex ) ) {
+		$hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
+	}
+	if ( 6 !== strlen( $hex ) ) {
+		return array( 0, 0, 0 );
+	}
+	return array(
+		hexdec( substr( $hex, 0, 2 ) ),
+		hexdec( substr( $hex, 2, 2 ) ),
+		hexdec( substr( $hex, 4, 2 ) ),
+	);
+}
+
+/**
+ * Darken a hex color by a 0–1 multiplier.
+ */
+function amz_prints_hex_shade( $hex, $factor = 0.85 ) {
+	$rgb = amz_prints_hex_rgb( $hex );
+	$factor = max( 0, min( 1, (float) $factor ) );
+	return sprintf(
+		'#%02x%02x%02x',
+		(int) round( $rgb[0] * $factor ),
+		(int) round( $rgb[1] * $factor ),
+		(int) round( $rgb[2] * $factor )
+	);
+}
+
+/**
  * Output inline CSS variables from Customizer
  */
 function amz_prints_custom_css_vars() {
-	$primary   = sanitize_hex_color( amz_prints_mod( 'amz_primary_color', '#055ca4' ) );
+	$primary   = sanitize_hex_color( amz_prints_mod( 'amz_primary_color', '#0747a3' ) );
 	$secondary = sanitize_hex_color( amz_prints_mod( 'amz_secondary_color', '#111111' ) );
-	$accent    = sanitize_hex_color( amz_prints_mod( 'amz_accent_color', '#FF6D00' ) );
+	$accent    = sanitize_hex_color( amz_prints_mod( 'amz_accent_color', '#ff6d00' ) );
 	if ( ! $primary ) {
-		$primary = '#055ca4';
+		$primary = '#0747a3';
 	}
 	if ( ! $secondary ) {
 		$secondary = '#111111';
 	}
 	if ( ! $accent ) {
-		$accent = '#FF6D00';
+		$accent = '#ff6d00';
 	}
+	$pr = amz_prints_hex_rgb( $primary );
+	$ac = amz_prints_hex_rgb( $accent );
 	?>
 	<style id="amz-prints-vars">
 		:root {
 			--amz-primary: <?php echo esc_attr( $primary ); ?>;
+			--amz-primary-soft: <?php echo esc_attr( sprintf( 'rgba(%d, %d, %d, 0.12)', $pr[0], $pr[1], $pr[2] ) ); ?>;
+			--amz-primary-deep: <?php echo esc_attr( amz_prints_hex_shade( $primary, 0.78 ) ); ?>;
+			--amz-primary-glow: <?php echo esc_attr( sprintf( 'rgba(%d, %d, %d, 0.28)', $pr[0], $pr[1], $pr[2] ) ); ?>;
 			--amz-secondary: <?php echo esc_attr( $secondary ); ?>;
 			--amz-accent: <?php echo esc_attr( $accent ); ?>;
+			--amz-accent-soft: <?php echo esc_attr( sprintf( 'rgba(%d, %d, %d, 0.12)', $ac[0], $ac[1], $ac[2] ) ); ?>;
+			--amz-accent-deep: <?php echo esc_attr( amz_prints_hex_shade( $accent, 0.88 ) ); ?>;
+			--amz-accent-glow: <?php echo esc_attr( sprintf( 'rgba(%d, %d, %d, 0.28)', $ac[0], $ac[1], $ac[2] ) ); ?>;
 			--amz-ink: <?php echo esc_attr( $secondary ); ?>;
 			--amz-text: <?php echo esc_attr( $secondary ); ?>;
 		}
@@ -319,15 +361,15 @@ add_action( 'after_switch_theme', 'amz_prints_after_switch' );
  * Create missing pages on upgrade (fixes Services 404 without re-activating theme)
  */
 function amz_prints_maybe_upgrade_pages() {
-	if ( get_option( 'amz_prints_pages_ver' ) === '3.4.4' ) {
+	if ( get_option( 'amz_prints_pages_ver' ) === '3.4.5' ) {
 		return;
 	}
 	amz_prints_ensure_pages();
 	flush_rewrite_rules( false );
-	set_theme_mod( 'amz_primary_color', '#055ca4' );
+	set_theme_mod( 'amz_primary_color', '#0747a3' );
 	set_theme_mod( 'amz_secondary_color', '#111111' );
-	set_theme_mod( 'amz_accent_color', '#FF6D00' );
-	update_option( 'amz_prints_pages_ver', '3.4.4' );
+	set_theme_mod( 'amz_accent_color', '#ff6d00' );
+	update_option( 'amz_prints_pages_ver', '3.4.5' );
 }
 add_action( 'init', 'amz_prints_maybe_upgrade_pages', 20 );
 

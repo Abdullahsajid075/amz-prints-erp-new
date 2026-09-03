@@ -71,10 +71,20 @@ Edit the Gallery page and add a WordPress **Gallery** or image blocks. Until the
 
 Matches your ERP brand:
 
-- Primary (blue): `#055ca4`
-- Accent (orange): `#FF6D00`
+- Primary (blue): `#0747a3`
+- Accent (orange): `#ff6d00`
 - Text: `#111111`
 - Company: AMZ Prints
+
+## Customer login portal
+
+Header **Log in** / **Sign up** open `/customer-login/`.
+
+- **Log in:** email + password, or **Continue with Google** (existing accounts only).
+- **Sign up:** name / email / phone / password, or **Continue with Google** (Google verifies the Gmail; first-time Google creates the CRM account).
+- **Forgot password:** 6-digit code emailed via WordPress `wp_mail`, then set a new password.
+
+Set **Appearance → Customize → Customer Portal → Google OAuth Client ID**. After uploading this theme, **redeploy Apps Script** (`gas/Code.gs`, New version) so Google signup-create and email reset APIs exist.
 
 ## Tips
 

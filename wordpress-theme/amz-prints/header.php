@@ -78,6 +78,12 @@
 
 		<div class="site-header__actions">
 			<a class="btn btn--ghost btn--sm btn--magnetic" href="<?php echo esc_url( home_url( '/quote/' ) ); ?>">Quote</a>
+			<?php if ( function_exists( 'amz_prints_customer_is_logged_in' ) && amz_prints_customer_is_logged_in() ) : ?>
+				<a class="btn btn--ghost btn--sm btn--magnetic" href="<?php echo esc_url( home_url( '/my-account/' ) ); ?>"><?php esc_html_e( 'Account', 'amz-prints' ); ?></a>
+			<?php else : ?>
+				<a class="btn btn--ghost btn--sm btn--magnetic" href="<?php echo esc_url( home_url( '/customer-login/' ) ); ?>"><?php esc_html_e( 'Log in', 'amz-prints' ); ?></a>
+				<a class="btn btn--ghost btn--sm btn--magnetic btn--quote-desk" href="<?php echo esc_url( home_url( '/customer-login/?tab=register' ) ); ?>"><?php esc_html_e( 'Sign up', 'amz-prints' ); ?></a>
+			<?php endif; ?>
 			<a class="btn btn--primary btn--sm btn--quote-desk btn--magnetic" href="<?php echo esc_url( home_url( '/products/' ) ); ?>">Shop</a>
 			<button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="site-nav" type="button" aria-label="Menu">
 				<span class="nav-toggle__bar"></span>

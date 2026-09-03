@@ -522,7 +522,7 @@ async function dispatch(req, res) {
             const customer = (rows || []).find((c) => String(c.email || '').trim().toLowerCase() === email);
             if (!customer) return sendError(res, 'No customer account found for this email', 404);
             const stored = String(customer.portal_password || '').trim();
-            if (!stored) return sendError(res, 'Password not set. Use Google verification to set/reset your password.', 400);
+            if (!stored) return sendError(res, 'Password not set. Use Forgot password (email code) or continue with Google.', 400);
             if (stored !== password) return sendError(res, 'Invalid email or password', 401);
             return send(res, { token: issueCustomerToken(customer), customer: sanitizePortalCustomer(customer) });
           }
@@ -530,8 +530,39 @@ async function dispatch(req, res) {
           if (method === 'POST' && path === '/public/customer/google') {
             const g = await resolveGoogleEmail(body);
             const { data: rows } = await supabase.from('customers').select('*').ilike('email', g.email).limit(5);
-            const customer = (rows || []).find((c) => String(c.email || '').trim().toLowerCase() === g.email);
-            if (!customer) return sendError(res, `No customer account found for ${g.email}. Contact AMZ Prints.`, 404);
+            let customer = (rows || []).find((c) => String(c.email || '').trim().toLowerCase() === g.email);
+            if (!customer) {
+              if (body.createIfMissing) {
+                const name = String(body.name || g.name || g.email.split('@')[0]).trim();
+                const password = `g_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+                const customerId = id('cust');
+                const row = {
+                  id: customerId,
+                  name,
+                  phone: '',
+                  email: g.email,
+                  address: '',
+                  city: '',
+                  notes: 'Google signup',
+                  in_crm: true,
+                  stage: 'lead',
+                  stage_updated_at: new Date().toISOString(),
+                  notify_whatsapp: true,
+                  notify_email: true,
+                  portal_password: password,
+                };
+                const { error } = await supabase.from('customers').insert(row);
+                if (error) return sendError(res, error.message || 'Could not create account', 500);
+                return send(res, {
+                  ok: true,
+                  created: true,
+                  token: issueCustomerToken(row),
+                  customer: sanitizePortalCustomer(row),
+                  message: 'Account created. You can place orders now.',
+                });
+              }
+              return sendError(res, `No customer account found for ${g.email}. Please sign up first.`, 404);
+            }
             const newPass = String(body.newPassword || body.password || '').trim();
             if (newPass) {
               if (newPass.length < 6) return sendError(res, 'Password must be at least 6 characters', 400);
@@ -542,6 +573,24 @@ async function dispatch(req, res) {
               token: issueCustomerToken(customer),
               customer: sanitizePortalCustomer(customer),
               passwordUpdated: !!newPass,
+            });
+          }
+
+          if (method === 'POST' && path === '/public/customer/reset-password') {
+            assertPortalKey(body.portalKey);
+            const email = String(body.email || '').trim().toLowerCase();
+            const pass = String(body.newPassword || body.password || '').trim();
+            if (!email || !email.includes('@')) return sendError(res, 'Valid email is required', 400);
+            if (pass.length < 6) return sendError(res, 'Password must be at least 6 characters', 400);
+            const { data: rows } = await supabase.from('customers').select('*').ilike('email', email).limit(5);
+            const customer = (rows || []).find((c) => String(c.email || '').trim().toLowerCase() === email);
+            if (!customer) return sendError(res, 'No customer account found for this email', 404);
+            await supabase.from('customers').update({ portal_password: pass }).eq('id', customer.id);
+            customer.portal_password = pass;
+            return send(res, {
+              ok: true,
+              token: issueCustomerToken(customer),
+              customer: sanitizePortalCustomer(customer),
             });
           }
 

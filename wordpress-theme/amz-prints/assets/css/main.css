@@ -5,11 +5,11 @@
 
 /* ---------- Design tokens ---------- */
 :root {
-  --amz-primary: #055ca4;
-  --amz-primary-soft: #e7f2fa;
-  --amz-primary-deep: #044a85;
-  --amz-primary-glow: rgba(5, 92, 164, 0.28);
-  --amz-accent: #FF6D00;
+  --amz-primary: #0747a3;
+  --amz-primary-soft: #e6eef8;
+  --amz-primary-deep: #05367c;
+  --amz-primary-glow: rgba(7, 71, 163, 0.28);
+  --amz-accent: #ff6d00;
   --amz-accent-soft: #fff3e8;
   --amz-accent-deep: #e05f00;
   --amz-accent-glow: rgba(255, 109, 0, 0.28);
@@ -139,9 +139,9 @@ body {
   line-height: 1.65;
   color: var(--amz-text);
   background:
-    radial-gradient(1000px 480px at 0% -5%, rgba(5, 92, 164, 0.08), transparent 58%),
+    radial-gradient(1000px 480px at 0% -5%, rgba(7, 71, 163, 0.08), transparent 58%),
     radial-gradient(900px 420px at 100% 8%, rgba(255, 109, 0, 0.07), transparent 52%),
-    radial-gradient(600px 300px at 50% 100%, rgba(5, 92, 164, 0.05), transparent 60%),
+    radial-gradient(600px 300px at 50% 100%, rgba(7, 71, 163, 0.05), transparent 60%),
     repeating-linear-gradient(
       0deg,
       transparent,
@@ -347,7 +347,7 @@ p { margin: 0 0 1em; }
 .section--atelier {
   position: relative;
   background:
-    radial-gradient(800px 320px at 85% 0%, rgba(5, 92, 164, 0.10), transparent 55%),
+    radial-gradient(800px 320px at 85% 0%, rgba(7, 71, 163, 0.10), transparent 55%),
     radial-gradient(600px 280px at 10% 100%, rgba(255, 109, 0, 0.08), transparent 55%),
     linear-gradient(180deg, var(--amz-surface) 0%, var(--amz-paper) 100%);
 }
@@ -973,7 +973,7 @@ body.nav-open .nav-toggle__bar:nth-child(3) { transform: translateY(-8px) rotate
   height: min(44vw, 440px);
   left: -8%;
   bottom: -12%;
-  background: radial-gradient(circle at 50% 40%, rgba(5, 92, 164, 0.22), transparent 72%);
+  background: radial-gradient(circle at 50% 40%, rgba(7, 71, 163, 0.22), transparent 72%);
   animation: inkPulse 12s var(--ease) infinite alternate-reverse;
 }
 
@@ -3188,6 +3188,11 @@ body.nav-open .nav-toggle__bar:nth-child(3) { transform: translateY(-8px) rotate
   color: #fff;
 }
 
+[data-auth-tab="register"] .auth-tabs button.is-active {
+  background: var(--amz-accent);
+  border-color: var(--amz-accent);
+}
+
 .customer-auth-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr);
@@ -3227,6 +3232,20 @@ body.nav-open .nav-toggle__bar:nth-child(3) { transform: translateY(-8px) rotate
 
 .customer-google-box h3 { margin: 0 0 0.38rem; font-size: 1rem; }
 .customer-google-box p { margin: 0; font-size: 0.9rem; color: var(--amz-muted); }
+
+.customer-auth-card .linkish {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--amz-primary);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.customer-auth-card .linkish:hover { color: var(--amz-accent); }
+
+.customer-auth-forgot { margin-top: 0.2rem; }
 
 .amz-google-btn {
   margin: 0.9rem 0;

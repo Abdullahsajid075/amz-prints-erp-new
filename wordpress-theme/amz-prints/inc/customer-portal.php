@@ -250,7 +250,9 @@ function amz_prints_ajax_customer_google() {
 	$body = array(
 		'googleVerified' => true,
 		'email'          => $google['email'],
+		'name'           => $google['name'],
 		'portalKey'      => amz_prints_customer_portal_key(),
+		'createIfMissing'=> ! empty( $_POST['create_if_missing'] ),
 	);
 	if ( $new_password ) {
 		$body['newPassword'] = $new_password;
@@ -263,10 +265,10 @@ function amz_prints_ajax_customer_google() {
 			$err = __( 'ERP still needs the latest Code.gs redeploy (New version). WordPress now verifies Google itself — redeploy Apps Script and try again.', 'amz-prints' );
 		} elseif ( 'Not found' === $err || false !== stripos( $err, 'not found' ) ) {
 			$err = __( 'ERP customer login API not found. Redeploy latest Code.gs (New version) in Apps Script, then try again. Also ensure this Gmail exists on an ERP Customer record.', 'amz-prints' );
-		} elseif ( false !== stripos( $err, 'No customer account' ) ) {
+		} elseif ( false !== stripos( $err, 'No customer account' ) || false !== stripos( $err, 'Please sign up' ) ) {
 			$err = sprintf(
 				/* translators: %s: customer email */
-				__( 'No ERP customer found for %s. Add this email on the Customers sheet first.', 'amz-prints' ),
+				__( 'No account found for %s. Open Sign up, then continue with Google.', 'amz-prints' ),
 				$google['email']
 			);
 		}
@@ -281,11 +283,116 @@ function amz_prints_ajax_customer_google() {
 	wp_send_json_success( array(
 		'customer'        => isset( $result['customer'] ) ? $result['customer'] : array(),
 		'passwordUpdated' => ! empty( $result['passwordUpdated'] ),
+		'created'         => ! empty( $result['created'] ),
 		'redirect'        => $redirect,
 	) );
 }
 add_action( 'wp_ajax_amz_prints_customer_google', 'amz_prints_ajax_customer_google' );
 add_action( 'wp_ajax_nopriv_amz_prints_customer_google', 'amz_prints_ajax_customer_google' );
+
+/**
+ * AJAX: send password-reset verification code to customer email.
+ */
+function amz_prints_ajax_customer_reset_request() {
+	check_ajax_referer( 'amz_prints_customer', 'nonce' );
+	$email = isset( $_POST['email'] ) ? sanitize_email( wp_unslash( $_POST['email'] ) ) : '';
+	if ( ! $email || ! is_email( $email ) ) {
+		wp_send_json_error( array( 'message' => __( 'Enter a valid email address.', 'amz-prints' ) ), 400 );
+	}
+	$email_key = strtolower( $email );
+	$cool_key  = 'amz_pwreset_cool_' . md5( $email_key );
+	if ( get_transient( $cool_key ) ) {
+		wp_send_json_error( array( 'message' => __( 'Please wait a minute before requesting another code.', 'amz-prints' ) ), 429 );
+	}
+
+	$code = (string) wp_rand( 100000, 999999 );
+	set_transient(
+		'amz_pwreset_' . md5( $email_key ),
+		array(
+			'code'  => $code,
+			'email' => $email_key,
+			'tries' => 0,
+		),
+		15 * MINUTE_IN_SECONDS
+	);
+	set_transient( $cool_key, 1, MINUTE_IN_SECONDS );
+
+	$company = amz_prints_mod( 'amz_company_name', 'AMZ Prints' );
+	$subject = sprintf( '[%s] Password reset code', $company );
+	$body    = sprintf(
+		"Your %s password reset code is:\n\n%s\n\nThis code expires in 15 minutes. If you did not request a reset, ignore this email.\n",
+		$company,
+		$code
+	);
+	$sent = wp_mail( $email, $subject, $body );
+	if ( ! $sent ) {
+		wp_send_json_error( array( 'message' => __( 'Could not send email. Try again or contact AMZ Prints.', 'amz-prints' ) ), 500 );
+	}
+	wp_send_json_success( array(
+		'message' => __( 'We sent a 6-digit code to your email. Enter it below to set a new password.', 'amz-prints' ),
+	) );
+}
+add_action( 'wp_ajax_amz_prints_customer_reset_request', 'amz_prints_ajax_customer_reset_request' );
+add_action( 'wp_ajax_nopriv_amz_prints_customer_reset_request', 'amz_prints_ajax_customer_reset_request' );
+
+/**
+ * AJAX: confirm email code and set a new password.
+ */
+function amz_prints_ajax_customer_reset_confirm() {
+	check_ajax_referer( 'amz_prints_customer', 'nonce' );
+	$email    = isset( $_POST['email'] ) ? sanitize_email( wp_unslash( $_POST['email'] ) ) : '';
+	$code     = isset( $_POST['code'] ) ? preg_replace( '/\D+/', '', (string) wp_unslash( $_POST['code'] ) ) : '';
+	$password = isset( $_POST['new_password'] ) ? (string) wp_unslash( $_POST['new_password'] ) : '';
+	if ( ! $email || ! is_email( $email ) ) {
+		wp_send_json_error( array( 'message' => __( 'Enter a valid email address.', 'amz-prints' ) ), 400 );
+	}
+	if ( strlen( $code ) !== 6 ) {
+		wp_send_json_error( array( 'message' => __( 'Enter the 6-digit verification code.', 'amz-prints' ) ), 400 );
+	}
+	if ( strlen( $password ) < 6 ) {
+		wp_send_json_error( array( 'message' => __( 'Password must be at least 6 characters.', 'amz-prints' ) ), 400 );
+	}
+	$key  = 'amz_pwreset_' . md5( strtolower( $email ) );
+	$data = get_transient( $key );
+	if ( ! is_array( $data ) || empty( $data['code'] ) ) {
+		wp_send_json_error( array( 'message' => __( 'Code expired. Request a new verification code.', 'amz-prints' ) ), 400 );
+	}
+	$tries = isset( $data['tries'] ) ? (int) $data['tries'] : 0;
+	if ( $tries >= 5 ) {
+		delete_transient( $key );
+		wp_send_json_error( array( 'message' => __( 'Too many attempts. Request a new code.', 'amz-prints' ) ), 400 );
+	}
+	if ( ! hash_equals( (string) $data['code'], (string) $code ) ) {
+		$data['tries'] = $tries + 1;
+		set_transient( $key, $data, 15 * MINUTE_IN_SECONDS );
+		wp_send_json_error( array( 'message' => __( 'Incorrect verification code.', 'amz-prints' ) ), 400 );
+	}
+
+	$result = amz_prints_customer_api(
+		'/public/customer/reset-password',
+		array(
+			'email'       => strtolower( $email ),
+			'newPassword' => $password,
+			'portalKey'   => amz_prints_customer_portal_key(),
+			'resetVerified' => true,
+		)
+	);
+	if ( is_wp_error( $result ) ) {
+		wp_send_json_error( array( 'message' => $result->get_error_message() ), 400 );
+	}
+	delete_transient( $key );
+	if ( ! empty( $result['token'] ) ) {
+		amz_prints_customer_set_token( $result['token'] );
+	}
+	$redirect = isset( $_POST['redirect'] ) ? esc_url_raw( wp_unslash( $_POST['redirect'] ) ) : '';
+	$redirect = $redirect ? wp_validate_redirect( $redirect, amz_prints_customer_account_url() ) : amz_prints_customer_account_url();
+	wp_send_json_success( array(
+		'message'  => __( 'Password updated.', 'amz-prints' ),
+		'redirect' => $redirect,
+	) );
+}
+add_action( 'wp_ajax_amz_prints_customer_reset_confirm', 'amz_prints_ajax_customer_reset_confirm' );
+add_action( 'wp_ajax_nopriv_amz_prints_customer_reset_confirm', 'amz_prints_ajax_customer_reset_confirm' );
 
 /**
  * AJAX: logout
