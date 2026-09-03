@@ -49,6 +49,29 @@ snapshot, so `supabase start` is fast after the first run and the seeded data su
   - Re-seed admin + walk-in customer: `cd api && npm run migrate:seed`.
 - Default login seeded for the ERP: **admin / admin123**.
 
+### WordPress marketing site + Free CV portal (`wordpress-theme/amz-prints`)
+
+The `amz-prints` theme is the public website. It now includes a login-gated **Free CV builder**
+that submits completed CVs to the ERP (stored under the ERP "CV Submissions" section, backed by the
+`cvs` table + `/cvs` API routes and the public `POST /public/cv` endpoint).
+
+A local WordPress stack for developing/testing the theme lives in `~/wp-local` (Docker Compose:
+WordPress + MariaDB, theme bind-mounted from the repo). It is not auto-started.
+
+1. Ensure the Docker daemon and the ERP API (port 3000) are running (see above).
+2. Start WordPress: `cd ~/wp-local && sg docker -c "docker compose up -d"` → site at http://localhost:8080
+   (admin: `admin` / `admin123`). wp-cli runs via `docker compose exec -T wpcli wp --path=/var/www/html <cmd>`.
+3. The theme's ERP API URL is set (Customizer `amz_erp_api_url`) to `http://host.docker.internal:3000`
+   so the containerized site reaches the host ERP API. CV submissions go server-side via
+   `admin-ajax.php?action=amz_prints_submit_cv` (no browser CORS).
+4. Theme edits are live (bind mount). If you add/rename page templates, bump `amz_prints_pages_ver`
+   in `functions.php` (auto-creates pages: `free-cv`, `login`, `signup`) and flush rewrites.
+5. New Customizer sections: "Hero Product Parts" (4 rotating tiles, 5s), "Free CV Portal"
+   (rotating ads 10s + vertical side banner linked to a Store `amz_product`).
+6. Headless GUI testing (when computer-use is unavailable): drive Chrome with `puppeteer-core`
+   pointing `executablePath` at `/opt/google/chrome/chrome` (see the throwaway script used in
+   `/tmp/pptr/flow.js`).
+
 ### Lint / test / build
 
 - There is **no lint config** (ESLint is a dependency but no `eslint.config.js` and no `lint`
