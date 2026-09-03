@@ -245,3 +245,120 @@ function amz_prints_ajax_submit_lead() {
 }
 add_action( 'wp_ajax_amz_prints_submit_lead', 'amz_prints_ajax_submit_lead' );
 add_action( 'wp_ajax_nopriv_amz_prints_submit_lead', 'amz_prints_ajax_submit_lead' );
+
+/**
+ * Submit a completed CV to the ERP (stored in ERP "CV Submissions" section).
+ *
+ * @param array $payload CV fields.
+ * @return array|WP_Error
+ */
+function amz_prints_erp_submit_cv( $payload ) {
+	$payload = is_array( $payload ) ? $payload : array();
+	$name    = trim( (string) ( $payload['fullName'] ?? '' ) );
+	if ( ! $name ) {
+		return new WP_Error( 'amz_cv_name', __( 'Full name is required.', 'amz-prints' ) );
+	}
+
+	$clean_rows = function ( $rows, $keys ) {
+		$out = array();
+		if ( ! is_array( $rows ) ) {
+			return $out;
+		}
+		foreach ( $rows as $row ) {
+			if ( ! is_array( $row ) ) {
+				continue;
+			}
+			$clean = array();
+			$has   = false;
+			foreach ( $keys as $k ) {
+				$val       = sanitize_text_field( (string) ( $row[ $k ] ?? '' ) );
+				$clean[ $k ] = $val;
+				if ( $val ) {
+					$has = true;
+				}
+			}
+			if ( $has ) {
+				$out[] = $clean;
+			}
+		}
+		return $out;
+	};
+
+	$skills = array();
+	if ( ! empty( $payload['skills'] ) && is_array( $payload['skills'] ) ) {
+		foreach ( $payload['skills'] as $s ) {
+			$s = sanitize_text_field( (string) $s );
+			if ( $s ) {
+				$skills[] = $s;
+			}
+		}
+	}
+	$languages = array();
+	if ( ! empty( $payload['languages'] ) && is_array( $payload['languages'] ) ) {
+		foreach ( $payload['languages'] as $s ) {
+			$s = sanitize_text_field( (string) $s );
+			if ( $s ) {
+				$languages[] = $s;
+			}
+		}
+	}
+
+	// Photo: accept a data URL (base64) only, capped to keep payload sane.
+	$photo = (string) ( $payload['photo'] ?? '' );
+	if ( $photo && ! preg_match( '#^data:image/[a-zA-Z0-9.+-]+;base64,#', $photo ) ) {
+		$photo = '';
+	}
+	if ( strlen( $photo ) > 3500000 ) {
+		$photo = '';
+	}
+
+	$body = array(
+		'fullName'    => $name,
+		'headline'    => sanitize_text_field( (string) ( $payload['headline'] ?? '' ) ),
+		'email'       => sanitize_email( (string) ( $payload['email'] ?? '' ) ),
+		'phone'       => sanitize_text_field( (string) ( $payload['phone'] ?? '' ) ),
+		'city'        => sanitize_text_field( (string) ( $payload['city'] ?? '' ) ),
+		'summary'     => sanitize_textarea_field( (string) ( $payload['summary'] ?? '' ) ),
+		'photo'       => $photo,
+		'template'    => sanitize_text_field( (string) ( $payload['template'] ?? 'classic' ) ),
+		'accentColor' => sanitize_hex_color( (string) ( $payload['accentColor'] ?? '#F26522' ) ) ?: '#F26522',
+		'experience'  => $clean_rows( $payload['experience'] ?? array(), array( 'role', 'company', 'period', 'details' ) ),
+		'education'   => $clean_rows( $payload['education'] ?? array(), array( 'degree', 'school', 'year' ) ),
+		'skills'      => $skills,
+		'languages'   => $languages,
+		'status'      => 'Completed',
+		'source'      => 'website-free-cv',
+		'wpUser'      => is_user_logged_in() ? wp_get_current_user()->user_login : '',
+	);
+
+	return amz_prints_erp_request( 'POST', '/public/cv', $body );
+}
+
+/**
+ * AJAX: submit completed CV to ERP (login required).
+ */
+function amz_prints_ajax_submit_cv() {
+	check_ajax_referer( 'amz_prints_cv', 'nonce' );
+
+	if ( ! is_user_logged_in() ) {
+		wp_send_json_error( array( 'message' => __( 'Please log in to submit your CV.', 'amz-prints' ) ), 401 );
+	}
+
+	$raw = isset( $_POST['cv'] ) ? wp_unslash( $_POST['cv'] ) : '';
+	$data = json_decode( (string) $raw, true );
+	if ( ! is_array( $data ) ) {
+		wp_send_json_error( array( 'message' => __( 'Invalid CV data.', 'amz-prints' ) ), 400 );
+	}
+
+	$result = amz_prints_erp_submit_cv( $data );
+	if ( is_wp_error( $result ) ) {
+		wp_send_json_error( array( 'message' => $result->get_error_message() ), 400 );
+	}
+
+	wp_send_json_success( array(
+		'ok'   => ! empty( $result['ok'] ),
+		'cvId' => isset( $result['cvId'] ) ? $result['cvId'] : '',
+		'id'   => isset( $result['id'] ) ? $result['id'] : '',
+	) );
+}
+add_action( 'wp_ajax_amz_prints_submit_cv', 'amz_prints_ajax_submit_cv' );

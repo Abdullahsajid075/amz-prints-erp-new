@@ -14,7 +14,9 @@ function amz_prints_enqueue_assets() {
 
 	wp_enqueue_style( 'amz-prints-fonts', $fonts, array(), null );
 	wp_enqueue_style( 'amz-prints-main', AMZ_PRINTS_URI . '/assets/css/main.css', array( 'amz-prints-fonts' ), AMZ_PRINTS_VERSION );
+	wp_enqueue_style( 'amz-prints-portal', AMZ_PRINTS_URI . '/assets/css/amz-portal.css', array( 'amz-prints-main' ), AMZ_PRINTS_VERSION );
 	wp_enqueue_script( 'amz-prints-main', AMZ_PRINTS_URI . '/assets/js/main.js', array(), AMZ_PRINTS_VERSION, true );
+	wp_enqueue_script( 'amz-prints-portal', AMZ_PRINTS_URI . '/assets/js/amz-portal.js', array( 'amz-prints-main' ), AMZ_PRINTS_VERSION, true );
 
 	$wa = preg_replace( '/\D+/', '', amz_prints_mod( 'amz_whatsapp', amz_prints_mod( 'amz_phone', '' ) ) );
 	$wa_flow = amz_prints_mod( 'amz_wa_flow_url', '' );
@@ -24,6 +26,7 @@ function amz_prints_enqueue_assets() {
 		'ajaxUrl'   => admin_url( 'admin-ajax.php' ),
 		'nonce'     => wp_create_nonce( 'amz_ai_chat' ),
 		'leadNonce' => wp_create_nonce( 'amz_prints_lead' ),
+		'cvNonce'   => wp_create_nonce( 'amz_prints_cv' ),
 		'homeUrl'   => home_url( '/' ),
 		'lang'      => 'en',
 		'wa'        => array(

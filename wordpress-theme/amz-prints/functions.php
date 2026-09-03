@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AMZ_PRINTS_VERSION', '2.1.0' );
+define( 'AMZ_PRINTS_VERSION', '2.2.0' );
 define( 'AMZ_PRINTS_DIR', get_template_directory() );
 define( 'AMZ_PRINTS_URI', get_template_directory_uri() );
 
@@ -173,6 +173,9 @@ function amz_prints_default_pages() {
 		'gallery'          => array( 'title' => 'Gallery', 'template' => 'page-templates/template-gallery.php' ),
 		'quote'            => array( 'title' => 'Get a Quote', 'template' => 'page-templates/template-quote.php' ),
 		'contact'          => array( 'title' => 'Contact', 'template' => 'page-templates/template-contact.php' ),
+		'free-cv'          => array( 'title' => 'Free CV', 'template' => 'page-templates/template-free-cv.php' ),
+		'login'            => array( 'title' => 'Login', 'template' => 'page-templates/template-login.php' ),
+		'signup'           => array( 'title' => 'Sign Up', 'template' => 'page-templates/template-signup.php' ),
 	);
 }
 
@@ -259,12 +262,12 @@ add_action( 'after_switch_theme', 'amz_prints_after_switch' );
  * Create missing pages on upgrade (fixes Services 404 without re-activating theme)
  */
 function amz_prints_maybe_upgrade_pages() {
-	if ( get_option( 'amz_prints_pages_ver' ) === '1.3.0' ) {
+	if ( get_option( 'amz_prints_pages_ver' ) === '1.4.0' ) {
 		return;
 	}
 	amz_prints_ensure_pages();
 	flush_rewrite_rules( false );
-	update_option( 'amz_prints_pages_ver', '1.3.0' );
+	update_option( 'amz_prints_pages_ver', '1.4.0' );
 }
 add_action( 'init', 'amz_prints_maybe_upgrade_pages', 20 );
 
@@ -391,3 +394,224 @@ function amz_prints_handle_quote() {
 }
 add_action( 'admin_post_amz_quote_form', 'amz_prints_handle_quote' );
 add_action( 'admin_post_nopriv_amz_quote_form', 'amz_prints_handle_quote' );
+
+/**
+ * Account pages helper — safe redirect target within the site.
+ */
+function amz_prints_safe_redirect_target( $requested = '' ) {
+	$default = home_url( '/free-cv/' );
+	$requested = trim( (string) $requested );
+	if ( ! $requested ) {
+		return $default;
+	}
+	$target = wp_validate_redirect( $requested, $default );
+	return $target ? $target : $default;
+}
+
+/**
+ * Handle custom LOGIN form (separate login page).
+ */
+function amz_prints_handle_login() {
+	if ( ! isset( $_POST['amz_login_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['amz_login_nonce'] ) ), 'amz_login' ) ) {
+		wp_die( esc_html__( 'Security check failed.', 'amz-prints' ) );
+	}
+	$login    = sanitize_text_field( wp_unslash( $_POST['log'] ?? '' ) );
+	$password = (string) ( $_POST['pwd'] ?? '' );
+	$redirect = amz_prints_safe_redirect_target( wp_unslash( $_POST['redirect_to'] ?? '' ) );
+
+	$user = wp_signon( array(
+		'user_login'    => $login,
+		'user_password' => $password,
+		'remember'      => ! empty( $_POST['rememberme'] ),
+	), is_ssl() );
+
+	if ( is_wp_error( $user ) ) {
+		$url = add_query_arg( 'login_error', rawurlencode( $user->get_error_message() ), home_url( '/login/' ) );
+		if ( ! empty( $_POST['redirect_to'] ) ) {
+			$url = add_query_arg( 'redirect_to', rawurlencode( wp_unslash( $_POST['redirect_to'] ) ), $url );
+		}
+		wp_safe_redirect( $url );
+		exit;
+	}
+
+	wp_safe_redirect( $redirect );
+	exit;
+}
+add_action( 'admin_post_nopriv_amz_login', 'amz_prints_handle_login' );
+add_action( 'admin_post_amz_login', 'amz_prints_handle_login' );
+
+/**
+ * Handle custom SIGN UP form (separate signup page). Creates + logs in the user.
+ */
+function amz_prints_handle_register() {
+	if ( ! isset( $_POST['amz_signup_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['amz_signup_nonce'] ) ), 'amz_signup' ) ) {
+		wp_die( esc_html__( 'Security check failed.', 'amz-prints' ) );
+	}
+	$name     = sanitize_text_field( wp_unslash( $_POST['name'] ?? '' ) );
+	$email    = sanitize_email( wp_unslash( $_POST['email'] ?? '' ) );
+	$password = (string) ( $_POST['pwd'] ?? '' );
+	$redirect = amz_prints_safe_redirect_target( wp_unslash( $_POST['redirect_to'] ?? '' ) );
+
+	$fail = function ( $msg ) use ( $email ) {
+		$url = add_query_arg( array(
+			'signup_error' => rawurlencode( $msg ),
+			'email'        => rawurlencode( $email ),
+		), home_url( '/signup/' ) );
+		wp_safe_redirect( $url );
+		exit;
+	};
+
+	if ( ! $email || ! is_email( $email ) ) {
+		$fail( __( 'Please enter a valid email address.', 'amz-prints' ) );
+	}
+	if ( strlen( $password ) < 6 ) {
+		$fail( __( 'Password must be at least 6 characters.', 'amz-prints' ) );
+	}
+	if ( email_exists( $email ) ) {
+		$fail( __( 'An account with this email already exists. Please log in.', 'amz-prints' ) );
+	}
+
+	$username = sanitize_user( current( explode( '@', $email ) ), true );
+	$base     = $username ? $username : 'user';
+	$try      = $base;
+	$i        = 1;
+	while ( username_exists( $try ) ) {
+		$try = $base . $i;
+		$i++;
+	}
+
+	$user_id = wp_insert_user( array(
+		'user_login'   => $try,
+		'user_email'   => $email,
+		'user_pass'    => $password,
+		'display_name' => $name ? $name : $try,
+		'first_name'   => $name,
+		'role'         => 'subscriber',
+	) );
+
+	if ( is_wp_error( $user_id ) ) {
+		$fail( $user_id->get_error_message() );
+	}
+
+	wp_set_current_user( $user_id );
+	wp_set_auth_cookie( $user_id, true, is_ssl() );
+	wp_safe_redirect( $redirect );
+	exit;
+}
+add_action( 'admin_post_nopriv_amz_register', 'amz_prints_handle_register' );
+add_action( 'admin_post_amz_register', 'amz_prints_handle_register' );
+
+/**
+ * Handle logout link (from Free CV portal).
+ */
+function amz_prints_handle_logout() {
+	if ( ! isset( $_GET['amz_logout_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['amz_logout_nonce'] ) ), 'amz_logout' ) ) {
+		wp_die( esc_html__( 'Security check failed.', 'amz-prints' ) );
+	}
+	wp_logout();
+	wp_safe_redirect( home_url( '/login/' ) );
+	exit;
+}
+add_action( 'admin_post_amz_logout', 'amz_prints_handle_logout' );
+add_action( 'admin_post_nopriv_amz_logout', 'amz_prints_handle_logout' );
+
+/**
+ * Resolve a Customizer media attachment ID to a URL (empty string if none).
+ */
+function amz_prints_attachment_url( $id, $size = 'large' ) {
+	$id = absint( $id );
+	if ( ! $id ) {
+		return '';
+	}
+	$url = wp_get_attachment_image_url( $id, $size );
+	return $url ? $url : '';
+}
+
+/**
+ * Hero product parts (4 rotating tiles) from Customizer, with sensible fallbacks.
+ *
+ * @return array List of { image, label, url }.
+ */
+function amz_prints_hero_parts() {
+	$defaults = array(
+		array( 'Business Cards', 'https://images.unsplash.com/photo-1611095973763-414019e72400?auto=format&fit=crop&w=600&q=80' ),
+		array( 'Banners & Signage', 'https://images.unsplash.com/photo-1601049541289-9b1b7bbbfe19?auto=format&fit=crop&w=600&q=80' ),
+		array( 'Packaging & Boxes', 'https://images.unsplash.com/photo-1607083206968-13611e3d76db?auto=format&fit=crop&w=600&q=80' ),
+		array( 'Custom Apparel', 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=600&q=80' ),
+	);
+	$parts = array();
+	for ( $i = 1; $i <= 4; $i++ ) {
+		$image = amz_prints_attachment_url( amz_prints_mod( "amz_hero_part_{$i}_image", 0 ), 'amz-card' );
+		$label = trim( (string) amz_prints_mod( "amz_hero_part_{$i}_label", '' ) );
+		$url   = trim( (string) amz_prints_mod( "amz_hero_part_{$i}_url", '' ) );
+		if ( ! $image ) {
+			$image = $defaults[ $i - 1 ][1];
+		}
+		if ( ! $label ) {
+			$label = $defaults[ $i - 1 ][0];
+		}
+		if ( ! $url ) {
+			$url = home_url( '/products/' );
+		}
+		$parts[] = array(
+			'image' => $image,
+			'label' => $label,
+			'url'   => $url,
+		);
+	}
+	return $parts;
+}
+
+/**
+ * CV portal rotating advertisement images from Customizer.
+ *
+ * @return array { images: string[], url: string }
+ */
+function amz_prints_cv_ads() {
+	$images = array();
+	for ( $i = 1; $i <= 3; $i++ ) {
+		$url = amz_prints_attachment_url( amz_prints_mod( "amz_cv_ad_{$i}", 0 ), 'large' );
+		if ( $url ) {
+			$images[] = $url;
+		}
+	}
+	if ( empty( $images ) ) {
+		$images = array(
+			'https://images.unsplash.com/photo-1586953208448-b95a79798f07?auto=format&fit=crop&w=900&q=80',
+			'https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=900&q=80',
+			'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?auto=format&fit=crop&w=900&q=80',
+		);
+	}
+	return array(
+		'images' => $images,
+		'url'    => trim( (string) amz_prints_mod( 'amz_cv_ad_url', '' ) ),
+	);
+}
+
+/**
+ * CV portal vertical side banner (image + link to a Store product).
+ *
+ * @return array { image: string, url: string }
+ */
+function amz_prints_cv_banner() {
+	$image  = amz_prints_attachment_url( amz_prints_mod( 'amz_cv_banner_image', 0 ), 'large' );
+	$custom = trim( (string) amz_prints_mod( 'amz_cv_banner_url', '' ) );
+	$url    = $custom;
+	if ( ! $url ) {
+		$pid = absint( amz_prints_mod( 'amz_cv_banner_product', 0 ) );
+		if ( $pid ) {
+			$permalink = get_permalink( $pid );
+			$url       = $permalink ? $permalink : '';
+		}
+	}
+	if ( ! $image ) {
+		$image = 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=500&q=80';
+	}
+	if ( ! $url ) {
+		$url = home_url( '/products/' );
+	}
+	return array(
+		'image' => $image,
+		'url'   => $url,
+	);
+}

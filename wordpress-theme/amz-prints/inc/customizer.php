@@ -350,6 +350,134 @@ function amz_prints_customize_register( $wp_customize ) {
 		'type'        => 'url',
 	) );
 
+	/* ── Hero Product Parts (4 rotating tiles) ── */
+	$wp_customize->add_section( 'amz_hero_parts', array(
+		'title'       => __( 'Hero Product Parts', 'amz-prints' ),
+		'description' => __( 'Four product tiles shown over the hero. They highlight one-by-one every 5 seconds with animation.', 'amz-prints' ),
+		'priority'    => 32.5,
+	) );
+
+	$wp_customize->add_setting( 'amz_hero_parts_enabled', array(
+		'default'           => true,
+		'sanitize_callback' => function( $v ) { return (bool) $v; },
+	) );
+	$wp_customize->add_control( 'amz_hero_parts_enabled', array(
+		'label'   => __( 'Show product parts on hero', 'amz-prints' ),
+		'section' => 'amz_hero_parts',
+		'type'    => 'checkbox',
+	) );
+
+	for ( $i = 1; $i <= 4; $i++ ) {
+		$wp_customize->add_setting( "amz_hero_part_{$i}_image", array(
+			'default'           => '',
+			'sanitize_callback' => 'absint',
+		) );
+		$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, "amz_hero_part_{$i}_image", array(
+			'label'     => sprintf( __( 'Part %d image', 'amz-prints' ), $i ),
+			'section'   => 'amz_hero_parts',
+			'mime_type' => 'image',
+		) ) );
+
+		$wp_customize->add_setting( "amz_hero_part_{$i}_label", array(
+			'default'           => '',
+			'sanitize_callback' => 'sanitize_text_field',
+		) );
+		$wp_customize->add_control( "amz_hero_part_{$i}_label", array(
+			'label'   => sprintf( __( 'Part %d label', 'amz-prints' ), $i ),
+			'section' => 'amz_hero_parts',
+			'type'    => 'text',
+		) );
+
+		$wp_customize->add_setting( "amz_hero_part_{$i}_url", array(
+			'default'           => '',
+			'sanitize_callback' => 'esc_url_raw',
+		) );
+		$wp_customize->add_control( "amz_hero_part_{$i}_url", array(
+			'label'   => sprintf( __( 'Part %d link', 'amz-prints' ), $i ),
+			'section' => 'amz_hero_parts',
+			'type'    => 'url',
+		) );
+	}
+
+	/* ── CV Portal (Free CV builder page) ── */
+	$wp_customize->add_section( 'amz_cv_portal', array(
+		'title'       => __( 'Free CV Portal', 'amz-prints' ),
+		'description' => __( 'Advertisements + side banner shown on the Free CV builder page.', 'amz-prints' ),
+		'priority'    => 32.6,
+	) );
+
+	// Rotating advertisement images (change every 10s).
+	for ( $i = 1; $i <= 3; $i++ ) {
+		$wp_customize->add_setting( "amz_cv_ad_{$i}", array(
+			'default'           => '',
+			'sanitize_callback' => 'absint',
+		) );
+		$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, "amz_cv_ad_{$i}", array(
+			'label'       => sprintf( __( 'Advertisement image %d', 'amz-prints' ), $i ),
+			'section'     => 'amz_cv_portal',
+			'mime_type'   => 'image',
+			'description' => 1 === $i ? __( 'Ads rotate every 10 seconds.', 'amz-prints' ) : '',
+		) ) );
+	}
+
+	$wp_customize->add_setting( 'amz_cv_ad_url', array(
+		'default'           => '',
+		'sanitize_callback' => 'esc_url_raw',
+	) );
+	$wp_customize->add_control( 'amz_cv_ad_url', array(
+		'label'   => __( 'Advertisement link (optional)', 'amz-prints' ),
+		'section' => 'amz_cv_portal',
+		'type'    => 'url',
+	) );
+
+	// Vertical side banner + linked Store product.
+	$wp_customize->add_setting( 'amz_cv_banner_image', array(
+		'default'           => '',
+		'sanitize_callback' => 'absint',
+	) );
+	$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'amz_cv_banner_image', array(
+		'label'       => __( 'Vertical side banner image', 'amz-prints' ),
+		'section'     => 'amz_cv_portal',
+		'mime_type'   => 'image',
+		'description' => __( 'Shown vertically beside the CV builder. Links to the Store product chosen below.', 'amz-prints' ),
+	) ) );
+
+	// Build choices from Store products (amz_product CPT).
+	$product_choices = array( '' => __( '— Select a Store product —', 'amz-prints' ) );
+	$product_posts   = get_posts( array(
+		'post_type'      => 'amz_product',
+		'posts_per_page' => 100,
+		'orderby'        => 'title',
+		'order'          => 'ASC',
+		'post_status'    => 'publish',
+	) );
+	foreach ( $product_posts as $pp ) {
+		$product_choices[ (string) $pp->ID ] = $pp->post_title;
+	}
+
+	$wp_customize->add_setting( 'amz_cv_banner_product', array(
+		'default'           => '',
+		'sanitize_callback' => 'absint',
+	) );
+	$wp_customize->add_control( 'amz_cv_banner_product', array(
+		'label'       => __( 'Side banner → Store product', 'amz-prints' ),
+		'description' => __( 'The banner links to this product page.', 'amz-prints' ),
+		'section'     => 'amz_cv_portal',
+		'type'        => 'select',
+		'choices'     => $product_choices,
+	) );
+
+	$wp_customize->add_setting( 'amz_cv_banner_url', array(
+		'default'           => '',
+		'sanitize_callback' => 'esc_url_raw',
+	) );
+	$wp_customize->add_control( 'amz_cv_banner_url', array(
+		'label'       => __( 'Side banner custom link (optional)', 'amz-prints' ),
+		'description' => __( 'Overrides the product link above if set.', 'amz-prints' ),
+		'section'     => 'amz_cv_portal',
+		'type'        => 'url',
+	) );
+
 	/* ── Social ── */
 	$wp_customize->add_section( 'amz_social', array(
 		'title'    => __( 'Social Links', 'amz-prints' ),

@@ -39,6 +39,7 @@ if ( count( $hero_slides ) < 3 ) {
 }
 $hero_slides = array_slice( $hero_slides, 0, 3 );
 $catalog     = array_slice( amz_prints_services_catalog(), 0, 6 );
+$hero_parts  = amz_prints_mod( 'amz_hero_parts_enabled', true ) ? amz_prints_hero_parts() : array();
 ?>
 
 <section class="hero hero--slider" data-hero-slider data-hero-interval="3000">
@@ -65,9 +66,20 @@ $catalog     = array_slice( amz_prints_services_catalog(), 0, 6 );
 		<h1 class="hero__title reveal" data-reveal><?php echo esc_html( $headline ); ?></h1>
 		<p class="hero__sub reveal" data-reveal><?php echo esc_html( $sub ); ?></p>
 		<div class="hero__actions reveal" data-reveal>
-			<a class="btn btn--primary btn--lg" href="<?php echo esc_url( home_url( '/quote/' ) ); ?>"><?php echo esc_html( $cta1 ); ?></a>
+			<a class="btn btn--primary btn--lg" href="<?php echo esc_url( home_url( '/free-cv/' ) ); ?>">Build your Free CV</a>
 			<a class="btn btn--ghost btn--lg" href="<?php echo esc_url( home_url( '/services/' ) ); ?>"><?php echo esc_html( $cta2 ); ?></a>
 		</div>
+
+		<?php if ( ! empty( $hero_parts ) ) : ?>
+			<div class="hero__parts reveal" data-reveal data-hero-parts data-hero-parts-interval="5000" aria-label="Featured products">
+				<?php foreach ( $hero_parts as $pi => $part ) : ?>
+					<a class="hero-part<?php echo 0 === $pi ? ' is-active' : ''; ?>" href="<?php echo esc_url( $part['url'] ); ?>" data-hero-part="<?php echo esc_attr( $pi ); ?>">
+						<span class="hero-part__media" style="background-image:url('<?php echo esc_url( $part['image'] ); ?>')"></span>
+						<span class="hero-part__label"><?php echo esc_html( $part['label'] ); ?></span>
+					</a>
+				<?php endforeach; ?>
+			</div>
+		<?php endif; ?>
 	</div>
 
 	<div class="hero__dots" aria-hidden="true">

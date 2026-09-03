@@ -40,6 +40,7 @@
 				</li>
 				<li><a class="nav-link-main" href="<?php echo esc_url( home_url( '/products/' ) ); ?>">Products</a></li>
 				<li><a class="nav-link-main" href="<?php echo esc_url( home_url( '/nadra-e-services/' ) ); ?>">NADRA</a></li>
+				<li><a class="nav-link-main" href="<?php echo esc_url( home_url( '/free-cv/' ) ); ?>">Free CV</a></li>
 				<li class="has-more">
 					<button type="button" class="nav-link-main more-trigger" aria-expanded="false" aria-controls="more-menu">
 						More
@@ -52,14 +53,13 @@
 						<li><a href="<?php echo esc_url( home_url( '/gallery/' ) ); ?>">Gallery</a></li>
 						<li><a href="<?php echo esc_url( home_url( '/about/' ) ); ?>">About</a></li>
 						<li><a href="<?php echo esc_url( home_url( '/contact/' ) ); ?>">Contact</a></li>
-						<li><a href="<?php echo esc_url( home_url( '/quote/' ) ); ?>">Get a Quote</a></li>
 					</ul>
 				</li>
 			</ul>
 		</nav>
 
 		<div class="site-header__actions">
-			<a class="btn btn--primary btn--sm" href="<?php echo esc_url( home_url( '/quote/' ) ); ?>">Get a Quote</a>
+			<a class="btn btn--primary btn--sm" href="<?php echo esc_url( home_url( '/free-cv/' ) ); ?>">Free CV</a>
 			<button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="site-nav" type="button">
 				<span class="nav-toggle__bar"></span>
 				<span class="nav-toggle__bar"></span>
