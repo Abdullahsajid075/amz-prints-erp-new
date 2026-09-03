@@ -36,6 +36,7 @@ import POS from '@/components/modules/pos/POS';
 import PrintingCostCalculator from '@/components/modules/calculator/PrintingCostCalculator';
 import PublicOrderTracking from '@/components/modules/tracking/PublicOrderTracking';
 import PublicEmployeeVerify from '@/components/modules/employees/PublicEmployeeVerify';
+import CVs from '@/components/modules/cvs/CVs';
 
 /**
  * App shell (Brand + Auth) only mounts for protected routes.
@@ -154,6 +155,8 @@ function App() {
           <Route path="invoices/new" element={<InvoiceForm />} />
           <Route path="invoices/:invoiceId" element={<InvoiceView />} />
           <Route path="invoices/:invoiceId/edit" element={<InvoiceForm />} />
+
+          <Route path="cvs" element={<CVs />} />
 
           <Route path="reports" element={<Reports />} />
           <Route path="settings" element={<Settings />} />

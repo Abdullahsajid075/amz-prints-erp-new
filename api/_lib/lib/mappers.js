@@ -216,6 +216,38 @@ function mapPurchase(row) {
   };
 }
 
+function mapCv(row) {
+  if (!row) return null;
+  let data = row.data;
+  if (typeof data === 'string') {
+    try { data = JSON.parse(data); } catch { data = {}; }
+  }
+  if (!data || typeof data !== 'object') data = {};
+  return {
+    id: row.id,
+    cvId: row.cv_id || '',
+    fullName: row.full_name || '',
+    headline: row.headline || '',
+    email: row.email || '',
+    phone: row.phone || '',
+    city: row.city || '',
+    summary: row.summary || '',
+    photo: row.photo || '',
+    template: row.template || 'classic',
+    accentColor: row.accent_color || '#F26522',
+    experience: Array.isArray(data.experience) ? data.experience : [],
+    education: Array.isArray(data.education) ? data.education : [],
+    skills: Array.isArray(data.skills) ? data.skills : [],
+    languages: Array.isArray(data.languages) ? data.languages : [],
+    links: Array.isArray(data.links) ? data.links : [],
+    data,
+    status: row.status || 'Completed',
+    source: row.source || 'website',
+    wpUser: row.wp_user || '',
+    createdAt: row.created_at || '',
+  };
+}
+
 function mapUser(row, includePassword = false) {
   if (!row) return null;
   const base = {
@@ -242,5 +274,6 @@ module.exports = {
   mapPayment,
   mapExpense,
   mapPurchase,
+  mapCv,
   mapUser,
 };

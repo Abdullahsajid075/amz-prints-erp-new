@@ -3,7 +3,7 @@ const { handleLogin, validateToken, sanitizeUser } = require('../lib/auth');
 const { id, today, nowTime, num, truthy, send, sendError } = require('../lib/util');
 const {
   mapCustomer, mapOrder, mapProduct, mapInvoice, mapEmployee,
-  mapVendor, mapPayment, mapExpense, mapPurchase, mapUser,
+  mapVendor, mapPayment, mapExpense, mapPurchase, mapCv, mapUser,
 } = require('../lib/mappers');
 
 async function ensureWalkIn() {
@@ -117,6 +117,44 @@ async function upsertCustomerFromOrder(body) {
   };
   await supabase.from('customers').insert(row);
   return mapCustomer(row);
+}
+
+async function nextCvId() {
+  const { data } = await supabase.from('cvs').select('cv_id').order('created_at', { ascending: false }).limit(200);
+  let max = 0;
+  (data || []).forEach((r) => {
+    const m = String(r.cv_id || '').match(/(\d+)\s*$/);
+    if (m) max = Math.max(max, Number(m[1]));
+  });
+  return `CV-${String(max + 1).padStart(4, '0')}`;
+}
+
+function cvFromBody(body = {}, existing = {}) {
+  const asArray = (v) => (Array.isArray(v) ? v : []);
+  const data = {
+    experience: asArray(body.experience),
+    education: asArray(body.education),
+    skills: asArray(body.skills),
+    languages: asArray(body.languages),
+    links: asArray(body.links),
+  };
+  return {
+    id: body.id || existing.id || id('cv'),
+    cv_id: body.cvId || body.cv_id || existing.cv_id || '',
+    full_name: String(body.fullName || body.full_name || body.name || existing.full_name || '').trim(),
+    headline: String(body.headline || body.title || existing.headline || '').trim(),
+    email: String(body.email || existing.email || '').trim(),
+    phone: String(body.phone || existing.phone || '').trim(),
+    city: String(body.city || existing.city || '').trim(),
+    summary: String(body.summary || existing.summary || '').trim(),
+    photo: body.photo != null ? String(body.photo) : (existing.photo || ''),
+    template: String(body.template || existing.template || 'classic'),
+    accent_color: String(body.accentColor || body.accent_color || existing.accent_color || '#F26522'),
+    data,
+    status: String(body.status || existing.status || 'Completed'),
+    source: String(body.source || existing.source || 'website'),
+    wp_user: String(body.wpUser || body.wp_user || existing.wp_user || ''),
+  };
 }
 
 async function dispatch(req, res) {
@@ -321,6 +359,16 @@ async function dispatch(req, res) {
         }
 
         return send(res, { ok: true, customerId, stage: 'lead', inCrm: true });
+      }
+      if (method === 'POST' && path === '/public/cv') {
+        const fullName = String(body.fullName || body.full_name || body.name || '').trim();
+        if (!fullName) return sendError(res, 'Full name is required', 400);
+        const row = cvFromBody(body);
+        if (!row.cv_id) row.cv_id = await nextCvId();
+        if (!row.status) row.status = 'Completed';
+        const { error } = await supabase.from('cvs').insert(row);
+        if (error) throw error;
+        return send(res, { ok: true, id: row.id, cvId: row.cv_id });
       }
       return sendError(res, 'Not found', 404);
     }
@@ -1102,6 +1150,37 @@ async function dispatch(req, res) {
           id: tok.id, tokenNo: tok.token_no, tokenStatus: tok.token_status,
           customerName: tok.customer_name, service: tok.service, counterName: tok.counter_name,
         });
+      }
+    }
+
+    // CVs (Free CV builder submissions)
+    if (path === '/cvs' || path.startsWith('/cvs/')) {
+      if (path === '/cvs' && method === 'GET') {
+        const { data } = await supabase.from('cvs').select('*').order('created_at', { ascending: false });
+        return send(res, (data || []).map(mapCv));
+      }
+      if (path === '/cvs' && method === 'POST') {
+        const row = cvFromBody(body);
+        if (!row.cv_id) row.cv_id = await nextCvId();
+        const { error } = await supabase.from('cvs').insert(row);
+        if (error) throw error;
+        return send(res, mapCv(row));
+      }
+      const cvid = path.split('/')[2];
+      const action = path.split('/')[3];
+      if (action === 'status' && (method === 'PATCH' || method === 'POST')) {
+        await supabase.from('cvs').update({ status: body.status || 'Completed' }).eq('id', cvid);
+        const { data } = await supabase.from('cvs').select('*').eq('id', cvid).maybeSingle();
+        return send(res, mapCv(data));
+      }
+      if (method === 'GET') {
+        const { data } = await supabase.from('cvs').select('*').eq('id', cvid).maybeSingle();
+        if (!data) return sendError(res, 'CV not found', 404);
+        return send(res, mapCv(data));
+      }
+      if (method === 'DELETE') {
+        await supabase.from('cvs').delete().eq('id', cvid);
+        return send(res, { success: true });
       }
     }
 

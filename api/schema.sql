@@ -253,6 +253,28 @@ create table if not exists tokens (
   created_at timestamptz default now()
 );
 
+-- ========== CVS (Free CV builder submissions from website) ==========
+create table if not exists cvs (
+  id text primary key,
+  cv_id text,
+  full_name text default '',
+  headline text default '',
+  email text default '',
+  phone text default '',
+  city text default '',
+  summary text default '',
+  photo text default '',
+  template text default 'classic',
+  accent_color text default '#F26522',
+  data jsonb default '{}'::jsonb,
+  status text default 'Completed',
+  source text default 'website',
+  wp_user text default '',
+  created_at timestamptz default now()
+);
+create index if not exists cvs_status_idx on cvs (status);
+create index if not exists cvs_cv_id_idx on cvs (cv_id);
+
 -- ========== SETTINGS (key/value JSON blobs) ==========
 create table if not exists settings (
   key text primary key,
