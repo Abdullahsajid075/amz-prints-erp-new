@@ -86,6 +86,12 @@ Header **Log in** / **Sign up** open `/customer-login/`.
 
 Set **Appearance → Customize → Customer Portal → Google OAuth Client ID**. After uploading this theme, **redeploy Apps Script** (`gas/Code.gs`, New version) so Google signup-create and email reset APIs exist.
 
+## Free CV builder
+
+Homepage **Create Free CV** opens `/create-free-cv/`.
+
+Customers can add/remove CV sections, upload a photo, pick 4 templates, change colours (free), see a live A4 preview (1 or 2 pages), then Preview / Download / Print / Start Again. After theme upload, visit the site once (or Permalinks → Save) so WordPress creates the page.
+
 ## Tips
 
 1. Upload a logo under **Customize → Site Identity**.

@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AMZ_PRINTS_VERSION', '3.4.6' );
+define( 'AMZ_PRINTS_VERSION', '3.5.0' );
 
 /**
  * Avoid long Hostinger CDN HTML cache hiding theme updates.
@@ -220,6 +220,9 @@ function amz_prints_body_classes( $classes ) {
 	if ( is_front_page() ) {
 		$classes[] = 'amz-home';
 	}
+	if ( is_page_template( 'page-templates/template-cv-builder.php' ) || is_page( 'create-free-cv' ) ) {
+		$classes[] = 'amz-cv-builder';
+	}
 	return $classes;
 }
 add_filter( 'body_class', 'amz_prints_body_classes' );
@@ -275,6 +278,7 @@ function amz_prints_default_pages() {
 		'gallery'          => array( 'title' => 'Gallery', 'template' => 'page-templates/template-gallery.php' ),
 		'quote'            => array( 'title' => 'Get a Quote', 'template' => 'page-templates/template-quote.php' ),
 		'contact'          => array( 'title' => 'Contact', 'template' => 'page-templates/template-contact.php' ),
+		'create-free-cv'   => array( 'title' => 'Create Free CV', 'template' => 'page-templates/template-cv-builder.php' ),
 	);
 }
 
@@ -361,7 +365,7 @@ add_action( 'after_switch_theme', 'amz_prints_after_switch' );
  * Create missing pages on upgrade (fixes Services 404 without re-activating theme)
  */
 function amz_prints_maybe_upgrade_pages() {
-	if ( get_option( 'amz_prints_pages_ver' ) === '3.4.6' ) {
+	if ( get_option( 'amz_prints_pages_ver' ) === '3.5.0' ) {
 		return;
 	}
 	amz_prints_ensure_pages();
@@ -369,7 +373,7 @@ function amz_prints_maybe_upgrade_pages() {
 	set_theme_mod( 'amz_primary_color', '#0747a3' );
 	set_theme_mod( 'amz_secondary_color', '#111111' );
 	set_theme_mod( 'amz_accent_color', '#ff6d00' );
-	update_option( 'amz_prints_pages_ver', '3.4.6' );
+	update_option( 'amz_prints_pages_ver', '3.5.0' );
 }
 add_action( 'init', 'amz_prints_maybe_upgrade_pages', 20 );
 

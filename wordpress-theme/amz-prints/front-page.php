@@ -149,7 +149,8 @@ $slider_meta = array(
 			<h1 class="hero__title reveal" data-reveal><?php echo esc_html( $headline ); ?></h1>
 			<p class="hero__sub reveal" data-reveal><?php echo esc_html( $sub ); ?></p>
 			<div class="hero__actions reveal" data-reveal>
-				<a class="btn btn--primary btn--lg btn--magnetic" href="<?php echo esc_url( home_url( $cta1_url ) ); ?>"><?php echo esc_html( $cta1 ); ?></a>
+				<a class="btn btn--primary btn--lg btn--magnetic" href="<?php echo esc_url( home_url( '/create-free-cv/' ) ); ?>"><?php esc_html_e( 'Create Free CV', 'amz-prints' ); ?></a>
+				<a class="btn btn--ghost btn--lg btn--magnetic" href="<?php echo esc_url( home_url( $cta1_url ) ); ?>"><?php echo esc_html( $cta1 ); ?></a>
 				<a class="btn btn--ghost btn--lg btn--magnetic" href="<?php echo esc_url( home_url( $cta2_url ) ); ?>"><?php echo esc_html( $cta2 ); ?></a>
 			</div>
 		</div>
@@ -201,6 +202,17 @@ $slider_meta = array(
 				<?php endforeach; ?>
 			</div>
 		</div>
+	</div>
+</section>
+
+<section class="cv-home-band">
+	<div class="container cv-home-band__inner reveal" data-reveal>
+		<div>
+			<p class="eyebrow"><?php esc_html_e( 'Free customer service', 'amz-prints' ); ?></p>
+			<h2><?php esc_html_e( 'Create a professional CV online', 'amz-prints' ); ?></h2>
+			<p><?php esc_html_e( 'Pick a design, add your photo, change colours, and download an A4 resume — completely free.', 'amz-prints' ); ?></p>
+		</div>
+		<a class="btn btn--primary btn--lg btn--magnetic" href="<?php echo esc_url( home_url( '/create-free-cv/' ) ); ?>"><?php esc_html_e( 'Create Free CV', 'amz-prints' ); ?></a>
 	</div>
 </section>
 

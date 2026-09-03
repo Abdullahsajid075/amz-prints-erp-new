@@ -6506,3 +6506,21 @@ body.catalog-pdf-capture .catalog-page:not(.is-capturing) {
   .page-service-index em { display: none; }
 }
 
+/* Homepage free CV band */
+.cv-home-band {
+  background:
+    linear-gradient(120deg, rgba(7, 71, 163, 0.08), rgba(255, 109, 0, 0.1));
+  border-top: 1px solid var(--amz-line);
+  border-bottom: 1px solid var(--amz-line);
+}
+.cv-home-band__inner {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.2rem;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 1.6rem 0;
+}
+.cv-home-band h2 { margin: 0.2rem 0 0.35rem; }
+.cv-home-band p { margin: 0; color: var(--amz-muted); max-width: 52ch; }
+
