@@ -30,7 +30,7 @@ const defaultBrand = {
     showQR: true,
     showStamp: true,
     showSignature: true,
-    template: 'classic',
+    template: 'bold',
   },
 };
 

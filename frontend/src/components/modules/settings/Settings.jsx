@@ -26,7 +26,7 @@ import { getAssignableModules, hasFullAccess, normalizePermissions } from '@/uti
 
 const defaultSettings = {
   company: { name: 'Amazon Printing Services', tagline: 'Professional Printing & Advertising Services', address: 'King Road, Mandi Bahauddin', phone: '', email: 'amazonprinting@gmail.com', website: 'amzprints.com', taxId: '', authorizedSignatory: 'Authorized Person', logo: '', stamp: '', signature: '' },
-  invoice: { prefix: 'INV-', taxRate: 0, terms: 'Payment due within 30 days.', showQR: true, showStamp: true, showSignature: true, template: 'classic' },
+  invoice: { prefix: 'INV-', taxRate: 0, terms: 'Payment due within 30 days.', showQR: true, showStamp: true, showSignature: true, template: 'bold' },
   theme: { primary: '#ff6d00', secondary: '#0747a3', accent: '#10B981' },
   orders: { autoNumber: true, orderPrefix: 'ORD-', defaultStatus: 'Order Received', requireDeliveryDate: true },
   customers: { autoCode: true, codePrefix: 'CUST-', creditLimit: 50000, requirePhone: true },
@@ -461,7 +461,7 @@ const Settings = () => {
               </div>
               <div>
                 <Label>Invoice Template</Label>
-                <Select value={settings.invoice.template || 'classic'} onValueChange={(v) => update('invoice', 'template', v)}>
+                <Select value={settings.invoice.template || 'bold'} onValueChange={(v) => update('invoice', 'template', v)}>
                   <SelectTrigger data-testid="invoice-template-select"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="classic">Classic</SelectItem>

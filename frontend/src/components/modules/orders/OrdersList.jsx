@@ -224,7 +224,7 @@ const OrdersList = () => {
       onValueChange={(v) => changeOrderStatus(order, v)}
     >
       <SelectTrigger
-        className={compact ? 'h-7 w-[132px] text-[10px] px-2' : 'h-8 w-full text-xs'}
+      className={compact ? 'h-7 w-[132px] text-[10px] px-2 rounded-lg bg-white/70' : 'h-8 w-full text-xs rounded-lg bg-white/70'}
         onClick={(e) => e.stopPropagation()}
       >
         <SelectValue />
@@ -525,158 +525,120 @@ const OrdersList = () => {
   };
 
   const renderCard = (order) => (
-    <div key={order.id} className={`group relative overflow-hidden rounded-xl bg-white border p-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 ${
-      isNotStartedOrder(order) ? 'border-orange-300 ring-1 ring-orange-100' : 'border-gray-100'
-    }`} data-testid={`order-card-${order.id}`}>
-      <div className="absolute top-0 left-0 right-0 h-1" style={{ background: 'linear-gradient(90deg, #ff6d00, #0747a3)' }} />
-      <div className="flex items-start justify-between mb-3">
-        <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Order</p>
-          <h3 className="text-lg font-bold truncate" style={{ color: '#1F2937' }}>{order.orderId}</h3>
-        </div>
-        <Badge className={`${getStatusColor(order.status)} text-[10px] shrink-0`}>{order.status}</Badge>
-      </div>
-      <div className="mb-3">
-        <StatusSelect order={order} />
-      </div>
-      <div className="space-y-1.5 mb-3">
-        <div className="flex items-center gap-2 text-sm">
-          <User className="h-3.5 w-3.5 text-gray-400 shrink-0" />
-          <span className="font-semibold truncate" style={{ color: '#1F2937' }}>{order.customerName}</span>
-        </div>
-        <div className="flex items-center justify-between text-xs text-gray-500">
-          <span>{formatDate(order.date)}</span>
-          <span>Due {formatDate(order.deliveryDate)}</span>
-        </div>
-      </div>
-      <div className="grid grid-cols-3 gap-1 pt-2 border-t border-gray-100 mb-2">
-        <div>
-          <p className="text-[9px] uppercase tracking-wider text-gray-500 font-semibold">Total</p>
-          <p className="text-sm font-bold" style={{ color: '#ff6d00' }}>{formatCurrency(orderDisplayTotal(order))}</p>
-        </div>
-        <div>
-          <p className="text-[9px] uppercase tracking-wider text-gray-500 font-semibold">Received</p>
-          <p className="text-sm font-bold text-emerald-700">{formatCurrency(order.advancePayment || 0)}</p>
-        </div>
-        <div>
-          <p className="text-[9px] uppercase tracking-wider text-gray-500 font-semibold">Balance</p>
-          <p className="text-sm font-bold text-gray-800">{formatCurrency(orderBalanceDue(order))}</p>
-        </div>
-      </div>
-      <div className="flex items-center gap-1">
-        <Button size="sm" className="flex-1 text-white text-xs h-8" style={{ backgroundColor: '#ff6d00' }} onClick={() => handleView(order.id)} data-testid={`view-order-${order.id}`}>
-          <Eye className="h-3 w-3 mr-1" />View
-        </Button>
-        {order.status === 'Ready' && (
-          <Button
-            size="icon"
-            variant="outline"
-            className="h-8 w-8"
-            title="Delivery Slip"
-            onClick={() => navigate(`/orders/${order.id}/delivery-slip`)}
-            data-testid={`delivery-slip-${order.id}`}
-          >
-            <Truck className="h-3.5 w-3.5" style={{ color: '#ff6d00' }} />
-          </Button>
-        )}
-        {order.invoiceId ? (
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 px-2 text-[11px] font-semibold"
-            title={order.invoiceNumber || 'Open invoice'}
-            onClick={() => navigate(`/invoices/${order.invoiceId}`)}
-            data-testid={`invoice-order-${order.id}`}
-          >
-            {order.invoiceNumber || 'Invoice'}
-          </Button>
-        ) : (
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 px-2 text-[11px]"
-            title="Create invoice"
-            onClick={() => handleGenerateInvoice(order)}
-            data-testid={`invoice-order-${order.id}`}
-          >
-            Create invoice
-          </Button>
-        )}
-        <Button size="icon" variant="outline" className="h-8 w-8 text-green-600 hover:bg-green-50" title="WhatsApp" onClick={() => handleWhatsApp(order)} data-testid={`whatsapp-order-${order.id}`}>
-          <WhatsAppIcon className="h-3.5 w-3.5" />
-        </Button>
-        <Button size="icon" variant="outline" className="h-8 w-8" title="Copy tracking link" onClick={() => copyTrackingLink(order)} data-testid={`track-link-${order.id}`}>
-          <Link2 className="h-3.5 w-3.5" style={{ color: '#ff6d00' }} />
-        </Button>
-        <Button size="icon" variant="outline" className="h-8 w-8" title="Print" onClick={() => handlePrint(order)} data-testid={`print-order-${order.id}`}>
-          <Printer className="h-3.5 w-3.5" />
-        </Button>
-        <Button size="icon" variant="outline" className="h-8 w-8 text-emerald-700" title="Record payment on invoice" onClick={() => openPayment(order)} data-testid={`pay-order-${order.id}`}>
-          <Wallet className="h-3.5 w-3.5" />
-        </Button>
-        {!isLockedOrder(order) && (
-          <Button size="icon" variant="ghost" className="h-8 w-8" title="Edit" onClick={() => navigate(`/orders/${order.id}/edit`)} data-testid={`edit-order-${order.id}`}>
-            <Edit className="h-3.5 w-3.5" />
-          </Button>
-        )}
-      </div>
-      <div className="flex gap-1 mt-1.5 flex-wrap">
-        {needsDesignDocsReminder(order) && (
-          <>
+    <div
+      key={order.id}
+      className={`order-card-3d ${isNotStartedOrder(order) ? 'order-card-3d--priority' : ''}`}
+      data-testid={`order-card-${order.id}`}
+    >
+      <div className="order-card-3d-inner">
+        <div className="order-card-3d-accent" />
+        <div className="order-card-3d-accent-b" />
+        <div className="order-card-3d-body">
+          <div className="flex items-start justify-between mb-2.5 gap-2">
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">Order</p>
+              <h3 className="text-lg font-display font-bold truncate" style={{ color: '#0747a3' }}>{order.orderId}</h3>
+            </div>
+            <Badge className={`${getStatusColor(order.status)} text-[10px] shrink-0 shadow-sm`}>{order.status}</Badge>
+          </div>
+          <div className="mb-2.5">
+            <StatusSelect order={order} />
+          </div>
+          <div className="space-y-1 mb-1">
+            <div className="flex items-center gap-2 text-sm">
+              <User className="h-3.5 w-3.5 shrink-0" style={{ color: '#ff6d00' }} />
+              <span className="font-semibold truncate" style={{ color: '#0747a3' }}>{order.customerName}</span>
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-slate-500">
+              <span>{formatDate(order.date)}</span>
+              <span>Due {formatDate(order.deliveryDate)}</span>
+            </div>
+          </div>
+          <div className="order-glass-money">
+            <div>
+              <p className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">Total</p>
+              <p className="text-sm font-bold" style={{ color: '#ff6d00' }}>{formatCurrency(orderDisplayTotal(order))}</p>
+            </div>
+            <div>
+              <p className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">Received</p>
+              <p className="text-sm font-bold text-emerald-700">{formatCurrency(order.advancePayment || 0)}</p>
+            </div>
+            <div>
+              <p className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">Balance</p>
+              <p className="text-sm font-bold" style={{ color: '#0747a3' }}>{formatCurrency(orderBalanceDue(order))}</p>
+            </div>
+          </div>
+          <div className="order-glass-actions">
+            <Button size="sm" className="flex-1 text-white text-xs h-8 rounded-lg shadow-sm" style={{ backgroundColor: '#ff6d00' }} onClick={() => handleView(order.id)} data-testid={`view-order-${order.id}`}>
+              <Eye className="h-3 w-3 mr-1" />View
+            </Button>
+            {order.status === 'Ready' && (
+              <Button size="icon" variant="outline" className="h-8 w-8 rounded-lg bg-white/50" title="Delivery Slip" onClick={() => navigate(`/orders/${order.id}/delivery-slip`)} data-testid={`delivery-slip-${order.id}`}>
+                <Truck className="h-3.5 w-3.5" style={{ color: '#ff6d00' }} />
+              </Button>
+            )}
+            {order.invoiceId ? (
+              <Button size="sm" variant="outline" className="h-8 px-2 text-[11px] font-semibold rounded-lg bg-white/50" title={order.invoiceNumber || 'Open invoice'} onClick={() => navigate(`/invoices/${order.invoiceId}`)} data-testid={`invoice-order-${order.id}`}>
+                {order.invoiceNumber || 'Invoice'}
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" className="h-8 px-2 text-[11px] rounded-lg bg-white/50" title="Create invoice" onClick={() => handleGenerateInvoice(order)} data-testid={`invoice-order-${order.id}`}>
+                Create invoice
+              </Button>
+            )}
+            <Button size="icon" variant="outline" className="h-8 w-8 rounded-lg bg-white/50 text-green-600 hover:bg-green-50" title="WhatsApp" onClick={() => handleWhatsApp(order)} data-testid={`whatsapp-order-${order.id}`}>
+              <WhatsAppIcon className="h-3.5 w-3.5" />
+            </Button>
+            <Button size="icon" variant="outline" className="h-8 w-8 rounded-lg bg-white/50" title="Copy tracking link" onClick={() => copyTrackingLink(order)} data-testid={`track-link-${order.id}`}>
+              <Link2 className="h-3.5 w-3.5" style={{ color: '#ff6d00' }} />
+            </Button>
+            <Button size="icon" variant="outline" className="h-8 w-8 rounded-lg bg-white/50" title="Print" onClick={() => handlePrint(order)} data-testid={`print-order-${order.id}`}>
+              <Printer className="h-3.5 w-3.5" />
+            </Button>
+            <Button size="icon" variant="outline" className="h-8 w-8 rounded-lg bg-white/50 text-emerald-700" title="Record payment on invoice" onClick={() => openPayment(order)} data-testid={`pay-order-${order.id}`}>
+              <Wallet className="h-3.5 w-3.5" />
+            </Button>
+            {!isLockedOrder(order) && (
+              <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg" title="Edit" onClick={() => navigate(`/orders/${order.id}/edit`)} data-testid={`edit-order-${order.id}`}>
+                <Edit className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
+          <div className="flex gap-1 mt-1.5 flex-wrap">
+            {needsDesignDocsReminder(order) && (
+              <>
+                <Button type="button" size="sm" variant="outline" className="flex-1 min-w-[30%] h-7 text-[10px] px-1.5 text-amber-800 border-amber-200/80 bg-white/40 hover:bg-amber-50" title="WhatsApp: Waiting for approval" onClick={() => sendOrderReminder(order, 'approval')} data-testid={`reminder-approval-${order.id}`}>
+                  <Bell className="h-3 w-3 mr-1 shrink-0" />Approval
+                </Button>
+                <Button type="button" size="sm" variant="outline" className="flex-1 min-w-[30%] h-7 text-[10px] px-1.5 text-sky-800 border-sky-200/80 bg-white/40 hover:bg-sky-50" title="WhatsApp: Required documents or data" onClick={() => sendOrderReminder(order, 'documents')} data-testid={`reminder-docs-${order.id}`}>
+                  <FileText className="h-3 w-3 mr-1 shrink-0" />Docs / Data
+                </Button>
+              </>
+            )}
             <Button
               type="button"
               size="sm"
               variant="outline"
-              className="flex-1 min-w-[30%] h-7 text-[10px] px-1.5 text-amber-800 border-amber-200 hover:bg-amber-50"
-              title="WhatsApp: Waiting for approval"
-              onClick={() => sendOrderReminder(order, 'approval')}
-              data-testid={`reminder-approval-${order.id}`}
+              disabled={hasAdvanceReceived(order)}
+              className={`flex-1 min-w-[30%] h-7 text-[10px] px-1.5 ${
+                hasAdvanceReceived(order)
+                  ? 'text-gray-400 border-gray-200 opacity-60 cursor-not-allowed'
+                  : 'text-emerald-800 border-emerald-200/80 bg-white/40 hover:bg-emerald-50'
+              }`}
+              title={hasAdvanceReceived(order) ? 'Advance already received' : 'WhatsApp: Soft reminder for advance payment'}
+              onClick={() => sendOrderReminder(order, 'advance')}
+              data-testid={`reminder-advance-${order.id}`}
             >
-              <Bell className="h-3 w-3 mr-1 shrink-0" />Approval
+              <Wallet className="h-3 w-3 mr-1 shrink-0" />
+              {hasAdvanceReceived(order) ? 'Advance paid' : 'Advance'}
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="flex-1 min-w-[30%] h-7 text-[10px] px-1.5 text-sky-800 border-sky-200 hover:bg-sky-50"
-              title="WhatsApp: Required documents or data"
-              onClick={() => sendOrderReminder(order, 'documents')}
-              data-testid={`reminder-docs-${order.id}`}
-            >
-              <FileText className="h-3 w-3 mr-1 shrink-0" />Docs / Data
-            </Button>
-          </>
-        )}
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={hasAdvanceReceived(order)}
-          className={`flex-1 min-w-[30%] h-7 text-[10px] px-1.5 ${
-            hasAdvanceReceived(order)
-              ? 'text-gray-400 border-gray-200 opacity-60 cursor-not-allowed'
-              : 'text-emerald-800 border-emerald-200 hover:bg-emerald-50'
-          }`}
-          title={hasAdvanceReceived(order) ? 'Advance already received' : 'WhatsApp: Soft reminder for advance payment'}
-          onClick={() => sendOrderReminder(order, 'advance')}
-          data-testid={`reminder-advance-${order.id}`}
-        >
-          <Wallet className="h-3 w-3 mr-1 shrink-0" />
-          {hasAdvanceReceived(order) ? 'Advance paid' : 'Advance'}
-        </Button>
-        {orderIsDeliveredWithBalance(order) && (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="flex-1 min-w-[30%] h-7 text-[10px] px-1.5 text-green-800 border-green-200 hover:bg-green-50"
-            title="WhatsApp: Urdu remaining balance reminder"
-            onClick={() => handleUrduBalanceRequest(order)}
-            data-testid={`balance-urdu-${order.id}`}
-          >
-            <WhatsAppIcon className="h-3 w-3 mr-1 shrink-0" />باقی رقم
-          </Button>
-        )}
+            {orderIsDeliveredWithBalance(order) && (
+              <Button type="button" size="sm" variant="outline" className="flex-1 min-w-[30%] h-7 text-[10px] px-1.5 text-green-800 border-green-200/80 bg-white/40 hover:bg-green-50" title="WhatsApp: Urdu remaining balance reminder" onClick={() => handleUrduBalanceRequest(order)} data-testid={`balance-urdu-${order.id}`}>
+                <WhatsAppIcon className="h-3 w-3 mr-1 shrink-0" />باقی رقم
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

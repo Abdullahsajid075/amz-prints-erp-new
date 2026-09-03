@@ -19,7 +19,7 @@ const InvoiceView = ({ isPublic = false }) => {
   const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const template = brand?.invoice?.template || 'classic';
+  const template = brand?.invoice?.template || 'bold';
   const accent = primary || '#ff6d00';
   const showQR = brand?.invoice?.showQR !== false;
   const showStamp = brand?.invoice?.showStamp !== false;
@@ -127,7 +127,7 @@ const InvoiceView = ({ isPublic = false }) => {
 
   const shellClass = {
     classic: 'invoice-container max-w-4xl mx-auto bg-white shadow-xl border border-gray-200',
-    modern: 'invoice-container max-w-4xl mx-auto bg-white shadow-2xl rounded-2xl overflow-hidden border-0',
+    modern: 'invoice-container max-w-4xl mx-auto bg-white shadow-2xl rounded-2xl border-0',
     minimal: 'invoice-container max-w-3xl mx-auto bg-white border border-gray-300',
     bold: 'invoice-container max-w-4xl mx-auto bg-white shadow-xl border-4',
   }[template] || 'invoice-container max-w-4xl mx-auto bg-white shadow-xl border border-gray-200';
@@ -314,17 +314,21 @@ const InvoiceView = ({ isPublic = false }) => {
           </table>
         </div>
 
-        <div className="px-8 pb-6 inv-section grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="px-8 pb-2 inv-section grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
           <div className="space-y-3">
             {invoice.notes && (
               <div>
-                <p className="text-[10px] uppercase tracking-wider font-semibold mb-1 text-gray-700">Notes</p>
+                <p className="text-[10px] uppercase tracking-wider font-bold mb-1" style={{ color: '#0747a3' }}>Notes</p>
                 <p className="text-xs text-gray-600">{invoice.notes}</p>
               </div>
             )}
+            <div className={`p-3 ${template === 'minimal' ? 'border border-gray-300' : 'bg-gray-50 rounded-md border border-gray-200'}`}>
+              <p className="text-[10px] uppercase tracking-wider font-bold mb-1" style={{ color: '#0747a3' }}>Terms & Conditions</p>
+              <p className="text-[11px] text-gray-600 leading-relaxed whitespace-pre-line">{terms}</p>
+            </div>
           </div>
 
-          <div className="space-y-1.5">
+          <div className="inv-totals-box space-y-1.5">
             <div className="flex justify-between py-1 border-b border-gray-100">
               <span className="text-xs text-gray-600">Subtotal</span>
               <span className="text-xs font-semibold">{formatCurrency(invoice.subtotal || invoice.totalAmount)}</span>
@@ -355,7 +359,7 @@ const InvoiceView = ({ isPublic = false }) => {
               <span className="text-xs text-gray-600">Paid Amount</span>
               <span className="text-xs font-semibold text-green-700">{formatCurrency(invoice.paidAmount || 0)}</span>
             </div>
-            <div className="inv-balance-row flex justify-between py-2 border-t-2 border-gray-800 mt-1">
+            <div className="inv-balance-row flex justify-between py-2 border-t-2 mt-1" style={{ borderColor: '#0747a3' }}>
               <span className="text-sm font-bold" style={{ color: '#0747a3' }}>Balance Due</span>
               <span className="inv-total text-lg font-bold" style={{ color: balance > 0 ? '#EF4444' : '#10B981' }}>
                 {formatCurrency(balance)}
@@ -364,49 +368,41 @@ const InvoiceView = ({ isPublic = false }) => {
           </div>
         </div>
 
-        <div className="px-8 pb-4 inv-section">
-          <div className={`p-3 ${template === 'minimal' ? '' : 'bg-gray-50 rounded-md border border-gray-200'}`}>
-            <p className="text-[10px] uppercase tracking-wider font-semibold mb-1 text-gray-700">Terms & Conditions</p>
-            <p className="text-[11px] text-gray-600 leading-relaxed whitespace-pre-line">{terms}</p>
-          </div>
-        </div>
-
-        <div className="px-8 pb-4 inv-section grid grid-cols-2 gap-6">
-          {showStamp && (
-            <div className="text-center pt-4 border-t border-gray-200">
-              <div className="relative h-16 mb-1 flex items-center justify-center">
-                {company?.stamp ? (
-                  <img src={company.stamp} alt="Company stamp" className="h-16 object-contain opacity-90" />
-                ) : (
-                  <div className="w-20 h-20 rounded-full border-2 border-double flex items-center justify-center opacity-30 rotate-[-8deg]" style={{ borderColor: accent, color: accent }}>
-                    <div className="text-center">
-                      <p className="text-[9px] font-bold uppercase leading-tight">{company.name || 'AMZ Prints'}</p>
-                      <p className="text-[8px] uppercase">Official Stamp</p>
+        {(showStamp || showSignature) && (
+          <div className="px-8 pb-2 inv-section">
+            <div className="inv-auth">
+              {showStamp && (
+                <div className="inv-stamp">
+                  {company?.stamp ? (
+                    <img src={company.stamp} alt="Company stamp" />
+                  ) : (
+                    <div className="inv-stamp-fallback">
+                      <div>
+                        <p className="text-[10px] font-extrabold leading-tight">{company.name || 'AMZ Prints'}</p>
+                        <p className="text-[8px] mt-0.5">Official Stamp</p>
+                      </div>
                     </div>
+                  )}
+                </div>
+              )}
+              {showSignature && (
+                <div className="inv-sign">
+                  {company?.signature ? (
+                    <img src={company.signature} alt="Authorized signature" />
+                  ) : (
+                    <div className="italic text-2xl font-bold pb-1 opacity-80" style={{ fontFamily: '"Brush Script MT", "Segoe Script", cursive', color: '#0747a3' }}>
+                      {company.authorizedSignatory || 'Authorized Person'}
+                    </div>
+                  )}
+                  <div className="inv-sign-name">
+                    <strong>Authorized Signature</strong>
+                    <p className="text-[10px] text-gray-600 mt-0.5 font-semibold">{company.authorizedSignatory || 'Authorized Person'}</p>
                   </div>
-                )}
-              </div>
-              <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Company Stamp</p>
+                </div>
+              )}
             </div>
-          )}
-          {showSignature && (
-            <div className={`text-center pt-4 border-t border-gray-200 ${!showStamp ? 'col-span-2' : ''}`}>
-              <div className="h-16 flex items-end justify-center">
-                {company?.signature ? (
-                  <img src={company.signature} alt="Authorized signature" className="max-h-14 object-contain" />
-                ) : (
-                  <div className="italic text-base font-serif text-gray-700 pb-0.5 opacity-70" style={{ fontFamily: '"Brush Script MT", cursive' }}>
-                    {company.authorizedSignatory || 'Authorized Person'}
-                  </div>
-                )}
-              </div>
-              <div className="border-t border-gray-400 pt-1.5 mt-1">
-                <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Authorized Signature</p>
-                <p className="text-[10px] text-gray-500 mt-0.5">{company.authorizedSignatory || 'Authorized Person'}</p>
-              </div>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {showQR && (
           <div className={`px-8 pb-5 inv-section inv-verify-block border-t ${template === 'minimal' ? 'border-gray-300' : 'border-orange-100'} pt-4 text-center`}>

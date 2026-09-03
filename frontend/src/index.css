@@ -158,80 +158,184 @@ code {
   background-color: #0747a3;
 }
 
-/* 3D Card Effects */
+/* Glassy order cards — orange + blue brand */
 .order-card-3d {
-  perspective: 1500px;
-  transform-style: preserve-3d;
-  cursor: pointer;
-  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  perspective: 1200px;
 }
 
 .order-card-3d-inner {
   position: relative;
-  background: #ffffff;
-  border-radius: 16px;
-  padding: 1.5rem;
-  transform-style: preserve-3d;
-  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275),
-              box-shadow 0.4s ease;
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.05),
-    0 4px 12px rgba(0, 0, 0, 0.05),
-    0 12px 24px rgba(0, 0, 0, 0.03);
-  border: 1px solid rgba(255, 109, 0, 0.10);
+  isolation: isolate;
   overflow: hidden;
-  transform: translateZ(0);
-}
-
-.order-card-3d:hover .order-card-3d-inner {
-  transform: translateY(-8px) rotateX(4deg) rotateY(-4deg);
+  border-radius: 1.25rem;
+  padding: 1.05rem 1.05rem 0.9rem;
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.78) 0%, rgba(244, 248, 255, 0.55) 48%, rgba(255, 246, 237, 0.62) 100%);
+  backdrop-filter: blur(18px) saturate(170%);
+  -webkit-backdrop-filter: blur(18px) saturate(170%);
+  border: 1px solid rgba(255, 255, 255, 0.72);
   box-shadow:
-    0 4px 8px rgba(255, 109, 0, 0.08),
-    0 16px 32px rgba(255, 109, 0, 0.12),
-    0 24px 48px rgba(7, 71, 163, 0.12),
-    0 32px 64px rgba(0, 0, 0, 0.08);
-  border-color: rgba(255, 109, 0, 0.28);
-}
-
-.order-card-3d-accent {
-  position: absolute;
-  top: -30px;
-  right: -30px;
-  width: 100px;
-  height: 100px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 109, 0, 0.15) 0%, rgba(255, 109, 0, 0) 70%);
-  transition: all 0.4s ease;
-  z-index: 0;
-}
-
-.order-card-3d:hover .order-card-3d-accent {
-  transform: scale(2);
-  background: radial-gradient(circle, rgba(7, 71, 163, 0.18) 0%, rgba(7, 71, 163, 0) 70%);
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 10px 28px rgba(7, 71, 163, 0.10),
+    0 2px 8px rgba(255, 109, 0, 0.08);
+  transition: transform 0.35s var(--erp-ease), box-shadow 0.35s var(--erp-ease), border-color 0.35s ease;
 }
 
 .order-card-3d-inner::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 4px;
-  background: linear-gradient(90deg, #ff6d00, #0747a3, #ff6d00);
-  background-size: 200% 100%;
-  transform: translateY(-100%);
-  transition: transform 0.3s ease;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, #ff6d00, #0747a3 55%, #ff6d00);
+  z-index: 2;
+}
+
+.order-card-3d-accent,
+.order-card-3d-accent-b {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(2px);
+}
+
+.order-card-3d-accent {
+  top: -42px;
+  right: -36px;
+  width: 130px;
+  height: 130px;
+  background: radial-gradient(circle, rgba(255, 109, 0, 0.28) 0%, rgba(255, 109, 0, 0) 70%);
+}
+
+.order-card-3d-accent-b {
+  bottom: -48px;
+  left: -28px;
+  width: 140px;
+  height: 140px;
+  background: radial-gradient(circle, rgba(7, 71, 163, 0.18) 0%, rgba(7, 71, 163, 0) 70%);
+}
+
+.order-card-3d:hover .order-card-3d-inner {
+  transform: translateY(-6px);
+  border-color: rgba(255, 109, 0, 0.45);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 18px 40px rgba(7, 71, 163, 0.16),
+    0 8px 20px rgba(255, 109, 0, 0.12);
+}
+
+.order-card-3d--priority .order-card-3d-inner {
+  border-color: rgba(255, 109, 0, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 1px rgba(255, 109, 0, 0.18),
+    0 12px 32px rgba(255, 109, 0, 0.16);
+}
+
+.order-card-3d-body {
+  position: relative;
   z-index: 1;
 }
 
-.order-card-3d:hover .order-card-3d-inner::before {
-  transform: translateY(0);
-  animation: shimmer 2s linear infinite;
+.order-glass-money {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+  padding: 0.55rem 0.45rem;
+  margin: 0.35rem 0 0.65rem;
+  border-radius: 0.85rem;
+  background: rgba(255, 255, 255, 0.45);
+  border: 1px solid rgba(7, 71, 163, 0.08);
 }
 
-@keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+.order-glass-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+/* Invoice stamp + overlapping bold signature */
+.inv-auth {
+  position: relative;
+  min-height: 132px;
+  margin-top: -42px;
+}
+
+.inv-stamp {
+  position: absolute;
+  left: 38%;
+  bottom: 6px;
+  width: 128px;
+  z-index: 1;
+  opacity: 0.86;
+  transform: rotate(-14deg);
+  pointer-events: none;
+}
+
+.inv-stamp img {
+  width: 128px;
+  max-height: 128px;
+  height: auto;
+  object-fit: contain;
+}
+
+.inv-stamp-fallback {
+  width: 118px;
+  height: 118px;
+  border-radius: 50%;
+  border: 3px double #ff6d00;
+  color: #ff6d00;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.55;
+}
+
+.inv-sign {
+  position: absolute;
+  right: 12px;
+  bottom: 2px;
+  z-index: 4;
+  width: 220px;
+  text-align: center;
+}
+
+.inv-sign img {
+  display: block;
+  margin: 0 auto -10px;
+  max-height: 78px;
+  max-width: 220px;
+  object-fit: contain;
+  transform: rotate(-8deg);
+  filter: contrast(1.2) saturate(1.05);
+  mix-blend-mode: multiply;
+}
+
+.inv-sign-name {
+  border-top: 1.5px solid #0747a3;
+  padding-top: 4px;
+  background: linear-gradient(180deg, transparent, rgba(255,255,255,0.72) 30%);
+}
+
+.inv-sign-name strong {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #0747a3;
+  font-weight: 800;
+}
+
+.inv-totals-box {
+  border: 1px solid rgba(7, 71, 163, 0.12);
+  border-radius: 0.75rem;
+  padding: 0.65rem 0.75rem 0.5rem;
+  background: linear-gradient(180deg, #fff 0%, #f4f7fc 100%);
 }
 
 /* Print styles for invoice / quotation — fit A4, compact chrome, strong totals */
@@ -348,6 +452,28 @@ code {
     width: 56px !important;
     height: 56px !important;
   }
+  .invoice-container .inv-auth {
+    min-height: 108px !important;
+    margin-top: -28px !important;
+  }
+  .invoice-container .inv-stamp {
+    width: 96px !important;
+    left: 50% !important;
+  }
+  .invoice-container .inv-stamp img,
+  .invoice-container .inv-stamp-fallback {
+    width: 96px !important;
+    height: 96px !important;
+    max-height: 96px !important;
+  }
+  .invoice-container .inv-sign {
+    width: 180px !important;
+  }
+  .invoice-container .inv-sign img {
+    max-height: 64px !important;
+    max-width: 180px !important;
+    height: auto !important;
+  }
   .invoice-container img.h-16,
   .invoice-container img.h-24,
   .invoice-container img.max-h-14,
@@ -410,6 +536,19 @@ code {
   }
   .invoice-fit-one-page .inv-verify-code {
     font-size: 13px !important;
+  }
+  .invoice-fit-one-page .inv-auth {
+    min-height: 92px !important;
+    margin-top: -22px !important;
+  }
+  .invoice-fit-one-page .inv-stamp,
+  .invoice-fit-one-page .inv-stamp img,
+  .invoice-fit-one-page .inv-stamp-fallback {
+    width: 78px !important;
+    max-height: 78px !important;
+  }
+  .invoice-fit-one-page .inv-sign img {
+    max-height: 52px !important;
   }
   .invoice-fit-one-page .gap-8,
   .invoice-fit-one-page .gap-6,
