@@ -51,17 +51,25 @@ $erp_products = function_exists( 'amz_prints_erp_get_products' ) ? amz_prints_er
 						? __( 'Featured', 'amz-prints' )
 						: ( ! empty( $product['productType'] ) ? $product['productType'] : __( 'Print Product', 'amz-prints' ) );
 					$letter   = mb_substr( $product['name'], 0, 1 );
-					$img      = ! empty( $product['image'] ) ? amz_prints_product_image_src( $product['image'] ) : '';
+					$gallery  = function_exists( 'amz_prints_product_gallery' ) ? amz_prints_product_gallery( $product ) : array();
+					$img      = ! empty( $gallery[0] ) ? $gallery[0] : ( ! empty( $product['image'] ) ? amz_prints_product_image_src( $product['image'] ) : '' );
 					?>
 					<article class="product-card product-card--<?php echo esc_attr( $accent ); ?><?php echo ! empty( $product['showOnTop'] ) ? ' product-card--top' : ''; ?> reveal" data-reveal>
 						<a href="<?php echo esc_url( $purl ); ?>" class="product-card__link">
 							<div class="product-card__media">
 								<?php if ( $img ) : ?>
-									<img src="<?php echo esc_attr( $img ); ?>" alt="<?php echo esc_attr( $product['name'] ); ?>" loading="lazy">
+									<img src="<?php echo esc_attr( $img ); ?>" alt="<?php echo esc_attr( $product['name'] ); ?>" loading="lazy" referrerpolicy="no-referrer">
 								<?php else : ?>
 									<div class="product-card__placeholder" aria-hidden="true">
 										<span class="product-card__letter"><?php echo esc_html( $letter ); ?></span>
 										<span class="product-card__shine"></span>
+									</div>
+								<?php endif; ?>
+								<?php if ( count( $gallery ) > 1 ) : ?>
+									<div class="product-card__thumbs" aria-hidden="true">
+										<?php foreach ( array_slice( $gallery, 0, 4 ) as $thumb ) : ?>
+											<span class="product-card__thumb" style="background-image:url('<?php echo esc_attr( $thumb ); ?>')"></span>
+										<?php endforeach; ?>
 									</div>
 								<?php endif; ?>
 								<span class="product-card__tag"><?php echo esc_html( $tag ); ?></span>

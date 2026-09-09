@@ -1,14 +1,17 @@
-/** Product catalog images — preserve upload resolution; only shrink if Sheets cell limit requires it. */
+/** Product catalog images — HD for website (Drive); Sheets only stores URLs. */
 
-/** Google Sheets cell max is 50k; stay under for Image / Images cells. */
+/** Google Sheets cell max is 50k; used only as Drive-failure fallback. */
 export const SHEETS_MAX_IMAGE_CHARS = 49000;
-/** Legacy alias used by fitImagesForSheets (gallery extras JSON cell). */
+/** Legacy alias. */
 export const IMAGES_CELL_BUDGET = 49000;
-/** Per extra gallery photo soft target when packing JSON (primary lives in Image column). */
 export const GALLERY_EXTRA_MAX_CHARS = 49000;
 
-/** @deprecated — prefer encodeProductImageFile; kept for employee photos etc. */
-const DEFAULT_JPEG_QUALITY = 0.98;
+/** Website HD: keep up to ~2000px edge, high JPEG quality. */
+export const WEB_IMAGE_MAX_EDGE = 2000;
+/** Transport budget per photo (base64) before GAS uploads to Drive. */
+export const WEB_IMAGE_MAX_CHARS = 1800000;
+
+const DEFAULT_JPEG_QUALITY = 0.9;
 
 function mimeForFile_(file) {
   const t = String(file?.type || '').toLowerCase();
@@ -19,14 +22,12 @@ function mimeForFile_(file) {
 }
 
 /**
- * Encode image at original resolution. JPEG/WebP use high quality; PNG stays lossless.
- * Resize / lower quality only when result exceeds maxChars (Sheets limit).
- * @param {File} file
- * @param {{ maxChars?: number, maxEdge?: number|null, quality?: number }} [opts]
+ * Encode image for catalog. Default is website-HD (2000px). Pass maxChars/maxEdge
+ * to shrink only when a caller needs Sheets-cell fallback.
  */
 export function encodeProductImageFile(file, opts = {}) {
-  const MAX_CHARS = opts.maxChars ?? SHEETS_MAX_IMAGE_CHARS;
-  const MAX_EDGE = opts.maxEdge === undefined ? null : opts.maxEdge;
+  const MAX_CHARS = opts.maxChars ?? WEB_IMAGE_MAX_CHARS;
+  const MAX_EDGE = opts.maxEdge === undefined ? WEB_IMAGE_MAX_EDGE : opts.maxEdge;
   const START_QUALITY = opts.quality ?? DEFAULT_JPEG_QUALITY;
 
   return new Promise((resolve, reject) => {
@@ -80,14 +81,14 @@ export function encodeProductImageFile(file, opts = {}) {
             steps += 1;
             if (mime === 'image/png') {
               mime = 'image/jpeg';
-              q = 0.95;
+              q = 0.92;
             } else if (q > 0.75) {
               q = Math.max(0.75, +(q - 0.03).toFixed(2));
-            } else if (w > Math.min(origW, origH) * 0.4) {
-              w = Math.max(1, Math.round(w * 0.92));
-              h = Math.max(1, Math.round(h * 0.92));
-            } else if (q > 0.5) {
-              q = Math.max(0.5, +(q - 0.05).toFixed(2));
+            } else if (w > 640) {
+              w = Math.max(640, Math.round(w * 0.9));
+              h = Math.max(640, Math.round(h * 0.9));
+            } else if (q > 0.55) {
+              q = Math.max(0.55, +(q - 0.05).toFixed(2));
             } else {
               break;
             }
@@ -96,7 +97,7 @@ export function encodeProductImageFile(file, opts = {}) {
 
           if (dataUrl.length > MAX_CHARS) {
             reject(new Error(
-              `Photo is too large for storage (${dataUrl.length} chars). Try a smaller file or fewer gallery photos.`
+              `Photo is too large (${dataUrl.length} chars). Try a smaller file.`
             ));
             return;
           }
@@ -142,29 +143,24 @@ export function productImagesList(product) {
   return out;
 }
 
-/** Product upload — full resolution (Sheets limit applies only if needed). */
+/** Product upload — HD for website (GAS stores Drive URLs). */
 export function compressGalleryImageFile(file) {
-  return encodeProductImageFile(file, { maxChars: SHEETS_MAX_IMAGE_CHARS });
+  return encodeProductImageFile(file, {
+    maxEdge: WEB_IMAGE_MAX_EDGE,
+    maxChars: WEB_IMAGE_MAX_CHARS,
+    quality: 0.9,
+  });
 }
 
 /**
- * Pack gallery for Sheets: primary image uses Image column; extras share Images JSON cell.
- * Primary is never dropped — only extra photos may be skipped if JSON is full.
+ * Keep up to 5 gallery photos. HD data-URLs are uploaded to Drive on save —
+ * do not drop extras for Sheets cell size on the client.
  */
-export function fitImagesForSheets(images, budget = IMAGES_CELL_BUDGET) {
+export function fitImagesForSheets(images) {
   const list = (Array.isArray(images) ? images : [])
     .map((s) => String(s || '').trim())
     .filter(Boolean);
-  if (!list.length) return [];
-  const primary = list[0];
-  const extras = [];
-  for (const img of list.slice(1)) {
-    const trial = [...extras, img];
-    if (JSON.stringify(trial).length > budget) break;
-    extras.push(img);
-    if (extras.length >= MAX_PRODUCT_IMAGES - 1) break;
-  }
-  return [primary, ...extras];
+  return list.slice(0, MAX_PRODUCT_IMAGES);
 }
 
 /** Strip catalog-only fields before saving onto order/invoice line items */
@@ -181,6 +177,5 @@ export function catalogFieldsForOrderLine(product = {}) {
     notes: isService ? (product.description || '') : '',
     productType: isService ? 'Service' : 'Product',
     description: isService ? (product.description || '') : '',
-    // intentionally NO image / photo
   };
 }

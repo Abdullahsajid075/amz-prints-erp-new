@@ -27,6 +27,32 @@ function amz_prints_product_image_src( $src ) {
 }
 
 /**
+ * Full product gallery (primary first). Empty array if none.
+ *
+ * @param array $product Product row.
+ * @return string[]
+ */
+function amz_prints_product_gallery( $product ) {
+	$out = array();
+	$push = static function ( $src ) use ( &$out ) {
+		$src = amz_prints_product_image_src( $src );
+		if ( $src && ! in_array( $src, $out, true ) ) {
+			$out[] = $src;
+		}
+	};
+	if ( ! empty( $product['images'] ) && is_array( $product['images'] ) ) {
+		foreach ( $product['images'] as $src ) {
+			$push( $src );
+		}
+	}
+	if ( ! empty( $product['image'] ) ) {
+		array_unshift( $out, amz_prints_product_image_src( $product['image'] ) );
+		$out = array_values( array_filter( array_unique( $out ) ) );
+	}
+	return $out;
+}
+
+/**
  * Product detail URL for ERP product.
  *
  * @param array $product Product row.

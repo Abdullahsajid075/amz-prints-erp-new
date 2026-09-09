@@ -136,7 +136,7 @@ function amz_prints_erp_request( $method, $path, $body = null ) {
  * @return array List of product arrays (empty on failure).
  */
 function amz_prints_erp_get_products( $force_refresh = false ) {
-	$cache_key = 'amz_prints_erp_products_v2';
+	$cache_key = 'amz_prints_erp_products_v3';
 	if ( ! $force_refresh ) {
 		$cached = get_transient( $cache_key );
 		if ( is_array( $cached ) ) {
@@ -236,7 +236,7 @@ function amz_prints_erp_get_products( $force_refresh = false ) {
 		}
 	);
 
-	set_transient( $cache_key, $products, 5 * MINUTE_IN_SECONDS );
+	set_transient( $cache_key, $products, 2 * MINUTE_IN_SECONDS );
 	return $products;
 }
 

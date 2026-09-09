@@ -11,10 +11,9 @@ $product_id = isset( $_GET['id'] ) ? sanitize_text_field( wp_unslash( $_GET['id'
 $product    = $product_id && function_exists( 'amz_prints_erp_get_product' )
 	? amz_prints_erp_get_product( $product_id )
 	: null;
-$images     = array();
-if ( $product ) {
-	$images = ! empty( $product['images'] ) ? $product['images'] : array_filter( array( $product['image'] ) );
-}
+$images     = $product && function_exists( 'amz_prints_product_gallery' )
+	? amz_prints_product_gallery( $product )
+	: ( $product ? array_filter( array( $product['image'] ?? '' ) ) : array() );
 ?>
 <section class="page-hero">
 	<div class="container">
@@ -47,6 +46,7 @@ if ( $product ) {
 						src="<?php echo esc_attr( amz_prints_product_image_src( $primary ) ); ?>"
 						alt="<?php echo esc_attr( $product['name'] ); ?>"
 						data-main-image
+						referrerpolicy="no-referrer"
 						<?php echo $primary ? '' : 'hidden'; ?>
 					>
 					<?php if ( ! $primary ) : ?>
@@ -58,7 +58,7 @@ if ( $product ) {
 						<div class="product-detail__thumbs">
 							<?php foreach ( $images as $i => $img ) : ?>
 								<button type="button" class="<?php echo 0 === $i ? 'is-active' : ''; ?>" data-thumb="<?php echo esc_attr( amz_prints_product_image_src( $img ) ); ?>">
-									<img src="<?php echo esc_attr( amz_prints_product_image_src( $img ) ); ?>" alt="">
+									<img src="<?php echo esc_attr( amz_prints_product_image_src( $img ) ); ?>" alt="" referrerpolicy="no-referrer">
 								</button>
 							<?php endforeach; ?>
 						</div>

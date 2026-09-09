@@ -154,15 +154,23 @@ $catalog     = array_slice( amz_prints_services_catalog(), 0, 6 );
 						? amz_prints_erp_product_price_html( $product )
 						: esc_html( amz_prints_erp_product_price_label( $product ) );
 					$excerpt   = $product['description'] ? wp_trim_words( $product['description'], 14 ) : ( $product['category'] ?: '' );
-					$img       = ! empty( $product['image'] ) ? amz_prints_product_image_src( $product['image'] ) : '';
+					$gallery   = function_exists( 'amz_prints_product_gallery' ) ? amz_prints_product_gallery( $product ) : array();
+					$img       = ! empty( $gallery[0] ) ? $gallery[0] : ( ! empty( $product['image'] ) ? amz_prints_product_image_src( $product['image'] ) : '' );
 					?>
 					<article class="product-tile reveal<?php echo ! empty( $product['showOnTop'] ) ? ' product-tile--top' : ''; ?>" data-reveal>
 						<a href="<?php echo esc_url( $purl ); ?>">
 							<div class="product-tile__media">
 								<?php if ( $img ) : ?>
-									<img src="<?php echo esc_attr( $img ); ?>" alt="<?php echo esc_attr( $product['name'] ); ?>" loading="lazy">
+									<img src="<?php echo esc_attr( $img ); ?>" alt="<?php echo esc_attr( $product['name'] ); ?>" loading="lazy" referrerpolicy="no-referrer">
 								<?php else : ?>
 									<div class="product-tile__placeholder" aria-hidden="true"><span><?php echo esc_html( mb_substr( $product['name'], 0, 1 ) ); ?></span></div>
+								<?php endif; ?>
+								<?php if ( count( $gallery ) > 1 ) : ?>
+									<div class="product-card__thumbs" aria-hidden="true">
+										<?php foreach ( array_slice( $gallery, 0, 4 ) as $thumb ) : ?>
+											<span class="product-card__thumb" style="background-image:url('<?php echo esc_attr( $thumb ); ?>')"></span>
+										<?php endforeach; ?>
+									</div>
 								<?php endif; ?>
 							</div>
 							<div class="product-tile__body">
