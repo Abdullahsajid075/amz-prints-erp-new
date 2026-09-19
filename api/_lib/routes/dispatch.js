@@ -3,8 +3,13 @@ const { handleLogin, validateToken, sanitizeUser } = require('../lib/auth');
 const { id, today, nowTime, num, truthy, send, sendError } = require('../lib/util');
 const {
   mapCustomer, mapOrder, mapProduct, mapInvoice, mapEmployee,
-  mapVendor, mapPayment, mapExpense, mapPurchase, mapUser,
+  mapVendor, mapPayment, mapExpense, mapPurchase, mapUser, mapToken,
 } = require('../lib/mappers');
+const {
+  isAdminRole, userLabel, collectOrderIds, invoiceStatusFromPaid,
+  makePortalPassword, checkPortalPassword, issueCustomerToken, parseCustomerToken,
+  sanitizePortalCustomer, isBlocked, productFromBody,
+} = require('../lib/helpers');
 
 async function ensureWalkIn() {
   const { data } = await supabase.from('customers').select('*').eq('id', 'cust_walkin').maybeSingle();
@@ -73,6 +78,184 @@ function orderFromBody(body = {}, existing = {}) {
     delivery_address: body.deliveryAddress || existing.delivery_address || '',
     quotation_id: body.quotationId || existing.quotation_id || '',
     payment_method: body.paymentMethod || existing.payment_method || '',
+  };
+}
+
+function assertCustomerNotBlocked(row) {
+  if (!row || String(row.id) === 'cust_walkin') return;
+  if (isBlocked(row)) {
+    throw new Error('Customer is blocked: ' + (row.block_reason || 'Contact Admin to unblock.'));
+  }
+}
+
+async function loadCustomer(cid) {
+  if (!cid) return null;
+  const { data } = await supabase.from('customers').select('*').eq('id', cid).maybeSingle();
+  return data || null;
+}
+
+async function withInvoiceMeta(apiOrder) {
+  if (!apiOrder) return apiOrder;
+  const { data: invoices } = await supabase.from('invoices').select('*');
+  const keys = [apiOrder.orderId, apiOrder.id].filter(Boolean).map(String);
+  const inv = (invoices || []).find((row) => {
+    const ids = collectOrderIds({}, row);
+    return keys.some((k) => ids.includes(k) || String(row.order_id) === k);
+  });
+  if (inv) {
+    apiOrder.invoiceId = inv.id || '';
+    apiOrder.invoiceNumber = inv.invoice_no || '';
+  } else {
+    apiOrder.invoiceId = '';
+    apiOrder.invoiceNumber = '';
+  }
+  return apiOrder;
+}
+
+async function findOrCreateInvoiceForOrder(order) {
+  const { data: invoices } = await supabase.from('invoices').select('*');
+  const keys = [order.order_id, order.id].filter(Boolean).map(String);
+  const existing = (invoices || []).find((row) => {
+    const ids = collectOrderIds({}, row);
+    return keys.some((k) => ids.includes(k) || String(row.order_id) === k);
+  });
+  if (existing) return existing;
+  const unpaid = (invoices || []).find((row) =>
+    String(row.customer_id) === String(order.customer_id)
+    && num(row.paid) === 0
+    && String(order.customer_id || '') !== 'cust_walkin'
+  );
+  if (unpaid && String(order.doc_type || '').toLowerCase() !== 'pos') {
+    const ids = collectOrderIds({ orderId: order.order_id || order.id }, unpaid);
+    await supabase.from('invoices').update({
+      order_id: ids[0] || unpaid.order_id,
+      order_ids: ids,
+    }).eq('id', unpaid.id);
+    return { ...unpaid, order_ids: ids, order_id: ids[0] || unpaid.order_id };
+  }
+  const total = num(order.total_amount);
+  const paid = num(order.advance_payment);
+  const row = {
+    id: id('inv'),
+    invoice_no: `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`,
+    date: order.date || today(),
+    due_date: '',
+    order_id: order.order_id || order.id,
+    order_ids: [order.order_id || order.id].filter(Boolean),
+    customer_id: order.customer_id || '',
+    customer_name: order.customer_name || '',
+    customer_phone: order.customer_phone || '',
+    customer_email: order.customer_email || '',
+    customer_address: order.customer_address || '',
+    items: Array.isArray(order.products) ? order.products : [],
+    subtotal: total,
+    tax_rate: 0,
+    tax: 0,
+    discount: 0,
+    previous_balance: 0,
+    total,
+    paid,
+    status: invoiceStatusFromPaid(total, paid),
+    notes: '',
+    share_token: `share_${Date.now().toString(36)}`,
+    payment_history: [],
+  };
+  await supabase.from('invoices').insert(row);
+  return row;
+}
+
+async function recordInvoicePayment(invoiceId, body = {}, user) {
+  const amount = num(body.amount);
+  if (!(amount > 0)) throw new Error('Enter a valid payment amount');
+  let { data: inv } = await supabase.from('invoices').select('*').eq('id', invoiceId).maybeSingle();
+  if (!inv) {
+    const { data: byNo } = await supabase.from('invoices').select('*').eq('invoice_no', invoiceId).maybeSingle();
+    inv = byNo;
+  }
+  if (!inv) throw new Error('Invoice not found');
+  const totalDue = num(inv.total);
+  const paidBefore = num(inv.paid);
+  const balanceBefore = Math.max(0, totalDue - paidBefore);
+  const applied = Math.min(amount, balanceBefore);
+  const extra = Math.max(0, amount - applied);
+  const paidAfter = paidBefore + applied;
+  const balanceAfter = Math.max(0, totalDue - paidAfter);
+  const payDate = body.date || today();
+  const history = Array.isArray(inv.payment_history) ? [...inv.payment_history] : [];
+  const payId = id('pay');
+  history.push({
+    id: payId,
+    date: payDate,
+    amount,
+    applied,
+    extra,
+    method: body.method || 'Cash',
+    notes: body.notes || '',
+    locked: true,
+  });
+  const status = invoiceStatusFromPaid(totalDue, paidAfter);
+  await supabase.from('invoices').update({
+    paid: paidAfter,
+    status,
+    payment_history: history,
+  }).eq('id', inv.id);
+
+  const paymentRow = {
+    id: payId,
+    date: payDate,
+    type: 'inflow',
+    category: 'Invoice Payment',
+    ref_id: inv.invoice_no || inv.id,
+    customer_name: inv.customer_name || '',
+    customer_id: inv.customer_id || '',
+    party_phone: inv.customer_phone || '',
+    amount,
+    method: body.method || 'Cash',
+    notes: body.notes || (`Invoice payment — ${inv.invoice_no || inv.id}`),
+    balance_due: balanceAfter,
+    total_amount: totalDue,
+  };
+  await supabase.from('payments').insert(paymentRow);
+
+  let linkedOrder = null;
+  const snapRef = body.orderId || body.linkedOrderId;
+  const ids = collectOrderIds({ orderId: snapRef }, inv);
+  const orderKey = snapRef || (ids.length === 1 ? ids[0] : '');
+  if (orderKey && !body.skipOrderSnapshot) {
+    let { data: order } = await supabase.from('orders').select('*').eq('id', orderKey).maybeSingle();
+    if (!order) {
+      const { data: byCode } = await supabase.from('orders').select('*').eq('order_id', orderKey).maybeSingle();
+      order = byCode;
+    }
+    if (order) {
+      const advance = num(order.advance_payment) + applied;
+      const total = num(order.total_amount);
+      await supabase.from('orders').update({
+        advance_payment: advance,
+        balance_amount: Math.max(0, total - advance),
+      }).eq('id', order.id);
+      const { data: refreshed } = await supabase.from('orders').select('*').eq('id', order.id).maybeSingle();
+      linkedOrder = refreshed;
+    }
+  }
+
+  if (extra > 0 && inv.customer_id) {
+    const cust = await loadCustomer(inv.customer_id);
+    if (cust) {
+      await supabase.from('customers').update({
+        credit_balance: num(cust.credit_balance) + extra,
+      }).eq('id', cust.id);
+    }
+  }
+
+  const { data: invAfter } = await supabase.from('invoices').select('*').eq('id', inv.id).maybeSingle();
+  return {
+    invoice: mapInvoice(invAfter),
+    payment: mapPayment(paymentRow),
+    order: linkedOrder ? await withInvoiceMeta(mapOrder(linkedOrder)) : null,
+    applied,
+    extra,
+    recordedBy: userLabel(user),
   };
 }
 
@@ -193,6 +376,172 @@ async function dispatch(req, res) {
           trackCode: api.trackingNumber || api.orderId || api.id,
           companyNote: 'For questions, contact Amazon Printing Services with your Order ID.',
         });
+      }
+      if (method === 'GET' && path === '/public/products') {
+        const { data } = await supabase.from('products').select('*');
+        const products = (data || []).map(mapProduct).filter((p) => p && p.active && p.showOnWebsite);
+        products.sort((a, b) => Number(!!b.showOnTop) - Number(!!a.showOnTop) || String(a.name).localeCompare(String(b.name)));
+        return send(res, { products });
+      }
+      if (method === 'GET' && path.startsWith('/public/products/')) {
+        const pid = decodeURIComponent(path.replace('/public/products/', '')).trim();
+        const { data } = await supabase.from('products').select('*').eq('id', pid).maybeSingle();
+        if (!data) return sendError(res, 'Product not found', 404);
+        const pub = mapProduct(data);
+        if (!pub || !pub.active || !pub.showOnWebsite) return sendError(res, 'Product not available', 404);
+        return send(res, pub);
+      }
+      if (method === 'POST' && path === '/public/lead') {
+        const notes = [body.product || body.service || '', body.quantity || '', body.details || body.message || '']
+          .filter(Boolean).join(' | ');
+        const cust = await upsertCustomerFromOrder({
+          customerName: body.name,
+          customerPhone: body.phone,
+          customerEmail: body.email,
+          customerAddress: body.address || '',
+        });
+        if (cust) {
+          await supabase.from('customers').update({
+            in_crm: true,
+            stage: 'lead',
+            stage_updated_at: new Date().toISOString(),
+            notes: notes || undefined,
+          }).eq('id', cust.id);
+          if (notes) {
+            await supabase.from('crm_notes').insert({
+              id: id('note'),
+              customer_id: cust.id,
+              note: `Website lead: ${body.details || body.message || body.product || 'Inquiry'}`,
+              created_at: new Date().toISOString(),
+              created_by: 'website',
+            });
+          }
+        }
+        return send(res, { ok: true, customerId: cust && cust.id, stage: 'lead' });
+      }
+      if (method === 'POST' && path === '/public/customer/register') {
+        const regName = String(body.name || '').trim();
+        const regPhone = String(body.phone || '').trim();
+        const regEmail = String(body.email || '').trim().toLowerCase();
+        const regPass = String(body.password || '');
+        if (!regName || !regPhone) return sendError(res, 'Name and phone are required', 400);
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regEmail)) return sendError(res, 'Valid email is required', 400);
+        if (regPass.length < 6) return sendError(res, 'Password must be at least 6 characters', 400);
+        const { data: allCust } = await supabase.from('customers').select('*');
+        const existingEmail = (allCust || []).find((c) => String(c.email || '').trim().toLowerCase() === regEmail && c.portal_password);
+        if (existingEmail) return sendError(res, 'An account with this email already exists — please login', 400);
+        const existingPhone = (allCust || []).find((c) => String(c.phone || '').replace(/\D/g, '') === regPhone.replace(/\D/g, ''));
+        const portal = makePortalPassword(regPass);
+        let customer = existingPhone;
+        if (existingPhone) {
+          await supabase.from('customers').update({
+            name: regName || existingPhone.name,
+            email: regEmail || existingPhone.email,
+            address: body.address || existingPhone.address || '',
+            portal_password: portal,
+            notify_email: true,
+            notify_whatsapp: true,
+          }).eq('id', existingPhone.id);
+          customer = { ...existingPhone, name: regName || existingPhone.name, email: regEmail, portal_password: portal };
+        } else {
+          customer = {
+            id: id('cust'),
+            name: regName,
+            phone: regPhone,
+            email: regEmail,
+            address: body.address || '',
+            city: body.city || '',
+            notes: 'Website portal account',
+            in_crm: false,
+            notify_whatsapp: true,
+            notify_email: true,
+            portal_password: portal,
+          };
+          await supabase.from('customers').insert(customer);
+        }
+        return send(res, { ok: true, token: issueCustomerToken(customer), customer: sanitizePortalCustomer(customer) });
+      }
+      if (method === 'POST' && path === '/public/customer/login') {
+        const loginId = String(body.email || body.phone || body.username || '').trim().toLowerCase();
+        const loginPass = String(body.password || '');
+        if (!loginId || !loginPass) return sendError(res, 'Email/phone and password are required', 400);
+        const { data: custRows } = await supabase.from('customers').select('*');
+        const loginCust = (custRows || []).find((c) => {
+          const email = String(c.email || '').trim().toLowerCase();
+          const phone = String(c.phone || '').replace(/\D/g, '');
+          const needlePhone = loginId.replace(/\D/g, '');
+          return (email && email === loginId)
+            || (phone && needlePhone && (phone === needlePhone || phone.slice(-10) === needlePhone.slice(-10)));
+        });
+        if (!loginCust || !loginCust.portal_password) return sendError(res, 'Invalid login or account not registered online', 401);
+        if (!checkPortalPassword(loginCust.portal_password, loginPass)) {
+          return sendError(res, 'Invalid email/phone or password', 401);
+        }
+        return send(res, { ok: true, token: issueCustomerToken(loginCust), customer: sanitizePortalCustomer(loginCust) });
+      }
+      if ((method === 'GET' || method === 'POST') && path === '/public/customer/me') {
+        const meTok = String(body.token || body.customerToken || req.query.token || '').trim();
+        const payload = parseCustomerToken(meTok);
+        if (!payload) return sendError(res, 'Unauthorized', 401);
+        const me = await loadCustomer(payload.id);
+        if (!me) return sendError(res, 'Unauthorized', 401);
+        return send(res, { ok: true, customer: sanitizePortalCustomer(me) });
+      }
+      if (method === 'POST' && (path === '/public/orders' || path === '/public/checkout')) {
+        const orderTok = String(body.token || body.customerToken || req.query.token || '').trim();
+        const payload = parseCustomerToken(orderTok);
+        if (!payload) return sendError(res, 'Login required to place an order', 401);
+        const orderCust = await loadCustomer(payload.id);
+        if (!orderCust) return sendError(res, 'Login required to place an order', 401);
+        assertCustomerNotBlocked(orderCust);
+        if (!body.acceptPolicy && body.policyAccepted !== true) {
+          return sendError(res, 'Please accept the Order Processing Policy before placing the order', 400);
+        }
+        const linesIn = Array.isArray(body.products) ? body.products : (Array.isArray(body.items) ? body.items : []);
+        if (!linesIn.length) return sendError(res, 'Cart is empty', 400);
+        const { data: catalog } = await supabase.from('products').select('*');
+        const products = [];
+        let subtotal = 0;
+        for (const line of linesIn) {
+          const pid = String(line.productId || line.id || '').trim();
+          const qty = Math.max(1, num(line.quantity) || 1);
+          let match = pid ? (catalog || []).find((p) => String(p.id) === pid) : null;
+          if (!match && line.name) {
+            match = (catalog || []).find((p) => String(p.name || '').trim().toLowerCase() === String(line.name).trim().toLowerCase());
+          }
+          if (!match) return sendError(res, `Product not found: ${line.name || pid || 'unknown'}`, 400);
+          const api = mapProduct(match);
+          if (!api.active || !api.showOnWebsite) return sendError(res, `Product not available: ${api.name}`, 400);
+          const rate = num(api.effectivePrice);
+          subtotal += rate * qty;
+          products.push({
+            productId: api.id,
+            name: api.name,
+            quantity: qty,
+            rate,
+            amount: rate * qty,
+          });
+        }
+        const paymentMethodRaw = String(body.paymentMethod || body.payment_method || 'Cash on Delivery').trim();
+        const isCod = /cod|cash\s*on\s*delivery/i.test(paymentMethodRaw);
+        const row = orderFromBody({
+          customerId: orderCust.id,
+          customerName: orderCust.name,
+          customerPhone: orderCust.phone,
+          customerEmail: orderCust.email,
+          customerAddress: body.deliveryAddress || orderCust.address,
+          products,
+          totalAmount: subtotal,
+          advancePayment: 0,
+          paymentMethod: isCod ? 'Cash on Delivery' : 'Online Payment',
+          remarks: body.notes || '',
+          status: 'Order Received',
+        });
+        row.order_id = await nextOrderId('WEB');
+        row.tracking_number = `TRK-${Math.floor(1000 + Math.random() * 9000)}`;
+        row.status_history = [{ status: row.status, at: `${today()} ${nowTime()}`, note: 'Website order' }];
+        await supabase.from('orders').insert(row);
+        return send(res, { ok: true, order: mapOrder(row) });
       }
       if (method === 'GET' && path.startsWith('/public/employee/')) {
         const code = decodeURIComponent(path.replace('/public/employee/', '')).trim().toLowerCase();
@@ -453,6 +802,66 @@ async function dispatch(req, res) {
         const { data } = await supabase.from('customers').select('*').eq('id', cid).maybeSingle();
         return send(res, mapCustomer(data));
       }
+      if (parts[2] === 'block' && method === 'POST') {
+        const { data: prev } = await supabase.from('customers').select('*').eq('id', cid).maybeSingle();
+        if (!prev) return sendError(res, 'Customer not found', 404);
+        if (String(prev.id) === 'cust_walkin') return sendError(res, 'Walk-in customer cannot be blocked', 400);
+        const reason = String(body.blockReason || body.reason || '').trim();
+        if (!reason) return sendError(res, 'Block reason is required', 400);
+        await supabase.from('customers').update({
+          blocked: true,
+          block_reason: reason,
+          blocked_at: new Date().toISOString(),
+          blocked_by: userLabel(user),
+        }).eq('id', cid);
+        const { data } = await supabase.from('customers').select('*').eq('id', cid).maybeSingle();
+        return send(res, mapCustomer(data));
+      }
+      if (parts[2] === 'unblock' && method === 'POST') {
+        if (!isAdminRole(user)) return sendError(res, 'Only Admin with Settings access can unblock customers', 403);
+        await supabase.from('customers').update({
+          blocked: false,
+          block_reason: '',
+          blocked_at: '',
+          blocked_by: '',
+        }).eq('id', cid);
+        const { data } = await supabase.from('customers').select('*').eq('id', cid).maybeSingle();
+        return send(res, mapCustomer(data));
+      }
+      if (parts[2] === 'payment' && method === 'POST') {
+        const { data: customer } = await supabase.from('customers').select('*').eq('id', cid).maybeSingle();
+        if (!customer) return sendError(res, 'Customer not found', 404);
+        const amount = num(body.amount);
+        if (!(amount > 0)) return sendError(res, 'Enter a valid payment amount', 400);
+        const { data: invoices } = await supabase.from('invoices').select('*').eq('customer_id', cid);
+        const open = (invoices || [])
+          .filter((inv) => num(inv.total) - num(inv.paid) > 0.009)
+          .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+        if (!open.length) {
+          await supabase.from('customers').update({
+            credit_balance: num(customer.credit_balance) + amount,
+          }).eq('id', cid);
+          const payRow = {
+            id: id('pay'),
+            date: body.date || today(),
+            type: 'inflow',
+            category: 'Customer Credit',
+            ref_id: customer.id,
+            customer_name: customer.name,
+            customer_id: customer.id,
+            party_phone: customer.phone,
+            amount,
+            method: body.method || 'Cash',
+            notes: body.notes || 'Unallocated customer payment',
+            balance_due: 0,
+            total_amount: amount,
+          };
+          await supabase.from('payments').insert(payRow);
+          return send(res, { customer: mapCustomer({ ...customer, credit_balance: num(customer.credit_balance) + amount }), payment: mapPayment(payRow) });
+        }
+        const result = await recordInvoicePayment(open[0].id, { ...body, amount }, user);
+        return send(res, result);
+      }
       if (parts[2] === 'ledger' && method === 'GET') {
         const { data: customer } = await supabase.from('customers').select('*').eq('id', cid).maybeSingle();
         if (!customer) return sendError(res, 'Customer not found', 404);
@@ -573,24 +982,9 @@ async function dispatch(req, res) {
 
     if (path === '/products' || path.startsWith('/products/')) {
       const done = await handleCollection('products', '/products', mapProduct, (b, rid) => {
-        const productType = b.productType || b.product_type || 'Product';
-        const isService = String(productType).toLowerCase() === 'service';
-        return {
-          id: rid || b.id || id('prod'),
-          name: b.name || '',
-          category: isService ? (b.category || 'Services') : (b.category || ''),
-          rate: num(b.rate != null ? b.rate : b.basePrice),
-          unit: isService ? 'service' : (b.unit || ''),
-          description: b.description || '',
-          status: b.active === false ? 'Inactive' : (b.status || 'Active'),
-          product_type: productType,
-          designer: isService ? '' : (b.designer || ''),
-          stock: num(b.stock),
-          material: isService ? '' : (b.material || ''),
-          size: isService ? '' : (b.size || ''),
-          min_quantity: isService ? 1 : num(b.minQuantity),
-          image: b.image || b.photo || '',
-        };
+        const row = productFromBody(b, rid);
+        if (!row.id) row.id = id('prod');
+        return row;
       });
       if (done !== null) return done;
     }
@@ -612,6 +1006,35 @@ async function dispatch(req, res) {
     }
 
     if (path === '/purchases' || path.startsWith('/purchases/')) {
+      const payMatch = path.match(/^\/purchases\/([^/]+)\/pay$/);
+      if (payMatch && method === 'POST') {
+        const pid = decodeURIComponent(payMatch[1]);
+        const { data: po } = await supabase.from('purchases').select('*').eq('id', pid).maybeSingle();
+        if (!po) return sendError(res, 'Purchase not found', 404);
+        const amount = num(body.amount);
+        if (!(amount > 0)) return sendError(res, 'Enter a valid payment amount', 400);
+        const paidAfter = num(po.paid_amount) + amount;
+        const total = num(po.total);
+        const status = paidAfter + 0.009 >= total ? 'Fully Paid' : 'Partial';
+        await supabase.from('purchases').update({ paid_amount: paidAfter, status }).eq('id', po.id);
+        const payRow = {
+          id: id('pay'),
+          date: body.date || today(),
+          type: 'outflow',
+          category: 'Vendor Payment',
+          ref_id: po.purchase_no || po.id,
+          customer_name: po.vendor_name || '',
+          customer_id: po.vendor_id || '',
+          amount,
+          method: body.method || 'Cash',
+          notes: body.notes || (`PO ${po.purchase_no || po.id}`),
+          balance_due: Math.max(0, total - paidAfter),
+          total_amount: total,
+        };
+        await supabase.from('payments').insert(payRow);
+        const { data: refreshed } = await supabase.from('purchases').select('*').eq('id', po.id).maybeSingle();
+        return send(res, { purchase: mapPurchase(refreshed), payment: mapPayment(payRow) });
+      }
       const done = await handleCollection('purchases', '/purchases', mapPurchase, (b, rid) => {
         const items = Array.isArray(b.items) ? b.items : [];
         let total = num(b.total != null ? b.total : b.totalAmount);
@@ -641,6 +1064,38 @@ async function dispatch(req, res) {
     }
 
     if (path === '/expenses' || path.startsWith('/expenses/')) {
+      const expParts = path.split('/').filter(Boolean);
+      if (expParts[2] === 'approve' && method === 'POST') {
+        if (!isAdminRole(user)) return sendError(res, 'Only Admin with Settings access can approve expenses', 403);
+        const { data: prev } = await supabase.from('expenses').select('*').eq('id', expParts[1]).maybeSingle();
+        if (!prev) return sendError(res, 'Expense not found', 404);
+        const reject = body.approved === false || String(body.action || '').toLowerCase() === 'reject';
+        await supabase.from('expenses').update({
+          approved: !reject,
+          approved_by: userLabel(user),
+          approved_at: `${today()} ${nowTime()}`,
+        }).eq('id', prev.id);
+        const { data } = await supabase.from('expenses').select('*').eq('id', prev.id).maybeSingle();
+        return send(res, mapExpense(data));
+      }
+      if (path === '/expenses' && method === 'POST') {
+        const admin = isAdminRole(user);
+        const row = {
+          id: id('exp'),
+          date: body.date || today(),
+          category: body.category || '',
+          amount: num(body.amount),
+          description: body.description || '',
+          payment_method: body.paymentMethod || body.method || '',
+          paid_to: body.paidTo || '',
+          notes: body.notes || '',
+          approved: admin,
+          approved_by: admin ? userLabel(user) : '',
+          approved_at: admin ? `${today()} ${nowTime()}` : '',
+        };
+        await supabase.from('expenses').insert(row);
+        return send(res, mapExpense(row));
+      }
       const done = await handleCollection('expenses', '/expenses', mapExpense, (b, rid) => ({
         id: rid || b.id || id('exp'),
         date: b.date || today(),
@@ -648,6 +1103,8 @@ async function dispatch(req, res) {
         amount: num(b.amount),
         description: b.description || '',
         payment_method: b.paymentMethod || b.method || '',
+        paid_to: b.paidTo || '',
+        notes: b.notes || '',
       }));
       if (done !== null) return done;
     }
@@ -674,10 +1131,22 @@ async function dispatch(req, res) {
     // Orders
     if (path === '/orders') {
       if (method === 'GET') {
-        const { data } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
-        return send(res, (data || [])
-          .filter((o) => String(o.doc_type || 'Order').toLowerCase() !== 'quotation')
-          .map(mapOrder));
+        const [{ data }, { data: invoices }] = await Promise.all([
+          supabase.from('orders').select('*').order('created_at', { ascending: false }),
+          supabase.from('invoices').select('*'),
+        ]);
+        const list = (data || []).filter((o) => String(o.doc_type || 'Order').toLowerCase() !== 'quotation');
+        return send(res, list.map((o) => {
+          const api = mapOrder(o);
+          const keys = [api.orderId, api.id].filter(Boolean).map(String);
+          const inv = (invoices || []).find((row) => {
+            const ids = collectOrderIds({}, row);
+            return keys.some((k) => ids.includes(k) || String(row.order_id) === k);
+          });
+          api.invoiceId = inv ? (inv.id || '') : '';
+          api.invoiceNumber = inv ? (inv.invoice_no || '') : '';
+          return api;
+        }));
       }
       if (method === 'POST') {
         const docType = String(body.docType || body.doctype || 'Order').toLowerCase();
@@ -695,6 +1164,10 @@ async function dispatch(req, res) {
           const cust = await upsertCustomerFromOrder(body);
           if (cust) body.customerId = cust.id;
         }
+        if (body.customerId) {
+          const custRow = await loadCustomer(body.customerId);
+          assertCustomerNotBlocked(custRow);
+        }
         if (!body.trackingNumber) body.trackingNumber = `TRK-${Math.floor(1000 + Math.random() * 9000)}`;
         const row = orderFromBody(body);
         if (!row.order_id) row.order_id = await nextOrderId(docType === 'pos' ? 'POS' : 'ORD');
@@ -703,7 +1176,7 @@ async function dispatch(req, res) {
         }
         const { error } = await supabase.from('orders').insert(row);
         if (error) throw error;
-        return send(res, mapOrder(row));
+        return send(res, await withInvoiceMeta(mapOrder(row)));
       }
     }
 
@@ -737,7 +1210,18 @@ async function dispatch(req, res) {
         await supabase.from('orders').insert(copy);
         return send(res, mapOrder(copy));
       }
-      if (method === 'GET') return send(res, mapOrder(existing));
+      if (action === 'payment' && method === 'POST') {
+        if (String(existing.doc_type || '').toLowerCase() === 'quotation') {
+          return sendError(res, 'Quotations are estimates only. Convert to an order before recording payment.', 400);
+        }
+        const invoiceForPay = await findOrCreateInvoiceForOrder(existing);
+        const invPayResult = await recordInvoicePayment(invoiceForPay.id, {
+          ...body,
+          orderId: existing.order_id || existing.id,
+        }, user);
+        return send(res, invPayResult);
+      }
+      if (method === 'GET') return send(res, await withInvoiceMeta(mapOrder(existing)));
       if (method === 'PUT') {
         const row = orderFromBody(body, existing);
         row.id = existing.id;
@@ -794,12 +1278,24 @@ async function dispatch(req, res) {
         return send(res, (data || []).map(mapInvoice));
       }
       if (path === '/invoices' && method === 'POST') {
+        if (body.customerId) {
+          const custRow = await loadCustomer(body.customerId);
+          assertCustomerNotBlocked(custRow);
+        }
+        const orderIds = collectOrderIds(body, {});
+        const { data: allInv } = await supabase.from('invoices').select('id,order_id,order_ids');
+        const clash = (allInv || []).find((inv) => {
+          const ids = collectOrderIds({}, inv);
+          return orderIds.some((oid) => ids.includes(oid));
+        });
+        if (clash) return sendError(res, `Order already on invoice ${clash.id}`, 400);
         const row = {
           id: id('inv'),
-          invoice_no: body.invoiceNumber || body.invoiceNo || `INV-${Date.now().toString().slice(-6)}`,
+          invoice_no: body.invoiceNumber || body.invoiceNo || `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`,
           date: body.date || today(),
           due_date: body.dueDate || '',
-          order_id: body.orderId || '',
+          order_id: orderIds[0] || body.orderId || '',
+          order_ids: orderIds,
           customer_id: body.customerId || '',
           customer_name: body.customerName || '',
           customer_phone: body.customerPhone || '',
@@ -816,11 +1312,17 @@ async function dispatch(req, res) {
           status: body.status || 'Unpaid',
           notes: body.notes || '',
           share_token: body.shareToken || `share_${Date.now().toString(36)}`,
+          payment_history: [],
         };
         await supabase.from('invoices').insert(row);
         return send(res, mapInvoice(row));
       }
       const iid = path.split('/')[2];
+      const invAction = path.split('/')[3];
+      if (invAction === 'payment' && method === 'POST') {
+        const result = await recordInvoicePayment(decodeURIComponent(iid), body, user);
+        return send(res, result);
+      }
       if (method === 'GET') {
         const { data } = await supabase.from('invoices').select('*').eq('id', iid).maybeSingle();
         if (!data) return sendError(res, 'Not found', 404);
@@ -832,6 +1334,7 @@ async function dispatch(req, res) {
           date: body.date,
           due_date: body.dueDate,
           order_id: body.orderId,
+          order_ids: body.orderIds != null ? collectOrderIds(body, {}) : undefined,
           customer_id: body.customerId,
           customer_name: body.customerName,
           customer_phone: body.customerPhone,
@@ -932,23 +1435,7 @@ async function dispatch(req, res) {
 
     if (path === '/tokens' && method === 'GET') {
       const { data } = await supabase.from('tokens').select('*').order('created_at', { ascending: false });
-      return send(res, (data || []).map((t) => ({
-        id: t.id,
-        tokenNo: t.token_no,
-        date: t.date,
-        time: t.time,
-        customerId: t.customer_id,
-        customerName: t.customer_name,
-        customerPhone: t.customer_phone,
-        service: t.service,
-        serviceNote: t.service_note,
-        tokenStatus: t.token_status,
-        calledAt: t.called_at,
-        orderId: t.order_id,
-        notes: t.notes,
-        counterName: t.counter_name,
-        recordType: 'Token',
-      })));
+      return send(res, (data || []).map(mapToken));
     }
 
     if (path === '/tokens' && method === 'POST') {
@@ -1035,7 +1522,25 @@ async function dispatch(req, res) {
     }
 
     if (path.startsWith('/notifications/')) {
-      return send(res, { ok: true, message: 'Notification queued (configure email on Hostinger if needed)' });
+      return send(res, {
+        ok: true,
+        queued: true,
+        message: 'Email/WhatsApp from Node is not wired; configure SMTP later. GAS reminders stay on the old backend until cutover.',
+      });
+    }
+
+    if (path === '/debug/schema' && method === 'GET') {
+      const tables = ['users', 'customers', 'crm_notes', 'employees', 'products', 'orders', 'invoices', 'vendors', 'purchases', 'expenses', 'payments', 'counters', 'tokens', 'settings'];
+      const counts = {};
+      for (const t of tables) {
+        const { count, error } = await supabase.from(t).select('*', { count: 'exact', head: true });
+        counts[t] = error ? { error: error.message } : count;
+      }
+      return send(res, { backend: 'supabase', counts });
+    }
+
+    if (path === '/files/upload' && method === 'POST') {
+      return send(res, { ok: true, url: body.url || body.image || '', message: 'Store Drive URLs on the product/employee record. Binary upload is not used on Supabase.' });
     }
 
     if (path === '/debug/prepare' && method === 'POST') {

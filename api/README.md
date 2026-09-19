@@ -1,72 +1,38 @@
-# AMZ ERP API — Hostinger + Supabase (easy path)
+# AMZ ERP API — Supabase + Vercel (replaces Google Sheets)
 
-```
-Vercel frontend (erp.amzprints.com)
-    → Hostinger Node API (this folder)
-        → Supabase database
-```
+Frontend (`erp.amzprints.com`) still calls `?path=/orders&token=...`. This Node app stores data in **Supabase**. Google Sheets stay as backup until you switch the frontend URL.
 
-## 3 steps only
+**Staff cutover steps:** see [CUTOVER.md](./CUTOVER.md).
 
-### 1) Supabase (once)
-Supabase → SQL Editor → run [`schema.sql`](./schema.sql)  
-Login seed: **admin** / **admin123**
-
-### 2) Hostinger Node app
-New website / Node app (not on `erp.amzprints.com`):
-
-| Setting | Value |
-|--------|--------|
-| Root directory | `api` |
-| Branch | `main` |
-| Node | `18.x` |
-| Install | `npm install` |
-| Start / file | `npm start` or `server.js` |
-
-**Env vars (copy-paste):**
-
-```env
-SUPABASE_URL=https://ovwayrwhcdmcdofavitm.supabase.co
-SUPABASE_API_KEY=PASTE_SERVICE_ROLE_KEY
-CORS_ORIGINS=https://erp.amzprints.com,http://localhost:5173
-PORT=3000
-NODE_ENV=production
-```
-
-Deploy → copy public URL (e.g. `https://xxxx.hostingersite.com`).
-
-**Test in browser:**
-`https://YOUR-HOSTINGER-URL/health`  
-Should show: `{"ok":true,"backend":"supabase",...}`
-
-### 3) Vercel frontend
-Project → Settings → Environment Variables:
-
-```env
-REACT_APP_GAS_API_URL=https://YOUR-HOSTINGER-URL
-```
-
-Root Directory = `frontend` → Redeploy.
-
-Done. Open https://erp.amzprints.com and login.
-
----
-
-## Local (optional)
+## Local
 
 ```bash
 cd api
-cp .env.example .env
+cp env.example .env
 npm install
 npm start
 ```
 
-Frontend `.env`: `REACT_APP_GAS_API_URL=http://localhost:3000`
+Frontend: `REACT_APP_GAS_API_URL=http://localhost:3000`
 
-## CSV import (later)
+Health: `http://localhost:3000/health`
+
+## Copy live data from GAS
 
 ```bash
 cd api
-node _lib/scripts/import-csv.js Customers.csv customers
-npm run migrate:seed
+# .env must have SUPABASE_* and GAS_API_URL + GAS_ADMIN_PASSWORD
+npm run migrate:gas
 ```
+
+Prints a count table. Re-run until counts match. Does not delete Sheets.
+
+## Vercel (recommended, free)
+
+New Vercel project → Root Directory `api` → env `SUPABASE_URL`, `SUPABASE_API_KEY`, `CORS_ORIGINS`.
+
+Then set frontend `REACT_APP_GAS_API_URL` to that project URL and redeploy.
+
+## Hostinger (optional)
+
+Root `api`, start `server.js` / `npm start`, bind already uses `0.0.0.0`.
