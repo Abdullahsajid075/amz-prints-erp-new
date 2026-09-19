@@ -48,13 +48,13 @@ const Accounts = () => {
               <CardContent className="p-6">
                 <div
                   className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 text-white"
-                  style={{ backgroundColor: primary || '#F26522' }}
+                  style={{ backgroundColor: primary || '#ff6d00' }}
                 >
                   <item.icon className="h-6 w-6" />
                 </div>
                 <h2 className="text-lg font-bold" style={{ color: '#2E2E2E' }}>{item.title}</h2>
                 <p className="text-sm text-gray-500 mt-1">{item.description}</p>
-                <p className="text-sm font-semibold mt-4 group-hover:underline" style={{ color: primary || '#F26522' }}>
+                <p className="text-sm font-semibold mt-4 group-hover:underline" style={{ color: primary || '#ff6d00' }}>
                   Open →
                 </p>
               </CardContent>

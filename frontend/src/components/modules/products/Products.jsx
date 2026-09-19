@@ -156,9 +156,15 @@ const Products = () => {
     if (!file) return;
     setImageBusy(true);
     try {
-      const dataUrl = await compressImageFile(file, { maxEdge: 240, maxChars: 40000, quality: 0.58 });
+      // 1:1 square, full picture (no crop), sharp enough for website cards.
+      const dataUrl = await compressImageFile(file, {
+        maxEdge: 1200,
+        maxChars: 45000,
+        quality: 0.9,
+        square: true,
+      });
       setFormData((prev) => ({ ...prev, image: dataUrl }));
-      toast.success('Photo ready');
+      toast.success('Photo ready — 1:1, full picture');
     } catch (err) {
       toast.error(err.message || 'Photo failed');
     } finally {
@@ -282,7 +288,7 @@ const Products = () => {
           <h1 className="text-2xl font-bold" style={{ color: '#2E2E2E' }}>Products</h1>
           <p className="text-sm text-gray-600">Catalog with photos · manual stock edit</p>
         </div>
-        <Button onClick={openCreateDialog} style={{ backgroundColor: '#F26522' }} className="text-white h-9" data-testid="add-product-button">
+        <Button onClick={openCreateDialog} style={{ backgroundColor: '#ff6d00' }} className="text-white h-9" data-testid="add-product-button">
           <Plus className="h-4 w-4 mr-1.5" />
           Add
         </Button>
@@ -301,7 +307,7 @@ const Products = () => {
                 type="button"
                 size="sm"
                 variant={typeFilter === tab.value ? 'default' : 'outline'}
-                style={typeFilter === tab.value ? { backgroundColor: '#F26522' } : undefined}
+                style={typeFilter === tab.value ? { backgroundColor: '#ff6d00' } : undefined}
                 className={`h-7 text-xs ${typeFilter === tab.value ? 'text-white' : ''}`}
                 onClick={() => setTypeFilter(tab.value)}
               >
@@ -349,7 +355,7 @@ const Products = () => {
             <div className="text-center py-10">
               <Package className="h-8 w-8 mx-auto text-gray-300 mb-2" />
               <p className="text-sm text-gray-500 mb-3">No items yet.</p>
-              <Button onClick={openCreateDialog} style={{ backgroundColor: '#F26522' }} className="text-white h-8 text-sm">
+              <Button onClick={openCreateDialog} style={{ backgroundColor: '#ff6d00' }} className="text-white h-8 text-sm">
                 <Plus className="h-3.5 w-3.5 mr-1" />Add first
               </Button>
             </div>
@@ -364,9 +370,9 @@ const Products = () => {
                     className="rounded-xl border-2 border-gray-700 bg-white overflow-hidden hover:border-orange-500 hover:shadow-md transition-all"
                     data-testid={`product-card-${product.id}`}
                   >
-                    <div className="aspect-[4/3] bg-gray-50 flex items-center justify-center overflow-hidden relative">
+                    <div className="aspect-square bg-white flex items-center justify-center overflow-hidden relative">
                       {img ? (
-                        <img src={img} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        <img src={img} alt="" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
                       ) : service ? (
                         <Wrench className="h-8 w-8 text-gray-300" />
                       ) : (
@@ -383,7 +389,7 @@ const Products = () => {
                       <p className="text-sm font-semibold leading-snug line-clamp-2 min-h-[2.5rem]" style={{ color: '#2E2E2E' }}>
                         {product.name}
                       </p>
-                      <p className="text-base font-bold" style={{ color: '#F26522' }}>
+                      <p className="text-base font-bold" style={{ color: '#ff6d00' }}>
                         {formatCurrency(product.basePrice ?? product.rate ?? 0)}
                       </p>
                       {!service && (
@@ -460,7 +466,7 @@ const Products = () => {
             <Button
               type="button"
               className="text-white"
-              style={{ backgroundColor: '#F26522' }}
+              style={{ backgroundColor: '#ff6d00' }}
               disabled={stockSaving}
               onClick={saveStock}
             >
@@ -485,15 +491,16 @@ const Products = () => {
 
           <form onSubmit={handleSave} className="space-y-3 mt-2">
             <div className="flex items-center gap-3">
-              <div className="w-20 h-20 rounded-lg border bg-gray-50 overflow-hidden flex items-center justify-center shrink-0">
+              <div className="w-24 h-24 rounded-lg border bg-white overflow-hidden flex items-center justify-center shrink-0">
                 {formData.image ? (
-                  <img src={formData.image} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  <img src={formData.image} alt="" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
                 ) : (
                   <ImagePlus className="h-6 w-6 text-gray-300" />
                 )}
               </div>
               <div className="space-y-1 flex-1 min-w-0">
-                <Label>Catalog photo</Label>
+                <Label>Catalog photo (1:1)</Label>
+                <p className="text-[11px] text-gray-500">Full picture is kept. Saved as a sharp square.</p>
                 <Input type="file" accept="image/*" onChange={onPickImage} disabled={imageBusy} className="text-xs" />
                 {formData.image && (
                   <Button
@@ -665,7 +672,7 @@ const Products = () => {
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                 <X className="h-4 w-4 mr-1" />Cancel
               </Button>
-              <Button type="submit" style={{ backgroundColor: '#F26522' }} className="text-white" disabled={saving || imageBusy}>
+              <Button type="submit" style={{ backgroundColor: '#ff6d00' }} className="text-white" disabled={saving || imageBusy}>
                 <Save className="h-4 w-4 mr-1" />
                 {saving ? 'Saving…' : 'Save'}
               </Button>

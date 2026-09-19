@@ -18,9 +18,9 @@ const defaultBrand = {
     signature: '',
   },
   theme: {
-    primary: '#F26522',
-    secondary: '#2E2E2E',
-    accent: '#10B981',
+    primary: '#ff6d00',
+    secondary: '#0747a3',
+    accent: '#0747a3',
   },
   invoice: {
     prefix: 'INV-',

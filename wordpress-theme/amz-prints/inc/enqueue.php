@@ -10,13 +10,88 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 function amz_prints_enqueue_assets() {
-	$fonts = 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap';
+	if ( amz_prints_is_catalog_book() ) {
+		$fonts = 'https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Source+Sans+3:wght@400;500;600;700&display=swap';
+		wp_enqueue_style( 'amz-prints-fonts', $fonts, array(), null );
+		wp_enqueue_style( 'amz-prints-main', AMZ_PRINTS_URI . '/assets/css/main.css', array( 'amz-prints-fonts' ), AMZ_PRINTS_VERSION );
+		wp_enqueue_style( 'amz-prints-catalog', AMZ_PRINTS_URI . '/assets/css/catalog-atelier.css', array( 'amz-prints-main' ), AMZ_PRINTS_VERSION );
+		wp_enqueue_script(
+			'amz-prints-pageflip',
+			AMZ_PRINTS_URI . '/assets/js/vendor/page-flip.browser.min.js',
+			array(),
+			'2.0.7',
+			true
+		);
+		wp_enqueue_script(
+			'amz-prints-catalog-flipbook',
+			AMZ_PRINTS_URI . '/assets/js/catalog-flipbook.js',
+			array( 'amz-prints-pageflip' ),
+			AMZ_PRINTS_VERSION,
+			true
+		);
+		wp_enqueue_script(
+			'amz-prints-catalog-pdf',
+			AMZ_PRINTS_URI . '/assets/js/catalog-pdf.js',
+			array( 'amz-prints-catalog-flipbook' ),
+			AMZ_PRINTS_VERSION,
+			true
+		);
+		$filename = 'AMZ-Prints-Company-Profile.pdf';
+		$pdf_url  = '';
+		$images   = array();
+		if ( is_page( 'company-profile-print' ) || is_page_template( 'page-templates/template-company-profile-print.php' ) ) {
+			$filename = 'Amazon-Printings-Company-Profile.pdf';
+			$pdf_url  = amz_prints_catalog_pdf_file( 'print' );
+			$images   = amz_prints_catalog_page_images( 'print' );
+		} elseif ( is_page( 'company-profile-digital' ) || is_page_template( 'page-templates/template-company-profile-digital.php' ) ) {
+			$filename = 'AMZ-Prints-Digital-Services-Profile.pdf';
+			$pdf_url  = amz_prints_catalog_pdf_file( 'digital' );
+			$images   = amz_prints_catalog_page_images( 'digital' );
+		}
+		wp_localize_script(
+			'amz-prints-catalog-flipbook',
+			'amzFlipbook',
+			array(
+				'images' => $images,
+			)
+		);
+		wp_localize_script(
+			'amz-prints-catalog-pdf',
+			'amzCatalogPdf',
+			array(
+				'filename' => $filename,
+				'pdfUrl'   => $pdf_url,
+			)
+		);
+		return;
+	}
+
+	$fonts = 'https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap';
 
 	wp_enqueue_style( 'amz-prints-fonts', $fonts, array(), null );
 	wp_enqueue_style( 'amz-prints-main', AMZ_PRINTS_URI . '/assets/css/main.css', array( 'amz-prints-fonts' ), AMZ_PRINTS_VERSION );
-	wp_enqueue_style( 'amz-prints-portal', AMZ_PRINTS_URI . '/assets/css/amz-portal.css', array( 'amz-prints-main' ), AMZ_PRINTS_VERSION );
+
 	wp_enqueue_script( 'amz-prints-main', AMZ_PRINTS_URI . '/assets/js/main.js', array(), AMZ_PRINTS_VERSION, true );
-	wp_enqueue_script( 'amz-prints-portal', AMZ_PRINTS_URI . '/assets/js/amz-portal.js', array( 'amz-prints-main' ), AMZ_PRINTS_VERSION, true );
+	wp_enqueue_script( 'amz-prints-customer', AMZ_PRINTS_URI . '/assets/js/customer-portal.js', array(), AMZ_PRINTS_VERSION, true );
+	wp_enqueue_script( 'amz-prints-commerce', AMZ_PRINTS_URI . '/assets/js/commerce.js', array(), AMZ_PRINTS_VERSION, true );
+	wp_enqueue_script( 'amz-prints-popup', AMZ_PRINTS_URI . '/assets/js/promo-popup.js', array(), AMZ_PRINTS_VERSION, true );
+
+	$is_cv = is_page_template( 'page-templates/template-cv-builder.php' ) || is_page( 'create-free-cv' );
+	if ( $is_cv ) {
+		wp_enqueue_style(
+			'amz-prints-cv-fonts',
+			'https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap',
+			array(),
+			null
+		);
+		wp_enqueue_style( 'amz-prints-cv', AMZ_PRINTS_URI . '/assets/css/cv-builder.css', array( 'amz-prints-main' ), AMZ_PRINTS_VERSION );
+		wp_enqueue_script( 'amz-prints-cv', AMZ_PRINTS_URI . '/assets/js/cv-builder.js', array(), AMZ_PRINTS_VERSION, true );
+	}
+
+	$google_client = trim( (string) amz_prints_mod( 'amz_google_client_id', '' ) );
+	if ( $google_client && ( is_page_template( 'page-templates/template-customer-login.php' ) || is_page( 'customer-login' ) ) ) {
+		wp_enqueue_script( 'google-gsi', 'https://accounts.google.com/gsi/client', array(), null, true );
+	}
 
 	$wa = preg_replace( '/\D+/', '', amz_prints_mod( 'amz_whatsapp', amz_prints_mod( 'amz_phone', '' ) ) );
 	$wa_flow = amz_prints_mod( 'amz_wa_flow_url', '' );
@@ -43,8 +118,46 @@ function amz_prints_enqueue_assets() {
 			'whatsapp' => $wa,
 		),
 	) );
+
+	wp_localize_script( 'amz-prints-customer', 'amzCustomer', array(
+		'ajaxUrl'       => admin_url( 'admin-ajax.php' ),
+		'nonce'         => wp_create_nonce( 'amz_prints_customer' ),
+		'googleClientId'=> $google_client,
+		'accountUrl'    => home_url( '/my-account/' ),
+		'loginUrl'      => home_url( '/customer-login/' ),
+		'loggedIn'      => function_exists( 'amz_prints_customer_is_logged_in' ) ? amz_prints_customer_is_logged_in() : false,
+	) );
+
+	// Keep localize lean — full catalog is printed as JSON in footer (avoids broken JS from data:image).
+	wp_localize_script( 'amz-prints-commerce', 'amzCommerce', array(
+		'ajaxUrl'    => admin_url( 'admin-ajax.php' ),
+		'nonce'      => wp_create_nonce( 'amz_prints_commerce' ),
+		'cartUrl'    => home_url( '/cart/' ),
+		'checkoutUrl'=> home_url( '/checkout/' ),
+		'quoteUrl'   => home_url( '/quote/' ),
+		'cartCount'  => function_exists( 'amz_prints_cart_count' ) ? amz_prints_cart_count() : 0,
+		'loggedIn'   => function_exists( 'amz_prints_customer_is_logged_in' ) ? amz_prints_customer_is_logged_in() : false,
+		'products'   => array(),
+	) );
 }
 add_action( 'wp_enqueue_scripts', 'amz_prints_enqueue_assets' );
+
+/**
+ * Print product catalog JSON for the product modal (reliable vs wp_localize size limits).
+ */
+function amz_prints_print_products_json() {
+	if ( is_admin() || ( function_exists( 'amz_prints_is_catalog_book' ) && amz_prints_is_catalog_book() ) ) {
+		return;
+	}
+	if ( is_page_template( 'page-templates/template-cv-builder.php' ) || is_page( 'create-free-cv' ) ) {
+		return;
+	}
+	$catalog = function_exists( 'amz_prints_commerce_product_catalog' )
+		? amz_prints_commerce_product_catalog()
+		: array();
+	echo '<script type="application/json" id="amz-products-data">' . wp_json_encode( $catalog ) . '</script>' . "\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+}
+add_action( 'wp_footer', 'amz_prints_print_products_json', 5 );
 
 /**
  * AI chat AJAX — webhook if set, else smart local replies

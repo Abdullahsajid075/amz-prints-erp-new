@@ -58,7 +58,7 @@ const InvoiceForm = () => {
   const { invoiceId } = useParams();
   const isEdit = !!invoiceId;
   const { primary, company } = useBrand();
-  const accent = primary || '#F26522';
+  const accent = primary || '#ff6d00';
 
   const [formData, setFormData] = useState(emptyInvoice);
   const [customers, setCustomers] = useState([]);

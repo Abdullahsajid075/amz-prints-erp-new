@@ -87,11 +87,11 @@ code {
 }
 
 .amz-orange {
-    color: #F26522;
+    color: #ff6d00;
 }
 
 .amz-bg-orange {
-    background-color: #F26522;
+    background-color: #ff6d00;
 }
 
 .amz-dark-gray {
@@ -161,7 +161,7 @@ code {
     left: 0;
     width: 100%;
     height: 4px;
-    background: linear-gradient(90deg, #F26522, #FF8A50, #F26522);
+    background: linear-gradient(90deg, #ff6d00, #FF8A50, #ff6d00);
     background-size: 200% 100%;
     transform: translateY(-100%);
     transition: transform 0.3s ease;

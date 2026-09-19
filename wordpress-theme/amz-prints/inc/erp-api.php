@@ -27,7 +27,42 @@ if ( ! function_exists( 'amz_prints_erp_api_url' ) ) {
 }
 
 /**
+ * Decode ERP JSON payload (list or object).
+ *
+ * @param string $raw Response body.
+ * @param int    $code HTTP status.
+ * @return array|WP_Error
+ */
+function amz_prints_erp_decode_response( $raw, $code = 200 ) {
+	$data = json_decode( (string) $raw, true );
+	if ( ! is_array( $data ) ) {
+		$preview = trim( wp_strip_all_tags( (string) $raw ) );
+		$preview = $preview ? substr( $preview, 0, 120 ) : '';
+		return new WP_Error(
+			'amz_erp_bad_response',
+			$preview
+				? sprintf( __( 'Unexpected ERP response: %s', 'amz-prints' ), $preview )
+				: __( 'Unexpected response from ERP API.', 'amz-prints' )
+		);
+	}
+
+	// Object error payloads include _status; bare product lists do not.
+	$app_status = ( isset( $data['_status'] ) && ! isset( $data[0] ) ) ? (int) $data['_status'] : (int) $code;
+	if ( $app_status >= 400 ) {
+		$msg = ! empty( $data['message'] )
+			? sanitize_text_field( $data['message'] )
+			: __( 'ERP request failed.', 'amz-prints' );
+		return new WP_Error( 'amz_erp_http_' . $app_status, $msg, array( 'status' => $app_status ) );
+	}
+
+	return $data;
+}
+
+/**
  * Low-level ERP request (GAS / Hostinger style: ?path=...).
+ *
+ * Apps Script returns 302 → googleusercontent echo URL for POST.
+ * WordPress must NOT auto-convert that to GET-with-body-loss; we follow manually.
  *
  * @param string     $method GET|POST|PUT|PATCH|DELETE
  * @param string     $path   API path starting with /
@@ -47,8 +82,9 @@ function amz_prints_erp_request( $method, $path, $body = null ) {
 	}
 
 	$args = array(
-		'timeout' => 25,
-		'headers' => array(
+		'timeout'     => 30,
+		'redirection' => 0, // handle GAS 302 ourselves
+		'headers'     => array(
 			'Accept'       => 'application/json',
 			'Content-Type' => 'text/plain;charset=utf-8',
 		),
@@ -68,22 +104,29 @@ function amz_prints_erp_request( $method, $path, $body = null ) {
 
 	$code = (int) wp_remote_retrieve_response_code( $response );
 	$raw  = wp_remote_retrieve_body( $response );
-	$data = json_decode( $raw, true );
 
-	if ( ! is_array( $data ) ) {
-		return new WP_Error( 'amz_erp_bad_response', __( 'Unexpected response from ERP API.', 'amz-prints' ) );
+	// GAS web app: POST/GET often 302 to script.googleusercontent.com/macros/echo?...
+	if ( in_array( $code, array( 301, 302, 303, 307, 308 ), true ) ) {
+		$location = wp_remote_retrieve_header( $response, 'location' );
+		if ( ! $location ) {
+			return new WP_Error( 'amz_erp_redirect', __( 'ERP API redirected without a Location header.', 'amz-prints' ) );
+		}
+		$follow = wp_remote_get(
+			$location,
+			array(
+				'timeout'     => 30,
+				'redirection' => 3,
+				'headers'     => array( 'Accept' => 'application/json' ),
+			)
+		);
+		if ( is_wp_error( $follow ) ) {
+			return $follow;
+		}
+		$code = (int) wp_remote_retrieve_response_code( $follow );
+		$raw  = wp_remote_retrieve_body( $follow );
 	}
 
-	// Object error payloads include _status; bare product lists do not.
-	$app_status = ( isset( $data['_status'] ) && ! isset( $data[0] ) ) ? (int) $data['_status'] : $code;
-	if ( $app_status >= 400 ) {
-		$msg = ! empty( $data['message'] )
-			? sanitize_text_field( $data['message'] )
-			: __( 'ERP request failed.', 'amz-prints' );
-		return new WP_Error( 'amz_erp_http_' . $app_status, $msg, array( 'status' => $app_status ) );
-	}
-
-	return $data;
+	return amz_prints_erp_decode_response( $raw, $code );
 }
 
 /**
@@ -93,7 +136,7 @@ function amz_prints_erp_request( $method, $path, $body = null ) {
  * @return array List of product arrays (empty on failure).
  */
 function amz_prints_erp_get_products( $force_refresh = false ) {
-	$cache_key = 'amz_prints_erp_products_v1';
+	$cache_key = 'amz_prints_erp_products_v2';
 	if ( ! $force_refresh ) {
 		$cached = get_transient( $cache_key );
 		if ( is_array( $cached ) ) {
@@ -136,6 +179,22 @@ function amz_prints_erp_get_products( $force_refresh = false ) {
 			continue;
 		}
 		$price = isset( $row['basePrice'] ) ? (float) $row['basePrice'] : ( isset( $row['rate'] ) ? (float) $row['rate'] : 0 );
+		$images = array();
+		if ( ! empty( $row['images'] ) && is_array( $row['images'] ) ) {
+			foreach ( $row['images'] as $img ) {
+				$img = trim( (string) $img );
+				if ( $img && ! in_array( $img, $images, true ) ) {
+					$images[] = $img;
+				}
+			}
+		}
+		$primary = (string) ( $row['image'] ?? $row['photo'] ?? '' );
+		if ( $primary && ! in_array( $primary, $images, true ) ) {
+			array_unshift( $images, $primary );
+		} elseif ( ! $primary && ! empty( $images ) ) {
+			$primary = $images[0];
+		}
+
 		$products[] = array(
 			'id'           => (string) ( $row['id'] ?? '' ),
 			'name'         => $name,
@@ -147,7 +206,8 @@ function amz_prints_erp_get_products( $force_refresh = false ) {
 			'material'     => (string) ( $row['material'] ?? '' ),
 			'size'         => (string) ( $row['size'] ?? '' ),
 			'minQuantity'  => isset( $row['minQuantity'] ) ? (float) $row['minQuantity'] : 1,
-			'image'        => (string) ( $row['image'] ?? $row['photo'] ?? '' ),
+			'image'        => $primary,
+			'images'       => $images,
 		);
 	}
 

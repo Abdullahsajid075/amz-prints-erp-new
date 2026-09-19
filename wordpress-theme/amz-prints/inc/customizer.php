@@ -18,9 +18,9 @@ function amz_prints_customize_register( $wp_customize ) {
 	) );
 
 	foreach ( array(
-		'amz_primary_color'   => array( 'label' => 'Primary Color', 'default' => '#F26522' ),
-		'amz_secondary_color' => array( 'label' => 'Secondary Color', 'default' => '#1A1A1A' ),
-		'amz_accent_color'    => array( 'label' => 'Accent Color', 'default' => '#10B981' ),
+		'amz_primary_color'   => array( 'label' => 'Brand blue', 'default' => '#0747a3' ),
+		'amz_secondary_color' => array( 'label' => 'Text black', 'default' => '#111111' ),
+		'amz_accent_color'    => array( 'label' => 'Brand orange', 'default' => '#ff6d00' ),
 	) as $id => $args ) {
 		$wp_customize->add_setting( $id, array(
 			'default'           => $args['default'],
@@ -61,6 +61,25 @@ function amz_prints_customize_register( $wp_customize ) {
 			'type'    => 'text',
 		) );
 	}
+
+	$wp_customize->add_setting( 'amz_mission', array(
+		'default'           => 'To help brands look premium in print and digital — with reliable production, clear communication, and craftsmanship that earns repeat trust.',
+		'sanitize_callback' => 'sanitize_textarea_field',
+	) );
+	$wp_customize->add_control( 'amz_mission', array(
+		'label'   => __( 'Mission (company catalog)', 'amz-prints' ),
+		'section' => 'amz_company',
+		'type'    => 'textarea',
+	) );
+	$wp_customize->add_setting( 'amz_vision', array(
+		'default'           => 'To be Pakistan’s most dependable print + digital partner — where every job is tracked, every color is intentional, and every client feels looked after.',
+		'sanitize_callback' => 'sanitize_textarea_field',
+	) );
+	$wp_customize->add_control( 'amz_vision', array(
+		'label'   => __( 'Vision (company catalog)', 'amz-prints' ),
+		'section' => 'amz_company',
+		'type'    => 'textarea',
+	) );
 
 	/* ── Hero ── */
 	$wp_customize->add_section( 'amz_hero', array(
@@ -128,24 +147,61 @@ function amz_prints_customize_register( $wp_customize ) {
 		'type'    => 'url',
 	) );
 
+	$wp_customize->add_setting( 'amz_hero_layout', array(
+		'default'           => 'mosaic',
+		'sanitize_callback' => function( $v ) {
+			return in_array( $v, array( 'mosaic', 'slider' ), true ) ? $v : 'mosaic';
+		},
+	) );
+	$wp_customize->add_control( 'amz_hero_layout', array(
+		'label'       => __( 'Hero layout', 'amz-prints' ),
+		'description' => __( 'Mosaic = 1 large + 5 supporting images. Slider = classic rotating slides.', 'amz-prints' ),
+		'section'     => 'amz_hero',
+		'type'        => 'select',
+		'choices'     => array(
+			'mosaic' => __( 'Image mosaic (1 + 5)', 'amz-prints' ),
+			'slider' => __( 'Full-bleed slider', 'amz-prints' ),
+		),
+	) );
+
 	$wp_customize->add_setting( 'amz_hero_image', array(
 		'default'           => '',
 		'sanitize_callback' => 'absint',
 	) );
 	$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'amz_hero_image', array(
-		'label'     => __( 'Hero image 1', 'amz-prints' ),
-		'section'   => 'amz_hero',
-		'mime_type' => 'image',
+		'label'       => __( 'Main hero image (large)', 'amz-prints' ),
+		'section'     => 'amz_hero',
+		'mime_type'   => 'image',
+		'description' => __( 'Primary large image for the mosaic / slide 1.', 'amz-prints' ),
 	) ) );
+
+	foreach ( array(
+		'amz_hero_support_1' => 'Supporting image 1',
+		'amz_hero_support_2' => 'Supporting image 2',
+		'amz_hero_support_3' => 'Supporting image 3',
+		'amz_hero_support_4' => 'Supporting image 4',
+		'amz_hero_support_5' => 'Supporting image 5',
+	) as $sid => $slabel ) {
+		$wp_customize->add_setting( $sid, array(
+			'default'           => '',
+			'sanitize_callback' => 'absint',
+		) );
+		$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, $sid, array(
+			'label'     => __( $slabel, 'amz-prints' ),
+			'section'   => 'amz_hero',
+			'mime_type' => 'image',
+		) ) );
+	}
 
 	$wp_customize->add_setting( 'amz_hero_image_2', array(
 		'default'           => '',
 		'sanitize_callback' => 'absint',
 	) );
 	$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'amz_hero_image_2', array(
-		'label'     => __( 'Hero image 2', 'amz-prints' ),
-		'section'   => 'amz_hero',
-		'mime_type' => 'image',
+		'label'       => __( 'Slider image 2 (legacy)', 'amz-prints' ),
+		'section'     => 'amz_hero',
+		'mime_type'   => 'image',
+		'description' => __( 'Used only when Hero layout = Full-bleed slider.', 'amz-prints' ),
 	) ) );
 
 	$wp_customize->add_setting( 'amz_hero_image_3', array(
@@ -153,10 +209,9 @@ function amz_prints_customize_register( $wp_customize ) {
 		'sanitize_callback' => 'absint',
 	) );
 	$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'amz_hero_image_3', array(
-		'label'       => __( 'Hero image 3', 'amz-prints' ),
-		'section'     => 'amz_hero',
-		'mime_type'   => 'image',
-		'description' => __( 'Slides change every 3 seconds with animation.', 'amz-prints' ),
+		'label'     => __( 'Slider image 3 (legacy)', 'amz-prints' ),
+		'section'   => 'amz_hero',
+		'mime_type' => 'image',
 	) ) );
 
 	/* ── Sections visibility / copy ── */
@@ -189,7 +244,7 @@ function amz_prints_customize_register( $wp_customize ) {
 		) );
 	}
 
-	foreach ( array( 'amz_show_services', 'amz_show_products', 'amz_show_process', 'amz_show_cta' ) as $toggle ) {
+	foreach ( array( 'amz_show_services', 'amz_show_products', 'amz_show_process', 'amz_show_cta', 'amz_show_clients', 'amz_show_projects' ) as $toggle ) {
 		$wp_customize->add_setting( $toggle, array(
 			'default'           => true,
 			'sanitize_callback' => function( $v ) { return (bool) $v; },
@@ -200,6 +255,64 @@ function amz_prints_customize_register( $wp_customize ) {
 			'type'    => 'checkbox',
 		) );
 	}
+
+	$wp_customize->add_setting( 'amz_clients_title', array(
+		'default'           => 'Our Clients',
+		'sanitize_callback' => 'sanitize_text_field',
+	) );
+	$wp_customize->add_control( 'amz_clients_title', array(
+		'label'   => __( 'Clients section title', 'amz-prints' ),
+		'section' => 'amz_sections',
+		'type'    => 'text',
+	) );
+	$wp_customize->add_setting( 'amz_clients_sub', array(
+		'default'           => 'Brands that trust AMZ Prints for color-true production and on-time delivery.',
+		'sanitize_callback' => 'sanitize_text_field',
+	) );
+	$wp_customize->add_control( 'amz_clients_sub', array(
+		'label'   => __( 'Clients section subtitle', 'amz-prints' ),
+		'section' => 'amz_sections',
+		'type'    => 'textarea',
+	) );
+	$wp_customize->add_setting( 'amz_clients_list', array(
+		'default'           => "Honda Atlas\nPepsiCo\nEngro\nJazz\nUnilever\nNestlé\nTelenor\nPackages Ltd",
+		'sanitize_callback' => 'sanitize_textarea_field',
+	) );
+	$wp_customize->add_control( 'amz_clients_list', array(
+		'label'       => __( 'Clients list (one per line)', 'amz-prints' ),
+		'section'     => 'amz_sections',
+		'type'        => 'textarea',
+		'description' => __( 'Each line becomes one client name chip.', 'amz-prints' ),
+	) );
+
+	$wp_customize->add_setting( 'amz_projects_title', array(
+		'default'           => 'Successful Projects',
+		'sanitize_callback' => 'sanitize_text_field',
+	) );
+	$wp_customize->add_control( 'amz_projects_title', array(
+		'label'   => __( 'Projects section title', 'amz-prints' ),
+		'section' => 'amz_sections',
+		'type'    => 'text',
+	) );
+	$wp_customize->add_setting( 'amz_projects_sub', array(
+		'default'           => 'Selected work across packaging, large format, branding, and public services.',
+		'sanitize_callback' => 'sanitize_text_field',
+	) );
+	$wp_customize->add_control( 'amz_projects_sub', array(
+		'label'   => __( 'Projects section subtitle', 'amz-prints' ),
+		'section' => 'amz_sections',
+		'type'    => 'textarea',
+	) );
+	$wp_customize->add_setting( 'amz_projects_list', array(
+		'default'           => "Brand Launch Kit|Packaging|2025\nRetail Campaign Banners|Large Format|2025\nCorporate Identity Suite|Offset|2024\nNADRA Desk Rollout|Public Service|2024\nProduct Catalog Series|Digital|2025\nEvent Branding System|Advertising|2024",
+		'sanitize_callback' => 'sanitize_textarea_field',
+	) );
+	$wp_customize->add_control( 'amz_projects_list', array(
+		'label'       => __( 'Projects list', 'amz-prints' ),
+		'section'     => 'amz_sections',
+		'type'        => 'textarea',
+		'description' => __( 'One project per line: Title|Category|Year', 'amz-prints' ),
+	) );
 
 	/* ── NADRA ── */
 	$wp_customize->add_section( 'amz_nadra', array(
@@ -350,132 +463,271 @@ function amz_prints_customize_register( $wp_customize ) {
 		'type'        => 'url',
 	) );
 
-	/* ── Hero Product Parts (4 rotating tiles) ── */
-	$wp_customize->add_section( 'amz_hero_parts', array(
-		'title'       => __( 'Hero Product Parts', 'amz-prints' ),
-		'description' => __( 'Four product tiles shown over the hero. They highlight one-by-one every 5 seconds with animation.', 'amz-prints' ),
-		'priority'    => 32.5,
+	/* ── Customer Portal ── */
+	$wp_customize->add_section( 'amz_customer_portal', array(
+		'title'       => __( 'Customer Portal', 'amz-prints' ),
+		'description' => __( 'Google Sign-In Client ID for Continue with Google on Log in and Sign up. Create an OAuth Client ID (Web) in Google Cloud Console.', 'amz-prints' ),
+		'priority'    => 37.7,
 	) );
 
-	$wp_customize->add_setting( 'amz_hero_parts_enabled', array(
+	$wp_customize->add_setting( 'amz_google_client_id', array(
+		'default'           => '',
+		'sanitize_callback' => 'sanitize_text_field',
+	) );
+	$wp_customize->add_control( 'amz_google_client_id', array(
+		'label'       => __( 'Google OAuth Client ID', 'amz-prints' ),
+		'description' => __( 'Used on Customer Login / Sign up for Continue with Google. Authorized JavaScript origin: your website domain (e.g. https://amzprints.com).', 'amz-prints' ),
+		'section'     => 'amz_customer_portal',
+		'type'        => 'text',
+	) );
+
+	$wp_customize->add_setting( 'amz_customer_portal_key', array(
+		'default'           => '',
+		'sanitize_callback' => 'sanitize_text_field',
+	) );
+	$wp_customize->add_control( 'amz_customer_portal_key', array(
+		'label'       => __( 'Customer Portal Key', 'amz-prints' ),
+		'description' => __( 'Secret shared with Apps Script so Google login works without UrlFetchApp. Auto-created on first Google login; keep it private. Optional: paste the same value into Apps Script → Project Settings → Script properties as CUSTOMER_PORTAL_KEY.', 'amz-prints' ),
+		'section'     => 'amz_customer_portal',
+		'type'        => 'text',
+	) );
+
+	/* ── Promo Popup ── */
+	$wp_customize->add_section( 'amz_popup', array(
+		'title'       => __( 'Promo Popup', 'amz-prints' ),
+		'description' => __( 'Promotional image popup with multiple styles. Uses a cookie so it does not reappear every page view.', 'amz-prints' ),
+		'priority'    => 37.8,
+	) );
+
+	$wp_customize->add_setting( 'amz_popup_enabled', array(
 		'default'           => true,
 		'sanitize_callback' => function( $v ) { return (bool) $v; },
 	) );
-	$wp_customize->add_control( 'amz_hero_parts_enabled', array(
-		'label'   => __( 'Show product parts on hero', 'amz-prints' ),
-		'section' => 'amz_hero_parts',
+	$wp_customize->add_control( 'amz_popup_enabled', array(
+		'label'       => __( 'Enable promo popup', 'amz-prints' ),
+		'description' => __( 'Shows on the Home Page when loading (default). Upload an image below.', 'amz-prints' ),
+		'section'     => 'amz_popup',
+		'type'        => 'checkbox',
+	) );
+
+	$wp_customize->add_setting( 'amz_popup_image', array(
+		'default'           => '',
+		'sanitize_callback' => 'absint',
+	) );
+	$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'amz_popup_image', array(
+		'label'       => __( 'Popup image', 'amz-prints' ),
+		'description' => __( 'Upload/select the promotional image shown in the popup.', 'amz-prints' ),
+		'section'     => 'amz_popup',
+		'mime_type'   => 'image',
+	) ) );
+
+	$wp_customize->add_setting( 'amz_popup_image_url', array(
+		'default'           => '',
+		'sanitize_callback' => 'esc_url_raw',
+	) );
+	$wp_customize->add_control( 'amz_popup_image_url', array(
+		'label'       => __( 'Popup image URL (optional)', 'amz-prints' ),
+		'description' => __( 'If media upload fails, paste a direct image URL here.', 'amz-prints' ),
+		'section'     => 'amz_popup',
+		'type'        => 'url',
+	) );
+
+	$wp_customize->add_setting( 'amz_popup_style', array(
+		'default'           => 'centered',
+		'sanitize_callback' => function( $v ) {
+			$ok = array( 'centered', 'banner', 'corner', 'fullscreen', 'card' );
+			return in_array( $v, $ok, true ) ? $v : 'centered';
+		},
+	) );
+	$wp_customize->add_control( 'amz_popup_style', array(
+		'label'   => __( 'Popup style', 'amz-prints' ),
+		'section' => 'amz_popup',
+		'type'    => 'select',
+		'choices' => array(
+			'centered'   => __( 'Centered modal', 'amz-prints' ),
+			'banner'     => __( 'Top banner', 'amz-prints' ),
+			'corner'     => __( 'Corner toast', 'amz-prints' ),
+			'fullscreen' => __( 'Fullscreen cover', 'amz-prints' ),
+			'card'       => __( 'Floating card', 'amz-prints' ),
+		),
+	) );
+
+	foreach ( array(
+		'amz_popup_page_home'     => array( 'Show on Home Page', true ),
+		'amz_popup_page_products' => array( 'Show on Products', false ),
+		'amz_popup_page_services' => array( 'Show on Services', false ),
+		'amz_popup_page_all'      => array( 'Show on all pages', false ),
+	) as $pid => $meta ) {
+		$wp_customize->add_setting( $pid, array(
+			'default'           => $meta[1],
+			'sanitize_callback' => function( $v ) { return (bool) $v; },
+		) );
+		$wp_customize->add_control( $pid, array(
+			'label'   => __( $meta[0], 'amz-prints' ),
+			'section' => 'amz_popup',
+			'type'    => 'checkbox',
+		) );
+	}
+
+	$wp_customize->add_setting( 'amz_popup_show_close', array(
+		'default'           => true,
+		'sanitize_callback' => function( $v ) { return (bool) $v; },
+	) );
+	$wp_customize->add_control( 'amz_popup_show_close', array(
+		'label'   => __( 'Show close button', 'amz-prints' ),
+		'section' => 'amz_popup',
 		'type'    => 'checkbox',
 	) );
 
-	for ( $i = 1; $i <= 4; $i++ ) {
-		$wp_customize->add_setting( "amz_hero_part_{$i}_image", array(
-			'default'           => '',
-			'sanitize_callback' => 'absint',
-		) );
-		$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, "amz_hero_part_{$i}_image", array(
-			'label'     => sprintf( __( 'Part %d image', 'amz-prints' ), $i ),
-			'section'   => 'amz_hero_parts',
-			'mime_type' => 'image',
-		) ) );
-
-		$wp_customize->add_setting( "amz_hero_part_{$i}_label", array(
-			'default'           => '',
-			'sanitize_callback' => 'sanitize_text_field',
-		) );
-		$wp_customize->add_control( "amz_hero_part_{$i}_label", array(
-			'label'   => sprintf( __( 'Part %d label', 'amz-prints' ), $i ),
-			'section' => 'amz_hero_parts',
-			'type'    => 'text',
-		) );
-
-		$wp_customize->add_setting( "amz_hero_part_{$i}_url", array(
-			'default'           => '',
-			'sanitize_callback' => 'esc_url_raw',
-		) );
-		$wp_customize->add_control( "amz_hero_part_{$i}_url", array(
-			'label'   => sprintf( __( 'Part %d link', 'amz-prints' ), $i ),
-			'section' => 'amz_hero_parts',
-			'type'    => 'url',
-		) );
-	}
-
-	/* ── CV Portal (Free CV builder page) ── */
-	$wp_customize->add_section( 'amz_cv_portal', array(
-		'title'       => __( 'Free CV Portal', 'amz-prints' ),
-		'description' => __( 'Advertisements + side banner shown on the Free CV builder page.', 'amz-prints' ),
-		'priority'    => 32.6,
-	) );
-
-	// Rotating advertisement images (change every 10s).
-	for ( $i = 1; $i <= 3; $i++ ) {
-		$wp_customize->add_setting( "amz_cv_ad_{$i}", array(
-			'default'           => '',
-			'sanitize_callback' => 'absint',
-		) );
-		$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, "amz_cv_ad_{$i}", array(
-			'label'       => sprintf( __( 'Advertisement image %d', 'amz-prints' ), $i ),
-			'section'     => 'amz_cv_portal',
-			'mime_type'   => 'image',
-			'description' => 1 === $i ? __( 'Ads rotate every 10 seconds.', 'amz-prints' ) : '',
-		) ) );
-	}
-
-	$wp_customize->add_setting( 'amz_cv_ad_url', array(
+	$wp_customize->add_setting( 'amz_popup_link', array(
 		'default'           => '',
 		'sanitize_callback' => 'esc_url_raw',
 	) );
-	$wp_customize->add_control( 'amz_cv_ad_url', array(
-		'label'   => __( 'Advertisement link (optional)', 'amz-prints' ),
-		'section' => 'amz_cv_portal',
+	$wp_customize->add_control( 'amz_popup_link', array(
+		'label'   => __( 'Popup click URL (optional)', 'amz-prints' ),
+		'section' => 'amz_popup',
 		'type'    => 'url',
 	) );
 
-	// Vertical side banner + linked Store product.
-	$wp_customize->add_setting( 'amz_cv_banner_image', array(
-		'default'           => '',
+	$wp_customize->add_setting( 'amz_popup_delay', array(
+		'default'           => 800,
 		'sanitize_callback' => 'absint',
 	) );
-	$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'amz_cv_banner_image', array(
-		'label'       => __( 'Vertical side banner image', 'amz-prints' ),
-		'section'     => 'amz_cv_portal',
-		'mime_type'   => 'image',
-		'description' => __( 'Shown vertically beside the CV builder. Links to the Store product chosen below.', 'amz-prints' ),
-	) ) );
-
-	// Build choices from Store products (amz_product CPT).
-	$product_choices = array( '' => __( '— Select a Store product —', 'amz-prints' ) );
-	$product_posts   = get_posts( array(
-		'post_type'      => 'amz_product',
-		'posts_per_page' => 100,
-		'orderby'        => 'title',
-		'order'          => 'ASC',
-		'post_status'    => 'publish',
+	$wp_customize->add_control( 'amz_popup_delay', array(
+		'label'   => __( 'Show delay (ms)', 'amz-prints' ),
+		'section' => 'amz_popup',
+		'type'    => 'number',
 	) );
-	foreach ( $product_posts as $pp ) {
-		$product_choices[ (string) $pp->ID ] = $pp->post_title;
+
+	$wp_customize->add_setting( 'amz_popup_cookie_days', array(
+		'default'           => 1,
+		'sanitize_callback' => 'absint',
+	) );
+	$wp_customize->add_control( 'amz_popup_cookie_days', array(
+		'label'       => __( 'Hide for N days after close', 'amz-prints' ),
+		'section'     => 'amz_popup',
+		'type'        => 'number',
+		'description' => __( 'Also hidden for the rest of the browser session. Test anytime with /?show_popup=1', 'amz-prints' ),
+	) );
+
+	/* ── Store / Checkout ── */
+	$wp_customize->add_section( 'amz_store', array(
+		'title'       => __( 'Store & Checkout', 'amz-prints' ),
+		'description' => __( 'Delivery charges, optional cart discount, and order processing policy shown at checkout.', 'amz-prints' ),
+		'priority'    => 37.9,
+	) );
+
+	$wp_customize->add_setting( 'amz_delivery_charge', array(
+		'default'           => 0,
+		'sanitize_callback' => function( $v ) { return max( 0, floatval( $v ) ); },
+	) );
+	$wp_customize->add_control( 'amz_delivery_charge', array(
+		'label'   => __( 'Delivery charge (Rs.)', 'amz-prints' ),
+		'section' => 'amz_store',
+		'type'    => 'number',
+	) );
+
+	$wp_customize->add_setting( 'amz_free_delivery_over', array(
+		'default'           => 0,
+		'sanitize_callback' => function( $v ) { return max( 0, floatval( $v ) ); },
+	) );
+	$wp_customize->add_control( 'amz_free_delivery_over', array(
+		'label'       => __( 'Free delivery over (Rs., 0 = off)', 'amz-prints' ),
+		'section'     => 'amz_store',
+		'type'        => 'number',
+	) );
+
+	$wp_customize->add_setting( 'amz_cart_discount_percent', array(
+		'default'           => 0,
+		'sanitize_callback' => function( $v ) { return max( 0, min( 100, floatval( $v ) ) ); },
+	) );
+	$wp_customize->add_control( 'amz_cart_discount_percent', array(
+		'label'   => __( 'Cart discount percent (optional)', 'amz-prints' ),
+		'section' => 'amz_store',
+		'type'    => 'number',
+	) );
+
+	$wp_customize->add_setting( 'amz_order_policy', array(
+		'default'           => 'Your order will begin processing after payment confirmation. Please complete the required payment according to the selected payment method. Order processing will start once payment has been verified.',
+		'sanitize_callback' => 'sanitize_textarea_field',
+	) );
+	$wp_customize->add_control( 'amz_order_policy', array(
+		'label'   => __( 'Order Processing Policy', 'amz-prints' ),
+		'section' => 'amz_store',
+		'type'    => 'textarea',
+	) );
+
+	/* ── A1 Edit Books (company profile catalogs) ── */
+	$wp_customize->add_section( 'amz_books', array(
+		'title'       => __( 'A1 — Edit Books', 'amz-prints' ),
+		'description' => __( 'Upload cover, intro, hub, and portfolio images for Print and Digital company profile books.', 'amz-prints' ),
+		'priority'    => 36,
+	) );
+
+	$book_images = array(
+		'amz_book_print_hub'     => __( 'Print book — Hub cover card', 'amz-prints' ),
+		'amz_book_print_cover'   => __( 'Print book — Inside cover image', 'amz-prints' ),
+		'amz_book_print_intro'   => __( 'Print book — Introduction photo', 'amz-prints' ),
+		'amz_book_digital_hub'   => __( 'Digital book — Hub cover card', 'amz-prints' ),
+		'amz_book_digital_cover' => __( 'Digital book — Inside cover image', 'amz-prints' ),
+		'amz_book_digital_intro' => __( 'Digital book — Introduction photo', 'amz-prints' ),
+	);
+	foreach ( $book_images as $id => $label ) {
+		$wp_customize->add_setting( $id, array(
+			'default'           => 0,
+			'sanitize_callback' => 'absint',
+		) );
+		$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, $id, array(
+			'label'     => $label,
+			'section'   => 'amz_books',
+			'mime_type' => 'image',
+		) ) );
 	}
 
-	$wp_customize->add_setting( 'amz_cv_banner_product', array(
+	for ( $i = 1; $i <= 6; $i++ ) {
+		$pid = 'amz_book_print_portfolio_' . $i;
+		$wp_customize->add_setting( $pid, array(
+			'default'           => 0,
+			'sanitize_callback' => 'absint',
+		) );
+		$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, $pid, array(
+			'label'     => sprintf( __( 'Print portfolio image %d', 'amz-prints' ), $i ),
+			'section'   => 'amz_books',
+			'mime_type' => 'image',
+		) ) );
+
+		$did = 'amz_book_digital_portfolio_' . $i;
+		$wp_customize->add_setting( $did, array(
+			'default'           => 0,
+			'sanitize_callback' => 'absint',
+		) );
+		$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, $did, array(
+			'label'     => sprintf( __( 'Digital portfolio image %d', 'amz-prints' ), $i ),
+			'section'   => 'amz_books',
+			'mime_type' => 'image',
+		) ) );
+	}
+
+	$wp_customize->add_setting( 'amz_book_print_about', array(
 		'default'           => '',
-		'sanitize_callback' => 'absint',
+		'sanitize_callback' => 'sanitize_textarea_field',
 	) );
-	$wp_customize->add_control( 'amz_cv_banner_product', array(
-		'label'       => __( 'Side banner → Store product', 'amz-prints' ),
-		'description' => __( 'The banner links to this product page.', 'amz-prints' ),
-		'section'     => 'amz_cv_portal',
-		'type'        => 'select',
-		'choices'     => $product_choices,
+	$wp_customize->add_control( 'amz_book_print_about', array(
+		'label'       => __( 'Print book — About text (optional override)', 'amz-prints' ),
+		'section'     => 'amz_books',
+		'type'        => 'textarea',
+		'description' => __( 'Leave empty to use Company Info about blurb.', 'amz-prints' ),
 	) );
 
-	$wp_customize->add_setting( 'amz_cv_banner_url', array(
+	$wp_customize->add_setting( 'amz_book_digital_about', array(
 		'default'           => '',
-		'sanitize_callback' => 'esc_url_raw',
+		'sanitize_callback' => 'sanitize_textarea_field',
 	) );
-	$wp_customize->add_control( 'amz_cv_banner_url', array(
-		'label'       => __( 'Side banner custom link (optional)', 'amz-prints' ),
-		'description' => __( 'Overrides the product link above if set.', 'amz-prints' ),
-		'section'     => 'amz_cv_portal',
-		'type'        => 'url',
+	$wp_customize->add_control( 'amz_book_digital_about', array(
+		'label'       => __( 'Digital book — About text (optional override)', 'amz-prints' ),
+		'section'     => 'amz_books',
+		'type'        => 'textarea',
+		'description' => __( 'Leave empty to use Company Info about blurb.', 'amz-prints' ),
 	) );
 
 	/* ── Social ── */

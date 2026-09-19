@@ -90,11 +90,11 @@ export function printEmployeeCard(emp, company = {}, { autoPrint = true } = {}) 
     box-shadow: 0 2px 8px rgba(0,0,0,.18);
     page-break-inside: avoid;
   }
-  .accent { height: 7px; background: linear-gradient(90deg, #F26522, #c44a12); }
+  .accent { height: 7px; background: linear-gradient(90deg, #ff6d00, #c44a12); }
   .front, .back { height: calc(100% - 7px); padding: 8px 9px; display: flex; flex-direction: column; }
   .brand { display: flex; align-items: center; gap: 6px; border-bottom: 1px solid rgba(0,0,0,.12); padding-bottom: 5px; }
   .logo { max-height: 28px; max-width: 72px; object-fit: contain; }
-  .logo-text { font-size: 11px; font-weight: 800; letter-spacing: .04em; color: #F26522; }
+  .logo-text { font-size: 11px; font-weight: 800; letter-spacing: .04em; color: #ff6d00; }
   .brand small { display: block; font-size: 7px; color: #555; line-height: 1.2; }
   .title { text-align: center; font-size: 8px; letter-spacing: .18em; text-transform: uppercase; color: #444; margin: 6px 0 4px; font-weight: 700; }
   .photo-row { display: flex; gap: 7px; align-items: flex-start; }
@@ -102,7 +102,7 @@ export function printEmployeeCard(emp, company = {}, { autoPrint = true } = {}) 
   .ph { display: flex; align-items: center; justify-content: center; font-size: 8px; color: #999; }
   .meta { flex: 1; min-width: 0; }
   .name { font-size: 13px; font-weight: 800; line-height: 1.15; margin: 0 0 2px; }
-  .desig { font-size: 9px; color: #F26522; font-weight: 700; margin-bottom: 4px; }
+  .desig { font-size: 9px; color: #ff6d00; font-weight: 700; margin-bottom: 4px; }
   .row { font-size: 8px; line-height: 1.35; margin: 1px 0; }
   .row b { display: inline-block; min-width: 42px; color: #555; font-weight: 600; }
   .barcode-wrap { text-align: center; margin-top: auto; padding-top: 4px; }
@@ -184,10 +184,10 @@ export function printEmployeeBadge(emp, company = {}, { autoPrint = true } = {})
     border: 1px solid #222; border-radius: 3px; overflow: hidden;
     display: flex; flex-direction: column; ${lineTextureCss()}
   }
-  .top { height: 4px; background: #F26522; }
+  .top { height: 4px; background: #ff6d00; }
   .body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2px 6px; text-align: center; }
   .name { font-size: 11px; font-weight: 800; line-height: 1.1; margin: 0; color: #111; max-width: 100%; }
-  .desig { font-size: 8px; font-weight: 600; color: #F26522; margin: 2px 0 0; letter-spacing: .02em; }
+  .desig { font-size: 8px; font-weight: 600; color: #ff6d00; margin: 2px 0 0; letter-spacing: .02em; }
   .co { font-size: 6px; color: #666; margin-top: 2px; }
   @media print { body { background: #fff; } .wrap { padding: 0; } }
 </style></head><body>
@@ -217,7 +217,7 @@ export function printExperienceLetter(emp, company = {}, { autoPrint = true } = 
   const to = emp.endDate ? fmtDate(emp.endDate) : 'present';
   const logo = c.logo
     ? `<img src="${esc(c.logo)}" alt="" style="max-height:64px;max-width:160px;object-fit:contain;" />`
-    : `<div style="font-size:22px;font-weight:800;color:#F26522">${esc(c.name)}</div>`;
+    : `<div style="font-size:22px;font-weight:800;color:#ff6d00">${esc(c.name)}</div>`;
   const stamp = c.stamp
     ? `<img src="${esc(c.stamp)}" alt="stamp" style="max-height:90px;max-width:110px;object-fit:contain;" />`
     : '';
@@ -235,7 +235,7 @@ export function printExperienceLetter(emp, company = {}, { autoPrint = true } = 
     background: #fff; ${lineTextureCss()} position: relative;
   }
   .letterhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
-    border-bottom: 2.5px solid #F26522; padding-bottom: 10px; margin-bottom: 14px; }
+    border-bottom: 2.5px solid #ff6d00; padding-bottom: 10px; margin-bottom: 14px; }
   .co-meta { text-align: right; font-size: 11px; line-height: 1.45; color: #333; font-family: "Segoe UI", Arial, sans-serif; }
   .ref { font-size: 12px; margin: 10px 0 18px; font-family: "Segoe UI", Arial, sans-serif; }
   h1 { text-align: center; font-size: 18px; letter-spacing: .12em; margin: 0 0 18px; text-decoration: underline; }

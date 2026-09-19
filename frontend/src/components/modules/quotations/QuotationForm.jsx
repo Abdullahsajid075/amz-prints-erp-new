@@ -30,7 +30,7 @@ const QuotationForm = ({ printMode = false }) => {
   const { quotationId } = useParams();
   const isEdit = !!quotationId;
   const { company, primary } = useBrand();
-  const accent = primary || '#F26522';
+  const accent = primary || '#ff6d00';
 
   const [form, setForm] = useState({
     customerId: '',

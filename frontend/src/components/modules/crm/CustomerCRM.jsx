@@ -128,7 +128,7 @@ function StageColumn({ stage, customers, onOpen }) {
 const CustomerCRM = () => {
   const { primary } = useBrand();
   const { user } = useAuth();
-  const accent = primary || '#F26522';
+  const accent = primary || '#ff6d00';
 
   const [allCustomers, setAllCustomers] = useState([]);
   const [customers, setCustomers] = useState([]);

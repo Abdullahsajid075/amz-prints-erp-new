@@ -1,17 +1,41 @@
 /** Compress image for catalog only — never attach to order/invoice lines. */
 
-const DEFAULT_MAX_EDGE = 280;
-const DEFAULT_JPEG_QUALITY = 0.62;
-const DEFAULT_MAX_CHARS = 42000;
+// Keep under Google Sheets ~50k cell limit, but prefer sharp 1:1 display.
+const DEFAULT_MAX_EDGE = 1200;
+const DEFAULT_JPEG_QUALITY = 0.9;
+const DEFAULT_MAX_CHARS = 45000;
+
+/**
+ * Draw the full photo into a canvas (contain, never crop).
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {CanvasImageSource} img
+ * @param {number} canvasW
+ * @param {number} canvasH
+ * @param {number} srcW
+ * @param {number} srcH
+ */
+function drawContained(ctx, img, canvasW, canvasH, srcW, srcH) {
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvasW, canvasH);
+  const scale = Math.min(canvasW / Math.max(srcW, 1), canvasH / Math.max(srcH, 1));
+  const dw = Math.max(1, srcW * scale);
+  const dh = Math.max(1, srcH * scale);
+  const dx = (canvasW - dw) / 2;
+  const dy = (canvasH - dh) / 2;
+  ctx.drawImage(img, dx, dy, dw, dh);
+}
 
 /**
  * @param {File} file
- * @param {{ maxEdge?: number, maxChars?: number, quality?: number }} [opts]
+ * @param {{ maxEdge?: number, maxChars?: number, quality?: number, square?: boolean }} [opts]
  */
 export function compressImageFile(file, opts = {}) {
   const MAX_EDGE = opts.maxEdge || DEFAULT_MAX_EDGE;
   const JPEG_QUALITY = opts.quality || DEFAULT_JPEG_QUALITY;
   const MAX_DATA_URL_CHARS = opts.maxChars || DEFAULT_MAX_CHARS;
+  const square = opts.square === true;
 
   return new Promise((resolve, reject) => {
     if (!file || !file.type?.startsWith('image/')) {
@@ -24,37 +48,49 @@ export function compressImageFile(file, opts = {}) {
       const img = new Image();
       img.onerror = () => reject(new Error('Invalid image'));
       img.onload = () => {
-        let { width, height } = img;
-        const scale = Math.min(1, MAX_EDGE / Math.max(width, height || 1));
-        width = Math.max(1, Math.round(width * scale));
-        height = Math.max(1, Math.round(height * scale));
+        const srcW = Math.max(1, img.naturalWidth || img.width || 1);
+        const srcH = Math.max(1, img.naturalHeight || img.height || 1);
+
+        let canvasW;
+        let canvasH;
+        if (square) {
+          const size = Math.min(MAX_EDGE, Math.max(srcW, srcH));
+          canvasW = size;
+          canvasH = size;
+        } else {
+          const scale = Math.min(1, MAX_EDGE / Math.max(srcW, srcH));
+          canvasW = Math.max(1, Math.round(srcW * scale));
+          canvasH = Math.max(1, Math.round(srcH * scale));
+        }
 
         const tryEncode = (w, h, quality) => {
           const canvas = document.createElement('canvas');
           canvas.width = w;
           canvas.height = h;
           const ctx = canvas.getContext('2d');
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, w, h);
-          ctx.drawImage(img, 0, 0, w, h);
+          drawContained(ctx, img, w, h, srcW, srcH);
           return canvas.toDataURL('image/jpeg', quality);
         };
 
         try {
-          let dataUrl = tryEncode(width, height, JPEG_QUALITY);
+          let dataUrl = tryEncode(canvasW, canvasH, JPEG_QUALITY);
           let q = JPEG_QUALITY;
-          let w = width;
-          let h = height;
-          while (dataUrl.length > MAX_DATA_URL_CHARS && (q > 0.35 || w > 100)) {
-            if (q > 0.35) q = Math.max(0.35, q - 0.08);
-            else {
-              w = Math.max(100, Math.round(w * 0.75));
-              h = Math.max(100, Math.round(h * 0.75));
+          let w = canvasW;
+          let h = canvasH;
+          while (dataUrl.length > MAX_DATA_URL_CHARS && (q > 0.62 || w > 640)) {
+            if (q > 0.62) {
+              q = Math.max(0.62, q - 0.04);
+            } else if (square) {
+              w = Math.max(640, Math.round(w * 0.9));
+              h = w;
+            } else {
+              w = Math.max(640, Math.round(w * 0.85));
+              h = Math.max(640, Math.round(h * 0.85));
             }
             dataUrl = tryEncode(w, h, q);
           }
           if (dataUrl.length > MAX_DATA_URL_CHARS) {
-            reject(new Error('Image still too large — pick a smaller photo'));
+            reject(new Error('Image still too large for storage — use a clearer, smaller photo (under ~2MB)'));
             return;
           }
           resolve(dataUrl);

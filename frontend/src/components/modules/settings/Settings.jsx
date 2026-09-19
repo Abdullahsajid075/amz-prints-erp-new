@@ -24,7 +24,7 @@ import { DEFAULT_CRM_STAGES } from '@/utils/crmStages';
 const defaultSettings = {
   company: { name: 'AMZ Prints', tagline: 'Professional Printing & Advertising Services', address: '', phone: '', email: '', website: '', taxId: '', authorizedSignatory: 'Authorized Person', logo: '', stamp: '', signature: '' },
   invoice: { prefix: 'INV-', taxRate: 0, terms: 'Payment due within 30 days.', showQR: true, showStamp: true, showSignature: true, template: 'classic' },
-  theme: { primary: '#F26522', secondary: '#2E2E2E', accent: '#10B981' },
+  theme: { primary: '#ff6d00', secondary: '#2E2E2E', accent: '#10B981' },
   orders: { autoNumber: true, orderPrefix: 'ORD-', defaultStatus: 'Order Received', requireDeliveryDate: true },
   customers: { autoCode: true, codePrefix: 'CUST-', creditLimit: 50000, requirePhone: true },
   crm: { stages: DEFAULT_CRM_STAGES },
@@ -349,7 +349,7 @@ const Settings = () => {
           <h1 className="text-3xl font-bold" style={{ color: '#2E2E2E' }}>Settings</h1>
           <p className="text-gray-600 mt-1">Complete system configuration & preferences</p>
         </div>
-        <Button onClick={save} style={{ backgroundColor: primary || '#F26522' }} className="text-white" disabled={saving} data-testid="save-settings-button">
+        <Button onClick={save} style={{ backgroundColor: primary || '#ff6d00' }} className="text-white" disabled={saving} data-testid="save-settings-button">
           <Save className="h-4 w-4 mr-2" />{saving ? 'Saving...' : 'Save All Settings'}
         </Button>
       </div>
@@ -752,7 +752,7 @@ const Settings = () => {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button onClick={saveUser} className="text-white" style={{ backgroundColor: primary || '#F26522' }}>
+                  <Button onClick={saveUser} className="text-white" style={{ backgroundColor: primary || '#ff6d00' }}>
                     <Save className="h-4 w-4 mr-2" />{editingUserId ? 'Update User' : 'Add User'}
                   </Button>
                   {editingUserId && (
@@ -803,7 +803,7 @@ const Settings = () => {
                   <Label>Active Roles</Label>
                   <div className="flex flex-wrap gap-2 mt-2">
                     {settings.users.roles.map((r, i) => (
-                      <Badge key={r} className="gap-1 pr-1" style={{ backgroundColor: '#FFF3ED', color: '#F26522' }}>{r}
+                      <Badge key={r} className="gap-1 pr-1" style={{ backgroundColor: '#FFF3ED', color: '#ff6d00' }}>{r}
                         <button onClick={() => update('users', 'roles', settings.users.roles.filter((_, x) => x !== i))} className="hover:bg-orange-200 rounded p-0.5"><X className="h-3 w-3" /></button>
                       </Badge>
                     ))}

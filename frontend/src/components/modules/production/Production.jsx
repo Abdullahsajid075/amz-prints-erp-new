@@ -12,7 +12,7 @@ const STAGES = [
   { key: 'Order Received', label: 'Received', color: '#3B82F6' },
   { key: 'Designing', label: 'Designing', color: '#8B5CF6' },
   { key: 'Proof Approval', label: 'Proof Approval', color: '#F59E0B' },
-  { key: 'Printing', label: 'Printing', color: '#F26522' },
+  { key: 'Printing', label: 'Printing', color: '#ff6d00' },
   { key: 'Finishing', label: 'Finishing', color: '#EC4899' },
   { key: 'Packing', label: 'Packing', color: '#06B6D4' },
   { key: 'Ready', label: 'Ready', color: '#10B981' }
@@ -65,7 +65,7 @@ const Production = () => {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card><CardContent className="p-4 flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#F26522' }}><Factory className="h-5 w-5 text-white" /></div>
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#ff6d00' }}><Factory className="h-5 w-5 text-white" /></div>
           <div><p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">In Production</p><p className="text-lg font-bold">{totalInProduction}</p></div>
         </CardContent></Card>
         <Card><CardContent className="p-4 flex items-center gap-3">
@@ -110,13 +110,13 @@ const Production = () => {
                         </div>
                         <p className="text-xs text-gray-600 truncate">{o.customerName}</p>
                         <p className="text-[10px] text-gray-500 mt-0.5">Due {formatDate(o.deliveryDate)}</p>
-                        <p className="text-sm font-bold mt-1" style={{ color: '#F26522' }}>{formatCurrency(o.totalAmount)}</p>
+                        <p className="text-sm font-bold mt-1" style={{ color: '#ff6d00' }}>{formatCurrency(o.totalAmount)}</p>
                         <div className="flex gap-1 mt-2">
                           <Button size="sm" variant="ghost" className="h-7 px-2 text-xs flex-1" onClick={() => navigate(`/orders/${o.id}/edit`)}>
                             <Eye className="h-3 w-3 mr-1" />View
                           </Button>
                           {next && (
-                            <Button size="sm" className="h-7 px-2 text-xs text-white" style={{ backgroundColor: '#F26522' }} onClick={() => moveOrder(o, next.key)} data-testid={`move-${o.id}-${next.key}`}>
+                            <Button size="sm" className="h-7 px-2 text-xs text-white" style={{ backgroundColor: '#ff6d00' }} onClick={() => moveOrder(o, next.key)} data-testid={`move-${o.id}-${next.key}`}>
                               {next.label}<ChevronRight className="h-3 w-3 ml-0.5" />
                             </Button>
                           )}

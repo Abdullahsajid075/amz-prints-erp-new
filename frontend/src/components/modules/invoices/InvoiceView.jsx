@@ -18,7 +18,7 @@ const InvoiceView = ({ isPublic = false }) => {
   const [loading, setLoading] = useState(true);
 
   const template = brand?.invoice?.template || 'classic';
-  const accent = primary || '#F26522';
+  const accent = primary || '#ff6d00';
   const showQR = brand?.invoice?.showQR !== false;
   const showStamp = brand?.invoice?.showStamp !== false;
   const showSignature = brand?.invoice?.showSignature !== false;

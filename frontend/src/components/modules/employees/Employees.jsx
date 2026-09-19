@@ -99,7 +99,7 @@ const normalizeEmployee = (e) => ({
 
 const Employees = () => {
   const { primary, company } = useBrand();
-  const accent = primary || '#F26522';
+  const accent = primary || '#ff6d00';
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');

@@ -168,7 +168,7 @@ const Expenses = () => {
         </div>
         <Button
           onClick={openCreate}
-          style={{ backgroundColor: '#F26522' }}
+          style={{ backgroundColor: '#ff6d00' }}
           className="text-white"
           data-testid="add-expense-button"
         >
@@ -202,7 +202,7 @@ const Expenses = () => {
         </Card>
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#F26522' }}>
+            <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#ff6d00' }}>
               <Receipt className="h-6 w-6 text-white" />
             </div>
             <div>
@@ -274,7 +274,7 @@ const Expenses = () => {
               data-testid="expense-to-date"
             />
             <div className="flex gap-2">
-              <Button onClick={applyFilter} style={{ backgroundColor: '#F26522' }} className="text-white flex-1">
+              <Button onClick={applyFilter} style={{ backgroundColor: '#ff6d00' }} className="text-white flex-1">
                 <Filter className="h-4 w-4 mr-1" />
                 Apply
               </Button>
@@ -298,7 +298,7 @@ const Expenses = () => {
             <div className="text-center py-12">
               <Receipt className="h-12 w-12 mx-auto text-gray-300 mb-3" />
               <p className="text-gray-500 mb-4">No expenses recorded yet.</p>
-              <Button onClick={openCreate} style={{ backgroundColor: '#F26522' }} className="text-white">
+              <Button onClick={openCreate} style={{ backgroundColor: '#ff6d00' }} className="text-white">
                 <Plus className="h-4 w-4 mr-2" />
                 Record First Expense
               </Button>
@@ -357,7 +357,7 @@ const Expenses = () => {
                 <tfoot>
                   <tr className="border-t-2 font-bold" style={{ backgroundColor: '#FFF3ED' }}>
                     <td colSpan="5" className="py-3 px-4 text-right uppercase text-sm">Total:</td>
-                    <td className="py-3 px-4 text-right text-lg" style={{ color: '#F26522' }}>{formatCurrency(totals.total)}</td>
+                    <td className="py-3 px-4 text-right text-lg" style={{ color: '#ff6d00' }}>{formatCurrency(totals.total)}</td>
                     <td></td>
                   </tr>
                 </tfoot>
@@ -467,7 +467,7 @@ const Expenses = () => {
               </Button>
               <Button
                 type="submit"
-                style={{ backgroundColor: '#F26522' }}
+                style={{ backgroundColor: '#ff6d00' }}
                 className="text-white"
                 disabled={saving}
                 data-testid="save-expense-button"

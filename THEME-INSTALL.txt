@@ -1,0 +1,15 @@
+AMZ Prints theme install
+========================
+
+USE THIS FILE ONLY:
+  amz-prints-wp-install.zip
+
+Do NOT use GitHub green button "Code > Download ZIP" (that is the whole repo and will fail).
+
+WordPress admin:
+  Appearance > Themes > Add New > Upload Theme > choose amz-prints-wp-install.zip > Install Now > Activate
+
+Manual (if upload fails):
+  1. Unzip amz-prints-wp-install.zip on your computer
+  2. Upload the "amz-prints" folder to /wp-content/themes/
+  3. Appearance > Themes > Activate "AMZ Prints"

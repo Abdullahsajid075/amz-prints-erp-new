@@ -125,7 +125,7 @@ const POS = () => {
         <div className="text-sm font-semibold leading-snug line-clamp-2 min-h-[2.5rem]" style={{ color: '#2E2E2E' }}>
           {p.name}
         </div>
-        <div className="text-base font-bold mt-2" style={{ color: primary || '#F26522' }}>
+        <div className="text-base font-bold mt-2" style={{ color: primary || '#ff6d00' }}>
           {formatCurrency(p.rate || p.basePrice)}
         </div>
       </button>
@@ -397,7 +397,7 @@ const POS = () => {
                 key={f}
                 size="sm"
                 variant={filter === f ? 'default' : 'outline'}
-                style={filter === f ? { backgroundColor: primary || '#F26522' } : undefined}
+                style={filter === f ? { backgroundColor: primary || '#ff6d00' } : undefined}
                 className={filter === f ? 'text-white' : ''}
                 onClick={() => setFilter(f)}
               >
@@ -409,7 +409,7 @@ const POS = () => {
             {!filtered.length && (
               <div className="text-center text-gray-500 py-8 space-y-3 border border-dashed rounded-xl">
                 <p>No items in catalog</p>
-                <Button size="sm" style={{ backgroundColor: primary || '#F26522' }} className="text-white" onClick={() => navigate('/warehouse/products?new=1')}>
+                <Button size="sm" style={{ backgroundColor: primary || '#ff6d00' }} className="text-white" onClick={() => navigate('/warehouse/products?new=1')}>
                   <PackagePlus className="h-4 w-4 mr-2" />Add New Product
                 </Button>
               </div>
@@ -442,7 +442,7 @@ const POS = () => {
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <ShoppingCart className="h-5 w-5" style={{ color: primary || '#F26522' }} />
+              <ShoppingCart className="h-5 w-5" style={{ color: primary || '#ff6d00' }} />
               Cart
             </CardTitle>
           </CardHeader>
@@ -531,7 +531,7 @@ const POS = () => {
                     type="button"
                     size="sm"
                     variant={paymentMethod === m ? 'default' : 'outline'}
-                    style={paymentMethod === m ? { backgroundColor: primary || '#F26522' } : undefined}
+                    style={paymentMethod === m ? { backgroundColor: primary || '#ff6d00' } : undefined}
                     className={paymentMethod === m ? 'text-white' : ''}
                     onClick={() => setPaymentMethod(m)}
                   >
@@ -596,7 +596,7 @@ const POS = () => {
                         type="button"
                         size="sm"
                         variant={discountType === m.key ? 'default' : 'outline'}
-                        style={discountType === m.key ? { backgroundColor: primary || '#F26522' } : undefined}
+                        style={discountType === m.key ? { backgroundColor: primary || '#ff6d00' } : undefined}
                         className={`h-9 ${discountType === m.key ? 'text-white' : ''}`}
                         onClick={() => setDiscountType(m.key)}
                       >
@@ -628,12 +628,12 @@ const POS = () => {
               )}
               <div className="flex items-center justify-between">
                 <span className="font-semibold">Total due</span>
-                <span className="text-2xl font-bold" style={{ color: primary || '#F26522' }}>{formatCurrency(payable)}</span>
+                <span className="text-2xl font-bold" style={{ color: primary || '#ff6d00' }}>{formatCurrency(payable)}</span>
               </div>
             </div>
             <Button
               className="w-full text-white"
-              style={{ backgroundColor: primary || '#F26522' }}
+              style={{ backgroundColor: primary || '#ff6d00' }}
               disabled={checkingOut || !cart.length}
               onClick={checkout}
               data-testid="pos-checkout"

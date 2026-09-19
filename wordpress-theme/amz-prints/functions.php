@@ -9,17 +9,57 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AMZ_PRINTS_VERSION', '2.2.0' );
+define( 'AMZ_PRINTS_VERSION', '3.5.0' );
+
+/**
+ * Avoid long Hostinger CDN HTML cache hiding theme updates.
+ */
+function amz_prints_nocache_html_headers() {
+	if ( is_admin() ) {
+		return;
+	}
+	// HTML pages should revalidate quickly after theme publishes.
+	header( 'Cache-Control: no-cache, no-store, must-revalidate, max-age=0', true );
+	header( 'Pragma: no-cache', true );
+	header( 'Expires: 0', true );
+	header( 'CDN-Cache-Control: no-store', true );
+	header( 'Cloudflare-CDN-Cache-Control: no-store', true );
+}
+add_action( 'template_redirect', 'amz_prints_nocache_html_headers', 0 );
+
+/**
+ * Admin reminder: Customizer can show new theme while CDN serves old homepage.
+ */
+function amz_prints_admin_cache_notice() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		return;
+	}
+	$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+	if ( ! $screen || ! in_array( $screen->id, array( 'themes', 'dashboard', 'toplevel_page_hostinger' ), true ) ) {
+		// Show on Themes + Dashboard.
+		if ( ! $screen || ( 'themes' !== $screen->id && 'dashboard' !== $screen->id ) ) {
+			return;
+		}
+	}
+	echo '<div class="notice notice-warning"><p><strong>AMZ Prints:</strong> If Login shows in Customizer but not on the live homepage, purge <em>Hostinger Cache / CDN</em> (hPanel → Cache → Clear All). Test with <code>/?v=1</code> — that bypasses stale CDN HTML.</p></div>';
+}
+add_action( 'admin_notices', 'amz_prints_admin_cache_notice' );
 define( 'AMZ_PRINTS_DIR', get_template_directory() );
 define( 'AMZ_PRINTS_URI', get_template_directory_uri() );
 
+require_once AMZ_PRINTS_DIR . '/inc/services-catalog.php';
+require_once AMZ_PRINTS_DIR . '/inc/company-catalog.php';
+require_once AMZ_PRINTS_DIR . '/inc/catalog-profile-data.php';
+require_once AMZ_PRINTS_DIR . '/inc/catalog-page-helpers.php';
+require_once AMZ_PRINTS_DIR . '/inc/catalog-book-ui.php';
 require_once AMZ_PRINTS_DIR . '/inc/enqueue.php';
 require_once AMZ_PRINTS_DIR . '/inc/customizer.php';
 require_once AMZ_PRINTS_DIR . '/inc/post-types.php';
 require_once AMZ_PRINTS_DIR . '/inc/i18n.php';
-require_once AMZ_PRINTS_DIR . '/inc/services-catalog.php';
 require_once AMZ_PRINTS_DIR . '/inc/track-order.php';
 require_once AMZ_PRINTS_DIR . '/inc/erp-api.php';
+require_once AMZ_PRINTS_DIR . '/inc/customer-portal.php';
+require_once AMZ_PRINTS_DIR . '/inc/commerce.php';
 
 /**
  * Theme setup
@@ -46,7 +86,7 @@ function amz_prints_setup() {
 
 	add_image_size( 'amz-hero', 1920, 1080, true );
 	add_image_size( 'amz-card', 800, 600, true );
-	add_image_size( 'amz-product', 640, 640, true );
+	add_image_size( 'amz-product', 1200, 1200, false );
 
 	register_nav_menus( array(
 		'primary' => __( 'Primary Menu', 'amz-prints' ),
@@ -94,18 +134,71 @@ function amz_prints_mod( $key, $default = '' ) {
 }
 
 /**
+ * Hex color to RGB integers.
+ *
+ * @return int[]
+ */
+function amz_prints_hex_rgb( $hex ) {
+	$hex = ltrim( (string) $hex, '#' );
+	if ( 3 === strlen( $hex ) ) {
+		$hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
+	}
+	if ( 6 !== strlen( $hex ) ) {
+		return array( 0, 0, 0 );
+	}
+	return array(
+		hexdec( substr( $hex, 0, 2 ) ),
+		hexdec( substr( $hex, 2, 2 ) ),
+		hexdec( substr( $hex, 4, 2 ) ),
+	);
+}
+
+/**
+ * Darken a hex color by a 0–1 multiplier.
+ */
+function amz_prints_hex_shade( $hex, $factor = 0.85 ) {
+	$rgb = amz_prints_hex_rgb( $hex );
+	$factor = max( 0, min( 1, (float) $factor ) );
+	return sprintf(
+		'#%02x%02x%02x',
+		(int) round( $rgb[0] * $factor ),
+		(int) round( $rgb[1] * $factor ),
+		(int) round( $rgb[2] * $factor )
+	);
+}
+
+/**
  * Output inline CSS variables from Customizer
  */
 function amz_prints_custom_css_vars() {
-	$primary   = sanitize_hex_color( amz_prints_mod( 'amz_primary_color', '#F26522' ) );
-	$secondary = sanitize_hex_color( amz_prints_mod( 'amz_secondary_color', '#1A1A1A' ) );
-	$accent    = sanitize_hex_color( amz_prints_mod( 'amz_accent_color', '#10B981' ) );
+	$primary   = sanitize_hex_color( amz_prints_mod( 'amz_primary_color', '#0747a3' ) );
+	$secondary = sanitize_hex_color( amz_prints_mod( 'amz_secondary_color', '#111111' ) );
+	$accent    = sanitize_hex_color( amz_prints_mod( 'amz_accent_color', '#ff6d00' ) );
+	if ( ! $primary ) {
+		$primary = '#0747a3';
+	}
+	if ( ! $secondary ) {
+		$secondary = '#111111';
+	}
+	if ( ! $accent ) {
+		$accent = '#ff6d00';
+	}
+	$pr = amz_prints_hex_rgb( $primary );
+	$ac = amz_prints_hex_rgb( $accent );
 	?>
 	<style id="amz-prints-vars">
 		:root {
 			--amz-primary: <?php echo esc_attr( $primary ); ?>;
+			--amz-primary-soft: <?php echo esc_attr( sprintf( 'rgba(%d, %d, %d, 0.12)', $pr[0], $pr[1], $pr[2] ) ); ?>;
+			--amz-primary-deep: <?php echo esc_attr( amz_prints_hex_shade( $primary, 0.78 ) ); ?>;
+			--amz-primary-glow: <?php echo esc_attr( sprintf( 'rgba(%d, %d, %d, 0.28)', $pr[0], $pr[1], $pr[2] ) ); ?>;
 			--amz-secondary: <?php echo esc_attr( $secondary ); ?>;
 			--amz-accent: <?php echo esc_attr( $accent ); ?>;
+			--amz-accent-soft: <?php echo esc_attr( sprintf( 'rgba(%d, %d, %d, 0.12)', $ac[0], $ac[1], $ac[2] ) ); ?>;
+			--amz-accent-deep: <?php echo esc_attr( amz_prints_hex_shade( $accent, 0.88 ) ); ?>;
+			--amz-accent-glow: <?php echo esc_attr( sprintf( 'rgba(%d, %d, %d, 0.28)', $ac[0], $ac[1], $ac[2] ) ); ?>;
+			--amz-ink: <?php echo esc_attr( $secondary ); ?>;
+			--amz-text: <?php echo esc_attr( $secondary ); ?>;
 		}
 	</style>
 	<?php
@@ -126,6 +219,9 @@ add_filter( 'excerpt_length', 'amz_prints_excerpt_length' );
 function amz_prints_body_classes( $classes ) {
 	if ( is_front_page() ) {
 		$classes[] = 'amz-home';
+	}
+	if ( is_page_template( 'page-templates/template-cv-builder.php' ) || is_page( 'create-free-cv' ) ) {
+		$classes[] = 'amz-cv-builder';
 	}
 	return $classes;
 }
@@ -170,12 +266,19 @@ function amz_prints_default_pages() {
 		'how-we-work'      => array( 'title' => 'How We Work', 'template' => 'page-templates/template-how-we-work.php' ),
 		'nadra-e-services' => array( 'title' => 'NADRA E-Services', 'template' => 'page-templates/template-nadra.php' ),
 		'track-order'      => array( 'title' => 'Track Order', 'template' => 'page-templates/template-track-order.php' ),
+		'customer-login'   => array( 'title' => 'Customer Login', 'template' => 'page-templates/template-customer-login.php' ),
+		'my-account'       => array( 'title' => 'My Account', 'template' => 'page-templates/template-my-account.php' ),
+		'product'          => array( 'title' => 'Product', 'template' => 'page-templates/template-product.php' ),
+		'cart'             => array( 'title' => 'Cart', 'template' => 'page-templates/template-cart.php' ),
+		'checkout'         => array( 'title' => 'Checkout', 'template' => 'page-templates/template-checkout.php' ),
+		'digital-services'         => array( 'title' => 'Digital Services', 'template' => 'page-templates/template-digital-services.php' ),
+		'company-profile'          => array( 'title' => 'Company Profile', 'template' => 'page-templates/template-company-profile.php' ),
+		'company-profile-print'    => array( 'title' => 'Print & Design Profile', 'template' => 'page-templates/template-company-profile-print.php' ),
+		'company-profile-digital'  => array( 'title' => 'Digital Services Profile', 'template' => 'page-templates/template-company-profile-digital.php' ),
 		'gallery'          => array( 'title' => 'Gallery', 'template' => 'page-templates/template-gallery.php' ),
 		'quote'            => array( 'title' => 'Get a Quote', 'template' => 'page-templates/template-quote.php' ),
 		'contact'          => array( 'title' => 'Contact', 'template' => 'page-templates/template-contact.php' ),
-		'free-cv'          => array( 'title' => 'Free CV', 'template' => 'page-templates/template-free-cv.php' ),
-		'login'            => array( 'title' => 'Login', 'template' => 'page-templates/template-login.php' ),
-		'signup'           => array( 'title' => 'Sign Up', 'template' => 'page-templates/template-signup.php' ),
+		'create-free-cv'   => array( 'title' => 'Create Free CV', 'template' => 'page-templates/template-cv-builder.php' ),
 	);
 }
 
@@ -262,12 +365,15 @@ add_action( 'after_switch_theme', 'amz_prints_after_switch' );
  * Create missing pages on upgrade (fixes Services 404 without re-activating theme)
  */
 function amz_prints_maybe_upgrade_pages() {
-	if ( get_option( 'amz_prints_pages_ver' ) === '1.4.0' ) {
+	if ( get_option( 'amz_prints_pages_ver' ) === '3.5.0' ) {
 		return;
 	}
 	amz_prints_ensure_pages();
 	flush_rewrite_rules( false );
-	update_option( 'amz_prints_pages_ver', '1.4.0' );
+	set_theme_mod( 'amz_primary_color', '#0747a3' );
+	set_theme_mod( 'amz_secondary_color', '#111111' );
+	set_theme_mod( 'amz_accent_color', '#ff6d00' );
+	update_option( 'amz_prints_pages_ver', '3.5.0' );
 }
 add_action( 'init', 'amz_prints_maybe_upgrade_pages', 20 );
 
@@ -394,224 +500,3 @@ function amz_prints_handle_quote() {
 }
 add_action( 'admin_post_amz_quote_form', 'amz_prints_handle_quote' );
 add_action( 'admin_post_nopriv_amz_quote_form', 'amz_prints_handle_quote' );
-
-/**
- * Account pages helper — safe redirect target within the site.
- */
-function amz_prints_safe_redirect_target( $requested = '' ) {
-	$default = home_url( '/free-cv/' );
-	$requested = trim( (string) $requested );
-	if ( ! $requested ) {
-		return $default;
-	}
-	$target = wp_validate_redirect( $requested, $default );
-	return $target ? $target : $default;
-}
-
-/**
- * Handle custom LOGIN form (separate login page).
- */
-function amz_prints_handle_login() {
-	if ( ! isset( $_POST['amz_login_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['amz_login_nonce'] ) ), 'amz_login' ) ) {
-		wp_die( esc_html__( 'Security check failed.', 'amz-prints' ) );
-	}
-	$login    = sanitize_text_field( wp_unslash( $_POST['log'] ?? '' ) );
-	$password = (string) ( $_POST['pwd'] ?? '' );
-	$redirect = amz_prints_safe_redirect_target( wp_unslash( $_POST['redirect_to'] ?? '' ) );
-
-	$user = wp_signon( array(
-		'user_login'    => $login,
-		'user_password' => $password,
-		'remember'      => ! empty( $_POST['rememberme'] ),
-	), is_ssl() );
-
-	if ( is_wp_error( $user ) ) {
-		$url = add_query_arg( 'login_error', rawurlencode( $user->get_error_message() ), home_url( '/login/' ) );
-		if ( ! empty( $_POST['redirect_to'] ) ) {
-			$url = add_query_arg( 'redirect_to', rawurlencode( wp_unslash( $_POST['redirect_to'] ) ), $url );
-		}
-		wp_safe_redirect( $url );
-		exit;
-	}
-
-	wp_safe_redirect( $redirect );
-	exit;
-}
-add_action( 'admin_post_nopriv_amz_login', 'amz_prints_handle_login' );
-add_action( 'admin_post_amz_login', 'amz_prints_handle_login' );
-
-/**
- * Handle custom SIGN UP form (separate signup page). Creates + logs in the user.
- */
-function amz_prints_handle_register() {
-	if ( ! isset( $_POST['amz_signup_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['amz_signup_nonce'] ) ), 'amz_signup' ) ) {
-		wp_die( esc_html__( 'Security check failed.', 'amz-prints' ) );
-	}
-	$name     = sanitize_text_field( wp_unslash( $_POST['name'] ?? '' ) );
-	$email    = sanitize_email( wp_unslash( $_POST['email'] ?? '' ) );
-	$password = (string) ( $_POST['pwd'] ?? '' );
-	$redirect = amz_prints_safe_redirect_target( wp_unslash( $_POST['redirect_to'] ?? '' ) );
-
-	$fail = function ( $msg ) use ( $email ) {
-		$url = add_query_arg( array(
-			'signup_error' => rawurlencode( $msg ),
-			'email'        => rawurlencode( $email ),
-		), home_url( '/signup/' ) );
-		wp_safe_redirect( $url );
-		exit;
-	};
-
-	if ( ! $email || ! is_email( $email ) ) {
-		$fail( __( 'Please enter a valid email address.', 'amz-prints' ) );
-	}
-	if ( strlen( $password ) < 6 ) {
-		$fail( __( 'Password must be at least 6 characters.', 'amz-prints' ) );
-	}
-	if ( email_exists( $email ) ) {
-		$fail( __( 'An account with this email already exists. Please log in.', 'amz-prints' ) );
-	}
-
-	$username = sanitize_user( current( explode( '@', $email ) ), true );
-	$base     = $username ? $username : 'user';
-	$try      = $base;
-	$i        = 1;
-	while ( username_exists( $try ) ) {
-		$try = $base . $i;
-		$i++;
-	}
-
-	$user_id = wp_insert_user( array(
-		'user_login'   => $try,
-		'user_email'   => $email,
-		'user_pass'    => $password,
-		'display_name' => $name ? $name : $try,
-		'first_name'   => $name,
-		'role'         => 'subscriber',
-	) );
-
-	if ( is_wp_error( $user_id ) ) {
-		$fail( $user_id->get_error_message() );
-	}
-
-	wp_set_current_user( $user_id );
-	wp_set_auth_cookie( $user_id, true, is_ssl() );
-	wp_safe_redirect( $redirect );
-	exit;
-}
-add_action( 'admin_post_nopriv_amz_register', 'amz_prints_handle_register' );
-add_action( 'admin_post_amz_register', 'amz_prints_handle_register' );
-
-/**
- * Handle logout link (from Free CV portal).
- */
-function amz_prints_handle_logout() {
-	if ( ! isset( $_GET['amz_logout_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['amz_logout_nonce'] ) ), 'amz_logout' ) ) {
-		wp_die( esc_html__( 'Security check failed.', 'amz-prints' ) );
-	}
-	wp_logout();
-	wp_safe_redirect( home_url( '/login/' ) );
-	exit;
-}
-add_action( 'admin_post_amz_logout', 'amz_prints_handle_logout' );
-add_action( 'admin_post_nopriv_amz_logout', 'amz_prints_handle_logout' );
-
-/**
- * Resolve a Customizer media attachment ID to a URL (empty string if none).
- */
-function amz_prints_attachment_url( $id, $size = 'large' ) {
-	$id = absint( $id );
-	if ( ! $id ) {
-		return '';
-	}
-	$url = wp_get_attachment_image_url( $id, $size );
-	return $url ? $url : '';
-}
-
-/**
- * Hero product parts (4 rotating tiles) from Customizer, with sensible fallbacks.
- *
- * @return array List of { image, label, url }.
- */
-function amz_prints_hero_parts() {
-	$defaults = array(
-		array( 'Business Cards', 'https://images.unsplash.com/photo-1611095973763-414019e72400?auto=format&fit=crop&w=600&q=80' ),
-		array( 'Banners & Signage', 'https://images.unsplash.com/photo-1601049541289-9b1b7bbbfe19?auto=format&fit=crop&w=600&q=80' ),
-		array( 'Packaging & Boxes', 'https://images.unsplash.com/photo-1607083206968-13611e3d76db?auto=format&fit=crop&w=600&q=80' ),
-		array( 'Custom Apparel', 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=600&q=80' ),
-	);
-	$parts = array();
-	for ( $i = 1; $i <= 4; $i++ ) {
-		$image = amz_prints_attachment_url( amz_prints_mod( "amz_hero_part_{$i}_image", 0 ), 'amz-card' );
-		$label = trim( (string) amz_prints_mod( "amz_hero_part_{$i}_label", '' ) );
-		$url   = trim( (string) amz_prints_mod( "amz_hero_part_{$i}_url", '' ) );
-		if ( ! $image ) {
-			$image = $defaults[ $i - 1 ][1];
-		}
-		if ( ! $label ) {
-			$label = $defaults[ $i - 1 ][0];
-		}
-		if ( ! $url ) {
-			$url = home_url( '/products/' );
-		}
-		$parts[] = array(
-			'image' => $image,
-			'label' => $label,
-			'url'   => $url,
-		);
-	}
-	return $parts;
-}
-
-/**
- * CV portal rotating advertisement images from Customizer.
- *
- * @return array { images: string[], url: string }
- */
-function amz_prints_cv_ads() {
-	$images = array();
-	for ( $i = 1; $i <= 3; $i++ ) {
-		$url = amz_prints_attachment_url( amz_prints_mod( "amz_cv_ad_{$i}", 0 ), 'large' );
-		if ( $url ) {
-			$images[] = $url;
-		}
-	}
-	if ( empty( $images ) ) {
-		$images = array(
-			'https://images.unsplash.com/photo-1586953208448-b95a79798f07?auto=format&fit=crop&w=900&q=80',
-			'https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=900&q=80',
-			'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?auto=format&fit=crop&w=900&q=80',
-		);
-	}
-	return array(
-		'images' => $images,
-		'url'    => trim( (string) amz_prints_mod( 'amz_cv_ad_url', '' ) ),
-	);
-}
-
-/**
- * CV portal vertical side banner (image + link to a Store product).
- *
- * @return array { image: string, url: string }
- */
-function amz_prints_cv_banner() {
-	$image  = amz_prints_attachment_url( amz_prints_mod( 'amz_cv_banner_image', 0 ), 'large' );
-	$custom = trim( (string) amz_prints_mod( 'amz_cv_banner_url', '' ) );
-	$url    = $custom;
-	if ( ! $url ) {
-		$pid = absint( amz_prints_mod( 'amz_cv_banner_product', 0 ) );
-		if ( $pid ) {
-			$permalink = get_permalink( $pid );
-			$url       = $permalink ? $permalink : '';
-		}
-	}
-	if ( ! $image ) {
-		$image = 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=500&q=80';
-	}
-	if ( ! $url ) {
-		$url = home_url( '/products/' );
-	}
-	return array(
-		'image' => $image,
-		'url'   => $url,
-	);
-}

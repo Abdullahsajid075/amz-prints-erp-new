@@ -27,7 +27,15 @@ get_header();
 					<a href="<?php the_permalink(); ?>">
 						<div class="product-tile__media">
 							<?php if ( has_post_thumbnail() ) : ?>
-								<?php the_post_thumbnail( 'amz-product' ); ?>
+								<?php
+								the_post_thumbnail(
+									'amz-product',
+									array(
+										'class'   => 'amz-product-photo',
+										'loading' => 'lazy',
+									)
+								);
+								?>
 							<?php else : ?>
 								<div class="product-tile__placeholder" aria-hidden="true">
 									<span><?php echo esc_html( mb_substr( get_the_title(), 0, 1 ) ); ?></span>

@@ -42,7 +42,7 @@ const OrderForm = () => {
   const isEdit = !!orderId;
   const prefillTokenNo = searchParams.get('tokenNo') || '';
   const { primary, company } = useBrand();
-  const accent = primary || '#F26522';
+  const accent = primary || '#ff6d00';
 
   const [formData, setFormData] = useState({
     customerName: '',

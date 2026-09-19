@@ -176,20 +176,20 @@ const OrdersList = () => {
         <style>
           @page { size: A4; margin: 12mm; }
           body { font-family: 'Poppins', system-ui, sans-serif; color: #1F2937; margin: 0; }
-          .head { display:flex; justify-content:space-between; align-items:center; border-bottom:3px solid #F26522; padding-bottom:12px; margin-bottom:16px; }
-          .brand { font-size: 22px; font-weight: 800; color:#F26522; }
+          .head { display:flex; justify-content:space-between; align-items:center; border-bottom:3px solid #ff6d00; padding-bottom:12px; margin-bottom:16px; }
+          .brand { font-size: 22px; font-weight: 800; color:#ff6d00; }
           .tag { font-size: 11px; color:#6B7280; }
           .meta { text-align:right; font-size:12px; }
           .meta .id { font-size:18px; font-weight:700; color:#1F2937; }
           .grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; }
           .box { border:1px solid #E5E7EB; border-radius:8px; padding:10px 12px; font-size:12px; }
-          .box h4 { margin:0 0 6px; font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:#F26522; }
+          .box h4 { margin:0 0 6px; font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:#ff6d00; }
           table { width:100%; border-collapse:collapse; margin-top:8px; font-size:12px; }
           th { background:#1F2937; color:#fff; padding:8px; text-align:left; text-transform:uppercase; font-size:10px; letter-spacing:.06em; }
           td { padding:8px; border-bottom:1px solid #E5E7EB; }
           .totals { margin-top:12px; margin-left:auto; width:280px; font-size:12px; }
           .totals div { display:flex; justify-content:space-between; padding:4px 8px; }
-          .totals .grand { background:#F26522; color:white; border-radius:6px; padding:8px; font-weight:700; font-size:14px; }
+          .totals .grand { background:#ff6d00; color:white; border-radius:6px; padding:8px; font-weight:700; font-size:14px; }
           .footer { margin-top:24px; text-align:center; font-size:10px; color:#6B7280; border-top:1px solid #E5E7EB; padding-top:10px; }
           @media print { .no-print { display:none } }
         </style></head><body>
@@ -270,7 +270,7 @@ const OrdersList = () => {
 
   const renderCard = (order) => (
     <div key={order.id} className="group relative overflow-hidden rounded-xl bg-white border border-gray-100 p-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300" data-testid={`order-card-${order.id}`}>
-      <div className="absolute top-0 left-0 right-0 h-1" style={{ background: 'linear-gradient(90deg, #F26522, #FF8A50)' }} />
+      <div className="absolute top-0 left-0 right-0 h-1" style={{ background: 'linear-gradient(90deg, #ff6d00, #FF8A50)' }} />
       <div className="flex items-start justify-between mb-3">
         <div className="min-w-0">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Order</p>
@@ -290,10 +290,10 @@ const OrdersList = () => {
       </div>
       <div className="flex items-end justify-between pt-2 border-t border-gray-100 mb-2">
         <span className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Total</span>
-        <span className="text-lg font-bold" style={{ color: '#F26522' }}>{formatCurrency(orderDisplayTotal(order))}</span>
+        <span className="text-lg font-bold" style={{ color: '#ff6d00' }}>{formatCurrency(orderDisplayTotal(order))}</span>
       </div>
       <div className="flex items-center gap-1">
-        <Button size="sm" className="flex-1 text-white text-xs h-8" style={{ backgroundColor: '#F26522' }} onClick={() => handleView(order.id)} data-testid={`view-order-${order.id}`}>
+        <Button size="sm" className="flex-1 text-white text-xs h-8" style={{ backgroundColor: '#ff6d00' }} onClick={() => handleView(order.id)} data-testid={`view-order-${order.id}`}>
           <Eye className="h-3 w-3 mr-1" />View
         </Button>
         {order.status === 'Ready' && (
@@ -305,17 +305,17 @@ const OrdersList = () => {
             onClick={() => navigate(`/orders/${order.id}/delivery-slip`)}
             data-testid={`delivery-slip-${order.id}`}
           >
-            <Truck className="h-3.5 w-3.5" style={{ color: '#F26522' }} />
+            <Truck className="h-3.5 w-3.5" style={{ color: '#ff6d00' }} />
           </Button>
         )}
         <Button size="icon" variant="outline" className="h-8 w-8" title="Generate Invoice" onClick={() => handleGenerateInvoice(order)} data-testid={`invoice-order-${order.id}`}>
-          <Receipt className="h-3.5 w-3.5" style={{ color: '#F26522' }} />
+          <Receipt className="h-3.5 w-3.5" style={{ color: '#ff6d00' }} />
         </Button>
         <Button size="icon" variant="outline" className="h-8 w-8 text-green-600 hover:bg-green-50" title="WhatsApp" onClick={() => handleWhatsApp(order)} data-testid={`whatsapp-order-${order.id}`}>
           <MessageCircle className="h-3.5 w-3.5" />
         </Button>
         <Button size="icon" variant="outline" className="h-8 w-8" title="Copy tracking link" onClick={() => copyTrackingLink(order)} data-testid={`track-link-${order.id}`}>
-          <Link2 className="h-3.5 w-3.5" style={{ color: '#F26522' }} />
+          <Link2 className="h-3.5 w-3.5" style={{ color: '#ff6d00' }} />
         </Button>
         <Button size="icon" variant="outline" className="h-8 w-8" title="Print" onClick={() => handlePrint(order)} data-testid={`print-order-${order.id}`}>
           <Printer className="h-3.5 w-3.5" />
@@ -334,7 +334,7 @@ const OrdersList = () => {
           <h1 className="text-3xl font-bold" style={{ color: '#1F2937' }}>Orders</h1>
           <p className="text-gray-600 mt-1">In-process orders as cards · completed orders in the list below</p>
         </div>
-        <Button onClick={() => navigate('/orders/new')} style={{ backgroundColor: '#F26522' }} className="text-white" data-testid="create-order-button">
+        <Button onClick={() => navigate('/orders/new')} style={{ backgroundColor: '#ff6d00' }} className="text-white" data-testid="create-order-button">
           <Plus className="h-4 w-4 mr-2" />Create Order
         </Button>
       </div>
@@ -353,7 +353,7 @@ const OrdersList = () => {
                 {Object.values(ORDER_STATUS).map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Button onClick={fetchOrders} style={{ backgroundColor: '#F26522' }} className="text-white" data-testid="search-button">
+            <Button onClick={fetchOrders} style={{ backgroundColor: '#ff6d00' }} className="text-white" data-testid="search-button">
               <Search className="h-4 w-4 mr-2" />Search
             </Button>
           </div>
@@ -408,14 +408,14 @@ const OrdersList = () => {
                       <td className="py-2.5 px-3 truncate max-w-[180px]">{order.customerName}</td>
                       <td className="py-2.5 px-3 text-gray-600 hidden md:table-cell">{formatDate(order.date)}</td>
                       <td className="py-2.5 px-3 text-gray-600 hidden md:table-cell">{formatDate(order.deliveryDate)}</td>
-                      <td className="py-2.5 px-3 text-right font-bold" style={{ color: '#F26522' }}>{formatCurrency(orderDisplayTotal(order))}</td>
+                      <td className="py-2.5 px-3 text-right font-bold" style={{ color: '#ff6d00' }}>{formatCurrency(orderDisplayTotal(order))}</td>
                       <td className="py-2.5 px-3"><Badge className={`${getStatusColor(order.status)} text-[10px]`}>{order.status}</Badge></td>
                       <td className="py-2.5 px-3 text-right">
                         <div className="flex items-center gap-1 justify-end">
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleView(order.id)} title="View"><Eye className="h-4 w-4" /></Button>
-                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleGenerateInvoice(order)} title="Invoice"><Receipt className="h-4 w-4" style={{ color: '#F26522' }} /></Button>
+                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleGenerateInvoice(order)} title="Invoice"><Receipt className="h-4 w-4" style={{ color: '#ff6d00' }} /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600" onClick={() => handleWhatsApp(order)} title="WhatsApp"><MessageCircle className="h-4 w-4" /></Button>
-                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => copyTrackingLink(order)} title="Copy tracking link"><Link2 className="h-4 w-4" style={{ color: '#F26522' }} /></Button>
+                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => copyTrackingLink(order)} title="Copy tracking link"><Link2 className="h-4 w-4" style={{ color: '#ff6d00' }} /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handlePrint(order)} title="Print"><Printer className="h-4 w-4" /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleDuplicate(order.id)} title="Duplicate"><Copy className="h-4 w-4" /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleDelete(order.id)} title="Delete"><Trash2 className="h-4 w-4 text-red-600" /></Button>
@@ -437,7 +437,7 @@ const OrdersList = () => {
             <div className="flex items-start justify-between">
               <div>
                 <DialogTitle className="text-2xl font-bold flex items-center gap-3" style={{ color: '#1F2937' }}>
-                  <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#F26522' }}>
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#ff6d00' }}>
                     <FileText className="h-5 w-5 text-white" />
                   </div>
                   Order Details
@@ -451,7 +451,7 @@ const OrdersList = () => {
           {viewOrder && (
             <div className="space-y-4 mt-4">
               <div className="rounded-lg p-4" style={{ backgroundColor: '#FFF3ED' }}>
-                <h4 className="text-sm font-semibold uppercase tracking-wider mb-3 flex items-center gap-2" style={{ color: '#F26522' }}>
+                <h4 className="text-sm font-semibold uppercase tracking-wider mb-3 flex items-center gap-2" style={{ color: '#ff6d00' }}>
                   <User className="h-4 w-4" />Customer Information
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -490,7 +490,7 @@ const OrdersList = () => {
                         </div>
                         <div className="text-right shrink-0 ml-3">
                           <p className="text-sm text-gray-600">{product.quantity} × {formatCurrency(product.rate)}</p>
-                          <p className="font-bold" style={{ color: '#F26522' }}>{formatCurrency(product.quantity * product.rate)}</p>
+                          <p className="font-bold" style={{ color: '#ff6d00' }}>{formatCurrency(product.quantity * product.rate)}</p>
                         </div>
                       </div>
                     ))}
@@ -498,7 +498,7 @@ const OrdersList = () => {
                 </div>
               )}
 
-              <div className="rounded-lg p-4" style={{ background: 'linear-gradient(135deg, #F26522 0%, #E55511 100%)' }}>
+              <div className="rounded-lg p-4" style={{ background: 'linear-gradient(135deg, #ff6d00 0%, #E55511 100%)' }}>
                 <h4 className="text-sm font-semibold uppercase tracking-wider mb-3 text-white/90">Payment Summary</h4>
                 <div className="grid grid-cols-3 gap-4">
                   <div><p className="text-xs text-white/80 mb-1">Total</p><p className="text-xl font-bold text-white">{formatCurrency(viewOrder.totalAmount || 0)}</p></div>
@@ -525,8 +525,8 @@ const OrdersList = () => {
                   </Button>
                 )}
                 <Button variant="outline" className="text-green-700" onClick={() => handleWhatsApp(viewOrder)}><MessageCircle className="h-4 w-4 mr-1" />WhatsApp</Button>
-                <Button variant="outline" onClick={() => handleGenerateInvoice(viewOrder)}><Receipt className="h-4 w-4 mr-1" style={{ color: '#F26522' }} />Invoice</Button>
-                <Button style={{ backgroundColor: '#F26522' }} className="text-white" onClick={() => { setViewOpen(false); navigate(`/orders/${viewOrder.id}/edit`); }} data-testid="edit-from-dialog-button">
+                <Button variant="outline" onClick={() => handleGenerateInvoice(viewOrder)}><Receipt className="h-4 w-4 mr-1" style={{ color: '#ff6d00' }} />Invoice</Button>
+                <Button style={{ backgroundColor: '#ff6d00' }} className="text-white" onClick={() => { setViewOpen(false); navigate(`/orders/${viewOrder.id}/edit`); }} data-testid="edit-from-dialog-button">
                   <Edit className="h-4 w-4 mr-1" />Edit
                 </Button>
               </>
