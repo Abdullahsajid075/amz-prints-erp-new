@@ -13,7 +13,9 @@ Live ERP today: Google Sheets + Apps Script. After cutover: **same screens**, da
      - `SUPABASE_API_KEY` (service role, server only)
      - `CORS_ORIGINS=https://erp.amzprints.com,https://amzprints.com,http://localhost:5173`
    - Deploy → copy URL (example `https://amz-erp-api.vercel.app`)
-   - Browser check: `https://YOUR-API.vercel.app/health` → `{"ok":true,"backend":"supabase",...}`
+   - Browser check: `https://YOUR-API.vercel.app` **or** `https://YOUR-API.vercel.app/health`  
+     Should show JSON: `{"ok":true,"backend":"supabase",...}`  
+     Empty `/` with no rewrite used to 404 — do not expect the ERP UI on this project.
 3. **Copy data** — on your PC, `api/.env` with Supabase keys + live GAS URL + admin password, then:
    ```bash
    cd api
