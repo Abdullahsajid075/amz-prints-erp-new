@@ -12,7 +12,17 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '..', '.e
 const { supabase } = require('../db');
 const { asArray, parseImages } = require('../lib/helpers');
 
-const GAS_API_URL = process.env.GAS_API_URL || process.env.REACT_APP_GAS_API_URL || '';
+/** Same contract as frontend gasClient: {GAS_EXEC_URL}?path=/orders&token=... never /exec/auth/login */
+function normalizeGasExecUrl(raw) {
+  let s = String(raw || '').trim().replace(/^['"]|['"]$/g, '');
+  s = s.replace(/\/+$/, '');
+  s = s.replace(/\/auth\/login$/i, '');
+  return s;
+}
+
+const GAS_API_URL = normalizeGasExecUrl(
+  process.env.GAS_API_URL || process.env.REACT_APP_GAS_API_URL || ''
+);
 const GAS_USER = process.env.GAS_ADMIN_USER || process.env.DEFAULT_ADMIN_USER || 'admin';
 const GAS_PASS = process.env.GAS_ADMIN_PASSWORD || '';
 
@@ -25,29 +35,91 @@ function unwrap(payload) {
   return rest;
 }
 
-async function gasRequest(method, path, { token, data } = {}) {
+function isRedirectStatus(status) {
+  return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
+}
+
+/**
+ * Apps Script /exec 302s to script.googleusercontent.com.
+ * Node fetch (redirect:follow) turns 302 POST into GET and Google returns Drive HTML.
+ * Keep POST + body across redirects, matching browser/gasClient.
+ */
+async function fetchGas(url, init, hops = 0) {
+  if (hops > 8) throw new Error('Too many GAS redirects');
+  const res = await fetch(url, { ...init, redirect: 'manual' });
+  const via = (() => {
+    try {
+      const u = new URL(url);
+      return `${res.status} ${u.host}${u.pathname}`;
+    } catch {
+      return String(res.status);
+    }
+  })();
+  if (hops === 0 || isRedirectStatus(res.status)) {
+    if (process.env.GAS_DEBUG) console.log('  GAS hop:', via);
+  }
+  if (isRedirectStatus(res.status)) {
+    const loc = res.headers.get('location') || '';
+    await res.arrayBuffer().catch(() => {});
+    if (!loc) throw new Error(`GAS redirect ${res.status} without Location`);
+    let nextUrl;
+    try {
+      nextUrl = new URL(loc, url);
+    } catch {
+      throw new Error('GAS redirect Location unreadable');
+    }
+    if (process.env.GAS_DEBUG) console.log('  GAS Location:', nextUrl.host + nextUrl.pathname);
+    // /exec 302s to /macros/echo which only accepts GET; the POST already ran on /exec.
+    const nextInit = { method: 'GET', headers: { Accept: 'application/json,text/plain,*/*' } };
+    return fetchGas(nextUrl.toString(), nextInit, hops + 1);
+  }
+  if (process.env.GAS_DEBUG) console.log('  GAS final:', via, String(res.headers.get('content-type') || ''));
+  return res;
+}
+
+function gasUrl(path, { token, method } = {}) {
+  const apiPath = path.startsWith('/') ? path : `/${path}`;
   const url = new URL(GAS_API_URL);
-  url.searchParams.set('path', path);
-  let http = method.toUpperCase();
+  if (!/\/exec$/i.test(url.pathname)) {
+    throw new Error('GAS_API_URL must be the Apps Script /exec web-app URL (query path= only)');
+  }
+  url.searchParams.set('path', apiPath);
   if (token) url.searchParams.set('token', token);
+  let http = String(method || 'GET').toUpperCase();
   if (http !== 'GET' && http !== 'POST') {
     url.searchParams.set('_method', http);
     http = 'POST';
   }
-  const res = await fetch(url.toString(), {
+  return { url: url.toString(), http };
+}
+
+async function gasRequest(method, path, { token, data } = {}) {
+  const { url, http } = gasUrl(path, { token, method });
+  const init = {
     method: http,
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: http === 'GET' ? undefined : JSON.stringify(data || {}),
-    redirect: 'follow',
-  });
+  };
+  if (http === 'POST') init.body = JSON.stringify(data || {});
+  const res = await fetchGas(url, init);
   const text = await res.text();
+  const ctype = String(res.headers.get('content-type') || '');
+  if (!ctype.includes('json') && String(text).trimStart().startsWith('<')) {
+    throw new Error(
+      `${path}: HTML ${res.status} ${ctype} (len=${text.length}). GAS hop log above; expected JSON from /exec?path=`
+    );
+  }
   let payload;
-  try { payload = text ? JSON.parse(text) : {}; } catch {
-    throw new Error(`${path}: non-JSON from GAS (${text.slice(0, 80)})`);
+  try {
+    payload = text ? JSON.parse(text) : {};
+  } catch {
+    const preview = String(text || '').slice(0, 80).replace(/\s+/g, ' ');
+    throw new Error(
+      `${path}: non-JSON from GAS (${preview}). Use ?path=${path} on the /exec URL, not a /auth/login path.`
+    );
   }
   const body = unwrap(payload);
   if (body && body._status >= 400) throw new Error(`${path}: ${body.message || JSON.stringify(body)}`);
-  if (body && body.message && (body._status === 401 || /unauthor/i.test(body.message))) {
+  if (body && body.message && (body._status === 401 || /unauthor/i.test(String(body.message)))) {
     throw new Error(`${path}: ${body.message}`);
   }
   return body;
@@ -59,7 +131,17 @@ async function upsert(table, rows) {
   for (let i = 0; i < rows.length; i += chunk) {
     const slice = rows.slice(i, i + chunk);
     const { error } = await supabase.from(table).upsert(slice, { onConflict: 'id' });
-    if (error) throw new Error(`${table} upsert: ${error.message}`);
+    if (error) {
+      const missing = String(error.message || '').match(/Could not find the '([^']+)' column/);
+      if (missing) {
+        const col = missing[1];
+        console.warn(`  ${table}: omit missing column ${col} and retry`);
+        rows.forEach((r) => { delete r[col]; });
+        i -= chunk;
+        continue;
+      }
+      throw new Error(`${table} upsert: ${error.message}`);
+    }
     console.log(`  ${table}: ${Math.min(i + chunk, rows.length)}/${rows.length}`);
   }
   return { table, upserted: rows.length };
@@ -327,8 +409,12 @@ async function main() {
   }
 
   console.log('Logging into GAS…');
+  try {
+    const u = new URL(GAS_API_URL);
+    console.log('  GAS host/path:', u.host + u.pathname);
+  } catch { /* ignore */ }
   const login = await gasRequest('POST', '/auth/login', {
-    data: { username: GAS_USER, email: GAS_USER, password: GAS_PASS },
+    data: { email: GAS_USER, username: GAS_USER, password: GAS_PASS },
   });
   const token = login.token;
   if (!token) {
@@ -349,6 +435,22 @@ async function main() {
     if (table === 'quotations') {
       mapped.forEach((r) => { r.doc_type = r.doc_type || 'Quotation'; });
     }
+    if (target === 'users') {
+      const { data: existing } = await supabase.from('users').select('id,username');
+      const byName = new Map(
+        (existing || []).map((u) => [String(u.username || '').trim().toLowerCase(), u.id])
+      );
+      const seen = new Set();
+      mapped.forEach((r) => {
+        const name = String(r.username || '').trim().toLowerCase();
+        if (byName.has(name)) r.id = byName.get(name);
+      });
+      for (let i = mapped.length - 1; i >= 0; i--) {
+        const name = String(mapped[i].username || '').trim().toLowerCase();
+        if (!name || seen.has(name)) mapped.splice(i, 1);
+        else seen.add(name);
+      }
+    }
     const result = await upsert(target, mapped);
     report.push({ source: path, table: target, gas: rows.length, upserted: result.upserted, supabase: await countTable(target) });
   }
@@ -358,11 +460,15 @@ async function main() {
   if (settings && typeof settings === 'object') {
     const keys = Object.keys(settings).filter((k) => !k.startsWith('_'));
     for (const key of keys) {
+    if (settings[key] !== undefined) {
+      let value = settings[key];
+      if (value === null) value = {};
       await supabase.from('settings').upsert({
         key,
-        value: settings[key],
+        value,
         updated_at: new Date().toISOString(),
       });
+    }
     }
     report.push({ source: '/settings', table: 'settings', gas: keys.length, upserted: keys.length, supabase: await countTable('settings') });
   }
