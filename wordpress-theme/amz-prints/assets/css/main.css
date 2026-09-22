@@ -3849,9 +3849,6 @@ body.nav-open .nav-toggle__bar:nth-child(3) { transform: translateY(-8px) rotate
 
   .quick-actions { margin-top: 2rem; }
 
-  .site-header__actions .btn--primary.btn--sm { display: none; }
-  .site-header__actions .btn--login { display: inline-flex; }
-
   .shop-carousel__arrow { width: 36px; height: 36px; font-size: 0.95rem; }
 
   .shop-card { flex-basis: 88%; min-width: 260px; }

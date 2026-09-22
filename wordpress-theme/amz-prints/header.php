@@ -34,59 +34,20 @@
 
 		<nav class="site-nav" id="site-nav" aria-label="Primary">
 			<ul class="site-nav__list">
-				<li><a class="nav-link-main" href="<?php echo esc_url( home_url( '/' ) ); ?>">Home</a></li>
-				<li class="has-mega">
-					<button type="button" class="nav-link-main mega-trigger" aria-expanded="false" aria-controls="mega-menu-services" id="mega-trigger-btn">
-						Services
-						<svg class="mega-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-					</button>
-				</li>
-				<li><a class="nav-link-main" href="<?php echo esc_url( home_url( '/digital-services/' ) ); ?>">Digital Services</a></li>
-				<li><a class="nav-link-main" href="<?php echo esc_url( home_url( '/company-profile/' ) ); ?>">Company Profile</a></li>
-				<li><a class="nav-link-main" href="<?php echo esc_url( home_url( '/products/' ) ); ?>">Products</a></li>
-				<li><a class="nav-link-main" href="<?php echo esc_url( home_url( '/nadra-e-services/' ) ); ?>">NADRA</a></li>
-				<li class="has-more">
-					<button type="button" class="nav-link-main more-trigger" aria-expanded="false" aria-controls="more-menu">
-						More
-						<svg class="mega-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-					</button>
-					<ul class="more-menu" id="more-menu">
-						<li><a href="<?php echo esc_url( home_url( '/create-free-cv/' ) ); ?>"><?php esc_html_e( 'Create Free CV', 'amz-prints' ); ?></a></li>
-						<li><a href="<?php echo esc_url( home_url( '/pricing/' ) ); ?>">Pricing</a></li>
-						<li><a href="<?php echo esc_url( home_url( '/how-we-work/' ) ); ?>">How We Work</a></li>
-						<li><a href="<?php echo esc_url( home_url( '/track-order/' ) ); ?>">Track Order</a></li>
-						<li><a href="<?php echo esc_url( home_url( '/gallery/' ) ); ?>">Gallery</a></li>
-						<li><a href="<?php echo esc_url( home_url( '/about/' ) ); ?>">About</a></li>
-						<li><a href="<?php echo esc_url( home_url( '/contact/' ) ); ?>">Contact</a></li>
-						<li><a href="<?php echo esc_url( home_url( '/quote/' ) ); ?>">Get a Quote</a></li>
-					</ul>
-				</li>
-			</ul>
-
-			<ul class="site-nav__mobile-extra" aria-label="More pages">
-				<li><a href="<?php echo esc_url( home_url( '/create-free-cv/' ) ); ?>"><?php esc_html_e( 'Create Free CV', 'amz-prints' ); ?></a></li>
-				<li><a href="<?php echo esc_url( home_url( '/services/' ) ); ?>">All Services</a></li>
-				<li><a href="<?php echo esc_url( home_url( '/digital-services/' ) ); ?>">Digital Services</a></li>
-				<li><a href="<?php echo esc_url( home_url( '/company-profile/' ) ); ?>">Company Profile</a></li>
-				<li><a href="<?php echo esc_url( home_url( '/pricing/' ) ); ?>">Pricing</a></li>
-				<li><a href="<?php echo esc_url( home_url( '/how-we-work/' ) ); ?>">How We Work</a></li>
-				<li><a href="<?php echo esc_url( home_url( '/track-order/' ) ); ?>">Track Order</a></li>
-				<li><a href="<?php echo esc_url( home_url( '/gallery/' ) ); ?>">Gallery</a></li>
-				<li><a href="<?php echo esc_url( home_url( '/about/' ) ); ?>">About</a></li>
-				<li><a href="<?php echo esc_url( home_url( '/contact/' ) ); ?>">Contact</a></li>
-				<li><a href="<?php echo esc_url( home_url( '/quote/' ) ); ?>">Get a Quote</a></li>
+				<li><a class="nav-link-main" href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php esc_html_e( 'Home', 'amz-prints' ); ?></a></li>
+				<li><a class="nav-link-main" href="<?php echo esc_url( home_url( '/services/' ) ); ?>"><?php esc_html_e( 'Services', 'amz-prints' ); ?></a></li>
+				<li><a class="nav-link-main" href="<?php echo esc_url( home_url( '/products/' ) ); ?>"><?php esc_html_e( 'Products', 'amz-prints' ); ?></a></li>
+				<li><a class="nav-link-main" href="<?php echo esc_url( home_url( '/contact/' ) ); ?>"><?php esc_html_e( 'Contact', 'amz-prints' ); ?></a></li>
 			</ul>
 		</nav>
 
 		<div class="site-header__actions">
-			<a class="btn btn--ghost btn--sm btn--magnetic" href="<?php echo esc_url( home_url( '/quote/' ) ); ?>">Quote</a>
 			<?php if ( function_exists( 'amz_prints_customer_is_logged_in' ) && amz_prints_customer_is_logged_in() ) : ?>
 				<a class="btn btn--ghost btn--sm btn--magnetic" href="<?php echo esc_url( home_url( '/my-account/' ) ); ?>"><?php esc_html_e( 'Account', 'amz-prints' ); ?></a>
 			<?php else : ?>
 				<a class="btn btn--ghost btn--sm btn--magnetic" href="<?php echo esc_url( home_url( '/customer-login/' ) ); ?>"><?php esc_html_e( 'Log in', 'amz-prints' ); ?></a>
-				<a class="btn btn--ghost btn--sm btn--magnetic btn--quote-desk" href="<?php echo esc_url( home_url( '/customer-login/?tab=register' ) ); ?>"><?php esc_html_e( 'Sign up', 'amz-prints' ); ?></a>
+				<a class="btn btn--primary btn--sm btn--magnetic" href="<?php echo esc_url( home_url( '/customer-login/?tab=register' ) ); ?>"><?php esc_html_e( 'Sign up', 'amz-prints' ); ?></a>
 			<?php endif; ?>
-			<a class="btn btn--primary btn--sm btn--quote-desk btn--magnetic" href="<?php echo esc_url( home_url( '/products/' ) ); ?>">Shop</a>
 			<button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="site-nav" type="button" aria-label="Menu">
 				<span class="nav-toggle__bar"></span>
 				<span class="nav-toggle__bar"></span>
@@ -94,7 +55,6 @@
 			</button>
 		</div>
 	</div>
-	<?php get_template_part( 'template-parts/mega-menu', 'services' ); ?>
 </header>
 
 <main id="main" class="site-main">

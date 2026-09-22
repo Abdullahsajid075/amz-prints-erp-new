@@ -86,10 +86,6 @@ $is_forgot   = ( 'forgot' === $tab );
 					<span><?php esc_html_e( 'Password', 'amz-prints' ); ?></span>
 					<input type="password" name="password" required autocomplete="new-password" minlength="6">
 				</label>
-				<label>
-					<span><?php esc_html_e( 'Address (optional)', 'amz-prints' ); ?></span>
-					<textarea name="address" rows="2"></textarea>
-				</label>
 				<button type="submit" class="btn btn--primary btn--lg"><?php esc_html_e( 'Sign up', 'amz-prints' ); ?></button>
 				<p class="form-note"><?php esc_html_e( 'New accounts are added to AMZ Prints CRM automatically.', 'amz-prints' ); ?></p>
 				<p class="form-note" id="amz-customer-register-msg" hidden></p>

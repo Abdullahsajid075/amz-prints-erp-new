@@ -77,7 +77,6 @@ $cart_n  = function_exists( 'amz_prints_cart_count' ) ? (int) amz_prints_cart_co
 		<span>Cart</span>
 		<em data-cart-count <?php echo $cart_n ? '' : 'hidden'; ?>><?php echo esc_html( (string) $cart_n ); ?></em>
 	</a>
-	<a class="amz-dock__btn btn--magnetic" href="<?php echo esc_url( home_url( '/quote/' ) ); ?>">Quote</a>
 	<button type="button" class="amz-dock__btn" id="amz-back-top" aria-label="<?php esc_attr_e( 'Back to top', 'amz-prints' ); ?>">Top</button>
 </aside>
 
