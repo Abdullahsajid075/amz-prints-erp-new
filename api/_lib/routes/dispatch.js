@@ -129,6 +129,15 @@ async function dbSelect(table, cols, extraFn) {
   return [];
 }
 
+async function dbSelectSafe(table, cols, extraFn) {
+  try {
+    return await dbSelect(table, cols, extraFn);
+  } catch (err) {
+    console.error('dbSelectSafe', table, dbErrorMessage(err));
+    return [];
+  }
+}
+
 const LEAN_ORDER_COLS = 'id,order_id,date,customer_id,customer_phone,customer_name,status,doc_type,total_amount,balance_amount,delivery_date,tracking_number';
 const LEAN_INVOICE_COLS = 'id,customer_id,customer_phone,order_id,total,paid,previous_balance,status,invoice_no,date';
 const LEAN_PAYMENT_COLS = 'id,date,type,amount,customer_id,customer_phone,party_phone,category,method,notes,ref_id';
@@ -850,12 +859,12 @@ async function dispatch(req, res) {
         return true;
       };
       const [orders, customers, expenses, purchases, invoices, payments] = await Promise.all([
-        dbSelect('orders', LEAN_ORDER_COLS),
-        dbSelect('customers', 'id,phone,name,credit_balance'),
-        dbSelect('expenses', 'id,date,amount,approved,status,description,category'),
-        dbSelect('purchases', 'id,date,purchase_date,vendor_id,vendor_name,total,paid_amount,status'),
-        dbSelect('invoices', LEAN_INVOICE_COLS),
-        dbSelect('payments', 'id,date,type,amount'),
+        dbSelectSafe('orders', LEAN_ORDER_COLS),
+        dbSelectSafe('customers', 'id,phone,name,credit_balance'),
+        dbSelectSafe('expenses', 'id,date,amount,approved,status,description,category'),
+        dbSelectSafe('purchases', 'id,date,purchase_date,vendor_id,vendor_name,total,paid_amount,status'),
+        dbSelectSafe('invoices', LEAN_INVOICE_COLS),
+        dbSelectSafe('payments', LEAN_PAYMENT_COLS),
       ]);
       const quotations = (orders || []).filter((o) => isQuotation(o) && inRange(o.date));
       const realOrders = (orders || []).filter((o) => !isQuotation(o) && inRange(o.date) && !isCancelledStatus(o.status));
@@ -880,7 +889,14 @@ async function dispatch(req, res) {
       const cashIn = paymentRows.filter((p) => !/outflow|^out$/i.test(String(p.type || 'inflow'))).reduce((s, p) => s + num(p.amount), 0);
       const cashOut = paymentRows.filter((p) => /outflow|^out$/i.test(String(p.type || ''))).reduce((s, p) => s + num(p.amount), 0);
       const collected = cashIn;
-      const receivables = computeCompanyReceivables(orders || [], invoices || [], customers || [], payments || []);
+      let receivables = 0;
+      try {
+        receivables = computeCompanyReceivables(orders || [], invoices || [], customers || [], payments || []);
+      } catch (err) {
+        console.error('dashboard receivables', dbErrorMessage(err));
+        receivables = (customers || []).reduce((s, c) => s + Math.max(0, num(c.credit_balance) * -1), 0);
+        receivables += realOrders.reduce((s, o) => s + num(o.balance_amount), 0);
+      }
       const fulfillmentRate = realOrders.length ? Math.round((completedOrders / realOrders.length) * 100) : 0;
       const collectionRate = revenue > 0 ? Math.round((Math.min(collected, revenue) / revenue) * 100) : 0;
       const stats = {
@@ -916,12 +932,13 @@ async function dispatch(req, res) {
         })
         .sort((a, b) => num(b.balance_amount) - num(a.balance_amount))
         .slice(0, 12)
-        .map(mapOrder);
+        .map(mapOrder)
+        .filter(Boolean);
       if (path === '/dashboard/bootstrap') {
         return send(res, {
           stats,
-          recentOrders: realOrders.slice(-8).reverse().map(mapOrder),
-          recentExpenses: expenseRows.slice(-6).reverse().map(mapExpense),
+          recentOrders: realOrders.slice(-8).reverse().map(mapOrder).filter(Boolean),
+          recentExpenses: expenseRows.slice(-6).reverse().map(mapExpense).filter(Boolean),
           charts: {
             monthlySales: buildMonthlySales(orders || [], expenses || []),
             orderStatus: Object.keys(statusMap).map((name) => ({ name, value: statusMap[name] })),
@@ -932,16 +949,18 @@ async function dispatch(req, res) {
       return send(res, stats);
     }
     if (method === 'GET' && path === '/dashboard/charts') {
-      const [{ data: orders }, { data: expenses }] = await Promise.all([
-        supabase.from('orders').select('date,doc_type,status,total_amount'),
-        supabase.from('expenses').select('date,amount,approved,status'),
+      const [orders, expenses] = await Promise.all([
+        dbSelectSafe('orders', 'date,doc_type,status,total_amount'),
+        dbSelectSafe('expenses', 'date,amount,approved,status'),
       ]);
       const monthly = buildMonthlySales(orders || [], expenses || []);
       return send(res, { sales: monthly, expenses: monthly, monthlySales: monthly });
     }
     if (method === 'GET' && path === '/dashboard/recent-orders') {
-      const { data } = await supabase.from('orders').select(LEAN_ORDER_COLS).order('created_at', { ascending: false }).limit(20);
-      return send(res, (data || []).filter((o) => String(o.doc_type || '').toLowerCase() !== 'quotation').map(mapOrder));
+      const rows = await dbSelectSafe('orders', LEAN_ORDER_COLS, (q) => {
+        try { return q.order('date', { ascending: false }).limit(20); } catch { return q.limit(20); }
+      });
+      return send(res, (rows || []).filter((o) => String(o.doc_type || '').toLowerCase() !== 'quotation').map(mapOrder));
     }
 
     // Settings

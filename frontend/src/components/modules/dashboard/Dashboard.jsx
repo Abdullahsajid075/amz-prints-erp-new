@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { dashboardAPI } from '@/services/api';
 import { openPosCounterWindow } from '@/utils/posWindow';
+import { toast } from 'sonner';
 import { useAuth, getUserDisplayName } from '@/context/AuthContext';
 import { useBrand } from '@/context/BrandContext';
 import ReceivablesDialog from '@/components/shared/ReceivablesDialog';
@@ -138,26 +139,74 @@ const Dashboard = () => {
   const [recentExpenses, setRecentExpenses] = useState([]);
   const [chartData, setChartData] = useState({ monthlySales: [], orderStatus: [] });
   const [receivablesOpen, setReceivablesOpen] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
   const fetchDashboardDataWith = useCallback(async (range) => {
     const from = range?.from || '';
     const to = range?.to || '';
     setLoading(true);
-    try {
-      const params = {};
-      if (from) params.from = from;
-      if (to) params.to = to;
+    setLoadError('');
+    const params = {};
+    if (from) params.from = from;
+    if (to) params.to = to;
 
+    const applyStats = (payload) => {
+      if (!payload || typeof payload !== 'object') return false;
+      const statsObj = payload.stats && typeof payload.stats === 'object' ? payload.stats : payload;
+      if (statsObj.totalOrders == null && statsObj.revenue == null && !payload.stats) return false;
+      setStats((prev) => ({ ...prev, ...statsObj }));
+      return true;
+    };
+
+    let bootErr = null;
+    try {
       const boot = await dashboardAPI.bootstrap(params);
-      const data = boot.data || {};
-      setStats((prev) => ({ ...prev, ...(data.stats || {}) }));
-      setChartData(data.charts || { monthlySales: [], orderStatus: [] });
+      const data = boot.data?.stats ? boot.data : (boot.data?.data || boot.data || {});
+      applyStats(data);
+      if (data.charts) setChartData(data.charts);
       setRecentOrders(Array.isArray(data.recentOrders) ? data.recentOrders : []);
       setAttention(Array.isArray(data.attention) ? data.attention : []);
       setRecentExpenses(Array.isArray(data.recentExpenses) ? data.recentExpenses : []);
       setLoading(false);
+      return;
     } catch (error) {
-      console.error('Dashboard load failed', error);
+      bootErr = error;
+      console.error('Dashboard bootstrap failed', error);
+    }
+
+    try {
+      const [statsRes, chartsRes, recentRes] = await Promise.all([
+        dashboardAPI.getStats(params).catch(() => null),
+        dashboardAPI.getCharts(params).catch(() => null),
+        dashboardAPI.getRecentOrders(params).catch(() => null),
+      ]);
+      const gotStats = applyStats(statsRes?.data);
+      const charts = chartsRes?.data;
+      if (charts) {
+        setChartData({
+          monthlySales: charts.monthlySales || charts.sales || [],
+          orderStatus: charts.orderStatus || [],
+        });
+      }
+      const recent = recentRes?.data;
+      if (Array.isArray(recent)) setRecentOrders(recent);
+      else if (Array.isArray(recent?.data)) setRecentOrders(recent.data);
+
+      if (!gotStats && !charts && !recent) {
+        const msg = bootErr?.response?.data?.message
+          || bootErr?.message
+          || 'Dashboard could not load. Check API connection and tap Refresh.';
+        setLoadError(msg);
+        toast.error(msg);
+      }
+    } catch (fallbackErr) {
+      const msg = fallbackErr?.response?.data?.message
+        || fallbackErr?.message
+        || bootErr?.response?.data?.message
+        || 'Dashboard could not load. Try Refresh.';
+      setLoadError(msg);
+      toast.error(msg);
+    } finally {
       setLoading(false);
     }
   }, []);
@@ -227,6 +276,17 @@ const Dashboard = () => {
     <div className="erp-page space-y-5 relative" data-testid="dashboard">
       {loading && (
         <div className="absolute inset-0 z-10 bg-white/50 backdrop-blur-[1px] rounded-2xl pointer-events-none" />
+      )}
+      {loadError && (
+        <div
+          className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex flex-wrap items-center justify-between gap-3"
+          data-testid="dashboard-load-error"
+        >
+          <p className="text-sm text-amber-900">{loadError}</p>
+          <Button type="button" size="sm" onClick={fetchDashboardData} disabled={loading}>
+            Retry
+          </Button>
+        </div>
       )}
       {/* Command hero — ink + brand accent */}
       <div
