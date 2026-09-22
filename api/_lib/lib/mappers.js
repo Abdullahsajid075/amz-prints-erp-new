@@ -59,6 +59,19 @@ function mapOrder(row) {
 function mapProduct(row) {
   if (!row) return null;
   const rate = num(row.rate);
+  let images = row.images;
+  if (typeof images === 'string') {
+    try { images = JSON.parse(images); } catch { images = []; }
+  }
+  if (!Array.isArray(images)) images = [];
+  images = images.map((s) => String(s || '').trim()).filter(Boolean);
+  if (!images.length && row.image) images = [row.image];
+  let variations = row.variations;
+  if (typeof variations === 'string') {
+    try { variations = JSON.parse(variations); } catch { variations = []; }
+  }
+  if (!Array.isArray(variations)) variations = [];
+  const primaryImage = row.image || images[0] || '';
   return {
     id: row.id,
     name: row.name || '',
@@ -66,16 +79,22 @@ function mapProduct(row) {
     productType: row.product_type || 'Product',
     basePrice: rate,
     rate,
+    salePrice: num(row.sale_price),
     unit: row.unit || '',
     description: row.description || '',
+    fullDescription: row.full_description || '',
     status: row.status || 'Active',
     designer: row.designer || '',
     stock: num(row.stock),
     material: row.material || '',
     size: row.size || '',
     minQuantity: num(row.min_quantity),
-    image: row.image || '',
-    photo: row.image || '',
+    image: primaryImage,
+    photo: primaryImage,
+    images,
+    variations,
+    showOnWebsite: row.show_on_website !== false,
+    showOnTop: row.show_on_top === true,
     active: String(row.status || 'Active').toLowerCase() !== 'inactive',
   };
 }

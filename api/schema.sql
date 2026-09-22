@@ -82,8 +82,10 @@ create table if not exists products (
   name text default '',
   category text default '',
   rate numeric default 0,
+  sale_price numeric default 0,
   unit text default '',
   description text default '',
+  full_description text default '',
   status text default 'Active',
   product_type text default 'Product',
   designer text default '',
@@ -92,10 +94,21 @@ create table if not exists products (
   size text default '',
   min_quantity numeric default 0,
   image text default '',
+  images jsonb default '[]'::jsonb,
+  variations jsonb default '[]'::jsonb,
+  show_on_website boolean default true,
+  show_on_top boolean default false,
   created_at timestamptz default now()
 );
 
--- alter table products add column if not exists image text default '';
+-- Existing projects: run once in SQL editor to add columns the ERP product form saves.
+alter table products add column if not exists image text default '';
+alter table products add column if not exists sale_price numeric default 0;
+alter table products add column if not exists full_description text default '';
+alter table products add column if not exists images jsonb default '[]'::jsonb;
+alter table products add column if not exists variations jsonb default '[]'::jsonb;
+alter table products add column if not exists show_on_website boolean default true;
+alter table products add column if not exists show_on_top boolean default false;
 
 -- ========== ORDERS (+ quotations / POS via doc_type) ==========
 create table if not exists orders (
