@@ -36,6 +36,7 @@ import POS from '@/components/modules/pos/POS';
 import PrintingCostCalculator from '@/components/modules/calculator/PrintingCostCalculator';
 import PublicOrderTracking from '@/components/modules/tracking/PublicOrderTracking';
 import PublicEmployeeVerify from '@/components/modules/employees/PublicEmployeeVerify';
+import CustomerPortal from '@/components/modules/portal/CustomerPortal';
 
 /**
  * App shell (Brand + Auth) only mounts for protected routes.
@@ -69,6 +70,15 @@ function App() {
           element={(
             <BrandProvider>
               <InvoiceView isPublic={true} />
+            </BrandProvider>
+          )}
+        />
+        <Route
+          path="/portal"
+          element={(
+            <BrandProvider>
+              <CustomerPortal />
+              <Toaster position="top-right" richColors closeButton />
             </BrandProvider>
           )}
         />

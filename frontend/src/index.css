@@ -341,8 +341,10 @@ code {
 /* Print styles for invoice / quotation — fit A4, compact chrome, strong totals */
 @media print {
   @page { size: A4; margin: 10mm 9mm 12mm 9mm; }
-  .no-print, nav, aside, .invoice-container ~ * { display: none !important; }
+  .no-print, nav, aside, header, .erp-shell > nav, .erp-shell > aside { display: none !important; }
   body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  main { padding: 0 !important; margin: 0 !important; }
+  .erp-shell { background: white !important; }
   .invoice-container {
     box-shadow: none !important;
     border: none !important;

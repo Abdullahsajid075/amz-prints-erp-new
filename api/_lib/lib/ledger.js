@@ -62,6 +62,10 @@ function computeCustomerLedger(customer, orders, invoices, payments) {
   const orderBalanceSum = realOrders.reduce((s, o) => s + num(o.balance_amount), 0);
   const paymentPaid = pays.reduce((s, p) => {
     const t = String(p.type || 'inflow').toLowerCase();
+    const cat = String(p.category || '').toLowerCase();
+    if (t === 'adjustment' || t === 'credit_applied' || cat.includes('advance applied') || cat.includes('credit applied')) {
+      return s;
+    }
     if (t === 'outflow' || t === 'out') return s - num(p.amount);
     return s + num(p.amount);
   }, 0);
@@ -107,11 +111,13 @@ function computeCustomerLedger(customer, orders, invoices, payments) {
   pays.forEach((p) => {
     const amt = num(p.amount);
     if (!(amt > 0)) return;
-    const outflow = String(p.type || 'inflow').toLowerCase() === 'outflow' || String(p.type || '').toLowerCase() === 'out';
+    const t = String(p.type || 'inflow').toLowerCase();
+    const outflow = t === 'outflow' || t === 'out';
+    const adjustment = t === 'adjustment' || t === 'credit_applied';
     statement.push({
       date: p.date || '',
       type: outflow ? 'debit' : 'credit',
-      particular: p.notes || p.category || (outflow ? 'Payment out' : 'Payment received'),
+      particular: p.notes || p.category || (adjustment ? 'Advance applied' : (outflow ? 'Payment out' : 'Payment received')),
       reference: p.ref_id || p.id || '',
       invoiceNumber: '',
       orderId: '',

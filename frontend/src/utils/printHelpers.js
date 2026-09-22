@@ -151,3 +151,39 @@ export function printWithDocumentTitle(title, printFn = () => window.print()) {
   setTimeout(restore, 5000);
   printFn();
 }
+
+/** Print only a node (A4 invoice) — ERP chrome is not included. */
+export function printIsolatedNode(nodeOrId, title = 'Document') {
+  const node = typeof nodeOrId === 'string' ? document.getElementById(nodeOrId) : nodeOrId;
+  if (!node) {
+    printWithDocumentTitle(title);
+    return { ok: false, reason: 'missing_node' };
+  }
+  const styles = [...document.querySelectorAll('link[rel="stylesheet"], style')]
+    .map((el) => el.outerHTML)
+    .join('\n');
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>${String(title).replace(/[<>&]/g, '')}</title>
+  ${styles}
+  <style>
+    @page { size: A4 portrait; margin: 10mm 9mm 12mm 9mm; }
+    html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
+    .no-print { display: none !important; }
+    nav, aside, header { display: none !important; }
+    .invoice-container { box-shadow: none !important; max-width: 100% !important; margin: 0 !important; }
+  </style>
+</head>
+<body>
+  ${node.outerHTML}
+  <script>
+    window.onload = function () {
+      setTimeout(function () { window.print(); }, 280);
+    };
+  <\/script>
+</body>
+</html>`;
+  return printHtml(html, { fallbackPopup: true, width: 900, height: 1200 });
+}

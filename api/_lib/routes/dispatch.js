@@ -9,6 +9,7 @@ const {
   isAdminRole, userLabel, collectOrderIds, invoiceStatusFromPaid,
   makePortalPassword, checkPortalPassword, issueCustomerToken, parseCustomerToken,
   sanitizePortalCustomer, isBlocked, productFromBody,
+  withCustomerPhoto, customerPhoto,
 } = require('../lib/helpers');
 const {
   computeCustomerLedger,
@@ -35,6 +36,102 @@ function attachCustomerLedger(row, orders, invoices, payments) {
   api.payable = led.payable;
   return api;
 }
+
+function missingSchemaColumn(err) {
+  const msg = String((err && (err.message || err.details)) || err || '');
+  const m = msg.match(/Could not find the '([^']+)' column/i);
+  return m ? m[1] : '';
+}
+
+function dbErrorMessage(err) {
+  return String((err && (err.message || err.details || err.hint || err.code)) || err || '');
+}
+
+async function dbWrite(table, row, { mode = 'insert', id: rid } = {}) {
+  const payload = { ...row };
+  for (let attempt = 0; attempt < 16; attempt += 1) {
+    const q = mode === 'update'
+      ? supabase.from(table).update(payload).eq('id', rid).select('id')
+      : supabase.from(table).insert(payload).select('id');
+    const { data, error } = await q;
+    if (!error) {
+      if (mode === 'update' && rid && (!data || !data.length)) {
+        throw new Error('Record not found — nothing was updated');
+      }
+      return payload;
+    }
+    const col = missingSchemaColumn(error);
+    if (col && Object.prototype.hasOwnProperty.call(payload, col)) {
+      delete payload[col];
+      continue;
+    }
+    const msg = dbErrorMessage(error);
+    if (/invalid input|malformed json|jsonb|not a valid json/i.test(msg)) {
+      let converted = false;
+      ['images', 'variations', 'products', 'items', 'permissions', 'status_history', 'payment_history', 'order_ids'].forEach((k) => {
+        if (payload[k] != null && typeof payload[k] !== 'string') {
+          payload[k] = JSON.stringify(payload[k]);
+          converted = true;
+        }
+      });
+      if (converted) continue;
+    }
+    throw new Error(msg || 'Could not save record');
+  }
+  throw new Error('Could not save record');
+}
+
+function slimProductImages(images) {
+  const list = (Array.isArray(images) ? images : []).map((s) => String(s || '').trim()).filter(Boolean);
+  const http = list.filter((u) => /^https?:\/\//i.test(u));
+  const rest = list.filter((u) => !/^https?:\/\//i.test(u));
+  const out = [...http];
+  rest.forEach((u) => {
+    if (JSON.stringify([...out, u]).length > 160000) return;
+    out.push(u);
+  });
+  return out.slice(0, 5);
+}
+
+async function saveProductRow(row, { mode, id: rid } = {}) {
+  const payload = { ...row, images: slimProductImages(row.images) };
+  try {
+    return await dbWrite('products', payload, { mode, id: rid });
+  } catch (err) {
+    const msg = dbErrorMessage(err);
+    if (!/images|payload|too large|timeout|bytes|statement/i.test(msg) && payload.images) {
+      throw err;
+    }
+    const httpOnly = { ...payload, images: (payload.images || []).filter((u) => /^https?:\/\//i.test(String(u))) };
+    try {
+      return await dbWrite('products', httpOnly, { mode, id: rid });
+    } catch (err2) {
+      const core = { ...httpOnly };
+      delete core.images;
+      return dbWrite('products', core, { mode, id: rid });
+    }
+  }
+}
+
+async function dbSelect(table, cols, extraFn) {
+  let selectCols = cols;
+  for (let attempt = 0; attempt < 16; attempt += 1) {
+    let q = supabase.from(table).select(selectCols);
+    if (typeof extraFn === 'function') q = extraFn(q) || q;
+    const { data, error } = await q;
+    if (!error) return data || [];
+    const col = missingSchemaColumn(error);
+    if (!col) throw error;
+    const next = selectCols.split(',').map((s) => s.trim()).filter((c) => c && c !== col);
+    if (next.length === 0 || next.length === selectCols.split(',').length) throw error;
+    selectCols = next.join(',');
+  }
+  return [];
+}
+
+const LEAN_ORDER_COLS = 'id,order_id,date,customer_id,customer_phone,customer_name,status,doc_type,total_amount,balance_amount,delivery_date,tracking_number';
+const LEAN_INVOICE_COLS = 'id,customer_id,customer_phone,order_id,total,paid,previous_balance,status,invoice_no,date';
+const LEAN_PAYMENT_COLS = 'id,date,type,amount,customer_id,customer_phone,party_phone,category,method,notes,ref_id';
 
 function attachVendorPayables(row, purchases) {
   const api = mapVendor(row);
@@ -322,13 +419,73 @@ async function recordInvoicePayment(invoiceId, body = {}, user) {
 }
 
 async function nextOrderId(prefix = 'ORD') {
-  const { data } = await supabase.from('orders').select('order_id').order('created_at', { ascending: false }).limit(200);
-  let max = 0;
-  (data || []).forEach((r) => {
-    const m = String(r.order_id || '').match(/(\d+)\s*$/);
-    if (m) max = Math.max(max, Number(m[1]));
-  });
-  return `${prefix}-${String(max + 1).padStart(4, '0')}`;
+  return bumpDocumentSeq(`seq_${String(prefix).toLowerCase()}`, prefix, 4);
+}
+
+async function nextTrackingNumber() {
+  return bumpDocumentSeq('seq_trk', 'TRK', 5);
+}
+
+async function bumpDocumentSeq(seqId, prefix, pad) {
+  const { data: counter } = await supabase.from('counters').select('*').eq('id', seqId).maybeSingle();
+  let last = num(counter && counter.last_number);
+  if (!counter) {
+    const col = prefix === 'TRK' ? 'tracking_number' : 'order_id';
+    const { data: rows } = await supabase.from('orders').select(col).limit(2000);
+    (rows || []).forEach((r) => {
+      const m = String(r[col] || '').match(/(\d+)\s*$/);
+      if (m) last = Math.max(last, Number(m[1]));
+    });
+    await supabase.from('counters').upsert({
+      id: seqId,
+      counter_name: seqId,
+      prefix,
+      last_number: last,
+      status: 'Active',
+    });
+  }
+  const next = last + 1;
+  await supabase.from('counters').update({ last_number: next }).eq('id', seqId);
+  return `${prefix}-${String(next).padStart(pad, '0')}`;
+}
+
+async function applyCustomerAdvance({ customerId, amount, orderId, invoiceId, invoiceNo, method, notes, date }) {
+  const applied = num(amount);
+  if (!(applied > 0) || !customerId) return { applied: 0, creditAfter: 0 };
+  const cust = await loadCustomer(customerId);
+  if (!cust) return { applied: 0, creditAfter: 0 };
+  const available = num(cust.credit_balance);
+  const use = Math.min(applied, available);
+  if (!(use > 0)) return { applied: 0, creditAfter: available };
+  const creditAfter = Math.max(0, available - use);
+  await supabase.from('customers').update({ credit_balance: creditAfter }).eq('id', cust.id);
+  const ref = invoiceId || orderId || cust.id;
+  const { data: dup } = await supabase.from('payments')
+    .select('id')
+    .eq('ref_id', ref)
+    .eq('category', 'Advance Applied')
+    .eq('amount', use)
+    .limit(1);
+  if (dup && dup.length) {
+    return { applied: use, creditAfter, payment: null, duplicate: true };
+  }
+  const payRow = {
+    id: id('pay'),
+    date: date || today(),
+    type: 'adjustment',
+    category: 'Advance Applied',
+    ref_id: ref,
+    customer_name: cust.name,
+    customer_id: cust.id,
+    party_phone: cust.phone,
+    amount: use,
+    method: method || 'Advance',
+    notes: notes || `Advance applied${invoiceNo ? ` to ${invoiceNo}` : ''}${orderId ? ` / ${orderId}` : ''}`,
+    balance_due: 0,
+    total_amount: use,
+  };
+  await supabase.from('payments').insert(payRow);
+  return { applied: use, creditAfter, payment: mapPayment(payRow) };
 }
 
 async function upsertCustomerFromOrder(body) {
@@ -519,7 +676,7 @@ async function dispatch(req, res) {
             notify_email: true,
             portal_password: portal,
           };
-          await supabase.from('customers').insert(customer);
+          await dbWrite('customers', customer, { mode: 'insert' });
         }
         return send(res, { ok: true, token: issueCustomerToken(customer), customer: sanitizePortalCustomer(customer) });
       }
@@ -542,12 +699,42 @@ async function dispatch(req, res) {
         return send(res, { ok: true, token: issueCustomerToken(loginCust), customer: sanitizePortalCustomer(loginCust) });
       }
       if ((method === 'GET' || method === 'POST') && path === '/public/customer/me') {
-        const meTok = String(body.token || body.customerToken || req.query.token || '').trim();
+        const headerTok = String(req.headers?.authorization || '').replace(/^Bearer\s+/i, '').trim();
+        const meTok = String(body.token || body.customerToken || req.query.token || headerTok || '').trim();
         const payload = parseCustomerToken(meTok);
-        if (!payload) return sendError(res, 'Unauthorized', 401);
+        if (!payload) return sendError(res, 'Login required', 401);
         const me = await loadCustomer(payload.id);
         if (!me) return sendError(res, 'Unauthorized', 401);
-        return send(res, { ok: true, customer: sanitizePortalCustomer(me) });
+        const wantCid = String(req.query.c || req.query.cid || body.customerId || '').trim();
+        if (wantCid && wantCid !== String(me.id)) {
+          return sendError(res, 'This QR belongs to a different customer account. Please login with the matching account.', 403);
+        }
+        const [{ data: orders }, { data: invoices }, { data: payments }] = await Promise.all([
+          supabase.from('orders').select(LEAN_ORDER_COLS),
+          supabase.from('invoices').select(LEAN_INVOICE_COLS),
+          supabase.from('payments').select(LEAN_PAYMENT_COLS),
+        ]);
+        const led = computeCustomerLedger(me, orders || [], invoices || [], payments || []);
+        const relatedOrders = (orders || []).filter((o) =>
+          String(o.doc_type || 'Order').toLowerCase() !== 'quotation'
+          && (String(o.customer_id) === String(me.id) || (me.phone && String(o.customer_phone || '').replace(/\D/g, '').slice(-10) === String(me.phone).replace(/\D/g, '').slice(-10)))
+        );
+        const relatedInvoices = (invoices || []).filter((inv) => String(inv.customer_id) === String(me.id));
+        const relatedPayments = (payments || []).filter((p) => String(p.customer_id) === String(me.id));
+        return send(res, {
+          ok: true,
+          customer: {
+            ...sanitizePortalCustomer(me),
+            customerCode: me.customer_code || me.id,
+            outstanding: led.outstanding,
+            creditBalance: led.creditBalance,
+          },
+          ledger: led,
+          orders: relatedOrders.map(mapOrder),
+          invoices: relatedInvoices.map(mapInvoice),
+          payments: relatedPayments.map(mapPayment),
+          portalUrl: `/portal?c=${encodeURIComponent(me.id)}`,
+        });
       }
       if (method === 'POST' && (path === '/public/orders' || path === '/public/checkout')) {
         const orderTok = String(body.token || body.customerToken || req.query.token || '').trim();
@@ -600,7 +787,7 @@ async function dispatch(req, res) {
           status: 'Order Received',
         });
         row.order_id = await nextOrderId('WEB');
-        row.tracking_number = `TRK-${Math.floor(1000 + Math.random() * 9000)}`;
+        row.tracking_number = await nextTrackingNumber();
         row.status_history = [{ status: row.status, at: `${today()} ${nowTime()}`, note: 'Website order' }];
         await supabase.from('orders').insert(row);
         return send(res, { ok: true, order: mapOrder(row) });
@@ -662,13 +849,13 @@ async function dispatch(req, res) {
         if (to && dk > to) return false;
         return true;
       };
-      const [{ data: orders }, { data: customers }, { data: expenses }, { data: purchases }, { data: invoices }, { data: payments }] = await Promise.all([
-        supabase.from('orders').select('*'),
-        supabase.from('customers').select('*'),
-        supabase.from('expenses').select('*'),
-        supabase.from('purchases').select('*'),
-        supabase.from('invoices').select('*'),
-        supabase.from('payments').select('*'),
+      const [orders, customers, expenses, purchases, invoices, payments] = await Promise.all([
+        dbSelect('orders', LEAN_ORDER_COLS),
+        dbSelect('customers', 'id,phone,name,credit_balance'),
+        dbSelect('expenses', 'id,date,amount,approved,status,description,category'),
+        dbSelect('purchases', 'id,date,purchase_date,vendor_id,vendor_name,total,paid_amount,status'),
+        dbSelect('invoices', LEAN_INVOICE_COLS),
+        dbSelect('payments', 'id,date,type,amount'),
       ]);
       const quotations = (orders || []).filter((o) => isQuotation(o) && inRange(o.date));
       const realOrders = (orders || []).filter((o) => !isQuotation(o) && inRange(o.date) && !isCancelledStatus(o.status));
@@ -734,6 +921,7 @@ async function dispatch(req, res) {
         return send(res, {
           stats,
           recentOrders: realOrders.slice(-8).reverse().map(mapOrder),
+          recentExpenses: expenseRows.slice(-6).reverse().map(mapExpense),
           charts: {
             monthlySales: buildMonthlySales(orders || [], expenses || []),
             orderStatus: Object.keys(statusMap).map((name) => ({ name, value: statusMap[name] })),
@@ -745,14 +933,14 @@ async function dispatch(req, res) {
     }
     if (method === 'GET' && path === '/dashboard/charts') {
       const [{ data: orders }, { data: expenses }] = await Promise.all([
-        supabase.from('orders').select('*'),
-        supabase.from('expenses').select('*'),
+        supabase.from('orders').select('date,doc_type,status,total_amount'),
+        supabase.from('expenses').select('date,amount,approved,status'),
       ]);
       const monthly = buildMonthlySales(orders || [], expenses || []);
       return send(res, { sales: monthly, expenses: monthly, monthlySales: monthly });
     }
     if (method === 'GET' && path === '/dashboard/recent-orders') {
-      const { data } = await supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(20);
+      const { data } = await supabase.from('orders').select(LEAN_ORDER_COLS).order('created_at', { ascending: false }).limit(20);
       return send(res, (data || []).filter((o) => String(o.doc_type || '').toLowerCase() !== 'quotation').map(mapOrder));
     }
 
@@ -809,13 +997,12 @@ async function dispatch(req, res) {
     // Customers + CRM
     if (path === '/customers' || path.startsWith('/customers/')) {
       if (path === '/customers' && method === 'GET') {
-        const [{ data }, { data: orders }, { data: invoices }, { data: payments }] = await Promise.all([
+        const [{ data }, { data: orders }, { data: invoices }] = await Promise.all([
           supabase.from('customers').select('*').order('created_at', { ascending: false }),
-          supabase.from('orders').select('*'),
-          supabase.from('invoices').select('*'),
-          supabase.from('payments').select('*'),
+          supabase.from('orders').select(LEAN_ORDER_COLS),
+          supabase.from('invoices').select(LEAN_INVOICE_COLS),
         ]);
-        return send(res, (data || []).map((c) => attachCustomerLedger(c, orders || [], invoices || [], payments || [])));
+        return send(res, (data || []).map((c) => attachCustomerLedger(c, orders || [], invoices || [], [])));
       }
       if (path === '/customers' && method === 'POST') {
         const nameNorm = String(body.name || '').toLowerCase().replace(/[\s_-]+/g, '');
@@ -832,18 +1019,22 @@ async function dispatch(req, res) {
             email: body.email || existing.email,
             address: body.address || existing.address,
             city: body.city || existing.city,
-            notes: body.notes || existing.notes,
+            notes: body.notes != null ? body.notes : existing.notes,
           };
           if (body.inCrm === true) {
             updates.in_crm = true;
             updates.stage = body.stage || existing.stage || 'lead';
             updates.stage_updated_at = new Date().toISOString();
           }
-          await supabase.from('customers').update(updates).eq('id', existing.id);
+          Object.assign(updates, withCustomerPhoto(
+            { notes: updates.notes },
+            body.photo != null ? body.photo : customerPhoto(existing),
+          ));
+          await dbWrite('customers', updates, { mode: 'update', id: existing.id });
           const { data } = await supabase.from('customers').select('*').eq('id', existing.id).maybeSingle();
           return send(res, mapCustomer(data));
         }
-        const row = {
+        const row = withCustomerPhoto({
           id: id('cust'),
           name: body.name || '',
           phone: body.phone || '',
@@ -856,8 +1047,8 @@ async function dispatch(req, res) {
           stage_updated_at: body.inCrm === true ? new Date().toISOString() : '',
           notify_whatsapp: truthy(body.notifyWhatsApp, true),
           notify_email: truthy(body.notifyEmail, true),
-        };
-        await supabase.from('customers').insert(row);
+        }, body.photo || body.image || '');
+        await dbWrite('customers', row, { mode: 'insert' });
         return send(res, mapCustomer(row));
       }
 
@@ -972,9 +1163,9 @@ async function dispatch(req, res) {
         if (!customer) return sendError(res, 'Customer not found', 404);
         const phone = String(customer.phone || '');
         const [{ data: orders }, { data: invoices }, { data: payments }] = await Promise.all([
-          supabase.from('orders').select('*'),
-          supabase.from('invoices').select('*'),
-          supabase.from('payments').select('*'),
+          supabase.from('orders').select(LEAN_ORDER_COLS),
+          supabase.from('invoices').select(LEAN_INVOICE_COLS),
+          supabase.from('payments').select(LEAN_PAYMENT_COLS),
         ]);
         const relatedOrders = (orders || []).filter((o) =>
           String(o.doc_type || 'Order').toLowerCase() !== 'quotation'
@@ -999,13 +1190,15 @@ async function dispatch(req, res) {
         const { data } = await supabase.from('customers').select('*').eq('id', cid).maybeSingle();
         if (!data) return sendError(res, 'Customer not found', 404);
         const [{ data: orders }, { data: invoices }, { data: payments }] = await Promise.all([
-          supabase.from('orders').select('*'),
-          supabase.from('invoices').select('*'),
-          supabase.from('payments').select('*'),
+          supabase.from('orders').select(LEAN_ORDER_COLS),
+          supabase.from('invoices').select(LEAN_INVOICE_COLS),
+          supabase.from('payments').select(LEAN_PAYMENT_COLS),
         ]);
         return send(res, attachCustomerLedger(data, orders || [], invoices || [], payments || []));
       }
       if (method === 'PUT') {
+        const { data: prev } = await supabase.from('customers').select('*').eq('id', cid).maybeSingle();
+        if (!prev) return sendError(res, 'Customer not found', 404);
         const updates = {
           name: body.name,
           phone: body.phone,
@@ -1019,14 +1212,17 @@ async function dispatch(req, res) {
         if (body.inCrm != null) updates.in_crm = !!body.inCrm;
         if (body.stage != null) updates.stage = body.stage;
         Object.keys(updates).forEach((k) => updates[k] === undefined && delete updates[k]);
-        await supabase.from('customers').update(updates).eq('id', cid);
+        const photoVal = body.photo != null ? body.photo : (body.image != null ? body.image : customerPhoto(prev));
+        const packed = withCustomerPhoto(
+          { notes: updates.notes != null ? updates.notes : prev.notes },
+          photoVal,
+        );
+        updates.notes = packed.notes;
+        updates.photo = packed.photo;
+        updates.image = packed.image;
+        await dbWrite('customers', updates, { mode: 'update', id: cid });
         const { data } = await supabase.from('customers').select('*').eq('id', cid).maybeSingle();
-        const [{ data: orders }, { data: invoices }, { data: payments }] = await Promise.all([
-          supabase.from('orders').select('*'),
-          supabase.from('invoices').select('*'),
-          supabase.from('payments').select('*'),
-        ]);
-        return send(res, attachCustomerLedger(data, orders || [], invoices || [], payments || []));
+        return send(res, mapCustomer(data));
       }
       if (method === 'DELETE') {
         await supabase.from('customers').delete().eq('id', cid);
@@ -1043,8 +1239,7 @@ async function dispatch(req, res) {
       }
       if (path === base && method === 'POST') {
         const row = toRow(body);
-        const { error } = await supabase.from(table).insert(row);
-        if (error) throw error;
+        await dbWrite(table, row, { mode: 'insert' });
         return send(res, mapper(row));
       }
       const rid = path.split('/')[2];
@@ -1056,7 +1251,7 @@ async function dispatch(req, res) {
       if (method === 'PUT') {
         const row = toRow(body, rid);
         delete row.id;
-        await supabase.from(table).update(row).eq('id', rid);
+        await dbWrite(table, row, { mode: 'update', id: rid });
         const { data } = await supabase.from(table).select('*').eq('id', rid).maybeSingle();
         return send(res, mapper(data));
       }
@@ -1095,12 +1290,36 @@ async function dispatch(req, res) {
     }
 
     if (path === '/products' || path.startsWith('/products/')) {
-      const done = await handleCollection('products', '/products', mapProduct, (b, rid) => {
-        const row = productFromBody(b, rid);
+      if (path === '/products' && method === 'GET') {
+        const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        return send(res, (data || []).map(mapProduct));
+      }
+      if (path === '/products' && method === 'POST') {
+        const row = productFromBody(body);
         if (!row.id) row.id = id('prod');
-        return row;
-      });
-      if (done !== null) return done;
+        await saveProductRow(row, { mode: 'insert' });
+        return send(res, mapProduct(row));
+      }
+      const rid = decodeURIComponent(String(path.split('/')[2] || '').trim());
+      if (!rid) return sendError(res, 'Product id required', 400);
+      if (method === 'GET') {
+        const { data } = await supabase.from('products').select('*').eq('id', rid).maybeSingle();
+        if (!data) return sendError(res, 'Not found', 404);
+        return send(res, mapProduct(data));
+      }
+      if (method === 'PUT' || method === 'PATCH') {
+        const row = productFromBody(body, rid);
+        delete row.id;
+        await saveProductRow(row, { mode: 'update', id: rid });
+        const { data } = await supabase.from('products').select('*').eq('id', rid).maybeSingle();
+        return send(res, mapProduct(data || row));
+      }
+      if (method === 'DELETE') {
+        await supabase.from('products').delete().eq('id', rid);
+        return send(res, { success: true });
+      }
+      return sendError(res, `Not found: ${path}`, 404);
     }
 
     if (path === '/vendors' || path.startsWith('/vendors/')) {
@@ -1298,15 +1517,33 @@ async function dispatch(req, res) {
           const custRow = await loadCustomer(body.customerId);
           assertCustomerNotBlocked(custRow);
         }
-        if (!body.trackingNumber) body.trackingNumber = `TRK-${Math.floor(1000 + Math.random() * 9000)}`;
+        if (!body.trackingNumber) body.trackingNumber = await nextTrackingNumber();
         const row = orderFromBody(body);
         if (!row.order_id) row.order_id = await nextOrderId(docType === 'pos' ? 'POS' : 'ORD');
         if (!row.status_history || !row.status_history.length) {
           row.status_history = [{ status: row.status, at: `${today()} ${nowTime()}`, note: 'Created' }];
         }
+        const applyWanted = num(body.applyCredit != null ? body.applyCredit : body.creditApplied);
+        if (applyWanted > 0 && row.customer_id && docType !== 'pos') {
+          const due = Math.max(0, num(row.total_amount) - num(row.advance_payment));
+          const adv = await applyCustomerAdvance({
+            customerId: row.customer_id,
+            amount: Math.min(applyWanted, due),
+            orderId: row.order_id,
+            notes: `Advance applied to order ${row.order_id}`,
+            date: row.date,
+          });
+          if (adv.applied > 0) {
+            row.advance_payment = num(row.advance_payment) + adv.applied;
+            row.balance_amount = Math.max(0, num(row.total_amount) - num(row.advance_payment));
+            row.remarks = `${row.remarks || ''}${row.remarks ? ' | ' : ''}Advance applied ${adv.applied}`.trim();
+          }
+        }
         const { error } = await supabase.from('orders').insert(row);
         if (error) throw error;
-        return send(res, await withInvoiceMeta(mapOrder(row)));
+        const mapped = await withInvoiceMeta(mapOrder(row));
+        mapped.creditApplied = num(body.applyCredit);
+        return send(res, mapped);
       }
     }
 
@@ -1336,7 +1573,7 @@ async function dispatch(req, res) {
         const copy = orderFromBody({ ...mapOrder(existing), id: undefined, orderId: undefined }, {});
         copy.id = id('order');
         copy.order_id = await nextOrderId();
-        copy.tracking_number = `TRK-${Math.floor(1000 + Math.random() * 9000)}`;
+        copy.tracking_number = await nextTrackingNumber();
         await supabase.from('orders').insert(copy);
         return send(res, mapOrder(copy));
       }
@@ -1419,6 +1656,7 @@ async function dispatch(req, res) {
           return orderIds.some((oid) => ids.includes(oid));
         });
         if (clash) return sendError(res, `Order already on invoice ${clash.id}`, 400);
+        const cashPaid = num(body.paidAmount != null ? body.paidAmount : body.paid);
         const row = {
           id: id('inv'),
           invoice_no: body.invoiceNumber || body.invoiceNo || `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`,
@@ -1438,13 +1676,30 @@ async function dispatch(req, res) {
           discount: num(body.discount),
           previous_balance: num(body.previousBalance),
           total: num(body.totalAmount != null ? body.totalAmount : body.total),
-          paid: num(body.paidAmount != null ? body.paidAmount : body.paid),
+          paid: cashPaid,
           status: body.status || 'Unpaid',
           notes: body.notes || '',
           share_token: body.shareToken || `share_${Date.now().toString(36)}`,
           payment_history: [],
         };
         await supabase.from('invoices').insert(row);
+        const applyWanted = num(body.applyCredit != null ? body.applyCredit : body.creditApplied);
+        if (applyWanted > 0 && row.customer_id) {
+          const due = Math.max(0, num(row.total) + num(row.previous_balance) - num(row.paid));
+          const adv = await applyCustomerAdvance({
+            customerId: row.customer_id,
+            amount: Math.min(applyWanted, due),
+            orderId: row.order_id,
+            invoiceId: row.id,
+            invoiceNo: row.invoice_no,
+            date: row.date,
+          });
+          if (adv.applied > 0) {
+            row.paid = num(row.paid) + adv.applied;
+            row.status = invoiceStatusFromPaid(num(row.total) + num(row.previous_balance), row.paid);
+            await supabase.from('invoices').update({ paid: row.paid, status: row.status }).eq('id', row.id);
+          }
+        }
         return send(res, mapInvoice(row));
       }
       const iid = path.split('/')[2];
@@ -1492,15 +1747,8 @@ async function dispatch(req, res) {
       }
     }
 
-    // Designers from HR employees (role Designer)
-    if (path === '/designers' && method === 'GET') {
-      const { data } = await supabase.from('employees').select('*');
-      const designers = (data || []).filter((e) => {
-        const role = String(e.role || '').toLowerCase();
-        const status = String(e.status || 'Active').toLowerCase();
-        return status !== 'inactive' && role.includes('designer');
-      });
-      return send(res, designers.map((e) => {
+    if (path === '/designers' || path.startsWith('/designers/')) {
+      const asDesigner = (e) => {
         const emp = mapEmployee(e);
         return {
           id: emp.id,
@@ -1508,9 +1756,43 @@ async function dispatch(req, res) {
           email: emp.email || '',
           phone: emp.phone || '',
           role: emp.role || 'Designer',
+          designation: emp.designation || '',
           photo: emp.photo || '',
         };
-      }));
+      };
+      const isDesignerEmp = (e) => {
+        const status = String(e.status || 'Active').toLowerCase();
+        if (status === 'inactive') return false;
+        const blob = `${e.role || ''} ${e.designation || ''} ${e.department || ''}`.toLowerCase();
+        return /design/.test(blob);
+      };
+      if (path === '/designers' && method === 'GET') {
+        const { data } = await supabase.from('employees').select('*');
+        let designers = (data || []).filter(isDesignerEmp);
+        if (!designers.length) {
+          designers = (data || []).filter((e) => String(e.status || 'Active').toLowerCase() !== 'inactive');
+        }
+        return send(res, designers.map(asDesigner));
+      }
+      if (path === '/designers' && method === 'POST') {
+        const name = String(body.name || '').trim();
+        if (!name) return sendError(res, 'Designer name is required', 400);
+        const row = {
+          id: id('emp'),
+          employee_code: body.employeeCode || `DSG-${Date.now().toString().slice(-5)}`,
+          name,
+          phone: body.phone || '',
+          email: body.email || '',
+          role: 'Designer',
+          designation: body.designation || 'Designer',
+          department: body.department || 'Design',
+          join_date: body.joinDate || today(),
+          status: 'Active',
+          notes: body.notes || 'Added from order form',
+        };
+        await supabase.from('employees').insert(row);
+        return send(res, asDesigner(row));
+      }
     }
 
     // Counters
@@ -1631,11 +1913,11 @@ async function dispatch(req, res) {
 
     if (path === '/reports' && method === 'GET') {
       const [{ data: orders }, { data: expenses }, { data: payments }, { data: invoices }, { data: customers }] = await Promise.all([
-        supabase.from('orders').select('*'),
-        supabase.from('expenses').select('*'),
-        supabase.from('payments').select('*'),
-        supabase.from('invoices').select('*'),
-        supabase.from('customers').select('*'),
+        supabase.from('orders').select(LEAN_ORDER_COLS),
+        supabase.from('expenses').select('id,date,amount,approved,status'),
+        supabase.from('payments').select('id,date,type,amount'),
+        supabase.from('invoices').select(LEAN_INVOICE_COLS),
+        supabase.from('customers').select('id,phone,name,credit_balance'),
       ]);
       const realOrders = (orders || []).filter((o) => !isQuotation(o) && !isCancelledStatus(o.status));
       const revenue = realOrders.reduce((s, o) => s + num(o.total_amount), 0);

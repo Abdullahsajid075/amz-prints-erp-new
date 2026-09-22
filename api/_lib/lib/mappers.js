@@ -1,5 +1,5 @@
 const { num, truthy } = require('./util');
-const { asArray, uniqueStrings, parseImages, isBlocked, invoiceStatusFromPaid } = require('./helpers');
+const { asArray, uniqueStrings, parseImages, isBlocked, invoiceStatusFromPaid, customerPhoto, stripPhotoFromNotes } = require('./helpers');
 
 function mapCustomer(row) {
   if (!row) return null;
@@ -11,7 +11,7 @@ function mapCustomer(row) {
     email: row.email || '',
     address: row.address || '',
     city: row.city || '',
-    notes: row.notes || '',
+    notes: stripPhotoFromNotes(row.notes),
     inCrm: !!row.in_crm,
     stage: row.in_crm ? (row.stage || 'lead') : (row.stage || ''),
     stageUpdatedAt: row.stage_updated_at || '',
@@ -23,6 +23,7 @@ function mapCustomer(row) {
     blockedBy: row.blocked_by || '',
     creditBalance: num(row.credit_balance),
     outstanding: num(row.outstanding),
+    photo: customerPhoto(row),
   };
 }
 

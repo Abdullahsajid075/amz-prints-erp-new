@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { invoicesAPI } from '@/services/api';
 import { notifyOrderEvent } from '@/services/notifications';
 import { formatCurrency, formatDate, invoiceOrderIds, invoiceLineItems } from '@/utils/helpers';
-import { documentFileName, printWithDocumentTitle } from '@/utils/printHelpers';
+import { documentFileName, printIsolatedNode } from '@/utils/printHelpers';
 import { useBrand } from '@/context/BrandContext';
 import { ArrowLeft, Printer, Copy, Download, CheckCircle2, Edit } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
@@ -50,13 +50,12 @@ const InvoiceView = ({ isPublic = false }) => {
   }, [load]);
 
   const handlePrint = () => {
-    printWithDocumentTitle(
-      documentFileName({
-        docType: 'Invoice',
-        customerName: invoice.customerName,
-        orderNumber: invoice.orderId || invoice.invoiceNumber,
-      })
-    );
+    const title = documentFileName({
+      docType: 'Invoice',
+      customerName: invoice.customerName,
+      orderNumber: invoice.orderId || invoice.invoiceNumber,
+    });
+    printIsolatedNode('printable-invoice', title);
   };
 
   const copyShareLink = () => {
@@ -349,6 +348,11 @@ const InvoiceView = ({ isPublic = false }) => {
               <div className="flex justify-between py-1.5 border-b border-gray-100 bg-yellow-50 px-2 rounded">
                 <span className="text-xs font-medium text-yellow-800">Previous Balance</span>
                 <span className="text-xs font-bold text-yellow-800">{formatCurrency(invoice.previousBalance)}</span>
+              </div>
+            )}
+            {String(invoice.notes || '').toLowerCase().includes('advance applied') && (
+              <div className="flex justify-between py-1 text-xs text-emerald-800">
+                <span>Advance adjustment recorded on ledger</span>
               </div>
             )}
             <div className={`inv-total-row flex justify-between py-2 px-2.5 ${template === 'modern' ? 'rounded-full' : 'rounded-md'}`} style={{ backgroundColor: accent }}>

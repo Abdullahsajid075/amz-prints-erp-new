@@ -37,7 +37,7 @@ create table if not exists customers (
   blocked_at text default '',
   blocked_by text default '',
   credit_balance numeric default 0,
-  portal_password text default '',
+  photo text default '',
   created_at timestamptz default now()
 );
 create index if not exists customers_phone_idx on customers (phone);
@@ -298,7 +298,9 @@ alter table customers add column if not exists blocked_at text default '';
 alter table customers add column if not exists blocked_by text default '';
 alter table customers add column if not exists credit_balance numeric default 0;
 alter table customers add column if not exists portal_password text default '';
+alter table customers add column if not exists photo text default '';
 
+alter table products add column if not exists image text default '';
 alter table products add column if not exists images jsonb default '[]'::jsonb;
 alter table products add column if not exists sale_price numeric default 0;
 alter table products add column if not exists show_on_top boolean default false;

@@ -10,10 +10,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { customersAPI } from '@/services/api';
+import { clearGasCache } from '@/services/gasClient';
 import { finishPaymentRecording } from '@/utils/paymentActions';
 import { useBrand } from '@/context/BrandContext';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 import { customerMatchesQuery } from '@/utils/customerSearch';
+import { customerPortalUrl, printCustomerCard, qrPngDataUrl, downloadDataUrl, canvasPngDataUrl } from '@/utils/customerDocuments';
+import { compressPortraitFile } from '@/utils/productImage';
+import { QRCodeCanvas } from 'qrcode.react';
 import {
   isCustomerBlocked, canUnblockCustomer, customerDisplayCode,
   openUrduBalanceWhatsApp, openCustomerWelcomeWhatsApp,
@@ -21,7 +25,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
-import { Plus, Search, Edit, Trash2, User, Phone, Mail, MapPin, TrendingUp, X, Save, BookOpen, Bell, Kanban, ShieldBan, ShieldCheck, Wallet } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, User, Phone, Mail, MapPin, TrendingUp, X, Save, BookOpen, Bell, Kanban, ShieldBan, ShieldCheck, Wallet, IdCard, QrCode, ImagePlus, Camera } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
 
@@ -32,7 +36,7 @@ const CUSTOMER_SORT_OPTS = [
 ];
 
 const empty = {
-  name: '', phone: '', email: '', address: '', city: '', notes: '',
+  name: '', phone: '', email: '', address: '', city: '', notes: '', photo: '',
   notifyWhatsApp: true, notifyEmail: true,
 };
 
@@ -61,6 +65,12 @@ const Customers = () => {
   const [payCustomer, setPayCustomer] = useState(null);
   const [payData, setPayData] = useState({ amount: '', method: 'Cash', notes: '', date: new Date().toISOString().slice(0, 10), reference: '' });
   const [paySaving, setPaySaving] = useState(false);
+  const [imageBusy, setImageBusy] = useState(false);
+  const [qrCustomer, setQrCustomer] = useState(null);
+  const [qrPng, setQrPng] = useState('');
+  const qrCanvasWrap = React.useRef(null);
+  const photoFileRef = React.useRef(null);
+  const [photoTarget, setPhotoTarget] = useState(null);
 
   const withBalanceCount = useMemo(
     () => customers.filter((c) => Number(c.outstanding) > 0).length,
@@ -119,20 +129,94 @@ const Customers = () => {
     finally { setLedgerLoading(false); }
   };
 
+  const savePhotoFor = async (c, file) => {
+    if (!c?.id || !file) return;
+    setImageBusy(true);
+    try {
+      const dataUrl = await compressPortraitFile(file);
+      await customersAPI.update(c.id, {
+        name: c.name,
+        phone: c.phone,
+        email: c.email,
+        address: c.address,
+        city: c.city,
+        notes: c.notes,
+        notifyWhatsApp: c.notifyWhatsApp,
+        notifyEmail: c.notifyEmail,
+        photo: dataUrl,
+      });
+      clearGasCache();
+      toast.success('Customer photo saved');
+      fetchCustomers();
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message || 'Photo save failed');
+    } finally {
+      setImageBusy(false);
+      setPhotoTarget(null);
+    }
+  };
+
+  const onPickPhoto = async (ev) => {
+    const file = ev.target.files?.[0];
+    ev.target.value = '';
+    if (!file) return;
+    setImageBusy(true);
+    try {
+      const dataUrl = await compressPortraitFile(file);
+      setFormData((prev) => ({ ...prev, photo: dataUrl }));
+      toast.success('Photo ready');
+    } catch (err) {
+      toast.error(err.message || 'Photo failed');
+    } finally {
+      setImageBusy(false);
+    }
+  };
+
+  const printCardFor = async (c) => {
+    try {
+      const res = await printCustomerCard({
+        customer: { ...c, customerCode: customerDisplayCode(c), photo: c.photo || '' },
+        company,
+        outstanding: formatCurrency(c.outstanding),
+        creditBalance: formatCurrency(c.creditBalance),
+      });
+      if (!res?.ok) toast.error('Allow popups to print the customer card');
+    } catch (err) {
+      toast.error(err.message || 'Could not print card');
+    }
+  };
+
+  const openQr = async (c) => {
+    setQrCustomer(c);
+    setQrPng('');
+    try {
+      const png = await qrPngDataUrl(customerPortalUrl(c.id), 220);
+      setQrPng(png);
+    } catch {
+      setQrPng('');
+    }
+  };
+
   const handleSave = async (e) => {
     e.preventDefault();
     setSaving(true);
     try {
-      if (editing) { await customersAPI.update(editing.id, formData); toast.success('Customer updated'); }
+      const payload = {
+        ...formData,
+        photo: formData.photo || '',
+        image: formData.photo || '',
+      };
+      if (editing) { await customersAPI.update(editing.id, payload); toast.success('Customer updated'); }
       else {
-        const res = await customersAPI.create(formData);
+        const res = await customersAPI.create(payload);
         toast.success('Customer added');
         const created = res.data || {};
         const welcome = openCustomerWelcomeWhatsApp(created);
         if (welcome.ok) toast.message('Welcome WhatsApp opened — tap Send with Customer ID');
       }
+      clearGasCache();
       setDialogOpen(false); fetchCustomers();
-    } catch (err) { console.error(err); toast.error('Failed to save'); }
+    } catch (err) { console.error(err); toast.error(err.response?.data?.message || 'Failed to save'); }
     finally { setSaving(false); }
   };
 
@@ -328,9 +412,22 @@ const Customers = () => {
                 {sorted.map(c => (
                   <div key={c.id} className={`bg-white border rounded-xl p-4 hover:shadow-md transition-all ${isCustomerBlocked(c) ? 'border-red-200 bg-red-50/30' : 'border-gray-100 hover:border-orange-200'}`} data-testid={`customer-card-${c.id}`}>
                     <div className="flex items-start gap-3 mb-3">
-                      <div className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: isCustomerBlocked(c) ? '#FEE2E2' : '#FFF4EB' }}>
-                        <User className="h-5 w-5" style={{ color: isCustomerBlocked(c) ? '#DC2626' : '#ff6d00' }} />
-                      </div>
+                      <button
+                        type="button"
+                        className="relative w-14 h-14 rounded-lg overflow-hidden flex items-center justify-center shrink-0 border border-orange-200"
+                        style={{ backgroundColor: isCustomerBlocked(c) ? '#FEE2E2' : '#FFF4EB' }}
+                        title="Upload customer photo"
+                        onClick={() => {
+                          setPhotoTarget(c);
+                          photoFileRef.current?.click();
+                        }}
+                      >
+                        {c.photo ? (
+                          <img src={c.photo} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <Camera className="h-5 w-5" style={{ color: isCustomerBlocked(c) ? '#DC2626' : '#ff6d00' }} />
+                        )}
+                      </button>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="font-bold truncate" style={{ color: '#1F2937' }}>{c.name}</h3>
@@ -351,6 +448,34 @@ const Customers = () => {
                     <div className="flex gap-1 flex-wrap">
                       <Button size="sm" className="flex-1 text-white h-8 text-xs min-w-[40%]" style={{ backgroundColor: '#ff6d00' }} onClick={() => openLedger(c)} data-testid={`ledger-${c.id}`}>
                         <BookOpen className="h-3 w-3 mr-1" />Ledger
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs"
+                        onClick={() => printCardFor(c)}
+                      >
+                        <IdCard className="h-3 w-3 mr-1" />Card
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs"
+                        disabled={imageBusy}
+                        onClick={() => {
+                          setPhotoTarget(c);
+                          photoFileRef.current?.click();
+                        }}
+                      >
+                        <Camera className="h-3 w-3 mr-1" />Photo
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs"
+                        onClick={() => openQr(c)}
+                      >
+                        <QrCode className="h-3 w-3 mr-1" />QR
                       </Button>
                       {Number(c.outstanding) > 0 && c.phone && (
                         <Button
@@ -394,14 +519,45 @@ const Customers = () => {
         </CardContent>
       </Card>
 
+      <input
+        ref={photoFileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(ev) => {
+          const file = ev.target.files?.[0];
+          ev.target.value = '';
+          if (file && photoTarget) savePhotoFor(photoTarget, file);
+        }}
+      />
+
       {/* Create/Edit dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg" data-testid="customer-dialog">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" data-testid="customer-dialog">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold">{editing ? 'Edit Customer' : 'Add Customer'}</DialogTitle>
             <DialogDescription>Contact details are saved to the customer portal and reused across invoices.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSave} className="space-y-3 mt-3">
+            <label className="flex items-center gap-3 rounded-xl border border-dashed border-orange-300 bg-orange-50/60 p-3 cursor-pointer">
+              <div className="w-20 h-20 rounded-lg border bg-white overflow-hidden flex items-center justify-center shrink-0">
+                {formData.photo ? (
+                  <img src={formData.photo} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <Camera className="h-7 w-7 text-orange-500" />
+                )}
+              </div>
+              <div className="space-y-1 flex-1">
+                <p className="text-sm font-bold">Customer photo (DP)</p>
+                <p className="text-xs text-slate-500">{imageBusy ? 'Processing…' : 'Click to upload a picture for the customer card'}</p>
+                <Input type="file" accept="image/*" onChange={onPickPhoto} disabled={imageBusy} className="text-xs" />
+                {formData.photo && (
+                  <Button type="button" variant="ghost" size="sm" className="h-7 text-xs text-red-600 px-0" onClick={() => setFormData({ ...formData, photo: '' })}>
+                    Remove photo
+                  </Button>
+                )}
+              </div>
+            </label>
             <div><Label>Name *</Label><Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required data-testid="customer-name-input" /></div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Phone</Label><Input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} /></div>
@@ -431,7 +587,7 @@ const Customers = () => {
             </div>
             <DialogFooter className="gap-2 pt-3">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}><X className="h-4 w-4 mr-1" />Cancel</Button>
-              <Button type="submit" style={{ backgroundColor: '#ff6d00' }} className="text-white" disabled={saving}><Save className="h-4 w-4 mr-1" />{saving ? 'Saving...' : editing ? 'Update' : 'Add'}</Button>
+              <Button type="submit" style={{ backgroundColor: '#ff6d00' }} className="text-white" disabled={saving || imageBusy}><Save className="h-4 w-4 mr-1" />{saving ? 'Saving...' : editing ? 'Update' : 'Add'}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -599,6 +755,50 @@ const Customers = () => {
               {blockSaving ? 'Blocking…' : 'Block Customer'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!qrCustomer} onOpenChange={(open) => { if (!open) setQrCustomer(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><QrCode className="h-4 w-4" />Customer QR</DialogTitle>
+            <DialogDescription>
+              {qrCustomer?.name} · {qrCustomer ? customerDisplayCode(qrCustomer) : ''}
+            </DialogDescription>
+          </DialogHeader>
+          {qrCustomer && (
+            <div className="flex flex-col items-center gap-3 py-2">
+              <div ref={qrCanvasWrap} className="bg-white p-3 border rounded-xl">
+                <QRCodeCanvas
+                  value={customerPortalUrl(qrCustomer.id)}
+                  size={200}
+                  level="M"
+                  includeMargin
+                  bgColor="#ffffff"
+                  fgColor="#0747a3"
+                />
+              </div>
+              <p className="text-xs text-slate-500 text-center">Scan to open the customer portal. Login is required.</p>
+              <div className="flex flex-wrap gap-2 justify-center">
+                <Button
+                  type="button"
+                  className="text-white"
+                  style={{ backgroundColor: '#ff6d00' }}
+                  onClick={() => {
+                    const canvas = qrCanvasWrap.current?.querySelector('canvas');
+                    const png = canvasPngDataUrl(canvas) || qrPng;
+                    downloadDataUrl(png, `${customerDisplayCode(qrCustomer)}-qr.png`);
+                    toast.success('QR downloaded');
+                  }}
+                >
+                  Download QR
+                </Button>
+                <Button type="button" variant="outline" onClick={() => printCardFor(qrCustomer)}>
+                  Print card
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

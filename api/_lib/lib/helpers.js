@@ -36,6 +36,43 @@ function uniqueStrings(list) {
   return out;
 }
 
+const DP_START = '[[AMZ_DP]]';
+const DP_END = '[[/AMZ_DP]]';
+
+function stripPhotoFromNotes(notes) {
+  return String(notes || '').replace(/\[\[AMZ_DP\]\][\s\S]*?\[\[\/AMZ_DP\]\]/g, '').trim();
+}
+
+function extractPhotoFromNotes(notes) {
+  const m = String(notes || '').match(/\[\[AMZ_DP\]\]([\s\S]*?)\[\[\/AMZ_DP\]\]/);
+  return m ? String(m[1] || '').trim() : '';
+}
+
+function embedPhotoInNotes(notes, photo) {
+  const clean = stripPhotoFromNotes(notes);
+  const src = String(photo || '').trim();
+  if (!src) return clean;
+  return `${clean}${clean ? '\n' : ''}${DP_START}${src}${DP_END}`;
+}
+
+function customerPhoto(row) {
+  if (!row) return '';
+  return String(row.photo || row.image || extractPhotoFromNotes(row.notes) || '').trim();
+}
+
+function withCustomerPhoto(row, photo) {
+  const src = photo == null ? customerPhoto(row) : String(photo || '').trim();
+  const next = { ...row, notes: embedPhotoInNotes(row.notes, src) };
+  if (src) {
+    next.photo = src;
+    next.image = src;
+  } else {
+    next.photo = '';
+    next.image = '';
+  }
+  return next;
+}
+
 function collectOrderIds(body = {}, existing = {}) {
   const ids = uniqueStrings([
     ...asArray(body.orderIds != null ? body.orderIds : body.orderids),
@@ -51,7 +88,7 @@ function parseImages(images, fallback = '') {
     ...asArray(images),
     fallback,
   ]);
-  return list;
+  return list.slice(0, 5);
 }
 
 function invoiceStatusFromPaid(total, paid) {
@@ -108,11 +145,15 @@ function sanitizePortalCustomer(c) {
   if (!c) return null;
   return {
     id: c.id,
+    customerCode: c.customer_code || c.id || '',
     name: c.name || '',
     phone: c.phone || '',
     email: c.email || '',
     address: c.address || '',
     city: c.city || '',
+    photo: customerPhoto(c),
+    outstanding: num(c.outstanding),
+    creditBalance: num(c.creditBalance != null ? c.creditBalance : c.credit_balance),
   };
 }
 
@@ -126,7 +167,12 @@ function isBlocked(row) {
 function productFromBody(b = {}, rid) {
   const productType = b.productType || b.product_type || 'Product';
   const isService = String(productType).toLowerCase() === 'service';
-  const images = parseImages(b.images || b.gallery, b.image || b.photo || '');
+  let images = parseImages(b.images || b.gallery, b.image || b.photo || '');
+  // Live products table often has no `image` column — cover lives in `images` jsonb.
+  // Cap payload so Vercel/PostgREST does not time out on huge data-URLs.
+  while (images.length > 1 && JSON.stringify(images).length > 220000) {
+    images = images.slice(0, -1);
+  }
   const showOnWebsite = b.showOnWebsite != null ? truthy(b.showOnWebsite, true) : (b.show_on_website != null ? truthy(b.show_on_website, true) : true);
   return {
     id: rid || b.id || '',
@@ -143,7 +189,6 @@ function productFromBody(b = {}, rid) {
     material: isService ? '' : (b.material || ''),
     size: isService ? '' : (b.size || ''),
     min_quantity: isService ? 1 : num(b.minQuantity),
-    image: images[0] || '',
     images,
     sale_price: num(b.salePrice != null ? b.salePrice : b.sale_price),
     show_on_top: !!(b.showOnTop || b.show_on_top),
@@ -168,4 +213,9 @@ module.exports = {
   sanitizePortalCustomer,
   isBlocked,
   productFromBody,
+  stripPhotoFromNotes,
+  extractPhotoFromNotes,
+  embedPhotoInNotes,
+  customerPhoto,
+  withCustomerPhoto,
 };

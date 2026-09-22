@@ -162,6 +162,8 @@ const InvoiceForm = () => {
   const [loaded, setLoaded] = useState(!isEdit);
   const [pageLoading, setPageLoading] = useState(isEdit);
   const [originalPaid, setOriginalPaid] = useState(0);
+  const [customerCredit, setCustomerCredit] = useState(0);
+  const [applyCredit, setApplyCredit] = useState(0);
   const [openOrders, setOpenOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
 
@@ -327,14 +329,19 @@ const InvoiceForm = () => {
 
   const selectCustomer = async (next) => {
     let prev = formData.previousBalance || 0;
+    let credit = 0;
     if (next.customerId) {
       try {
         const led = await customersAPI.getLedger(next.customerId);
         prev = led.data?.outstanding || 0;
+        credit = Number(led.data?.creditBalance || led.data?.customer?.creditBalance || 0);
       } catch {
         prev = 0;
+        credit = 0;
       }
     }
+    setCustomerCredit(credit);
+    setApplyCredit(0);
     setFormData((f) => {
       const changed = String(f.customerId || '') !== String(next.customerId || '');
       return {
@@ -499,7 +506,8 @@ const InvoiceForm = () => {
   const tax = (subtotal * (formData.taxRate || 0)) / 100;
   const total = subtotal + tax - (formData.discount || 0);
   const grandTotal = total + (formData.previousBalance || 0);
-  const balance = grandTotal - (formData.paidAmount || 0);
+  const creditUse = isEdit ? 0 : Math.max(0, Number(applyCredit) || 0);
+  const balance = grandTotal - (formData.paidAmount || 0) - creditUse;
 
   const derivedStatus = () => {
     if (balance <= 0) return 'Paid';
@@ -541,6 +549,7 @@ const InvoiceForm = () => {
         discount: Number(formData.discount) || 0,
         previousBalance: Number(formData.previousBalance) || 0,
         paidAmount: Number(formData.paidAmount) || 0,
+        applyCredit: isEdit ? 0 : Math.max(0, Number(applyCredit) || 0),
         notes: formData.notes || '',
         subtotal,
         totalAmount: total,
@@ -727,12 +736,29 @@ const InvoiceForm = () => {
                 onCustomersChange={(c) => setCustomers((prev) => [c, ...prev.filter((x) => x.id !== c.id)])}
                 onChange={selectCustomer}
               />
-              {formData.customerId && formData.previousBalance !== 0 && (
-                <div className="p-3 rounded-lg bg-yellow-50 border border-yellow-200 flex items-center gap-2">
-                  <User className="h-4 w-4 text-yellow-700" />
-                  <p className="text-sm text-yellow-800">
-                    <span className="font-semibold">Previous outstanding:</span> {formatCurrency(formData.previousBalance)}
+              {formData.customerId && Number(formData.previousBalance) > 0.009 && (
+                <div className="p-3 rounded-lg bg-yellow-50 border border-yellow-200">
+                  <p className="text-sm font-bold text-amber-900">This customer has an outstanding balance.</p>
+                  <p className="text-sm text-yellow-800 mt-0.5">
+                    Pending amount: <span className="font-semibold">{formatCurrency(formData.previousBalance)}</span>
                   </p>
+                </div>
+              )}
+              {!isEdit && customerCredit > 0.009 && (
+                <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200">
+                  <p className="text-sm font-bold text-emerald-900">This customer has available advance balance.</p>
+                  <p className="text-sm text-emerald-800 mt-1">Advance: {formatCurrency(customerCredit)}</p>
+                  <Label className="text-xs mt-2">Adjust against this invoice</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={applyCredit}
+                    onChange={(e) => {
+                      const due = Math.max(0, grandTotal - (Number(formData.paidAmount) || 0));
+                      setApplyCredit(Math.min(customerCredit, due, Math.max(0, Number(e.target.value) || 0)));
+                    }}
+                  />
                 </div>
               )}
             </CardContent>
@@ -967,7 +993,10 @@ const InvoiceForm = () => {
                   <span className="font-bold text-white uppercase text-sm">Grand Total</span>
                   <span className="font-bold text-white text-lg">{formatCurrency(grandTotal)}</span>
                 </div>
-                <div className="flex justify-between text-sm"><span className="text-gray-600">Paid</span><span className="font-semibold text-green-700">{formatCurrency(formData.paidAmount || 0)}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-gray-600">Paid (cash)</span><span className="font-semibold text-green-700">{formatCurrency(formData.paidAmount || 0)}</span></div>
+                {creditUse > 0 && (
+                  <div className="flex justify-between text-sm"><span className="text-gray-600">Advance applied</span><span className="font-semibold text-emerald-800">-{formatCurrency(creditUse)}</span></div>
+                )}
                 <div className="flex justify-between border-t border-gray-300 pt-2 mt-1">
                   <span className="font-bold text-sm">Balance Due</span>
                   <span className={`font-bold text-lg ${balance > 0 ? 'text-red-600' : 'text-green-700'}`}>{formatCurrency(balance)}</span>
