@@ -51,7 +51,7 @@ function parseImages(images, fallback = '') {
     ...asArray(images),
     fallback,
   ]);
-  return list;
+  return list.slice(0, 5);
 }
 
 function invoiceStatusFromPaid(total, paid) {
@@ -114,6 +114,9 @@ function sanitizePortalCustomer(c) {
     email: c.email || '',
     address: c.address || '',
     city: c.city || '',
+    photo: c.photo || '',
+    outstanding: num(c.outstanding),
+    creditBalance: num(c.creditBalance != null ? c.creditBalance : c.credit_balance),
   };
 }
 
@@ -127,7 +130,12 @@ function isBlocked(row) {
 function productFromBody(b = {}, rid) {
   const productType = b.productType || b.product_type || 'Product';
   const isService = String(productType).toLowerCase() === 'service';
-  const images = parseImages(b.images || b.gallery, b.image || b.photo || '');
+  let images = parseImages(b.images || b.gallery, b.image || b.photo || '');
+  // Live products table often has no `image` column — cover lives in `images` jsonb.
+  // Cap payload so Vercel/PostgREST does not time out on huge data-URLs.
+  while (images.length > 1 && JSON.stringify(images).length > 220000) {
+    images = images.slice(0, -1);
+  }
   const showOnWebsite = b.showOnWebsite != null ? truthy(b.showOnWebsite, true) : (b.show_on_website != null ? truthy(b.show_on_website, true) : true);
   return {
     id: rid || b.id || '',
@@ -144,7 +152,6 @@ function productFromBody(b = {}, rid) {
     material: isService ? '' : (b.material || ''),
     size: isService ? '' : (b.size || ''),
     min_quantity: isService ? 1 : num(b.minQuantity),
-    image: images[0] || '',
     images,
     sale_price: num(b.salePrice != null ? b.salePrice : b.sale_price),
     show_on_top: !!(b.showOnTop || b.show_on_top),

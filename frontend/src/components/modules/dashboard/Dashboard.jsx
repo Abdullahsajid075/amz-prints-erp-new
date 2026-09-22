@@ -3,12 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { dashboardAPI, expensesAPI, purchasesAPI } from '@/services/api';
-import { totalVendorPayables } from '@/utils/vendorPayables';
+import { dashboardAPI } from '@/services/api';
 import { useAuth, getUserDisplayName } from '@/context/AuthContext';
 import { useBrand } from '@/context/BrandContext';
 import ReceivablesDialog from '@/components/shared/ReceivablesDialog';
-import { formatCurrency, formatDate, getStatusColor, isExpenseApproved } from '@/utils/helpers';
+import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
 import {
   TrendingUp, TrendingDown, ShoppingCart, CheckCircle, DollarSign,
   Receipt, Users, Calendar, Activity, FileText, FileSpreadsheet, RefreshCw,
@@ -53,15 +52,6 @@ function ymd(d) {
 }
 
 /** Inclusive yyyy-MM-dd filter (same semantics as GAS). */
-function inDateRange(rowDate, from, to) {
-  if (!from && !to) return true;
-  const dk = String(rowDate || '').trim().slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dk)) return false;
-  if (from && dk < from) return false;
-  if (to && dk > to) return false;
-  return true;
-}
-
 function datePresets() {
   const today = new Date();
   const to = ymd(today);
@@ -157,34 +147,14 @@ const Dashboard = () => {
       if (from) params.from = from;
       if (to) params.to = to;
 
-      const bootPromise = dashboardAPI.bootstrap(params);
-      const expensesPromise = expensesAPI.getAll().catch(() => ({ data: [] }));
-      const purchasesPromise = purchasesAPI.getAll().catch(() => ({ data: [] }));
-
-      const boot = await bootPromise;
+      const boot = await dashboardAPI.bootstrap(params);
       const data = boot.data || {};
       setStats((prev) => ({ ...prev, ...(data.stats || {}) }));
       setChartData(data.charts || { monthlySales: [], orderStatus: [] });
       setRecentOrders(Array.isArray(data.recentOrders) ? data.recentOrders : []);
       setAttention(Array.isArray(data.attention) ? data.attention : []);
+      setRecentExpenses(Array.isArray(data.recentExpenses) ? data.recentExpenses : []);
       setLoading(false);
-
-      const [expensesRes, purchasesRes] = await Promise.all([expensesPromise, purchasesPromise]);
-      const allExpenses = Array.isArray(expensesRes.data) ? expensesRes.data : [];
-      const list = allExpenses.filter((e) => inDateRange(e.date, from, to) && isExpenseApproved(e));
-      setRecentExpenses(list.slice(0, 6));
-      const expenseTotal = list.reduce((s, e) => s + Number(e.amount || 0), 0);
-      const purchaseList = (Array.isArray(purchasesRes.data) ? purchasesRes.data : [])
-        .filter((p) => inDateRange(p.purchaseDate || p.date, from, to));
-      const payablesFromPurchases = totalVendorPayables(purchaseList);
-      const serverExpenses = Number(data.stats?.expenses);
-      const serverPayables = Number(data.stats?.payables || data.stats?.vendorPayables);
-      setStats((prev) => ({
-        ...prev,
-        // Prefer filtered server total when present (incl. 0); else client sum
-        expenses: Number.isFinite(serverExpenses) ? serverExpenses : expenseTotal,
-        payables: Number.isFinite(serverPayables) ? serverPayables : payablesFromPurchases,
-      }));
     } catch (error) {
       console.error('Dashboard load failed', error);
       setLoading(false);

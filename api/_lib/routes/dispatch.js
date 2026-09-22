@@ -36,6 +36,47 @@ function attachCustomerLedger(row, orders, invoices, payments) {
   return api;
 }
 
+function missingSchemaColumn(err) {
+  const msg = String((err && (err.message || err.details)) || err || '');
+  const m = msg.match(/Could not find the '([^']+)' column/i);
+  return m ? m[1] : '';
+}
+
+async function dbWrite(table, row, { mode = 'insert', id: rid } = {}) {
+  const payload = { ...row };
+  for (let attempt = 0; attempt < 14; attempt += 1) {
+    const q = mode === 'update'
+      ? supabase.from(table).update(payload).eq('id', rid)
+      : supabase.from(table).insert(payload);
+    const { error } = await q;
+    if (!error) return payload;
+    const col = missingSchemaColumn(error);
+    if (!col || !Object.prototype.hasOwnProperty.call(payload, col)) throw error;
+    delete payload[col];
+  }
+  throw new Error('Could not save record');
+}
+
+async function dbSelect(table, cols, extraFn) {
+  let selectCols = cols;
+  for (let attempt = 0; attempt < 16; attempt += 1) {
+    let q = supabase.from(table).select(selectCols);
+    if (typeof extraFn === 'function') q = extraFn(q) || q;
+    const { data, error } = await q;
+    if (!error) return data || [];
+    const col = missingSchemaColumn(error);
+    if (!col) throw error;
+    const next = selectCols.split(',').map((s) => s.trim()).filter((c) => c && c !== col);
+    if (next.length === 0 || next.length === selectCols.split(',').length) throw error;
+    selectCols = next.join(',');
+  }
+  return [];
+}
+
+const LEAN_ORDER_COLS = 'id,order_id,date,customer_id,customer_phone,customer_name,status,doc_type,total_amount,balance_amount,delivery_date,tracking_number';
+const LEAN_INVOICE_COLS = 'id,customer_id,customer_phone,order_id,total,paid,previous_balance,status,invoice_no,date';
+const LEAN_PAYMENT_COLS = 'id,date,type,amount,customer_id,customer_phone,party_phone,category,method,notes,ref_id';
+
 function attachVendorPayables(row, purchases) {
   const api = mapVendor(row);
   api.outstandingBalance = computeVendorOutstanding(row, purchases || []);
@@ -579,7 +620,7 @@ async function dispatch(req, res) {
             notify_email: true,
             portal_password: portal,
           };
-          await supabase.from('customers').insert(customer);
+          await dbWrite('customers', customer, { mode: 'insert' });
         }
         return send(res, { ok: true, token: issueCustomerToken(customer), customer: sanitizePortalCustomer(customer) });
       }
@@ -613,9 +654,9 @@ async function dispatch(req, res) {
           return sendError(res, 'This QR belongs to a different customer account. Please login with the matching account.', 403);
         }
         const [{ data: orders }, { data: invoices }, { data: payments }] = await Promise.all([
-          supabase.from('orders').select('*'),
-          supabase.from('invoices').select('*'),
-          supabase.from('payments').select('*'),
+          supabase.from('orders').select(LEAN_ORDER_COLS),
+          supabase.from('invoices').select(LEAN_INVOICE_COLS),
+          supabase.from('payments').select(LEAN_PAYMENT_COLS),
         ]);
         const led = computeCustomerLedger(me, orders || [], invoices || [], payments || []);
         const relatedOrders = (orders || []).filter((o) =>
@@ -752,13 +793,13 @@ async function dispatch(req, res) {
         if (to && dk > to) return false;
         return true;
       };
-      const [{ data: orders }, { data: customers }, { data: expenses }, { data: purchases }, { data: invoices }, { data: payments }] = await Promise.all([
-        supabase.from('orders').select('*'),
-        supabase.from('customers').select('*'),
-        supabase.from('expenses').select('*'),
-        supabase.from('purchases').select('*'),
-        supabase.from('invoices').select('*'),
-        supabase.from('payments').select('*'),
+      const [orders, customers, expenses, purchases, invoices, payments] = await Promise.all([
+        dbSelect('orders', LEAN_ORDER_COLS),
+        dbSelect('customers', 'id,phone,name,credit_balance'),
+        dbSelect('expenses', 'id,date,amount,approved,status,description,category'),
+        dbSelect('purchases', 'id,date,purchase_date,vendor_id,vendor_name,total,paid_amount,status'),
+        dbSelect('invoices', LEAN_INVOICE_COLS),
+        dbSelect('payments', 'id,date,type,amount'),
       ]);
       const quotations = (orders || []).filter((o) => isQuotation(o) && inRange(o.date));
       const realOrders = (orders || []).filter((o) => !isQuotation(o) && inRange(o.date) && !isCancelledStatus(o.status));
@@ -824,6 +865,7 @@ async function dispatch(req, res) {
         return send(res, {
           stats,
           recentOrders: realOrders.slice(-8).reverse().map(mapOrder),
+          recentExpenses: expenseRows.slice(-6).reverse().map(mapExpense),
           charts: {
             monthlySales: buildMonthlySales(orders || [], expenses || []),
             orderStatus: Object.keys(statusMap).map((name) => ({ name, value: statusMap[name] })),
@@ -835,14 +877,14 @@ async function dispatch(req, res) {
     }
     if (method === 'GET' && path === '/dashboard/charts') {
       const [{ data: orders }, { data: expenses }] = await Promise.all([
-        supabase.from('orders').select('*'),
-        supabase.from('expenses').select('*'),
+        supabase.from('orders').select('date,doc_type,status,total_amount'),
+        supabase.from('expenses').select('date,amount,approved,status'),
       ]);
       const monthly = buildMonthlySales(orders || [], expenses || []);
       return send(res, { sales: monthly, expenses: monthly, monthlySales: monthly });
     }
     if (method === 'GET' && path === '/dashboard/recent-orders') {
-      const { data } = await supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(20);
+      const { data } = await supabase.from('orders').select(LEAN_ORDER_COLS).order('created_at', { ascending: false }).limit(20);
       return send(res, (data || []).filter((o) => String(o.doc_type || '').toLowerCase() !== 'quotation').map(mapOrder));
     }
 
@@ -899,13 +941,12 @@ async function dispatch(req, res) {
     // Customers + CRM
     if (path === '/customers' || path.startsWith('/customers/')) {
       if (path === '/customers' && method === 'GET') {
-        const [{ data }, { data: orders }, { data: invoices }, { data: payments }] = await Promise.all([
+        const [{ data }, { data: orders }, { data: invoices }] = await Promise.all([
           supabase.from('customers').select('*').order('created_at', { ascending: false }),
-          supabase.from('orders').select('*'),
-          supabase.from('invoices').select('*'),
-          supabase.from('payments').select('*'),
+          supabase.from('orders').select(LEAN_ORDER_COLS),
+          supabase.from('invoices').select(LEAN_INVOICE_COLS),
         ]);
-        return send(res, (data || []).map((c) => attachCustomerLedger(c, orders || [], invoices || [], payments || [])));
+        return send(res, (data || []).map((c) => attachCustomerLedger(c, orders || [], invoices || [], [])));
       }
       if (path === '/customers' && method === 'POST') {
         const nameNorm = String(body.name || '').toLowerCase().replace(/[\s_-]+/g, '');
@@ -924,12 +965,13 @@ async function dispatch(req, res) {
             city: body.city || existing.city,
             notes: body.notes || existing.notes,
           };
+          if (body.photo != null) updates.photo = body.photo;
           if (body.inCrm === true) {
             updates.in_crm = true;
             updates.stage = body.stage || existing.stage || 'lead';
             updates.stage_updated_at = new Date().toISOString();
           }
-          await supabase.from('customers').update(updates).eq('id', existing.id);
+          await dbWrite('customers', updates, { mode: 'update', id: existing.id });
           const { data } = await supabase.from('customers').select('*').eq('id', existing.id).maybeSingle();
           return send(res, mapCustomer(data));
         }
@@ -947,7 +989,8 @@ async function dispatch(req, res) {
           notify_whatsapp: truthy(body.notifyWhatsApp, true),
           notify_email: truthy(body.notifyEmail, true),
         };
-        await supabase.from('customers').insert(row);
+        if (body.photo) row.photo = body.photo;
+        await dbWrite('customers', row, { mode: 'insert' });
         return send(res, mapCustomer(row));
       }
 
@@ -1062,9 +1105,9 @@ async function dispatch(req, res) {
         if (!customer) return sendError(res, 'Customer not found', 404);
         const phone = String(customer.phone || '');
         const [{ data: orders }, { data: invoices }, { data: payments }] = await Promise.all([
-          supabase.from('orders').select('*'),
-          supabase.from('invoices').select('*'),
-          supabase.from('payments').select('*'),
+          supabase.from('orders').select(LEAN_ORDER_COLS),
+          supabase.from('invoices').select(LEAN_INVOICE_COLS),
+          supabase.from('payments').select(LEAN_PAYMENT_COLS),
         ]);
         const relatedOrders = (orders || []).filter((o) =>
           String(o.doc_type || 'Order').toLowerCase() !== 'quotation'
@@ -1089,9 +1132,9 @@ async function dispatch(req, res) {
         const { data } = await supabase.from('customers').select('*').eq('id', cid).maybeSingle();
         if (!data) return sendError(res, 'Customer not found', 404);
         const [{ data: orders }, { data: invoices }, { data: payments }] = await Promise.all([
-          supabase.from('orders').select('*'),
-          supabase.from('invoices').select('*'),
-          supabase.from('payments').select('*'),
+          supabase.from('orders').select(LEAN_ORDER_COLS),
+          supabase.from('invoices').select(LEAN_INVOICE_COLS),
+          supabase.from('payments').select(LEAN_PAYMENT_COLS),
         ]);
         return send(res, attachCustomerLedger(data, orders || [], invoices || [], payments || []));
       }
@@ -1105,18 +1148,14 @@ async function dispatch(req, res) {
           notes: body.notes,
           notify_whatsapp: body.notifyWhatsApp,
           notify_email: body.notifyEmail,
+          photo: body.photo,
         };
         if (body.inCrm != null) updates.in_crm = !!body.inCrm;
         if (body.stage != null) updates.stage = body.stage;
         Object.keys(updates).forEach((k) => updates[k] === undefined && delete updates[k]);
-        await supabase.from('customers').update(updates).eq('id', cid);
+        await dbWrite('customers', updates, { mode: 'update', id: cid });
         const { data } = await supabase.from('customers').select('*').eq('id', cid).maybeSingle();
-        const [{ data: orders }, { data: invoices }, { data: payments }] = await Promise.all([
-          supabase.from('orders').select('*'),
-          supabase.from('invoices').select('*'),
-          supabase.from('payments').select('*'),
-        ]);
-        return send(res, attachCustomerLedger(data, orders || [], invoices || [], payments || []));
+        return send(res, mapCustomer(data));
       }
       if (method === 'DELETE') {
         await supabase.from('customers').delete().eq('id', cid);
@@ -1133,8 +1172,7 @@ async function dispatch(req, res) {
       }
       if (path === base && method === 'POST') {
         const row = toRow(body);
-        const { error } = await supabase.from(table).insert(row);
-        if (error) throw error;
+        await dbWrite(table, row, { mode: 'insert' });
         return send(res, mapper(row));
       }
       const rid = path.split('/')[2];
@@ -1146,7 +1184,7 @@ async function dispatch(req, res) {
       if (method === 'PUT') {
         const row = toRow(body, rid);
         delete row.id;
-        await supabase.from(table).update(row).eq('id', rid);
+        await dbWrite(table, row, { mode: 'update', id: rid });
         const { data } = await supabase.from(table).select('*').eq('id', rid).maybeSingle();
         return send(res, mapper(data));
       }
@@ -1784,11 +1822,11 @@ async function dispatch(req, res) {
 
     if (path === '/reports' && method === 'GET') {
       const [{ data: orders }, { data: expenses }, { data: payments }, { data: invoices }, { data: customers }] = await Promise.all([
-        supabase.from('orders').select('*'),
-        supabase.from('expenses').select('*'),
-        supabase.from('payments').select('*'),
-        supabase.from('invoices').select('*'),
-        supabase.from('customers').select('*'),
+        supabase.from('orders').select(LEAN_ORDER_COLS),
+        supabase.from('expenses').select('id,date,amount,approved,status'),
+        supabase.from('payments').select('id,date,type,amount'),
+        supabase.from('invoices').select(LEAN_INVOICE_COLS),
+        supabase.from('customers').select('id,phone,name,credit_balance'),
       ]);
       const realOrders = (orders || []).filter((o) => !isQuotation(o) && !isCancelledStatus(o.status));
       const revenue = realOrders.reduce((s, o) => s + num(o.total_amount), 0);

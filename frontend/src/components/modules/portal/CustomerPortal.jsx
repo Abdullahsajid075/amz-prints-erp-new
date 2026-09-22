@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { QRCodeSVG } from 'qrcode.react';
+import { QRCodeCanvas } from 'qrcode.react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { portalAPI } from '@/services/api';
 import { useBrand } from '@/context/BrandContext';
 import { formatCurrency, formatDate } from '@/utils/helpers';
-import { customerPortalUrl, downloadSvgDataUrl, printCustomerCard } from '@/utils/customerDocuments';
+import { customerPortalUrl, downloadDataUrl, canvasPngDataUrl, printCustomerCard } from '@/utils/customerDocuments';
 import { IdCard, QrCode, LogOut, Download, BookOpen, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -81,13 +81,9 @@ export default function CustomerPortal() {
   const portalLink = customer ? customerPortalUrl(customer.id) : customerPortalUrl(qrCustomerId);
 
   const downloadCard = async () => {
-    const svg = qrRef.current?.querySelector('svg');
-    let qrUrl = '';
-    if (svg) {
-      const xml = new XMLSerializer().serializeToString(svg);
-      qrUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(xml)}`;
-    }
-    printCustomerCard({
+    const canvas = qrRef.current?.querySelector('canvas');
+    const qrUrl = canvasPngDataUrl(canvas);
+    await printCustomerCard({
       customer,
       company,
       qrUrl,
@@ -97,8 +93,13 @@ export default function CustomerPortal() {
   };
 
   const downloadQr = () => {
-    const svg = qrRef.current?.querySelector('svg');
-    downloadSvgDataUrl(svg, `${customer?.customerCode || customer?.id || 'customer'}-qr.svg`);
+    const canvas = qrRef.current?.querySelector('canvas');
+    const png = canvasPngDataUrl(canvas);
+    if (!png) {
+      toast.error('QR not ready');
+      return;
+    }
+    downloadDataUrl(png, `${customer?.customerCode || customer?.id || 'customer'}-qr.png`);
     toast.success('QR code downloaded');
   };
 
@@ -172,7 +173,7 @@ export default function CustomerPortal() {
           <CardHeader><CardTitle className="text-base flex items-center gap-2"><IdCard className="h-4 w-4" />Customer card &amp; QR</CardTitle></CardHeader>
           <CardContent className="flex flex-col sm:flex-row gap-6 items-start">
             <div ref={qrRef} className="bg-white p-3 border rounded-xl">
-              <QRCodeSVG value={portalLink} size={148} level="M" fgColor="#0747a3" />
+              <QRCodeCanvas value={portalLink} size={148} level="M" includeMargin fgColor="#0747a3" bgColor="#ffffff" />
             </div>
             <div className="space-y-2 text-sm">
               <p>QR opens this portal. A matching login is required — private balances are never public.</p>

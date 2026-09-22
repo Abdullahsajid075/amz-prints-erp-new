@@ -6,12 +6,11 @@ export const SHEETS_MAX_IMAGE_CHARS = 49000;
 export const IMAGES_CELL_BUDGET = 49000;
 export const GALLERY_EXTRA_MAX_CHARS = 49000;
 
-/** Website HD: keep up to ~2000px edge, high JPEG quality. */
-export const WEB_IMAGE_MAX_EDGE = 2000;
-/** Transport budget per photo (base64) before GAS uploads to Drive. */
-export const WEB_IMAGE_MAX_CHARS = 1800000;
+/** Catalog photos stay small so product save does not time out on Supabase. */
+export const WEB_IMAGE_MAX_EDGE = 480;
+export const WEB_IMAGE_MAX_CHARS = 48000;
 
-const DEFAULT_JPEG_QUALITY = 0.9;
+const DEFAULT_JPEG_QUALITY = 0.74;
 
 function mimeForFile_(file) {
   const t = String(file?.type || '').toLowerCase();
@@ -148,7 +147,16 @@ export function compressGalleryImageFile(file) {
   return encodeProductImageFile(file, {
     maxEdge: WEB_IMAGE_MAX_EDGE,
     maxChars: WEB_IMAGE_MAX_CHARS,
-    quality: 0.9,
+    quality: 0.7,
+  });
+}
+
+/** Customer / employee DP — small enough for a card + row save. */
+export function compressPortraitFile(file) {
+  return encodeProductImageFile(file, {
+    maxEdge: 320,
+    maxChars: 42000,
+    quality: 0.72,
   });
 }
 

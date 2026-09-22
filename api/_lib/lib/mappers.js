@@ -23,6 +23,7 @@ function mapCustomer(row) {
     blockedBy: row.blocked_by || '',
     creditBalance: num(row.credit_balance),
     outstanding: num(row.outstanding),
+    photo: row.photo || row.image || '',
   };
 }
 
