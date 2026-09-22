@@ -575,13 +575,21 @@ async function dispatch(req, res) {
       const done = await handleCollection('products', '/products', mapProduct, (b, rid) => {
         const productType = b.productType || b.product_type || 'Product';
         const isService = String(productType).toLowerCase() === 'service';
+        const images = Array.isArray(b.images)
+          ? b.images.map((s) => String(s || '').trim()).filter(Boolean)
+          : [];
+        const primaryImage = b.image || images[0] || b.photo || '';
+        if (primaryImage && !images.includes(primaryImage)) images.unshift(primaryImage);
+        const variations = Array.isArray(b.variations) ? b.variations : [];
         return {
           id: rid || b.id || id('prod'),
           name: b.name || '',
           category: isService ? (b.category || 'Services') : (b.category || ''),
           rate: num(b.rate != null ? b.rate : b.basePrice),
+          sale_price: num(b.salePrice != null ? b.salePrice : b.sale_price),
           unit: isService ? 'service' : (b.unit || ''),
           description: b.description || '',
+          full_description: b.fullDescription || b.full_description || '',
           status: b.active === false ? 'Inactive' : (b.status || 'Active'),
           product_type: productType,
           designer: isService ? '' : (b.designer || ''),
@@ -589,7 +597,11 @@ async function dispatch(req, res) {
           material: isService ? '' : (b.material || ''),
           size: isService ? '' : (b.size || ''),
           min_quantity: isService ? 1 : num(b.minQuantity),
-          image: b.image || b.photo || '',
+          image: primaryImage,
+          images,
+          variations,
+          show_on_website: truthy(b.showOnWebsite, true),
+          show_on_top: b.showOnTop === true || b.show_on_top === true,
         };
       });
       if (done !== null) return done;
