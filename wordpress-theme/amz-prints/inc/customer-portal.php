@@ -171,6 +171,10 @@ function amz_prints_ajax_customer_register() {
 	$password = isset( $_POST['password'] ) ? (string) wp_unslash( $_POST['password'] ) : '';
 	$address  = isset( $_POST['address'] ) ? sanitize_textarea_field( wp_unslash( $_POST['address'] ) ) : '';
 
+	if ( ! $name || ! $email || ! $phone ) {
+		wp_send_json_error( array( 'message' => __( 'Name, email, and phone are required.', 'amz-prints' ) ), 400 );
+	}
+
 	$result = amz_prints_customer_api( '/public/customer/register', array(
 		'name'     => $name,
 		'email'    => $email,
@@ -180,6 +184,12 @@ function amz_prints_ajax_customer_register() {
 	) );
 	if ( is_wp_error( $result ) ) {
 		$err = $result->get_error_message();
+		if ( false !== stripos( $err, 'please log in' ) || false !== stripos( $err, 'already exists' ) ) {
+			wp_send_json_error( array(
+				'message' => __( 'An account already exists for this email. Please log in.', 'amz-prints' ),
+				'code'    => 'need_login',
+			), 400 );
+		}
 		if ( 'Not found' === $err || false !== stripos( $err, 'not found' ) ) {
 			$err = __( 'ERP registration API not found. Redeploy latest Code.gs (New version).', 'amz-prints' );
 		}
@@ -194,6 +204,8 @@ function amz_prints_ajax_customer_register() {
 	wp_send_json_success( array(
 		'customer' => isset( $result['customer'] ) ? $result['customer'] : array(),
 		'redirect' => $redirect,
+		'claimed'  => ! empty( $result['claimed'] ),
+		'created'  => ! empty( $result['created'] ),
 		'message'  => isset( $result['message'] ) ? $result['message'] : __( 'Account created.', 'amz-prints' ),
 	) );
 }
@@ -213,11 +225,15 @@ function amz_prints_ajax_customer_login() {
 		'password' => $password,
 	) );
 	if ( is_wp_error( $result ) ) {
-		$err = $result->get_error_message();
-		if ( 'Not found' === $err || false !== stripos( $err, 'not found' ) ) {
+		$err  = $result->get_error_message();
+		$code = '';
+		if ( false !== stripos( $err, 'please sign up' ) || false !== stripos( $err, 'no customer account' ) ) {
+			$code = 'need_signup';
+			$err  = __( 'No account found for this email. Please create an account.', 'amz-prints' );
+		} elseif ( 'Not found' === $err || false !== stripos( $err, 'not found' ) ) {
 			$err = __( 'ERP customer login API not found. Redeploy latest Code.gs in Apps Script (Deploy → Manage deployments → New version).', 'amz-prints' );
 		}
-		wp_send_json_error( array( 'message' => $err ), 400 );
+		wp_send_json_error( array( 'message' => $err, 'code' => $code ), 400 );
 	}
 	if ( empty( $result['token'] ) ) {
 		wp_send_json_error( array( 'message' => __( 'Login failed.', 'amz-prints' ) ), 400 );

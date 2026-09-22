@@ -135,6 +135,31 @@ $track_url = function_exists( 'amz_prints_customer_is_logged_in' ) && amz_prints
 	</div>
 </section>
 
+<section class="land-ecom">
+	<div class="container land-ecom__grid">
+		<div class="land-ecom__copy reveal" data-reveal>
+			<p class="eyebrow"><?php esc_html_e( 'Full ecommerce', 'amz-prints' ); ?></p>
+			<h2><?php esc_html_e( 'Shop print + digital, track every job, pay your way', 'amz-prints' ); ?></h2>
+			<p><?php esc_html_e( 'Create an account to get a downloadable customer card, QR, ledger, and pending payments. Matching name, email, and phone opens your existing AMZ Prints record automatically.', 'amz-prints' ); ?></p>
+			<div class="land-hero__actions">
+				<a class="btn btn--primary" href="<?php echo esc_url( home_url( '/products/' ) ); ?>"><?php esc_html_e( 'Open shop', 'amz-prints' ); ?></a>
+				<?php if ( function_exists( 'amz_prints_customer_is_logged_in' ) && amz_prints_customer_is_logged_in() ) : ?>
+					<a class="btn btn--ghost" href="<?php echo esc_url( home_url( '/my-account/' ) ); ?>"><?php esc_html_e( 'My account', 'amz-prints' ); ?></a>
+				<?php else : ?>
+					<a class="btn btn--ghost" href="<?php echo esc_url( home_url( '/customer-login/?tab=register' ) ); ?>"><?php esc_html_e( 'Create account', 'amz-prints' ); ?></a>
+				<?php endif; ?>
+			</div>
+		</div>
+		<ul class="land-ecom__list reveal" data-reveal>
+			<li><?php esc_html_e( 'Live order tracking on the main site', 'amz-prints' ); ?></li>
+			<li><?php esc_html_e( 'Customer card + QR you can download', 'amz-prints' ); ?></li>
+			<li><?php esc_html_e( 'Bank payment cards (customizable)', 'amz-prints' ); ?></li>
+			<li><?php esc_html_e( 'Mixed print house + digital services', 'amz-prints' ); ?></li>
+			<li><?php esc_html_e( 'Free CV builder with photo and PDF download', 'amz-prints' ); ?></li>
+		</ul>
+	</div>
+</section>
+
 <?php if ( function_exists( 'amz_prints_home_service_pillars' ) ) { amz_prints_home_service_pillars(); } ?>
 
 <section class="section section--services" id="services">

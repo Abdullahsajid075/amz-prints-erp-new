@@ -157,6 +157,55 @@
 }
 .land-quick__card--mix span { color: var(--amz-primary); opacity: 1; }
 
+.land-ecom {
+  padding: 2.4rem 0 0.4rem;
+}
+
+.land-ecom__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 1.4rem;
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--amz-line);
+  border-radius: 22px;
+  padding: 1.4rem 1.5rem;
+}
+
+.land-ecom__copy h2 { margin: 0.2rem 0 0.6rem; max-width: 22ch; }
+.land-ecom__copy p { margin: 0 0 1rem; color: var(--amz-muted); }
+
+.land-ecom__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.land-ecom__list li {
+  padding: 0.55rem 0.7rem 0.55rem 2.1rem;
+  position: relative;
+  background: var(--amz-paper);
+  border-radius: 12px;
+  font-weight: 650;
+}
+
+.land-ecom__list li::before {
+  content: "";
+  position: absolute;
+  left: 0.75rem;
+  top: 0.85rem;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--amz-accent);
+}
+
+@media (max-width: 860px) {
+  .land-ecom__grid { grid-template-columns: 1fr; }
+}
+
 .land-svc-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

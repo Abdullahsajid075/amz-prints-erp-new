@@ -3328,6 +3328,151 @@ body.nav-open .nav-toggle__bar:nth-child(3) { transform: translateY(-8px) rotate
 .customer-discount-list a { margin-left: 0.42rem; }
 .customer-track-result { margin-top: 0.9rem; }
 
+.customer-account-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.customer-account__grid--card {
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+}
+
+.amz-member-card {
+  background: linear-gradient(135deg, #0747a3 0%, #0a2f6b 55%, #ff6d00 140%);
+  color: #fff;
+  border-radius: 18px;
+  padding: 1.2rem 1.3rem 1.15rem;
+  min-height: 220px;
+  box-shadow: 0 16px 40px rgba(7, 71, 163, 0.28);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.amz-member-card__top {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.9;
+}
+
+.amz-member-card__body {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.amz-member-card__name {
+  margin: 0 0 0.25rem;
+  font-size: 1.45rem;
+  font-weight: 800;
+}
+
+.amz-member-card p { margin: 0.1rem 0; opacity: 0.92; font-size: 0.9rem; }
+
+.amz-member-card__no {
+  margin-top: 0.65rem !important;
+  font-family: ui-monospace, monospace;
+  letter-spacing: 0.12em;
+  font-weight: 800;
+}
+
+.amz-member-card__qr {
+  width: 118px;
+  height: 118px;
+  background: #fff;
+  border-radius: 10px;
+  padding: 6px;
+}
+
+.ledger-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.ledger-stat {
+  background: #fff;
+  border: 1px solid var(--amz-line);
+  border-radius: var(--radius);
+  padding: 0.95rem 1rem;
+}
+
+.ledger-stat span { color: var(--amz-muted); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+.ledger-stat strong { display: block; margin-top: 0.28rem; font-size: 1.25rem; }
+.ledger-stat--due strong { color: var(--amz-accent); }
+
+.pay-cards {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.pay-card {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 0.85rem;
+  align-items: center;
+  border: 1px solid var(--amz-line);
+  border-radius: 14px;
+  padding: 0.75rem 0.85rem;
+  cursor: pointer;
+  background: #fff;
+}
+
+.pay-card:has(input:checked) {
+  border-color: var(--amz-accent);
+  box-shadow: 0 0 0 3px rgba(255, 109, 0, 0.15);
+}
+
+.pay-card img {
+  width: 72px;
+  height: 48px;
+  object-fit: contain;
+  background: #f6f7fb;
+  border-radius: 8px;
+}
+
+.pay-card__badge {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 48px;
+  border-radius: 8px;
+  background: var(--amz-primary);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+}
+
+.pay-card input { position: absolute; opacity: 0; pointer-events: none; }
+.pay-card strong { display: block; }
+.pay-card em { display: block; font-style: normal; color: var(--amz-muted); font-size: 0.86rem; margin-top: 0.22rem; white-space: pre-line; }
+
+@media print {
+  body.amz-print-card .skip-link,
+  body.amz-print-card .site-header,
+  body.amz-print-card .site-footer,
+  body.amz-print-card .page-hero,
+  body.amz-print-card .amz-dock,
+  body.amz-print-card .float-stack,
+  body.amz-print-card .customer-panel,
+  body.amz-print-card .ledger-stats,
+  body.amz-print-card .customer-account-hero__actions {
+    display: none !important;
+  }
+  body.amz-print-card .amz-member-card {
+    box-shadow: none;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
 /* ---------- Track / contact layouts ---------- */
 .contact-layout,
 .quote-layout,
@@ -3749,6 +3894,8 @@ body.nav-open .nav-toggle__bar:nth-child(3) { transform: translateY(-8px) rotate
     flex-direction: column;
     align-items: stretch;
   }
+
+  .ledger-stats { grid-template-columns: 1fr; }
 
   .work-step:nth-child(even) { direction: ltr; }
 

@@ -56,7 +56,7 @@
     var lead = document.querySelector('.page-hero__lead');
     if (lead) {
       lead.textContent = currentTab === 'register'
-        ? 'Create an account with email, or continue with Google (Google verifies your email).'
+        ? 'Create an account with your name, email and phone. Matching CRM records open your card, QR, ledger and payments automatically.'
         : (currentTab === 'forgot'
           ? 'We will send a verification code to your email so you can set a new password.'
           : 'Log in with your email and password, or continue with Google if you already have an account.');
@@ -97,6 +97,15 @@
       }).then(function (res) {
         if (btn) btn.disabled = false;
         if (!res || !res.success) {
+          var code = res && res.data && res.data.code;
+          if (code === 'need_signup') {
+            var emailVal = fd.get('email') || '';
+            var regEmail = document.querySelector('#amz-customer-register-form [name="email"]');
+            if (regEmail) regEmail.value = emailVal;
+            setTab('register');
+            msg(document.getElementById('amz-customer-register-msg'), (res.data && res.data.message) || 'No account yet — create one below.', true);
+            return;
+          }
           msg(out, (res && res.data && res.data.message) || 'Login failed', true);
           return;
         }
@@ -127,6 +136,15 @@
       }).then(function (res) {
         if (btn) btn.disabled = false;
         if (!res || !res.success) {
+          var code = res && res.data && res.data.code;
+          if (code === 'need_login') {
+            var emailVal = fd.get('email') || '';
+            var logEmail = document.querySelector('#amz-customer-login-form [name="email"]');
+            if (logEmail) logEmail.value = emailVal;
+            setTab('login');
+            msg(document.getElementById('amz-customer-login-msg'), (res.data && res.data.message) || 'Account already exists — log in.', true);
+            return;
+          }
           msg(out, (res && res.data && res.data.message) || 'Sign up failed', true);
           return;
         }
@@ -309,6 +327,58 @@
       }).catch(function () {
         if (box) box.innerHTML = '<div class="track-alert track-alert--error">Network error</div>';
       });
+    });
+  }
+
+  var cardBtn = document.getElementById('amz-download-card');
+  if (cardBtn) {
+    cardBtn.addEventListener('click', function () {
+      var card = document.getElementById('amz-member-card');
+      if (!card) return;
+      var prev = document.title;
+      document.title = (card.getAttribute('data-card-name') || 'AMZ') + ' — Customer Card';
+      document.body.classList.add('amz-print-card');
+      window.print();
+      setTimeout(function () {
+        document.body.classList.remove('amz-print-card');
+        document.title = prev;
+      }, 400);
+    });
+  }
+
+  var pngBtn = document.getElementById('amz-download-card-png');
+  if (pngBtn) {
+    pngBtn.addEventListener('click', function () {
+      var card = document.getElementById('amz-member-card');
+      if (!card) return;
+      var name = card.getAttribute('data-card-name') || 'customer';
+      function loadScript(src) {
+        return new Promise(function (resolve, reject) {
+          if (document.querySelector('script[data-amz-lib="' + src + '"]')) { resolve(); return; }
+          var s = document.createElement('script');
+          s.src = src;
+          s.async = true;
+          s.setAttribute('data-amz-lib', src);
+          s.onload = function () { resolve(); };
+          s.onerror = function () { reject(new Error('lib')); };
+          document.head.appendChild(s);
+        });
+      }
+      pngBtn.disabled = true;
+      loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js')
+        .then(function () {
+          return html2canvas(card, { scale: 2, useCORS: true, backgroundColor: '#0747a3' });
+        })
+        .then(function (canvas) {
+          var a = document.createElement('a');
+          a.href = canvas.toDataURL('image/png');
+          a.download = 'AMZ-Prints-Card-' + name.replace(/\s+/g, '-') + '.png';
+          a.click();
+        })
+        .catch(function () {
+          cardBtn && cardBtn.click();
+        })
+        .finally(function () { pngBtn.disabled = false; });
     });
   }
 })();

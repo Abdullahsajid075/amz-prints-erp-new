@@ -118,9 +118,10 @@
   function save() {
     try {
       var copy = JSON.parse(JSON.stringify(state));
-      if (copy.photo && copy.photo.length > 120000) copy.photo = copy.photo.slice(0, 0);
+      copy.photo = '';
       localStorage.setItem(STORAGE, JSON.stringify(copy));
       if (state.photo) localStorage.setItem(STORAGE + '_photo', state.photo);
+      else localStorage.removeItem(STORAGE + '_photo');
     } catch (e) { /* quota */ }
   }
   try {
@@ -185,13 +186,13 @@
         return;
       }
       if (def.type === 'photo') {
-        html += '<div class="cv-photo-row">';
+        html += '<div class="cv-photo-row" data-photo-drop>';
         html += state.photo
           ? '<img class="cv-photo-preview" alt="Profile" src="' + state.photo + '">'
           : '<div class="cv-photo-preview" aria-hidden="true"></div>';
-        html += '<div class="cv-photo-actions"><label class="btn btn--primary btn--sm" style="margin:0">Upload picture<input type="file" accept="image/*" data-photo hidden></label>';
+        html += '<div class="cv-photo-actions"><label class="btn btn--primary btn--sm" style="margin:0">Upload picture<input type="file" accept="image/*" capture="environment" data-photo class="cv-file-input"></label>';
         if (state.photo) html += '<button type="button" class="btn btn--ghost btn--sm" data-photo-remove>Remove</button>';
-        html += '</div></div>';
+        html += '<p class="form-note" style="margin:0.4rem 0 0">JPG, PNG or WEBP. The photo appears on the CV and in the downloaded PDF.</p></div></div>';
       } else if (def.type === 'personal') {
         html += input('personal.fullName', 'Full name');
         html += input('personal.title', 'Professional title', 'text', 'placeholder="e.g. Graphic Designer"');
@@ -319,31 +320,8 @@
     if (t.getAttribute('data-photo')) {
       var file = t.files && t.files[0];
       if (!file) return;
-      if (file.size > 8 * 1024 * 1024) {
-        alert('Please choose a photo under 8 MB.');
-        return;
-      }
-      var img = new Image();
-      var fr = new FileReader();
-      fr.onload = function () {
-        img.onload = function () {
-          var canvas = document.createElement('canvas');
-          var size = 480;
-          canvas.width = size;
-          canvas.height = size;
-          var ctx = canvas.getContext('2d');
-          var s = Math.min(img.width, img.height);
-          var sx = (img.width - s) / 2;
-          var sy = (img.height - s) / 2;
-          ctx.drawImage(img, sx, sy, s, s, 0, 0, size, size);
-          state.photo = canvas.toDataURL('image/jpeg', 0.82);
-          save();
-          renderForm();
-          renderPreview();
-        };
-        img.src = fr.result;
-      };
-      fr.readAsDataURL(file);
+      setPhotoFromFile(file);
+      t.value = '';
     }
   });
   editor.addEventListener('click', function (e) {
@@ -561,20 +539,125 @@
     scaleEl.style.height = (pages * 1123 * s) + 'px';
   }
 
-  window.addEventListener('resize', fitScale);
+  function setPhotoFromFile(file) {
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) {
+      alert('Please choose a photo under 8 MB.');
+      return;
+    }
+    var img = new Image();
+    var fr = new FileReader();
+    fr.onerror = function () { alert('Could not read that image. Try JPG or PNG.'); };
+    fr.onload = function () {
+      img.onload = function () {
+        try {
+          var canvas = document.createElement('canvas');
+          var size = 520;
+          canvas.width = size;
+          canvas.height = size;
+          var ctx = canvas.getContext('2d');
+          var s = Math.min(img.width, img.height) || 1;
+          var sx = (img.width - s) / 2;
+          var sy = (img.height - s) / 2;
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(0, 0, size, size);
+          ctx.drawImage(img, sx, sy, s, s, 0, 0, size, size);
+          state.photo = canvas.toDataURL('image/jpeg', 0.88);
+          state.enabled.photo = true;
+          save();
+          renderForm();
+          renderPreview();
+        } catch (err) {
+          alert('Could not process that image. Try another photo.');
+        }
+      };
+      img.onerror = function () { alert('That file is not a supported image.'); };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  }
+
+  editor.addEventListener('dragover', function (e) {
+    if (!e.target.closest('[data-photo-drop]')) return;
+    e.preventDefault();
+  });
+  editor.addEventListener('drop', function (e) {
+    var drop = e.target.closest('[data-photo-drop]');
+    if (!drop) return;
+    e.preventDefault();
+    var file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (file) setPhotoFromFile(file);
+  });
+
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      if (document.querySelector('script[data-amz-lib="' + src + '"]')) { resolve(); return; }
+      var s = document.createElement('script');
+      s.src = src;
+      s.async = true;
+      s.setAttribute('data-amz-lib', src);
+      s.onload = function () { resolve(); };
+      s.onerror = function () { reject(new Error('Failed ' + src)); };
+      document.head.appendChild(s);
+    });
+  }
 
   function doPrint() {
     var prev = document.title;
     var name = (state.personal && state.personal.fullName) ? state.personal.fullName : 'CV';
     document.title = name + ' — CV';
+    document.body.classList.add('amz-print-cv');
     window.print();
-    setTimeout(function () { document.title = prev; }, 400);
+    setTimeout(function () {
+      document.body.classList.remove('amz-print-cv');
+      document.title = prev;
+    }, 400);
   }
+
+  function doDownloadPdf() {
+    var name = ((state.personal && state.personal.fullName) || 'CV').replace(/[^\w\- ]+/g, '').trim() || 'CV';
+    var btn = document.querySelector('[data-cv-action="download"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Preparing PDF…'; }
+    Promise.all([
+      loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'),
+      loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
+    ]).then(function () {
+      var pages = pagesHost.querySelectorAll('.cv-page');
+      if (!pages.length) throw new Error('No CV pages');
+      var JsPDF = window.jspdf && window.jspdf.jsPDF;
+      var pdf = new JsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' });
+      var chain = Promise.resolve();
+      Array.prototype.forEach.call(pages, function (page, idx) {
+        chain = chain.then(function () {
+          return html2canvas(page, {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: '#ffffff',
+            logging: false
+          }).then(function (canvas) {
+            var img = canvas.toDataURL('image/jpeg', 0.92);
+            if (idx > 0) pdf.addPage();
+            pdf.addImage(img, 'JPEG', 0, 0, 595.28, 841.89);
+          });
+        });
+      });
+      return chain.then(function () {
+        pdf.save(name + '-CV.pdf');
+      });
+    }).catch(function () {
+      doPrint();
+    }).finally(function () {
+      if (btn) { btn.disabled = false; btn.textContent = 'Download CV'; }
+    });
+  }
+
+  window.addEventListener('resize', fitScale);
 
   document.querySelectorAll('[data-cv-action]').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var act = btn.getAttribute('data-cv-action');
-      if (act === 'print' || act === 'download') doPrint();
+      if (act === 'print') doPrint();
+      if (act === 'download') doDownloadPdf();
       if (act === 'preview') {
         var box = document.getElementById('cv-lightbox');
         var body = document.getElementById('cv-lightbox-body');

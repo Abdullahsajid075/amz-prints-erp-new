@@ -34,7 +34,7 @@ $is_forgot   = ( 'forgot' === $tab );
 		<p class="page-hero__lead">
 			<?php
 			if ( $is_register ) {
-				esc_html_e( 'Create an account with email, or continue with Google (Google verifies your email).', 'amz-prints' );
+				esc_html_e( 'Create an account with your name, email, and phone — or continue with Google. If you already exist in our CRM, we will open your card, QR, ledger, and payments automatically.', 'amz-prints' );
 			} elseif ( $is_forgot ) {
 				esc_html_e( 'We will send a verification code to your email so you can set a new password.', 'amz-prints' );
 			} else {
@@ -80,14 +80,14 @@ $is_forgot   = ( 'forgot' === $tab );
 				</label>
 				<label>
 					<span><?php esc_html_e( 'Phone', 'amz-prints' ); ?></span>
-					<input type="tel" name="phone" autocomplete="tel" placeholder="03xx...">
+					<input type="tel" name="phone" required autocomplete="tel" placeholder="03xx...">
 				</label>
 				<label>
 					<span><?php esc_html_e( 'Password', 'amz-prints' ); ?></span>
 					<input type="password" name="password" required autocomplete="new-password" minlength="6">
 				</label>
 				<button type="submit" class="btn btn--primary btn--lg"><?php esc_html_e( 'Sign up', 'amz-prints' ); ?></button>
-				<p class="form-note"><?php esc_html_e( 'New accounts are added to AMZ Prints CRM automatically.', 'amz-prints' ); ?></p>
+				<p class="form-note"><?php esc_html_e( 'If your name, email, and phone already match an AMZ Prints customer, we will log you into that record instead of creating a duplicate.', 'amz-prints' ); ?></p>
 				<p class="form-note" id="amz-customer-register-msg" hidden></p>
 			</form>
 
@@ -135,6 +135,8 @@ $is_forgot   = ( 'forgot' === $tab );
 		<aside class="customer-auth-aside reveal" data-reveal>
 			<h2><?php esc_html_e( 'Customer account includes', 'amz-prints' ); ?></h2>
 			<ul class="check-list">
+				<li><?php esc_html_e( 'Downloadable customer card + QR', 'amz-prints' ); ?></li>
+				<li><?php esc_html_e( 'Ledger and pending payments', 'amz-prints' ); ?></li>
 				<li><?php esc_html_e( 'Shop and place orders online', 'amz-prints' ); ?></li>
 				<li><?php esc_html_e( 'Track your orders', 'amz-prints' ); ?></li>
 				<li><?php esc_html_e( 'Order history', 'amz-prints' ); ?></li>

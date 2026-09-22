@@ -657,6 +657,56 @@ function amz_prints_customize_register( $wp_customize ) {
 		'type'    => 'textarea',
 	) );
 
+	$wp_customize->add_setting( 'amz_pay_cod_enabled', array(
+		'default'           => true,
+		'sanitize_callback' => function( $v ) { return (bool) $v; },
+	) );
+	$wp_customize->add_control( 'amz_pay_cod_enabled', array(
+		'label'   => __( 'Enable Cash on Delivery', 'amz-prints' ),
+		'section' => 'amz_store',
+		'type'    => 'checkbox',
+	) );
+
+	for ( $i = 1; $i <= 4; $i++ ) {
+		$wp_customize->add_setting( 'amz_pay_bank_' . $i . '_enable', array(
+			'default'           => ( 1 === $i ),
+			'sanitize_callback' => function( $v ) { return (bool) $v; },
+		) );
+		$wp_customize->add_control( 'amz_pay_bank_' . $i . '_enable', array(
+			'label'   => sprintf( __( 'Bank card %d — enable', 'amz-prints' ), $i ),
+			'section' => 'amz_store',
+			'type'    => 'checkbox',
+		) );
+		$wp_customize->add_setting( 'amz_pay_bank_' . $i . '_name', array(
+			'default'           => ( 1 === $i ) ? 'Bank transfer' : '',
+			'sanitize_callback' => 'sanitize_text_field',
+		) );
+		$wp_customize->add_control( 'amz_pay_bank_' . $i . '_name', array(
+			'label'   => sprintf( __( 'Bank card %d — bank name', 'amz-prints' ), $i ),
+			'section' => 'amz_store',
+			'type'    => 'text',
+		) );
+		$wp_customize->add_setting( 'amz_pay_bank_' . $i . '_details', array(
+			'default'           => ( 1 === $i ) ? "Account title: Amazon Printings (Pvt) Ltd\nAccount no: 0000-0000000-00\nIBAN: PK00XXXX0000000000000000" : '',
+			'sanitize_callback' => 'sanitize_textarea_field',
+		) );
+		$wp_customize->add_control( 'amz_pay_bank_' . $i . '_details', array(
+			'label'       => sprintf( __( 'Bank card %d — account details', 'amz-prints' ), $i ),
+			'section'     => 'amz_store',
+			'type'        => 'textarea',
+			'description' => __( 'Shown as a payment card at checkout (title, account number, IBAN).', 'amz-prints' ),
+		) );
+		$wp_customize->add_setting( 'amz_pay_bank_' . $i . '_image', array(
+			'default'           => 0,
+			'sanitize_callback' => 'absint',
+		) );
+		$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'amz_pay_bank_' . $i . '_image', array(
+			'label'     => sprintf( __( 'Bank card %d — bank photo / logo', 'amz-prints' ), $i ),
+			'section'   => 'amz_store',
+			'mime_type' => 'image',
+		) ) );
+	}
+
 	/* ── A1 Edit Books (company profile catalogs) ── */
 	$wp_customize->add_section( 'amz_books', array(
 		'title'       => __( 'A1 — Edit Books', 'amz-prints' ),

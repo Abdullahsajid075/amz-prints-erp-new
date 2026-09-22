@@ -365,8 +365,121 @@ async function dispatch(req, res) {
           email: c.email || '',
           phone: c.phone || '',
           city: c.city || '',
+          address: c.address || '',
           hasPassword: !!String(c.portal_password || '').trim(),
         });
+
+        const namesMatch = (a, b) => {
+          const n = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+          const na = n(a);
+          const nb = n(b);
+          return !!na && na === nb;
+        };
+        const phonesMatch = (a, b) => {
+          const pa = String(a || '').replace(/\D/g, '');
+          const pb = String(b || '').replace(/\D/g, '');
+          if (pa.length < 7 || pb.length < 7) return false;
+          return pa === pb || pa.slice(-10) === pb.slice(-10);
+        };
+        const identityMatch = (customer, name, email, phone) => {
+          const em = String(customer.email || '').trim().toLowerCase() === String(email || '').trim().toLowerCase();
+          return em && namesMatch(customer.name, name) && phonesMatch(customer.phone, phone);
+        };
+        const portalCardFor = (c) => {
+          const id = String(c.id || '');
+          const digits = id.replace(/\D/g, '');
+          let n = 0;
+          if (digits) n = Number(digits.slice(-8)) || 0;
+          else {
+            for (let i = 0; i < id.length; i++) n = (n * 31 + id.charCodeAt(i)) % 1000000;
+          }
+          const num = String(Math.abs(n) % 1000000).padStart(6, '0');
+          const cardNumber = `AMZ-${num.slice(0, 3)}-${num.slice(3)}`;
+          const payload = `AMZ|${id}|${String(c.email || '').trim().toLowerCase()}`;
+          return {
+            cardNumber,
+            qrPayload: payload,
+            qrUrl: `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=6&data=${encodeURIComponent(payload)}`,
+          };
+        };
+        const enrichPortalCustomer = (c) => {
+          const card = portalCardFor(c);
+          return { ...sanitizePortalCustomer(c), ...card };
+        };
+        const findByPhone = async (phone) => {
+          const cleaned = String(phone || '').replace(/\D/g, '');
+          if (cleaned.length < 7) return null;
+          const { data } = await supabase.from('customers').select('*').limit(2000);
+          return (data || []).find((c) => {
+            const p = String(c.phone || '').replace(/\D/g, '');
+            return p && (p === cleaned || p.slice(-10) === cleaned.slice(-10));
+          }) || null;
+        };
+        const claimExisting = async (row, body) => {
+          const name = String(body.name || row.name || '').trim();
+          const email = String(body.email || row.email || '').trim().toLowerCase();
+          const phone = String(body.phone || row.phone || '').trim();
+          const password = String(body.password || body.newPassword || '').trim();
+          const address = String(body.address || row.address || '').trim();
+          const updates = {
+            name: name || row.name,
+            email,
+            phone: phone || row.phone,
+            address,
+            portal_password: password,
+            in_crm: true,
+            stage: row.stage || 'customer',
+            stage_updated_at: new Date().toISOString(),
+          };
+          await supabase.from('customers').update(updates).eq('id', row.id);
+          const next = { ...row, ...updates };
+          return {
+            ok: true,
+            claimed: true,
+            token: issueCustomerToken(next),
+            customer: enrichPortalCustomer(next),
+            message: 'We found your AMZ Prints record. You are signed in — your card, ledger, and orders are ready.',
+          };
+        };
+        const buildLedger = async (customer, orders, invoices) => {
+          const { data: payments } = await supabase.from('payments').select('*');
+          const phone = String(customer.phone || '');
+          const related = (payments || []).filter((p) => {
+            const t = String(p.type || 'inflow').toLowerCase();
+            if (t === 'outflow' || t === 'out') return false;
+            return String(p.customer_id) === String(customer.id)
+              || (phone && String(p.customer_phone || p.party_phone || '') === phone);
+          });
+          const billed = orders.reduce((s, o) => s + Number(o.totalAmount || 0), 0);
+          const outstanding = orders.reduce((s, o) => s + Number(o.balanceAmount || 0), 0);
+          const paidFromOrders = orders.reduce((s, o) => s + Math.max(0, Number(o.totalAmount || 0) - Number(o.balanceAmount || 0)), 0);
+          const paidFromPay = related.reduce((s, p) => s + Number(p.amount || 0), 0);
+          const pending = [];
+          orders.forEach((o) => {
+            const bal = Number(o.balanceAmount || 0);
+            if (bal > 0) pending.push({ source: 'order', ref: o.orderId || o.id, date: o.date || '', amount: bal, status: o.status || 'Unpaid' });
+          });
+          invoices.forEach((inv) => {
+            const due = Math.max(0, Number(inv.totalAmount || 0) - Number(inv.paidAmount || 0));
+            if (due > 0) pending.push({ source: 'invoice', ref: inv.invoiceNumber || inv.id, date: inv.date || '', amount: due, status: inv.status || 'Pending' });
+          });
+          return {
+            ledger: {
+              totalBilled: billed,
+              totalPaid: Math.max(paidFromOrders, paidFromPay),
+              outstanding,
+              payments: related.map((p) => ({
+                id: p.id,
+                date: p.date || '',
+                amount: Number(p.amount || 0),
+                method: p.method || p.payment_method || '',
+                reference: p.reference || p.ref_id || '',
+                notes: p.notes || '',
+              })),
+            },
+            pendingPayments: pending,
+          };
+        };
 
         const ownsOrder = (customer, o) => {
           const cid = String(customer.id || '');
@@ -475,10 +588,29 @@ async function dispatch(req, res) {
             const address = String(body.address || '').trim();
             if (!name) return sendError(res, 'Name is required', 400);
             if (!email || !email.includes('@')) return sendError(res, 'Valid email is required', 400);
+            if (!phone) return sendError(res, 'Phone is required', 400);
             if (password.length < 6) return sendError(res, 'Password must be at least 6 characters', 400);
             const { data: existingRows } = await supabase.from('customers').select('*').ilike('email', email).limit(5);
             const exists = (existingRows || []).find((c) => String(c.email || '').trim().toLowerCase() === email);
-            if (exists) return sendError(res, 'An account already exists for this email. Please log in.', 400);
+            if (exists) {
+              const hasPass = !!String(exists.portal_password || '').trim();
+              if (hasPass) return sendError(res, 'An account already exists for this email. Please log in.', 400);
+              if (identityMatch(exists, name, email, phone) || namesMatch(exists.name, name)) {
+                return send(res, await claimExisting(exists, body));
+              }
+              return sendError(res, 'An account already exists for this email. Please log in.', 400);
+            }
+            const byPhone = await findByPhone(phone);
+            if (byPhone) {
+              const pEmail = String(byPhone.email || '').trim().toLowerCase();
+              if (pEmail && pEmail !== email) {
+                return sendError(res, 'This phone is already linked to another customer account. Please log in.', 400);
+              }
+              if (namesMatch(byPhone.name, name) || !pEmail) {
+                return send(res, await claimExisting(byPhone, body));
+              }
+              return sendError(res, 'This phone is already linked to another customer account. Please log in.', 400);
+            }
             const customerId = id('cust');
             const row = {
               id: customerId,
@@ -501,16 +633,17 @@ async function dispatch(req, res) {
               await supabase.from('crm_notes').insert({
                 id: id('note'),
                 customer_id: customerId,
-                note: 'Website account created',
+                note: 'Website account created — customer card issued',
                 created_at: new Date().toISOString(),
                 created_by: 'website',
               });
             } catch { /* optional */ }
             return send(res, {
               ok: true,
+              created: true,
               token: issueCustomerToken(row),
-              customer: sanitizePortalCustomer(row),
-              message: 'Account created. You can place orders now.',
+              customer: enrichPortalCustomer(row),
+              message: 'Account created. Your customer card is ready in My Account.',
             });
           }
 
@@ -520,11 +653,11 @@ async function dispatch(req, res) {
             if (!email || !password) return sendError(res, 'Email and password required', 400);
             const { data: rows } = await supabase.from('customers').select('*').ilike('email', email).limit(5);
             const customer = (rows || []).find((c) => String(c.email || '').trim().toLowerCase() === email);
-            if (!customer) return sendError(res, 'No customer account found for this email', 404);
+            if (!customer) return sendError(res, 'No customer account found for this email. Please sign up.', 404);
             const stored = String(customer.portal_password || '').trim();
             if (!stored) return sendError(res, 'Password not set. Use Forgot password (email code) or continue with Google.', 400);
             if (stored !== password) return sendError(res, 'Invalid email or password', 401);
-            return send(res, { token: issueCustomerToken(customer), customer: sanitizePortalCustomer(customer) });
+            return send(res, { token: issueCustomerToken(customer), customer: enrichPortalCustomer(customer) });
           }
 
           if (method === 'POST' && path === '/public/customer/google') {
@@ -557,7 +690,7 @@ async function dispatch(req, res) {
                   ok: true,
                   created: true,
                   token: issueCustomerToken(row),
-                  customer: sanitizePortalCustomer(row),
+                  customer: enrichPortalCustomer(row),
                   message: 'Account created. You can place orders now.',
                 });
               }
@@ -571,7 +704,7 @@ async function dispatch(req, res) {
             }
             return send(res, {
               token: issueCustomerToken(customer),
-              customer: sanitizePortalCustomer(customer),
+              customer: enrichPortalCustomer(customer),
               passwordUpdated: !!newPass,
             });
           }
@@ -590,7 +723,7 @@ async function dispatch(req, res) {
             return send(res, {
               ok: true,
               token: issueCustomerToken(customer),
-              customer: sanitizePortalCustomer(customer),
+              customer: enrichPortalCustomer(customer),
             });
           }
 
@@ -606,7 +739,7 @@ async function dispatch(req, res) {
             return send(res, {
               ok: true,
               token: issueCustomerToken(customer),
-              customer: sanitizePortalCustomer(customer),
+              customer: enrichPortalCustomer(customer),
             });
           }
 
@@ -616,8 +749,9 @@ async function dispatch(req, res) {
             const [orders, invoices] = await Promise.all([listOrders(customer), listInvoices(customer)]);
             const discountItems = invoices.filter((inv) => Number(inv.discount || 0) > 0);
             const totalDiscount = discountItems.reduce((s, r) => s + Number(r.discount || 0), 0);
+            const extra = await buildLedger(customer, orders, invoices);
             return send(res, {
-              customer: sanitizePortalCustomer(customer),
+              customer: enrichPortalCustomer(customer),
               orders,
               invoices,
               discounts: {
@@ -633,6 +767,8 @@ async function dispatch(req, res) {
                 })),
                 note: 'Discounts already applied on your invoices (view only).',
               },
+              ledger: extra.ledger,
+              pendingPayments: extra.pendingPayments,
               readOnly: true,
             });
           }

@@ -2,7 +2,7 @@
 /**
  * Template Name: My Account
  *
- * Read-only customer portal.
+ * Customer portal — card, QR, ledger, orders, payments.
  *
  * @package AMZ_Prints
  */
@@ -18,10 +18,18 @@ if ( is_wp_error( $session ) ) {
 	exit;
 }
 
-$customer  = isset( $session['customer'] ) && is_array( $session['customer'] ) ? $session['customer'] : array();
-$orders    = isset( $session['orders'] ) && is_array( $session['orders'] ) ? $session['orders'] : array();
-$invoices  = isset( $session['invoices'] ) && is_array( $session['invoices'] ) ? $session['invoices'] : array();
+$customer = isset( $session['customer'] ) && is_array( $session['customer'] ) ? $session['customer'] : array();
+$orders   = isset( $session['orders'] ) && is_array( $session['orders'] ) ? $session['orders'] : array();
+$invoices = isset( $session['invoices'] ) && is_array( $session['invoices'] ) ? $session['invoices'] : array();
 $discounts = isset( $session['discounts'] ) && is_array( $session['discounts'] ) ? $session['discounts'] : array();
+$ledger   = isset( $session['ledger'] ) && is_array( $session['ledger'] ) ? $session['ledger'] : array();
+$pending  = isset( $session['pendingPayments'] ) && is_array( $session['pendingPayments'] ) ? $session['pendingPayments'] : array();
+
+$card_no = (string) ( $customer['cardNumber'] ?? '' );
+$qr_url  = (string) ( $customer['qrUrl'] ?? '' );
+$name    = (string) ( $customer['name'] ?? '' );
+$email   = (string) ( $customer['email'] ?? '' );
+$phone   = (string) ( $customer['phone'] ?? '' );
 
 get_header();
 ?>
@@ -35,18 +43,71 @@ get_header();
 				<?php
 				printf(
 					/* translators: %s customer name */
-					esc_html__( 'Welcome, %s — view-only access to your orders and invoices.', 'amz-prints' ),
-					esc_html( $customer['name'] ? $customer['name'] : $customer['email'] )
+					esc_html__( 'Welcome, %s — shop, track orders, and manage your customer card.', 'amz-prints' ),
+					esc_html( $name ? $name : $email )
 				);
 				?>
 			</p>
 		</div>
-		<button type="button" class="btn btn--ghost" id="amz-customer-logout"><?php esc_html_e( 'Log out', 'amz-prints' ); ?></button>
+		<div class="customer-account-hero__actions">
+			<a class="btn btn--primary" href="<?php echo esc_url( home_url( '/products/' ) ); ?>"><?php esc_html_e( 'Shop now', 'amz-prints' ); ?></a>
+			<button type="button" class="btn btn--ghost" id="amz-customer-logout"><?php esc_html_e( 'Log out', 'amz-prints' ); ?></button>
+		</div>
 	</div>
 </section>
 
 <section class="section">
 	<div class="container customer-account">
+		<div class="customer-account__grid customer-account__grid--card">
+			<article class="amz-member-card" id="amz-member-card" data-card-name="<?php echo esc_attr( $name ? $name : 'customer' ); ?>">
+				<div class="amz-member-card__top">
+					<span><?php echo esc_html( amz_prints_mod( 'amz_company_name', 'AMZ Prints' ) ); ?></span>
+					<strong><?php esc_html_e( 'Customer card', 'amz-prints' ); ?></strong>
+				</div>
+				<div class="amz-member-card__body">
+					<div>
+						<p class="amz-member-card__name"><?php echo esc_html( $name ?: '—' ); ?></p>
+						<p><?php echo esc_html( $email ?: '—' ); ?></p>
+						<p><?php echo esc_html( $phone ?: '—' ); ?></p>
+						<p class="amz-member-card__no"><?php echo esc_html( $card_no ?: 'AMZ-CARD' ); ?></p>
+					</div>
+					<?php if ( $qr_url ) : ?>
+						<img class="amz-member-card__qr" src="<?php echo esc_url( $qr_url ); ?>" alt="<?php esc_attr_e( 'Customer QR', 'amz-prints' ); ?>" width="140" height="140">
+					<?php endif; ?>
+				</div>
+			</article>
+
+			<article class="customer-panel reveal" data-reveal>
+				<h2><?php esc_html_e( 'Your card', 'amz-prints' ); ?></h2>
+				<p><?php esc_html_e( 'Download or print this card. Show the QR at the counter or keep it on your phone.', 'amz-prints' ); ?></p>
+				<div class="hero__actions" style="margin-top:0.85rem">
+					<button type="button" class="btn btn--primary" id="amz-download-card-png"><?php esc_html_e( 'Download card', 'amz-prints' ); ?></button>
+					<button type="button" class="btn btn--ghost" id="amz-download-card"><?php esc_html_e( 'Print card', 'amz-prints' ); ?></button>
+				</div>
+				<ul class="customer-meta" style="margin-top:1rem">
+					<li><span><?php esc_html_e( 'Name', 'amz-prints' ); ?></span><strong><?php echo esc_html( $name ?: '—' ); ?></strong></li>
+					<li><span><?php esc_html_e( 'Email', 'amz-prints' ); ?></span><strong><?php echo esc_html( $email ?: '—' ); ?></strong></li>
+					<li><span><?php esc_html_e( 'Phone', 'amz-prints' ); ?></span><strong><?php echo esc_html( $phone ?: '—' ); ?></strong></li>
+					<li><span><?php esc_html_e( 'Card no.', 'amz-prints' ); ?></span><strong><?php echo esc_html( $card_no ?: '—' ); ?></strong></li>
+				</ul>
+			</article>
+		</div>
+
+		<div class="ledger-stats">
+			<div class="ledger-stat">
+				<span><?php esc_html_e( 'Billed', 'amz-prints' ); ?></span>
+				<strong>Rs. <?php echo esc_html( number_format_i18n( (float) ( $ledger['totalBilled'] ?? 0 ), 0 ) ); ?></strong>
+			</div>
+			<div class="ledger-stat">
+				<span><?php esc_html_e( 'Paid', 'amz-prints' ); ?></span>
+				<strong>Rs. <?php echo esc_html( number_format_i18n( (float) ( $ledger['totalPaid'] ?? 0 ), 0 ) ); ?></strong>
+			</div>
+			<div class="ledger-stat ledger-stat--due">
+				<span><?php esc_html_e( 'Pending / outstanding', 'amz-prints' ); ?></span>
+				<strong>Rs. <?php echo esc_html( number_format_i18n( (float) ( $ledger['outstanding'] ?? 0 ), 0 ) ); ?></strong>
+			</div>
+		</div>
+
 		<div class="customer-account__grid">
 			<article class="customer-panel reveal" data-reveal id="track">
 				<h2><?php esc_html_e( 'Track order', 'amz-prints' ); ?></h2>
@@ -62,15 +123,55 @@ get_header();
 			</article>
 
 			<article class="customer-panel reveal" data-reveal>
-				<h2><?php esc_html_e( 'Account', 'amz-prints' ); ?></h2>
-				<ul class="customer-meta">
-					<li><span><?php esc_html_e( 'Name', 'amz-prints' ); ?></span><strong><?php echo esc_html( $customer['name'] ?: '—' ); ?></strong></li>
-					<li><span><?php esc_html_e( 'Email', 'amz-prints' ); ?></span><strong><?php echo esc_html( $customer['email'] ?: '—' ); ?></strong></li>
-					<li><span><?php esc_html_e( 'Phone', 'amz-prints' ); ?></span><strong><?php echo esc_html( $customer['phone'] ?: '—' ); ?></strong></li>
-				</ul>
-				<p class="form-note"><?php esc_html_e( 'Read-only. Contact AMZ Prints to update your profile.', 'amz-prints' ); ?></p>
+				<h2><?php esc_html_e( 'Pending payments', 'amz-prints' ); ?></h2>
+				<?php if ( empty( $pending ) ) : ?>
+					<p class="form-note"><?php esc_html_e( 'No pending payments on this account.', 'amz-prints' ); ?></p>
+				<?php else : ?>
+					<ul class="customer-discount-list">
+						<?php foreach ( $pending as $row ) : ?>
+							<li>
+								<strong><?php echo esc_html( ( $row['source'] ?? '' ) . ' ' . ( $row['ref'] ?? '' ) ); ?></strong>
+								— Rs. <?php echo esc_html( number_format_i18n( (float) ( $row['amount'] ?? 0 ), 0 ) ); ?>
+								<em><?php echo esc_html( $row['status'] ?? '' ); ?></em>
+							</li>
+						<?php endforeach; ?>
+					</ul>
+				<?php endif; ?>
 			</article>
 		</div>
+
+		<article class="customer-panel reveal" data-reveal>
+			<h2><?php esc_html_e( 'Ledger', 'amz-prints' ); ?></h2>
+			<?php
+			$pay_rows = isset( $ledger['payments'] ) && is_array( $ledger['payments'] ) ? $ledger['payments'] : array();
+			if ( empty( $pay_rows ) ) :
+				?>
+				<p class="form-note"><?php esc_html_e( 'No payment ledger entries yet. New orders will appear here.', 'amz-prints' ); ?></p>
+			<?php else : ?>
+				<div class="customer-table-wrap">
+					<table class="customer-table">
+						<thead>
+							<tr>
+								<th><?php esc_html_e( 'Date', 'amz-prints' ); ?></th>
+								<th><?php esc_html_e( 'Method', 'amz-prints' ); ?></th>
+								<th><?php esc_html_e( 'Reference', 'amz-prints' ); ?></th>
+								<th><?php esc_html_e( 'Amount', 'amz-prints' ); ?></th>
+							</tr>
+						</thead>
+						<tbody>
+							<?php foreach ( $pay_rows as $pay ) : ?>
+								<tr>
+									<td><?php echo esc_html( $pay['date'] ?: '—' ); ?></td>
+									<td><?php echo esc_html( $pay['method'] ?: '—' ); ?></td>
+									<td><?php echo esc_html( $pay['reference'] ?: '—' ); ?></td>
+									<td><?php echo esc_html( number_format_i18n( (float) ( $pay['amount'] ?? 0 ), 0 ) ); ?></td>
+								</tr>
+							<?php endforeach; ?>
+						</tbody>
+					</table>
+				</div>
+			<?php endif; ?>
+		</article>
 
 		<article class="customer-panel reveal" data-reveal>
 			<h2><?php esc_html_e( 'Order history', 'amz-prints' ); ?></h2>
@@ -86,6 +187,7 @@ get_header();
 								<th><?php esc_html_e( 'Status', 'amz-prints' ); ?></th>
 								<th><?php esc_html_e( 'Items', 'amz-prints' ); ?></th>
 								<th><?php esc_html_e( 'Total', 'amz-prints' ); ?></th>
+								<th><?php esc_html_e( 'Balance', 'amz-prints' ); ?></th>
 							</tr>
 						</thead>
 						<tbody>
@@ -101,6 +203,7 @@ get_header();
 									<td><span class="track-status-pill"><?php echo esc_html( $order['status'] ?: '—' ); ?></span></td>
 									<td><?php echo esc_html( ! empty( $order['items'] ) ? implode( ', ', $order['items'] ) : '—' ); ?></td>
 									<td><?php echo esc_html( number_format_i18n( (float) ( $order['totalAmount'] ?? 0 ), 0 ) ); ?></td>
+									<td><?php echo esc_html( number_format_i18n( (float) ( $order['balanceAmount'] ?? 0 ), 0 ) ); ?></td>
 								</tr>
 							<?php endforeach; ?>
 						</tbody>
@@ -173,7 +276,6 @@ get_header();
 					<?php endforeach; ?>
 				</ul>
 			<?php endif; ?>
-			<p class="form-note"><?php echo esc_html( $discounts['note'] ?? __( 'View only.', 'amz-prints' ) ); ?></p>
 		</article>
 	</div>
 </section>

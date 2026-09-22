@@ -2894,7 +2894,135 @@ function sanitizePortalCustomer_(c) {
     email: c.email || '',
     phone: c.phone || '',
     city: c.city || '',
+    address: c.address || '',
     hasPassword: !!String(c.portalpassword || '').trim(),
+  };
+}
+
+function namesMatch_(a, b) {
+  function norm(s) {
+    return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+  var na = norm(a);
+  var nb = norm(b);
+  return !!na && na === nb;
+}
+
+function phonesMatch_(a, b) {
+  var pa = String(a || '').replace(/\D/g, '');
+  var pb = String(b || '').replace(/\D/g, '');
+  if (pa.length < 7 || pb.length < 7) return false;
+  return pa === pb || pa.slice(-10) === pb.slice(-10);
+}
+
+function identityMatch_(customer, name, email, phone) {
+  var em = String(customer.email || '').trim().toLowerCase() === String(email || '').trim().toLowerCase();
+  return em && namesMatch_(customer.name, name) && phonesMatch_(customer.phone, phone);
+}
+
+function portalCardFor_(c) {
+  var id = String(c.id || '');
+  var digits = id.replace(/\D/g, '');
+  var n = 0;
+  if (digits) {
+    n = Number(digits.slice(-8)) || 0;
+  } else {
+    for (var i = 0; i < id.length; i++) n = (n * 31 + id.charCodeAt(i)) % 1000000;
+  }
+  var num = ('000000' + String(Math.abs(n) % 1000000)).slice(-6);
+  var cardNumber = 'AMZ-' + num.slice(0, 3) + '-' + num.slice(3);
+  var payload = 'AMZ|' + id + '|' + String(c.email || '').trim().toLowerCase();
+  return {
+    cardNumber: cardNumber,
+    qrPayload: payload,
+    qrUrl: 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=6&data=' + encodeURIComponent(payload),
+  };
+}
+
+function enrichPortalCustomer_(c) {
+  var card = portalCardFor_(c);
+  var base = sanitizePortalCustomer_(c);
+  base.cardNumber = card.cardNumber;
+  base.qrPayload = card.qrPayload;
+  base.qrUrl = card.qrUrl;
+  return base;
+}
+
+function listCustomerLedger_(customer) {
+  var orders = listCustomerOrders_(customer);
+  var payRows = [];
+  try {
+    payRows = (getSheetRows_(SHEET_NAMES.PAYMENTS) || []).filter(function (p) {
+      var t = String(p.type || 'inflow').toLowerCase();
+      if (t === 'outflow' || t === 'out') return false;
+      return String(p.customerid) === String(customer.id)
+        || String(p.partyphone || p.phone || '') === String(customer.phone || '')
+        || String(p.customername || p.party || '').toLowerCase() === String(customer.name || '').toLowerCase();
+    });
+  } catch (eLed) { payRows = []; }
+  var billed = orders.reduce(function (s, o) { return s + Number(o.totalAmount || 0); }, 0);
+  var outstanding = orders.reduce(function (s, o) { return s + Number(o.balanceAmount || 0); }, 0);
+  var paidFromOrders = orders.reduce(function (s, o) {
+    return s + Math.max(0, Number(o.totalAmount || 0) - Number(o.balanceAmount || 0));
+  }, 0);
+  var paidFromPay = payRows.reduce(function (s, p) { return s + Number(p.amount || 0); }, 0);
+  return {
+    totalBilled: billed,
+    totalPaid: Math.max(paidFromOrders, paidFromPay),
+    outstanding: outstanding,
+    payments: payRows.map(function (p) {
+      return {
+        id: p.id,
+        date: p.date || '',
+        amount: Number(p.amount || 0),
+        method: p.method || '',
+        reference: p.refid || p.reference || '',
+        notes: p.notes || '',
+      };
+    }),
+  };
+}
+
+function listCustomerPending_(customer) {
+  var pending = [];
+  listCustomerOrders_(customer).forEach(function (o) {
+    var bal = Number(o.balanceAmount || 0);
+    if (bal > 0) {
+      pending.push({
+        source: 'order',
+        ref: o.orderId || o.id,
+        date: o.date || '',
+        amount: bal,
+        status: o.status || 'Unpaid',
+      });
+    }
+  });
+  listCustomerInvoices_(customer).forEach(function (inv) {
+    var due = Math.max(0, Number(inv.totalAmount || 0) - Number(inv.paidAmount || 0));
+    var st = String(inv.status || '').toLowerCase();
+    if (due > 0 || st.indexOf('pending') >= 0 || st.indexOf('unpaid') >= 0 || st.indexOf('partial') >= 0) {
+      if (due <= 0) return;
+      pending.push({
+        source: 'invoice',
+        ref: inv.invoiceNumber || inv.id,
+        date: inv.date || '',
+        amount: due,
+        status: inv.status || 'Pending',
+      });
+    }
+  });
+  return pending;
+}
+
+function portalSessionPayload_(sess) {
+  return {
+    customer: enrichPortalCustomer_(sess),
+    orders: listCustomerOrders_(sess),
+    invoices: listCustomerInvoices_(sess),
+    discounts: listCustomerDiscounts_(sess),
+    ledger: listCustomerLedger_(sess),
+    pendingPayments: listCustomerPending_(sess),
+    readOnly: true,
   };
 }
 
@@ -3060,7 +3188,7 @@ function handlePublicCustomer_(path, method, body) {
     var password = String(body.password || '');
     if (!email || !password) throw new Error('Email and password required');
     var customer = findCustomerByEmail_(email);
-    if (!customer) throw new Error('No customer account found for this email');
+    if (!customer) throw new Error('No customer account found for this email. Please sign up.');
     var stored = String(customer.portalpassword || '').trim();
     if (!stored) {
       throw new Error('Password not set. Use Forgot password (email code) or continue with Google.');
@@ -3068,7 +3196,7 @@ function handlePublicCustomer_(path, method, body) {
     if (stored !== password) throw new Error('Invalid email or password');
     return {
       token: issueCustomerToken_(customer),
-      customer: sanitizePortalCustomer_(customer),
+      customer: enrichPortalCustomer_(customer),
     };
   }
 
@@ -3083,7 +3211,8 @@ function handlePublicCustomer_(path, method, body) {
           name: gName,
           email: gEmail,
           password: gPass,
-          notes: 'Google signup'
+          notes: 'Google signup',
+          skipPhone: true
         });
         created.created = true;
         return created;
@@ -3100,7 +3229,7 @@ function handlePublicCustomer_(path, method, body) {
     }
     return {
       token: issueCustomerToken_(cust),
-      customer: sanitizePortalCustomer_(cust),
+      customer: enrichPortalCustomer_(cust),
       passwordUpdated: !!newPass,
     };
   }
@@ -3119,7 +3248,7 @@ function handlePublicCustomer_(path, method, body) {
     return {
       ok: true,
       token: issueCustomerToken_(resetCust),
-      customer: sanitizePortalCustomer_(resetCust),
+      customer: enrichPortalCustomer_(resetCust),
     };
   }
 
@@ -3134,7 +3263,7 @@ function handlePublicCustomer_(path, method, body) {
     return {
       ok: true,
       token: issueCustomerToken_(cust2),
-      customer: sanitizePortalCustomer_(Object.assign({}, cust2, { portalpassword: pass2 })),
+      customer: enrichPortalCustomer_(Object.assign({}, cust2, { portalpassword: pass2 })),
     };
   }
 
@@ -3150,13 +3279,7 @@ function handlePublicCustomer_(path, method, body) {
   if (method === 'POST' && path === '/public/customer/session') {
     var sess = validateCustomerToken_(token || body.token);
     if (!sess) throw new Error('Unauthorized');
-    return {
-      customer: sanitizePortalCustomer_(sess),
-      orders: listCustomerOrders_(sess),
-      invoices: listCustomerInvoices_(sess),
-      discounts: listCustomerDiscounts_(sess),
-      readOnly: true,
-    };
+    return portalSessionPayload_(sess);
   }
 
   if (method === 'POST' && path === '/public/customer/track') {
@@ -3189,6 +3312,41 @@ function handlePublicCustomer_(path, method, body) {
 /**
  * New website customer account → Customers sheet + CRM lead.
  */
+function claimExistingCustomer_(row, body) {
+  var name = String(body.name || row.name || '').trim();
+  var email = String(body.email || row.email || '').trim().toLowerCase();
+  var phone = String(body.phone || row.phone || '').trim();
+  var password = String(body.password || body.newPassword || '').trim();
+  var address = String(body.address || row.address || '').trim();
+  var sheet = getSheet_(SHEET_NAMES.CUSTOMERS);
+  updateObjectProps_(sheet, SHEET_NAMES.CUSTOMERS, row._row, {
+    name: name || row.name,
+    email: email,
+    phone: phone || row.phone,
+    address: address,
+    portalpassword: password,
+    incrm: true,
+    stage: row.stage || 'customer',
+    stageupdatedat: new Date().toISOString(),
+  });
+  invalidateSheetCache_(SHEET_NAMES.CUSTOMERS);
+  var next = Object.assign({}, row, {
+    name: name || row.name,
+    email: email,
+    phone: phone || row.phone,
+    address: address,
+    portalpassword: password,
+    incrm: true,
+  });
+  return {
+    ok: true,
+    claimed: true,
+    token: issueCustomerToken_(next),
+    customer: enrichPortalCustomer_(next),
+    message: 'We found your AMZ Prints record. You are signed in — your card, ledger, and orders are ready.',
+  };
+}
+
 function createPublicCustomerAccount_(body) {
   body = body || {};
   var name = String(body.name || '').trim();
@@ -3198,16 +3356,29 @@ function createPublicCustomerAccount_(body) {
   var address = String(body.address || '').trim();
   if (!name) throw new Error('Name is required');
   if (!email || email.indexOf('@') < 0) throw new Error('Valid email is required');
+  if (!phone && !body.skipPhone) throw new Error('Phone is required');
   if (password.length < 6) throw new Error('Password must be at least 6 characters');
 
   var existing = findCustomerByEmail_(email);
-  if (existing) throw new Error('An account already exists for this email. Please log in.');
+  if (existing) {
+    var hasPass = !!String(existing.portalpassword || '').trim();
+    if (hasPass) throw new Error('An account already exists for this email. Please log in.');
+    if (identityMatch_(existing, name, email, phone) || namesMatch_(existing.name, name) || body.skipPhone) {
+      return claimExistingCustomer_(existing, body);
+    }
+    throw new Error('An account already exists for this email. Please log in.');
+  }
 
-  if (phone) {
-    var byPhone = findCustomerByPhone_(phone);
-    if (byPhone && String(byPhone.email || '').trim()) {
+  var byPhone = findCustomerByPhone_(phone);
+  if (byPhone) {
+    var pEmail = String(byPhone.email || '').trim().toLowerCase();
+    if (pEmail && pEmail !== email) {
       throw new Error('This phone is already linked to another customer account. Please log in.');
     }
+    if (namesMatch_(byPhone.name, name) || !pEmail) {
+      return claimExistingCustomer_(byPhone, body);
+    }
+    throw new Error('This phone is already linked to another customer account. Please log in.');
   }
 
   var created = upsertCustomer_({
@@ -3227,10 +3398,10 @@ function createPublicCustomerAccount_(body) {
   var rows = getSheetRows_(SHEET_NAMES.CUSTOMERS) || [];
   var row = rows.find(function (c) { return String(c.id) === String(created.id); });
   if (!row) throw new Error('Could not create customer account');
-  // Ensure password + CRM flags persisted even if upsert skipped optional fields
   updateObjectProps_(sheet, SHEET_NAMES.CUSTOMERS, row._row, {
     portalpassword: password,
     email: email,
+    phone: phone,
     incrm: true,
     stage: 'lead',
     stageupdatedat: new Date().toISOString(),
@@ -3238,6 +3409,7 @@ function createPublicCustomerAccount_(body) {
   invalidateSheetCache_(SHEET_NAMES.CUSTOMERS);
   row.portalpassword = password;
   row.email = email;
+  row.phone = phone;
   row.incrm = true;
 
   try {
@@ -3246,17 +3418,19 @@ function createPublicCustomerAccount_(body) {
     appendObject_(noteSheet, SHEET_NAMES.CRM_NOTES, {
       id: 'note_' + Date.now(),
       customerid: created.id,
-      note: 'Website account created',
+      note: 'Website account created — customer card issued',
       createdat: new Date().toISOString(),
       createdby: 'website',
     });
   } catch (eNote) { /* optional */ }
 
+  var full = Object.assign({}, created, { email: email, phone: phone, portalpassword: password });
   return {
     ok: true,
-    token: issueCustomerToken_(Object.assign({}, created, { email: email, portalpassword: password })),
-    customer: sanitizePortalCustomer_(Object.assign({}, created, { email: email, portalpassword: password })),
-    message: 'Account created. You can place orders now.',
+    created: true,
+    token: issueCustomerToken_(full),
+    customer: enrichPortalCustomer_(full),
+    message: 'Account created. Your customer card is ready in My Account.',
   };
 }
 

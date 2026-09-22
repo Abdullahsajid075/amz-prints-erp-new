@@ -401,8 +401,9 @@ function amz_prints_ajax_place_order() {
 	if ( ! $policy ) {
 		wp_send_json_error( array( 'message' => __( 'Please accept the Order Processing Policy.', 'amz-prints' ) ), 400 );
 	}
-	if ( ! in_array( $payment_method, array( 'cod', 'online' ), true ) ) {
-		wp_send_json_error( array( 'message' => __( 'Select Cash on Delivery or Online Payment.', 'amz-prints' ) ), 400 );
+	$pay_opt = amz_prints_find_payment_method( $payment_method );
+	if ( ! $pay_opt ) {
+		wp_send_json_error( array( 'message' => __( 'Select a valid payment method.', 'amz-prints' ) ), 400 );
 	}
 	if ( ! $address ) {
 		wp_send_json_error( array( 'message' => __( 'Delivery address is required.', 'amz-prints' ) ), 400 );
@@ -421,7 +422,7 @@ function amz_prints_ajax_place_order() {
 	$body = array(
 		'token'            => amz_prints_customer_token(),
 		'items'            => $items,
-		'paymentMethod'    => ( 'cod' === $payment_method ) ? 'Cash on Delivery' : 'Online Payment',
+		'paymentMethod'    => $pay_opt['label'],
 		'policyAccepted'   => true,
 		'deliveryAddress'  => $address,
 		'customerPhone'    => $phone,
@@ -467,4 +468,58 @@ add_action( 'wp_ajax_nopriv_amz_prints_place_order', 'amz_prints_ajax_place_orde
 function amz_prints_order_policy_text() {
 	$default = __( 'Your order will begin processing after payment confirmation. Please complete the required payment according to the selected payment method. Order processing will start once payment has been verified.', 'amz-prints' );
 	return (string) amz_prints_mod( 'amz_order_policy', $default );
+}
+
+/**
+ * Checkout payment methods (COD + customizable bank cards).
+ *
+ * @return array
+ */
+function amz_prints_payment_methods() {
+	$methods = array();
+	if ( amz_prints_mod( 'amz_pay_cod_enabled', true ) ) {
+		$methods[] = array(
+			'id'      => 'cod',
+			'label'   => __( 'Cash on Delivery', 'amz-prints' ),
+			'type'    => 'cod',
+			'details' => __( 'Order is placed under COD terms. Payment status starts as Unpaid.', 'amz-prints' ),
+			'image'   => '',
+		);
+	}
+	for ( $i = 1; $i <= 4; $i++ ) {
+		$enabled = amz_prints_mod( 'amz_pay_bank_' . $i . '_enable', 1 === $i );
+		$name    = trim( (string) amz_prints_mod( 'amz_pay_bank_' . $i . '_name', 1 === $i ? 'Bank transfer' : '' ) );
+		$details = trim( (string) amz_prints_mod( 'amz_pay_bank_' . $i . '_details', '' ) );
+		$img_id  = absint( amz_prints_mod( 'amz_pay_bank_' . $i . '_image', 0 ) );
+		if ( ! $enabled || ( ! $name && ! $details ) ) {
+			continue;
+		}
+		$img = $img_id ? wp_get_attachment_image_url( $img_id, 'medium' ) : '';
+		$methods[] = array(
+			'id'      => 'bank_' . $i,
+			'label'   => $name ? $name : sprintf( __( 'Bank account %d', 'amz-prints' ), $i ),
+			'type'    => 'bank',
+			'details' => $details,
+			'image'   => $img ? $img : '',
+		);
+	}
+	if ( empty( $methods ) ) {
+		$methods[] = array(
+			'id'      => 'cod',
+			'label'   => __( 'Cash on Delivery', 'amz-prints' ),
+			'type'    => 'cod',
+			'details' => __( 'Order is placed under COD terms. Payment status starts as Unpaid.', 'amz-prints' ),
+			'image'   => '',
+		);
+	}
+	return $methods;
+}
+
+function amz_prints_find_payment_method( $id ) {
+	foreach ( amz_prints_payment_methods() as $method ) {
+		if ( (string) $method['id'] === (string) $id ) {
+			return $method;
+		}
+	}
+	return null;
 }

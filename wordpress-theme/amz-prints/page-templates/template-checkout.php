@@ -18,6 +18,7 @@ if ( $logged_in && function_exists( 'amz_prints_customer_fetch_session' ) ) {
 	}
 }
 $customer = ( $session && ! empty( $session['customer'] ) ) ? $session['customer'] : array();
+$pay_methods = function_exists( 'amz_prints_payment_methods' ) ? amz_prints_payment_methods() : array();
 ?>
 
 <section class="page-hero page-hero--compact">
@@ -70,20 +71,23 @@ $customer = ( $session && ! empty( $session['customer'] ) ) ? $session['customer
 
 						<div class="checkout-block">
 							<h2><?php esc_html_e( 'Payment method', 'amz-prints' ); ?></h2>
-							<label class="pay-option">
-								<input type="radio" name="payment_method" value="cod" checked>
-								<span>
-									<strong><?php esc_html_e( 'Cash on Delivery', 'amz-prints' ); ?></strong>
-									<em><?php esc_html_e( 'Order is placed under COD terms. Payment status starts as Unpaid.', 'amz-prints' ); ?></em>
-								</span>
-							</label>
-							<label class="pay-option">
-								<input type="radio" name="payment_method" value="online">
-								<span>
-									<strong><?php esc_html_e( 'Online Payment', 'amz-prints' ); ?></strong>
-									<em><?php esc_html_e( 'Order is created first with Payment Pending — complete payment as instructed. Processing starts after confirmation.', 'amz-prints' ); ?></em>
-								</span>
-							</label>
+							<div class="pay-cards">
+								<?php foreach ( $pay_methods as $i => $method ) : ?>
+									<label class="pay-card <?php echo 'bank' === $method['type'] ? 'pay-card--bank' : ''; ?>">
+										<input type="radio" name="payment_method" value="<?php echo esc_attr( $method['id'] ); ?>" <?php checked( 0 === $i ); ?>>
+										<?php if ( ! empty( $method['image'] ) ) : ?>
+											<img src="<?php echo esc_url( $method['image'] ); ?>" alt="<?php echo esc_attr( $method['label'] ); ?>">
+										<?php else : ?>
+											<span class="pay-card__badge"><?php echo 'cod' === $method['type'] ? 'COD' : 'BANK'; ?></span>
+										<?php endif; ?>
+										<span>
+											<strong><?php echo esc_html( $method['label'] ); ?></strong>
+											<em><?php echo nl2br( esc_html( $method['details'] ) ); ?></em>
+										</span>
+									</label>
+								<?php endforeach; ?>
+							</div>
+							<p class="form-note"><?php esc_html_e( 'Bank cards are added in Appearance → Customize → Store & Checkout.', 'amz-prints' ); ?></p>
 						</div>
 
 						<div class="checkout-block checkout-policy">
