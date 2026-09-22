@@ -17,6 +17,27 @@ $catalog = amz_prints_services_catalog();
 	</div>
 </section>
 
+<section class="section" style="padding-bottom:0">
+	<div class="container land-quick__grid">
+		<a class="land-quick__card land-quick__card--orange reveal" data-reveal href="#printing-services">
+			<span><?php esc_html_e( 'Press', 'amz-prints' ); ?></span>
+			<strong><?php esc_html_e( 'Print & branding', 'amz-prints' ); ?></strong>
+		</a>
+		<a class="land-quick__card land-quick__card--blue reveal" data-reveal href="<?php echo esc_url( home_url( '/digital-services/' ) ); ?>">
+			<span><?php esc_html_e( 'Screens', 'amz-prints' ); ?></span>
+			<strong><?php esc_html_e( 'IT & digital', 'amz-prints' ); ?></strong>
+		</a>
+		<a class="land-quick__card land-quick__card--green reveal" data-reveal href="<?php echo esc_url( home_url( '/nadra-e-services/' ) ); ?>">
+			<span><?php esc_html_e( 'Public', 'amz-prints' ); ?></span>
+			<strong><?php esc_html_e( 'NADRA e-services', 'amz-prints' ); ?></strong>
+		</a>
+		<a class="land-quick__card land-quick__card--mix reveal" data-reveal href="<?php echo esc_url( home_url( '/products/' ) ); ?>">
+			<span><?php esc_html_e( 'Shop', 'amz-prints' ); ?></span>
+			<strong><?php esc_html_e( 'Buy online', 'amz-prints' ); ?></strong>
+		</a>
+	</div>
+</section>
+
 <section class="section section--services-catalog">
 	<div class="container">
 		<nav class="services-jump reveal" data-reveal>

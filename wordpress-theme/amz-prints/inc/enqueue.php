@@ -70,6 +70,7 @@ function amz_prints_enqueue_assets() {
 
 	wp_enqueue_style( 'amz-prints-fonts', $fonts, array(), null );
 	wp_enqueue_style( 'amz-prints-main', AMZ_PRINTS_URI . '/assets/css/main.css', array( 'amz-prints-fonts' ), AMZ_PRINTS_VERSION );
+	wp_enqueue_style( 'amz-prints-landing', AMZ_PRINTS_URI . '/assets/css/landing.css', array( 'amz-prints-main' ), AMZ_PRINTS_VERSION );
 
 	wp_enqueue_script( 'amz-prints-main', AMZ_PRINTS_URI . '/assets/js/main.js', array(), AMZ_PRINTS_VERSION, true );
 	wp_enqueue_script( 'amz-prints-customer', AMZ_PRINTS_URI . '/assets/js/customer-portal.js', array(), AMZ_PRINTS_VERSION, true );
