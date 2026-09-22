@@ -1,225 +1,570 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --brand-primary: #ff6d00;
+  --brand-secondary: #0747a3;
+  --ink: #0747a3;
+  --ink-soft: #05357c;
+  --sidebar: #0747a3;
+  --sidebar-border: rgba(255, 255, 255, 0.12);
+  --surface-elevated: #FFFFFF;
+  --canvas-tint: #F3F6FB;
+  --erp-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 body {
-    margin: 0;
-    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, .font-display {
+  font-family: 'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif;
+  letter-spacing: -0.02em;
 }
 
 code {
-    font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
 }
 
 @layer base {
-    :root {
-        --background: 210 20% 98%;
-        --foreground: 0 0% 18%;
-        --card: 0 0% 100%;
-        --card-foreground: 0 0% 18%;
-        --popover: 0 0% 100%;
-        --popover-foreground: 0 0% 18%;
-        --primary: 18 95% 54%;
-        --primary-foreground: 0 0% 100%;
-        --secondary: 0 0% 18%;
-        --secondary-foreground: 0 0% 98%;
-        --muted: 210 20% 96%;
-        --muted-foreground: 0 0% 45%;
-        --accent: 18 95% 54%;
-        --accent-foreground: 0 0% 100%;
-        --destructive: 0 84% 60%;
-        --destructive-foreground: 0 0% 98%;
-        --border: 0 0% 90%;
-        --input: 0 0% 90%;
-        --ring: 18 95% 54%;
-        --chart-1: 18 95% 54%;
-        --chart-2: 197 37% 24%;
-        --chart-3: 43 74% 66%;
-        --chart-4: 173 58% 39%;
-        --chart-5: 27 87% 67%;
-        --radius: 0.5rem;
-    }
+  :root {
+    --background: 220 24% 97%;
+    --foreground: 215 22% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 215 22% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 22% 15%;
+    --primary: 26 100% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 215 92% 33%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 214 40% 96%;
+    --muted-foreground: 215 20% 40%;
+    --accent: 26 100% 50%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 214 24% 88%;
+    --input: 214 24% 88%;
+    --ring: 26 100% 50%;
+    --chart-1: 26 100% 50%;
+    --chart-2: 215 92% 33%;
+    --chart-3: 43 74% 52%;
+    --chart-4: 160 50% 36%;
+    --chart-5: 26 100% 50%;
+    --radius: 0.65rem;
+  }
 }
 
 @layer base {
-    * {
-        @apply border-border;
-    }
-    body {
-        @apply bg-[#F5F7FB] text-foreground;
-    }
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply text-foreground;
+    background:
+      radial-gradient(920px 420px at 0% 0%, rgba(255, 109, 0, 0.08), transparent 55%),
+      radial-gradient(780px 360px at 100% 0%, rgba(7, 71, 163, 0.07), transparent 50%),
+      var(--canvas-tint);
+  }
+}
+
+@layer components {
+  .erp-page {
+    @apply space-y-5 animate-in fade-in duration-300;
+  }
+
+  .erp-panel {
+    @apply rounded-xl border border-black/[0.06] bg-white shadow-[0_1px_2px_rgba(28,36,48,0.04),0_8px_24px_rgba(28,36,48,0.04)];
+  }
+
+  .erp-kpi {
+    @apply erp-panel p-4 transition-transform duration-300;
+    transition-timing-function: var(--erp-ease);
+  }
+  .erp-kpi:hover {
+    transform: translateY(-2px);
+  }
+
+  .erp-table-wrap {
+    @apply erp-panel overflow-hidden;
+  }
+  .erp-table-wrap table {
+    @apply w-full text-sm;
+  }
+  .erp-table-wrap thead th {
+    @apply bg-slate-50/90 text-[11px] uppercase tracking-wider font-semibold text-slate-500 px-3 py-2.5 text-left border-b;
+  }
+  .erp-table-wrap tbody td {
+    @apply px-3 py-2.5 border-b border-slate-100 align-middle;
+  }
+
+  .erp-nav-link {
+    @apply flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium transition-all duration-200;
+  }
 }
 
 @layer base {
-    [data-debug-wrapper="true"] {
-        display: contents !important;
-    }
+  [data-debug-wrapper="true"] {
+    display: contents !important;
+  }
 
-    [data-debug-wrapper="true"] > * {
-        margin-left: inherit;
-        margin-right: inherit;
-        margin-top: inherit;
-        margin-bottom: inherit;
-        padding-left: inherit;
-        padding-right: inherit;
-        padding-top: inherit;
-        padding-bottom: inherit;
-        column-gap: inherit;
-        row-gap: inherit;
-        gap: inherit;
-        border-left-width: inherit;
-        border-right-width: inherit;
-        border-top-width: inherit;
-        border-bottom-width: inherit;
-        border-left-style: inherit;
-        border-right-style: inherit;
-        border-top-style: inherit;
-        border-bottom-style: inherit;
-        border-left-color: inherit;
-        border-right-color: inherit;
-        border-top-color: inherit;
-        border-bottom-color: inherit;
-    }
+  [data-debug-wrapper="true"] > * {
+    margin-left: inherit;
+    margin-right: inherit;
+    margin-top: inherit;
+    margin-bottom: inherit;
+    padding-left: inherit;
+    padding-right: inherit;
+    padding-top: inherit;
+    padding-bottom: inherit;
+    column-gap: inherit;
+    row-gap: inherit;
+    gap: inherit;
+    border-left-width: inherit;
+    border-right-width: inherit;
+    border-top-width: inherit;
+    border-bottom-width: inherit;
+    border-left-style: inherit;
+    border-right-style: inherit;
+    border-top-style: inherit;
+    border-bottom-style: inherit;
+    border-left-color: inherit;
+    border-right-color: inherit;
+    border-top-color: inherit;
+    border-bottom-color: inherit;
+  }
 }
 
 .amz-orange {
-    color: #F26522;
+  color: #ff6d00;
 }
 
 .amz-bg-orange {
-    background-color: #F26522;
+  background-color: #ff6d00;
 }
 
 .amz-dark-gray {
-    color: #2E2E2E;
+  color: #0747a3;
 }
 
 .amz-bg-dark-gray {
-    background-color: #2E2E2E;
+  background-color: #0747a3;
 }
 
-/* 3D Card Effects */
+/* Glassy order cards — orange + blue brand */
 .order-card-3d {
-    perspective: 1500px;
-    transform-style: preserve-3d;
-    cursor: pointer;
-    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  perspective: 1200px;
 }
 
 .order-card-3d-inner {
-    position: relative;
-    background: #ffffff;
-    border-radius: 16px;
-    padding: 1.5rem;
-    transform-style: preserve-3d;
-    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275),
-                box-shadow 0.4s ease;
-    box-shadow: 
-        0 1px 3px rgba(0, 0, 0, 0.05),
-        0 4px 12px rgba(0, 0, 0, 0.05),
-        0 12px 24px rgba(0, 0, 0, 0.03);
-    border: 1px solid rgba(242, 101, 34, 0.08);
-    overflow: hidden;
-    transform: translateZ(0);
-}
-
-.order-card-3d:hover .order-card-3d-inner {
-    transform: translateY(-8px) rotateX(4deg) rotateY(-4deg);
-    box-shadow: 
-        0 4px 8px rgba(242, 101, 34, 0.08),
-        0 16px 32px rgba(242, 101, 34, 0.12),
-        0 24px 48px rgba(242, 101, 34, 0.15),
-        0 32px 64px rgba(0, 0, 0, 0.08);
-    border-color: rgba(242, 101, 34, 0.25);
-}
-
-.order-card-3d-accent {
-    position: absolute;
-    top: -30px;
-    right: -30px;
-    width: 100px;
-    height: 100px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(242, 101, 34, 0.15) 0%, rgba(242, 101, 34, 0) 70%);
-    transition: all 0.4s ease;
-    z-index: 0;
-}
-
-.order-card-3d:hover .order-card-3d-accent {
-    transform: scale(2);
-    background: radial-gradient(circle, rgba(242, 101, 34, 0.2) 0%, rgba(242, 101, 34, 0) 70%);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  padding: 1.05rem 1.05rem 0.9rem;
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.78) 0%, rgba(244, 248, 255, 0.55) 48%, rgba(255, 246, 237, 0.62) 100%);
+  backdrop-filter: blur(18px) saturate(170%);
+  -webkit-backdrop-filter: blur(18px) saturate(170%);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 10px 28px rgba(7, 71, 163, 0.10),
+    0 2px 8px rgba(255, 109, 0, 0.08);
+  transition: transform 0.35s var(--erp-ease), box-shadow 0.35s var(--erp-ease), border-color 0.35s ease;
 }
 
 .order-card-3d-inner::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 4px;
-    background: linear-gradient(90deg, #F26522, #FF8A50, #F26522);
-    background-size: 200% 100%;
-    transform: translateY(-100%);
-    transition: transform 0.3s ease;
-    z-index: 1;
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, #ff6d00, #0747a3 55%, #ff6d00);
+  z-index: 2;
 }
 
-.order-card-3d:hover .order-card-3d-inner::before {
-    transform: translateY(0);
-    animation: shimmer 2s linear infinite;
+.order-card-3d-accent,
+.order-card-3d-accent-b {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(2px);
 }
 
-@keyframes shimmer {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
+.order-card-3d-accent {
+  top: -42px;
+  right: -36px;
+  width: 130px;
+  height: 130px;
+  background: radial-gradient(circle, rgba(255, 109, 0, 0.28) 0%, rgba(255, 109, 0, 0) 70%);
 }
 
-/* Print styles for invoice / quotation — header & footer on every page */
+.order-card-3d-accent-b {
+  bottom: -48px;
+  left: -28px;
+  width: 140px;
+  height: 140px;
+  background: radial-gradient(circle, rgba(7, 71, 163, 0.18) 0%, rgba(7, 71, 163, 0) 70%);
+}
+
+.order-card-3d:hover .order-card-3d-inner {
+  transform: translateY(-6px);
+  border-color: rgba(255, 109, 0, 0.45);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 18px 40px rgba(7, 71, 163, 0.16),
+    0 8px 20px rgba(255, 109, 0, 0.12);
+}
+
+.order-card-3d--priority .order-card-3d-inner {
+  border-color: rgba(255, 109, 0, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 1px rgba(255, 109, 0, 0.18),
+    0 12px 32px rgba(255, 109, 0, 0.16);
+}
+
+.order-card-3d-body {
+  position: relative;
+  z-index: 1;
+}
+
+.order-glass-money {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+  padding: 0.55rem 0.45rem;
+  margin: 0.35rem 0 0.65rem;
+  border-radius: 0.85rem;
+  background: rgba(255, 255, 255, 0.45);
+  border: 1px solid rgba(7, 71, 163, 0.08);
+}
+
+.order-glass-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+/* Invoice stamp + overlapping bold signature */
+.inv-auth {
+  position: relative;
+  min-height: 132px;
+  margin-top: -42px;
+}
+
+.inv-stamp {
+  position: absolute;
+  left: 38%;
+  bottom: 6px;
+  width: 128px;
+  z-index: 1;
+  opacity: 0.86;
+  transform: rotate(-14deg);
+  pointer-events: none;
+}
+
+.inv-stamp img {
+  width: 128px;
+  max-height: 128px;
+  height: auto;
+  object-fit: contain;
+}
+
+.inv-stamp-fallback {
+  width: 118px;
+  height: 118px;
+  border-radius: 50%;
+  border: 3px double #ff6d00;
+  color: #ff6d00;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.55;
+}
+
+.inv-sign {
+  position: absolute;
+  right: 12px;
+  bottom: 2px;
+  z-index: 4;
+  width: 220px;
+  text-align: center;
+}
+
+.inv-sign img {
+  display: block;
+  margin: 0 auto -10px;
+  max-height: 78px;
+  max-width: 220px;
+  object-fit: contain;
+  transform: rotate(-8deg);
+  filter: contrast(1.2) saturate(1.05);
+  mix-blend-mode: multiply;
+}
+
+.inv-sign-name {
+  border-top: 1.5px solid #0747a3;
+  padding-top: 4px;
+  background: linear-gradient(180deg, transparent, rgba(255,255,255,0.72) 30%);
+}
+
+.inv-sign-name strong {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #0747a3;
+  font-weight: 800;
+}
+
+.inv-totals-box {
+  border: 1px solid rgba(7, 71, 163, 0.12);
+  border-radius: 0.75rem;
+  padding: 0.65rem 0.75rem 0.5rem;
+  background: linear-gradient(180deg, #fff 0%, #f4f7fc 100%);
+}
+
+/* Print styles for invoice / quotation — fit A4, compact chrome, strong totals */
 @media print {
-    @page { size: A4; margin: 14mm 12mm 18mm 12mm; }
-    .no-print, nav, aside, .invoice-container ~ * { display: none !important; }
-    body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .invoice-container {
-        box-shadow: none !important;
-        border: none !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        max-width: 100% !important;
-        font-size: 11px !important;
-        line-height: 1.35 !important;
-    }
-    .invoice-container thead { display: table-header-group; }
-    .invoice-container tfoot { display: table-footer-group; }
-    .invoice-container tr { page-break-inside: avoid; }
-    .invoice-print-header {
-        display: block !important;
-    }
-    .invoice-print-footer {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        text-align: center;
-        font-size: 9px;
-        color: #666;
-        padding: 4px 0;
-        border-top: 1px solid #e5e7eb;
-        background: white;
-    }
-    .invoice-container .p-8 { padding: 10px 0 !important; }
-    .invoice-container .p-4 { padding: 6px 0 !important; }
-    .invoice-container table { font-size: 10.5px !important; }
-    .invoice-container table th, .invoice-container table td { padding: 5px 6px !important; }
-    .invoice-container h1 { font-size: 18px !important; }
-    .invoice-container .text-3xl { font-size: 18px !important; }
-    .invoice-container .text-2xl { font-size: 14px !important; }
-    .invoice-container .text-xl { font-size: 12px !important; }
-    .invoice-container .h-24 { height: 60px !important; }
-    .invoice-container .w-20, .invoice-container .h-20 { width: 52px !important; height: 52px !important; }
-    .invoice-container .w-32, .invoice-container .h-32 { width: 84px !important; height: 84px !important; }
-    main, .App { padding: 0 !important; margin: 0 !important; }
+  @page { size: A4; margin: 10mm 9mm 12mm 9mm; }
+  .no-print, nav, aside, .invoice-container ~ * { display: none !important; }
+  body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .invoice-container {
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    font-size: 10.5px !important;
+    line-height: 1.3 !important;
+  }
+  .invoice-container thead { display: table-header-group; }
+  .invoice-container tfoot { display: table-footer-group; }
+  .invoice-container tr { page-break-inside: avoid; }
+  .invoice-print-header {
+    display: block !important;
+  }
+  .invoice-print-footer {
+    position: static;
+    text-align: center;
+    font-size: 8.5px !important;
+    color: #666;
+    padding: 3px 0 !important;
+    border-top: 1px solid #e5e7eb;
+    background: white !important;
+  }
+  .invoice-container .p-8,
+  .invoice-container .p-6,
+  .invoice-container .px-8 {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+  .invoice-container .p-8,
+  .invoice-container .p-6 {
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+  }
+  .invoice-container .pb-8,
+  .invoice-container .pb-6,
+  .invoice-container .pb-4 {
+    padding-bottom: 6px !important;
+  }
+  .invoice-container .p-4,
+  .invoice-container .p-3 {
+    padding: 4px 0 !important;
+  }
+  .invoice-container .inv-section {
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+  }
+  .invoice-container .inv-logo {
+    height: 36px !important;
+    width: auto !important;
+    max-width: 90px !important;
+  }
+  .invoice-container .inv-logo.w-11,
+  .invoice-container .inv-logo.h-11 {
+    width: 36px !important;
+    height: 36px !important;
+  }
+  .invoice-container .inv-brand-name,
+  .invoice-container h1 {
+    font-size: 14px !important;
+    line-height: 1.2 !important;
+  }
+  .invoice-container .inv-doc-no {
+    font-size: 12px !important;
+  }
+  .invoice-container .inv-customer {
+    font-size: 11px !important;
+  }
+  .invoice-container .inv-muted,
+  .invoice-container .inv-muted p {
+    font-size: 8.5px !important;
+  }
+  .invoice-container .inv-table {
+    font-size: 9.5px !important;
+  }
+  .invoice-container .inv-table th,
+  .invoice-container .inv-table td {
+    padding: 3px 4px !important;
+  }
+  .invoice-container .inv-total {
+    font-size: 13px !important;
+  }
+  .invoice-container .inv-total-row,
+  .invoice-container .inv-balance-row {
+    padding-top: 5px !important;
+    padding-bottom: 5px !important;
+  }
+  .invoice-container .text-3xl,
+  .invoice-container .text-4xl,
+  .invoice-container .text-2xl,
+  .invoice-container .text-xl {
+    font-size: 13px !important;
+  }
+  .invoice-container .text-lg {
+    font-size: 11px !important;
+  }
+  .invoice-container .h-24,
+  .invoice-container .h-16 {
+    height: 48px !important;
+  }
+  .invoice-container .w-32,
+  .invoice-container .h-32,
+  .invoice-container .w-20,
+  .invoice-container .h-20 {
+    width: 56px !important;
+    height: 56px !important;
+  }
+  .invoice-container .inv-auth {
+    min-height: 108px !important;
+    margin-top: -28px !important;
+  }
+  .invoice-container .inv-stamp {
+    width: 96px !important;
+    left: 50% !important;
+  }
+  .invoice-container .inv-stamp img,
+  .invoice-container .inv-stamp-fallback {
+    width: 96px !important;
+    height: 96px !important;
+    max-height: 96px !important;
+  }
+  .invoice-container .inv-sign {
+    width: 180px !important;
+  }
+  .invoice-container .inv-sign img {
+    max-height: 64px !important;
+    max-width: 180px !important;
+    height: auto !important;
+  }
+  .invoice-container img.h-16,
+  .invoice-container img.h-24,
+  .invoice-container img.max-h-14,
+  .invoice-container img.max-h-20 {
+    max-height: 44px !important;
+    height: auto !important;
+  }
+  .invoice-container svg {
+    width: 56px !important;
+    height: 56px !important;
+  }
+  .invoice-container .inv-verify-block {
+    padding-top: 8px !important;
+    padding-bottom: 6px !important;
+  }
+  .invoice-container .inv-verify-block svg {
+    width: 92px !important;
+    height: 92px !important;
+  }
+  .invoice-container .inv-verify-code {
+    font-size: 15px !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.12em !important;
+  }
+  .invoice-container .gap-8 { gap: 0.6rem !important; }
+  .invoice-container .gap-6 { gap: 0.45rem !important; }
+  .invoice-container .gap-4 { gap: 0.4rem !important; }
+  main, .App { padding: 0 !important; margin: 0 !important; }
+
+  /* <=10 lines: keep on one A4 page */
+  .invoice-fit-one-page {
+    font-size: 9.5px !important;
+    line-height: 1.22 !important;
+  }
+  .invoice-fit-one-page .inv-section {
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+  }
+  .invoice-fit-one-page .inv-logo {
+    height: 30px !important;
+    max-width: 78px !important;
+  }
+  .invoice-fit-one-page .inv-brand-name,
+  .invoice-fit-one-page h1 {
+    font-size: 13px !important;
+  }
+  .invoice-fit-one-page .inv-table {
+    font-size: 9px !important;
+  }
+  .invoice-fit-one-page .inv-table th,
+  .invoice-fit-one-page .inv-table td {
+    padding: 2px 3px !important;
+  }
+  .invoice-fit-one-page .inv-total {
+    font-size: 12px !important;
+  }
+  .invoice-fit-one-page .inv-verify-block svg {
+    width: 78px !important;
+    height: 78px !important;
+  }
+  .invoice-fit-one-page .inv-verify-code {
+    font-size: 13px !important;
+  }
+  .invoice-fit-one-page .inv-auth {
+    min-height: 92px !important;
+    margin-top: -22px !important;
+  }
+  .invoice-fit-one-page .inv-stamp,
+  .invoice-fit-one-page .inv-stamp img,
+  .invoice-fit-one-page .inv-stamp-fallback {
+    width: 78px !important;
+    max-height: 78px !important;
+  }
+  .invoice-fit-one-page .inv-sign img {
+    max-height: 52px !important;
+  }
+  .invoice-fit-one-page .gap-8,
+  .invoice-fit-one-page .gap-6,
+  .invoice-fit-one-page .gap-4 {
+    gap: 0.35rem !important;
+  }
+  .invoice-fit-one-page .space-y-3 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.3rem !important;
+  }
+  .invoice-fit-one-page {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  /* >10 lines: allow natural multi-page flow */
+  .invoice-multi-page tr {
+    page-break-inside: avoid;
+  }
 }

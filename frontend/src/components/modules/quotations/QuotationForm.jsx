@@ -7,9 +7,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { quotationsAPI, productsAPI, ordersAPI, customersAPI } from '@/services/api';
-import { applyServerNotificationHint, notifyOrderEvent } from '@/services/notifications';
+import { applyServerNotificationHint, notifyOrderEvent, openWhatsAppChat } from '@/services/notifications';
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
+import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { formatCurrency } from '@/utils/helpers';
+import { documentFileName, printWithDocumentTitle } from '@/utils/printHelpers';
 import { useBrand } from '@/context/BrandContext';
 import { ArrowLeft, Plus, Trash2, Save, ShoppingCart, Printer, FileText, PackagePlus } from 'lucide-react';
 import { toast } from 'sonner';
@@ -30,7 +32,7 @@ const QuotationForm = ({ printMode = false }) => {
   const { quotationId } = useParams();
   const isEdit = !!quotationId;
   const { company, primary } = useBrand();
-  const accent = primary || '#F26522';
+  const accent = primary || '#ff6d00';
 
   const [form, setForm] = useState({
     customerId: '',
@@ -120,10 +122,15 @@ const QuotationForm = ({ printMode = false }) => {
 
   useEffect(() => {
     if (printMode && !loading && form.id) {
-      const t = setTimeout(() => window.print(), 400);
+      const title = documentFileName({
+        docType: 'Quotation',
+        customerName: form.customerName,
+        orderNumber: form.orderId,
+      });
+      const t = setTimeout(() => printWithDocumentTitle(title), 400);
       return () => clearTimeout(t);
     }
-  }, [printMode, loading, form.id]);
+  }, [printMode, loading, form.id, form.customerName, form.orderId]);
 
   const setLine = (index, field, value) => {
     setForm((prev) => {
@@ -182,7 +189,7 @@ const QuotationForm = ({ printMode = false }) => {
       notes: notes || '',
     })),
     totalAmount: total,
-    balanceAmount: total,
+    balanceAmount: 0,
     advancePayment: 0,
     docType: 'Quotation',
   });
@@ -204,6 +211,35 @@ const QuotationForm = ({ printMode = false }) => {
     } catch (err) {
       console.warn('Quotation notify failed', err);
     }
+  };
+
+  const sendFollowUp = () => {
+    const status = String(form.status || '').trim().toLowerCase();
+    if (status === 'accepted' || status.includes('accept') || status.includes('converted')) {
+      toast.message('Quotation already accepted — follow-up not needed');
+      return;
+    }
+    const phone = form.customerPhone || '';
+    if (!phone) {
+      toast.error('Customer phone missing — add phone to follow up');
+      return;
+    }
+    const name = form.customerName || 'Customer';
+    const quoteNo = form.orderId || quotationId || '';
+    const companyName = company?.name || 'Amazon Printing Services';
+    const msg = (
+      `Dear ${name},\n\n`
+      + `*Soft follow-up — Quotation*\n\n`
+      + `Just checking in regarding quotation *${quoteNo}*`
+      + (total > 0 ? ` (Total: ${formatCurrency(total)})` : '')
+      + `.\n\n`
+      + `Please let us know if you would like to proceed, need any changes, or have questions.\n\n`
+      + `We are ready to start as soon as you confirm.\n\n`
+      + `Thank you.\n${companyName}`
+    );
+    const result = openWhatsAppChat(phone, msg);
+    if (!result.ok) toast.error('Could not open WhatsApp');
+    else toast.message('Follow-up opened — tap Send');
   };
 
   const handleSave = async () => {
@@ -274,7 +310,7 @@ const QuotationForm = ({ printMode = false }) => {
         customerAddress: payload.customerAddress,
         products: payload.products,
         totalAmount: payload.totalAmount,
-        balanceAmount: payload.balanceAmount,
+        balanceAmount: payload.totalAmount,
         advancePayment: 0,
         remarks: payload.remarks
           ? `${payload.remarks}\n(From quotation ${savedQuote?.orderId || quoteId || ''})`
@@ -332,7 +368,7 @@ const QuotationForm = ({ printMode = false }) => {
                 </div>
               )}
               <div>
-                <h2 className="text-xl font-bold" style={{ color: '#2E2E2E' }}>{company.name || 'AMZ Prints'}</h2>
+                <h2 className="text-xl font-bold" style={{ color: '#0747a3' }}>{company.name || 'AMZ Prints'}</h2>
                 <p className="text-sm text-gray-600">{company.tagline}</p>
                 <p className="text-xs text-gray-500 mt-1">{[company.address, company.phone, company.email].filter(Boolean).join(' · ')}</p>
               </div>
@@ -360,7 +396,7 @@ const QuotationForm = ({ printMode = false }) => {
 
           <table className="w-full text-sm mb-6">
             <thead>
-              <tr style={{ backgroundColor: '#2E2E2E', color: '#fff' }}>
+              <tr style={{ backgroundColor: '#0747a3', color: '#fff' }}>
                 <th className="text-left p-3">#</th>
                 <th className="text-left p-3">Description</th>
                 <th className="text-right p-3">Qty</th>
@@ -414,7 +450,15 @@ const QuotationForm = ({ printMode = false }) => {
 
         <div className="no-print mt-6 flex gap-2 px-2 pb-4">
           <Button variant="outline" onClick={() => navigate(`/quotations/${quotationId}/edit`)}>Back</Button>
-          <Button onClick={() => window.print()} className="text-white" style={{ backgroundColor: accent }}>
+          <Button
+            onClick={() => printWithDocumentTitle(documentFileName({
+              docType: 'Quotation',
+              customerName: form.customerName,
+              orderNumber: form.orderId,
+            }))}
+            className="text-white"
+            style={{ backgroundColor: accent }}
+          >
             <Printer className="h-4 w-4 mr-2" />Print
           </Button>
         </div>
@@ -434,7 +478,7 @@ const QuotationForm = ({ printMode = false }) => {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <FileText className="h-5 w-5 shrink-0" style={{ color: accent }} />
-                <h1 className="text-xl sm:text-2xl font-bold truncate" style={{ color: '#2E2E2E' }}>
+                <h1 className="text-xl sm:text-2xl font-bold truncate" style={{ color: '#0747a3' }}>
                   {isEdit ? 'Edit Quotation' : 'New Quotation'}
                 </h1>
               </div>
@@ -442,6 +486,19 @@ const QuotationForm = ({ printMode = false }) => {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            {isEdit && !(['accepted'].includes(String(form.status || '').trim().toLowerCase())
+              || /accept|converted/i.test(String(form.status || ''))) && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-green-700 border-green-200 hover:bg-green-50"
+                onClick={sendFollowUp}
+                data-testid="quotation-followup-button"
+              >
+                <WhatsAppIcon className="h-4 w-4 mr-1.5" />
+                Follow up
+              </Button>
+            )}
             {isEdit && (
               <Button variant="outline" size="sm" onClick={() => navigate(`/quotations/${quotationId}/print`)}>
                 <Printer className="h-4 w-4 mr-1.5" />Print
@@ -527,7 +584,7 @@ const QuotationForm = ({ printMode = false }) => {
                       <SelectContent>
                         {catalog.map((p) => (
                           <SelectItem key={p.id} value={String(p.id)}>
-                            {p.name} · {formatCurrency(p.rate || p.basePrice)}
+                            {p.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -588,7 +645,7 @@ const QuotationForm = ({ printMode = false }) => {
               </div>
             ))}
 
-            <div className="rounded-xl p-3 flex items-center justify-between" style={{ backgroundColor: '#FFF9F5' }}>
+            <div className="rounded-xl p-3 flex items-center justify-between" style={{ backgroundColor: '#FFF6ED' }}>
               <span className="text-sm font-medium text-gray-600">Quotation total</span>
               <span className="text-xl font-bold" style={{ color: accent }}>{formatCurrency(total)}</span>
             </div>

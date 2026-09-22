@@ -15,9 +15,8 @@ A modern, professional, cloud-based Enterprise Resource Planning (ERP) web appli
 - **Sonner** - Toast notifications
 
 ### Backend Integration
-- **Google Apps Script** - Custom backend API
-- **Google Sheets** - Database
-- **Google Drive** - File storage system
+- **Current live:** Google Apps Script + Google Sheets
+- **Cutover target:** Node API (`api/`) + Supabase — same frontend URLs (`?path=`). Steps in [`api/CUTOVER.md`](api/CUTOVER.md). Do not delete the Google Sheet.
 
 ### Design System
 - **Primary Color**: Orange (#F26522)

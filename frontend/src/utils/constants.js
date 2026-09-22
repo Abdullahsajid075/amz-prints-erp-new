@@ -1,17 +1,20 @@
 export const MODULES = {
   DASHBOARD: 'dashboard',
+  QUOTATIONS: 'quotations',
   ORDERS: 'orders',
-  CUSTOMERS: 'customers',
-  PRODUCTS: 'products',
-  DESIGNERS: 'designers',
-  PRODUCTION: 'production',
-  INVENTORY: 'inventory',
+  TOKENS: 'tokens',
   INVOICES: 'invoices',
-  PAYMENTS: 'payments',
-  EXPENSES: 'expenses',
-  EMPLOYEES: 'employees',
+  CUSTOMERS: 'customers',
+  CRM: 'crm',
+  PURCHASES: 'purchases',
+  WAREHOUSE: 'warehouse',
+  POS: 'pos',
+  HR: 'hr',
+  CALCULATOR: 'calculator',
+  ACCOUNTS: 'accounts',
+  VENDORS: 'vendors',
   REPORTS: 'reports',
-  SETTINGS: 'settings'
+  SETTINGS: 'settings',
 };
 
 export const ORDER_STATUS = {
@@ -25,6 +28,35 @@ export const ORDER_STATUS = {
   DELIVERED: 'Delivered',
   CANCELLED: 'Cancelled'
 };
+
+export const OPEN_ORDER_STATUSES = [
+  ORDER_STATUS.RECEIVED,
+  ORDER_STATUS.DESIGNING,
+  ORDER_STATUS.PROOF_APPROVAL,
+  ORDER_STATUS.PRINTING,
+  ORDER_STATUS.FINISHING,
+  ORDER_STATUS.PACKING,
+  ORDER_STATUS.READY,
+];
+
+export function isBookingOrder(order) {
+  const dt = String(order?.docType || order?.doctype || 'Order').toLowerCase();
+  if (dt === 'pos' || dt === 'quotation') return false;
+  if (/pos\s*sale/i.test(String(order?.remarks || ''))) return false;
+  return true;
+}
+
+export function isOpenOrder(order) {
+  if (!isBookingOrder(order)) return false;
+  const s = String(order?.status || '').trim().toLowerCase();
+  return OPEN_ORDER_STATUSES.some((st) => st.toLowerCase() === s);
+}
+
+/** Job has not moved into production yet — keep these at the top of the list. */
+export function isNotStartedOrder(order) {
+  const s = String(order?.status || '').trim().toLowerCase();
+  return !s || s === 'order received' || s === 'received' || s === 'pending' || s === 'new';
+}
 
 export const PAYMENT_METHODS = {
   CASH: 'Cash',
@@ -47,12 +79,12 @@ export const USER_ROLES = {
 };
 
 export const COLORS = {
-  PRIMARY: '#F26522',
-  SECONDARY: '#2E2E2E',
+  PRIMARY: '#ff6d00',
+  SECONDARY: '#0747a3',
   BACKGROUND: '#F5F7FB',
   CARD: '#FFFFFF',
   SUCCESS: '#10B981',
   WARNING: '#F59E0B',
   ERROR: '#EF4444',
-  INFO: '#3B82F6'
+  INFO: '#0747a3'
 };

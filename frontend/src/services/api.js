@@ -22,6 +22,7 @@ export const ordersAPI = {
   delete: (id) => gasRequest('DELETE', `/orders/${id}`, withToken()),
   duplicate: (id) => gasRequest('POST', `/orders/${id}/duplicate`, withToken()),
   updateStatus: (id, status) => gasRequest('PATCH', `/orders/${id}/status`, withToken({ data: { status } })),
+  pay: (id, data) => gasRequest('POST', `/orders/${id}/payment`, withToken({ data })),
 };
 
 export const customersAPI = {
@@ -31,6 +32,9 @@ export const customersAPI = {
   update: (id, data) => gasRequest('PUT', `/customers/${id}`, withToken({ data })),
   delete: (id) => gasRequest('DELETE', `/customers/${id}`, withToken()),
   getLedger: (id) => gasRequest('GET', `/customers/${id}/ledger`, withToken()),
+  recordPayment: (id, data) => gasRequest('POST', `/customers/${id}/payment`, withToken({ data })),
+  block: (id, data) => gasRequest('POST', `/customers/${id}/block`, withToken({ data })),
+  unblock: (id) => gasRequest('POST', `/customers/${id}/unblock`, withToken()),
   updateStage: (id, stage) => gasRequest('PUT', `/customers/${id}/stage`, withToken({ data: { stage } })),
   setCrm: (id, data) => gasRequest('PUT', `/customers/${id}/crm`, withToken({ data })),
   getNotes: (id) => gasRequest('GET', `/customers/${id}/notes`, withToken()),
@@ -75,6 +79,7 @@ export const invoicesAPI = {
   getByToken: (token) => gasRequest('GET', `/public/invoice/${token}`),
   create: (data) => gasRequest('POST', '/invoices', withToken({ data })),
   update: (id, data) => gasRequest('PUT', `/invoices/${id}`, withToken({ data })),
+  pay: (id, data) => gasRequest('POST', `/invoices/${id}/payment`, withToken({ data })),
   delete: (id) => gasRequest('DELETE', `/invoices/${id}`, withToken()),
 };
 
@@ -83,6 +88,7 @@ export const expensesAPI = {
   create: (data) => gasRequest('POST', '/expenses', withToken({ data })),
   update: (id, data) => gasRequest('PUT', `/expenses/${id}`, withToken({ data })),
   delete: (id) => gasRequest('DELETE', `/expenses/${id}`, withToken()),
+  approve: (id, data) => gasRequest('POST', `/expenses/${id}/approve`, withToken({ data: data || {} })),
 };
 
 export const settingsAPI = {
@@ -104,6 +110,8 @@ export const purchasesAPI = {
   create: (data) => gasRequest('POST', '/purchases', withToken({ data })),
   update: (id, data) => gasRequest('PUT', `/purchases/${id}`, withToken({ data })),
   delete: (id) => gasRequest('DELETE', `/purchases/${id}`, withToken()),
+  /** Atomic vendor bill payment: updates PO + Payments outflow + Expenses audit */
+  pay: (id, data) => gasRequest('POST', `/purchases/${id}/pay`, withToken({ data })),
 };
 
 export const reportsAPI = {
@@ -143,7 +151,7 @@ export const quotationsAPI = {
   delete: (id) => gasRequest('DELETE', `/quotations/${id}`, withToken()),
 };
 
-/** Users sheet CRUD — login still reads the same Users sheet. */
+/** Users CRUD — login reads the same users table. */
 export const usersAPI = {
   getAll: (params) => gasRequest('GET', '/users', withToken({ params })),
   getById: (id) => gasRequest('GET', `/users/${id}`, withToken()),
@@ -155,10 +163,17 @@ export const usersAPI = {
 export const notificationsAPI = {
   sendEmail: (data) => gasRequest('POST', '/notifications/email', withToken({ data })),
   test: (data) => gasRequest('POST', '/notifications/test', withToken({ data })),
+  getReminderStatus: () => gasRequest('GET', '/notifications/reminders/status', withToken()),
+  runDailyReminders: () => gasRequest('POST', '/notifications/reminders/run', withToken({ data: {} })),
+  installReminderTrigger: () => gasRequest('POST', '/notifications/reminders/trigger/install', withToken({ data: {} })),
+  removeReminderTrigger: () => gasRequest('POST', '/notifications/reminders/trigger/remove', withToken({ data: {} })),
 };
 
 export const trackPublic = (id) =>
   gasRequest('GET', `/public/track/${encodeURIComponent(String(id || '').trim())}`);
+
+export const verifyEmployeePublic = (code) =>
+  gasRequest('GET', `/public/employee/${encodeURIComponent(String(code || '').trim())}`);
 
 export const debugAPI = {
   schema: () => gasRequest('GET', '/debug/schema', withToken()),
@@ -187,4 +202,5 @@ export default {
   usersAPI,
   notificationsAPI,
   trackPublic,
+  verifyEmployeePublic,
 };

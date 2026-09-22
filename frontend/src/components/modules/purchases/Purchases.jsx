@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,12 +8,40 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { purchasesAPI, vendorsAPI, ordersAPI, productsAPI, paymentsAPI } from '@/services/api';
+import { purchasesAPI, vendorsAPI, ordersAPI, productsAPI, paymentsAPI, expensesAPI, settingsAPI } from '@/services/api';
+import { clearGasCache } from '@/services/gasClient';
 import { formatCurrency, formatDate } from '@/utils/helpers';
-import { Plus, Search, Eye, Edit, Trash2, ShoppingBag, PackageCheck, Paperclip, AlertTriangle, X, Save, FileText, Link2, PackagePlus, Building2 } from 'lucide-react';
+import { sortBy } from '@/utils/sortBy';
+import SortBar from '@/components/shared/SortBar';
+import { notifyPaymentEvent, openWhatsAppChat, printPaymentSlip } from '@/services/notifications';
+import { useBrand } from '@/context/BrandContext';
+import { Plus, Search, Eye, Edit, Trash2, ShoppingBag, PackageCheck, Paperclip, AlertTriangle, X, Save, FileText, Link2, PackagePlus, Building2, Truck, CreditCard } from 'lucide-react';
+import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
 
 const PO_STATUS = ['Draft', 'Ordered', 'Partial Paid', 'Fully Paid', 'Received'];
+
+const PURCHASE_SORT_OPTS = [
+  { value: 'date', label: 'Date' },
+  { value: 'vendorName', label: 'Vendor' },
+  { value: 'totalAmount', label: 'Amount' },
+  { value: 'status', label: 'Status' },
+  { value: 'poNumber', label: 'PO #' },
+];
+
+/** Closed / finished — never offered when linking a customer order on a PO */
+const isOpenOrder = (order) => {
+  const status = String(order?.status || '').trim().toLowerCase();
+  if (!status) return true;
+  if (['delivered', 'completed', 'complete', 'closed', 'cancelled', 'canceled'].includes(status)) {
+    return false;
+  }
+  // Variants: "Order Completed", "Delivery Completed", etc. (keep "Ready")
+  if (/(deliver|complet|closed|cancel)/i.test(status) && !/ready/i.test(status)) {
+    return false;
+  }
+  return true;
+};
 
 const emptyPurchase = {
   vendorId: '', vendorInvoiceNumber: '',
@@ -22,17 +50,59 @@ const emptyPurchase = {
   status: 'Draft',
   linkedOrderId: '',
   items: [{ _key: 'i_init', productId: '', name: '', quantity: 1, rate: 0, unit: 'piece' }],
-  notes: '', totalAmount: 0, paidAmount: 0
+  notes: '', totalAmount: 0, paidAmount: 0, poNumber: '',
+};
+
+/** Normalize GAS/API purchase shapes → UI fields */
+const normalizePurchase = (p = {}) => {
+  const total = Number(p.totalAmount ?? p.total ?? 0) || 0;
+  const paid = Number(p.paidAmount ?? p.paid ?? 0) || 0;
+  const po = p.poNumber || p.purchaseNo || p.purchaseno || '';
+  const date = p.purchaseDate || p.date || p.purchasedate || '';
+  let items = p.items;
+  if (typeof items === 'string') {
+    try { items = JSON.parse(items); } catch { items = []; }
+  }
+  if (!Array.isArray(items)) items = [];
+  return {
+    ...p,
+    id: p.id,
+    poNumber: po,
+    purchaseNo: po,
+    purchaseDate: date,
+    date,
+    vendorId: p.vendorId || p.vendorid || '',
+    vendorName: p.vendorName || p.vendorname || '',
+    vendorInvoiceNumber: p.vendorInvoiceNumber || p.vendorinvoicenumber || '',
+    expectedDeliveryDate: p.expectedDeliveryDate || p.expecteddeliverydate || '',
+    actualDeliveryDate: p.actualDeliveryDate || p.actualdeliverydate || '',
+    linkedOrderId: p.linkedOrderId || p.linkedorderid || '',
+    items: items.map((it, i) => ({
+      ...it,
+      _key: it._key || it.id || `i_${i}`,
+      productId: it.productId || it.productid || '',
+      name: it.name || '',
+      quantity: Number(it.quantity) || 0,
+      rate: Number(it.rate) || 0,
+      unit: it.unit || 'piece',
+    })),
+    totalAmount: total,
+    paidAmount: paid,
+    status: p.status || 'Draft',
+    notes: p.notes || '',
+  };
 };
 
 const Purchases = () => {
   const navigate = useNavigate();
+  const { company } = useBrand();
   const [purchases, setPurchases] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const [sort, setSort] = useState({ field: 'date', dir: 'desc' });
   const [statusFilter, setStatusFilter] = useState(undefined);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
@@ -40,6 +110,10 @@ const Purchases = () => {
   const [editing, setEditing] = useState(null);
   const [formData, setFormData] = useState(emptyPurchase);
   const [saving, setSaving] = useState(false);
+  const [paymentPurchase, setPaymentPurchase] = useState(null);
+  const [paymentData, setPaymentData] = useState({ amount: 0, method: 'Cash', date: new Date().toISOString().split('T')[0], notes: '' });
+  const [paymentMethods, setPaymentMethods] = useState(['Cash', 'Bank Transfer', 'UPI', 'Card', 'Cheque']);
+  const [paying, setPaying] = useState(false);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -50,7 +124,7 @@ const Purchases = () => {
         ordersAPI.getAll(),
         productsAPI.getAll(),
       ]);
-      setPurchases(pRes.data || []);
+      setPurchases((Array.isArray(pRes.data) ? pRes.data : []).map(normalizePurchase));
       setVendors(vRes.data || []);
       setOrders(oRes.data || []);
       setProducts(prodRes.data || []);
@@ -62,11 +136,42 @@ const Purchases = () => {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const filtered = purchases.filter(p => {
-    const matchS = !search || p.poNumber?.toLowerCase().includes(search.toLowerCase()) || p.vendorName?.toLowerCase().includes(search.toLowerCase());
+  useEffect(() => {
+    settingsAPI.get().then((res) => {
+      const methods = (res.data?.payments?.methods || []).filter((m) => m.enabled).map((m) => m.name);
+      if (methods.length) setPaymentMethods(methods);
+    }).catch(() => {});
+  }, []);
+
+  /** Only open orders for linking — keep current link visible when editing a closed one */
+  const linkableOrders = useMemo(() => {
+    const current = String(formData.linkedOrderId || '');
+    return (orders || []).filter((o) => {
+      const oid = String(o.orderId || o.id || '');
+      if (current && (oid === current || String(o.id) === current)) return true;
+      return isOpenOrder(o);
+    });
+  }, [orders, formData.linkedOrderId]);
+
+  const filtered = purchases.filter((p) => {
+    const q = search.trim().toLowerCase();
+    const matchS = !q
+      || String(p.poNumber || '').toLowerCase().includes(q)
+      || String(p.vendorName || '').toLowerCase().includes(q)
+      || String(p.vendorInvoiceNumber || '').toLowerCase().includes(q);
     const matchStatus = !statusFilter || p.status === statusFilter;
     return matchS && matchStatus;
   });
+
+  const sorted = useMemo(() => sortBy(filtered, sort, {
+    date: (p) => p.purchaseDate || p.date || '',
+    purchaseDate: (p) => p.purchaseDate || p.date || '',
+    vendorName: (p) => p.vendorName || '',
+    totalAmount: (p) => Number(p.totalAmount ?? p.total ?? 0) || 0,
+    total: (p) => Number(p.totalAmount ?? p.total ?? 0) || 0,
+    status: (p) => p.status || '',
+    poNumber: (p) => p.poNumber || '',
+  }), [filtered, sort]);
 
   const isPaidStatus = (s) => s === 'Partial Paid' || s === 'Fully Paid';
   const isUnpaidLike = (s) => !isPaidStatus(s) && s !== 'Received';
@@ -82,20 +187,21 @@ const Purchases = () => {
 
   const openCreate = () => { setEditing(null); setFormData(emptyPurchase); setDialogOpen(true); };
   const openEdit = (p) => {
-    setEditing(p);
+    const row = normalizePurchase(p);
+    setEditing(row);
     setFormData({
       ...emptyPurchase,
-      ...p,
-      items: (p.items?.length ? p.items : emptyPurchase.items).map((it, i) => ({
+      ...row,
+      items: (row.items?.length ? row.items : emptyPurchase.items).map((it, i) => ({
         ...it,
         _key: it._key || it.id || `i_${i}`,
         productId: it.productId || '',
       })),
-      paidAmount: p.paidAmount || 0,
+      paidAmount: row.paidAmount || 0,
     });
     setDialogOpen(true);
   };
-  const openView = (p) => { setViewData(p); setViewOpen(true); };
+  const openView = (p) => { setViewData(normalizePurchase(p)); setViewOpen(true); };
 
   const calcTotal = () => formData.items.reduce((s, i) => s + (Number(i.quantity) * Number(i.rate)), 0);
 
@@ -142,11 +248,81 @@ const Purchases = () => {
     }
   };
 
-  const createVendorPayment = async ({ vendorName, amount, refId, poNumber }) => {
+  const vendorPhoneFor = useCallback((purchaseOrVendorId, vendorName) => {
+    const id = typeof purchaseOrVendorId === 'object'
+      ? (purchaseOrVendorId?.vendorId || '')
+      : purchaseOrVendorId;
+    const byId = vendors.find((v) => String(v.id) === String(id));
+    if (byId?.phone) return byId.phone;
+    if (vendorName) {
+      const byName = vendors.find((v) => String(v.name || '').toLowerCase() === String(vendorName).toLowerCase());
+      if (byName?.phone) return byName.phone;
+    }
+    if (typeof purchaseOrVendorId === 'object' && purchaseOrVendorId?.vendorPhone) {
+      return purchaseOrVendorId.vendorPhone;
+    }
+    return '';
+  }, [vendors]);
+
+  const buildPoMessage = (purchase, type) => {
+    const companyName = company?.name || 'Amazon Printing Services';
+    const vendorName = purchase.vendorName || 'Vendor';
+    const po = purchase.poNumber || purchase.purchaseNo || purchase.id || '';
+    const date = purchase.purchaseDate || purchase.date || '';
+    const delivery = purchase.expectedDeliveryDate || '';
+    const total = formatCurrency(purchase.totalAmount || purchase.total || 0);
+    const items = (purchase.items || [])
+      .slice(0, 8)
+      .map((it, i) => `${i + 1}. ${it.name || 'Item'} × ${it.quantity || 0}`)
+      .join('\n');
+    const more = (purchase.items || []).length > 8
+      ? `\n… +${(purchase.items || []).length - 8} more`
+      : '';
+
+    if (type === 'delivery') {
+      return (
+        `Dear ${vendorName},\n\n`
+        + `*Reminder — Delivery*\n\n`
+        + `Please deliver PO *${po}* as per schedule.`
+        + (delivery ? `\nExpected delivery: *${formatDate(delivery)}*` : '')
+        + `\n\nPO total: ${total}`
+        + (items ? `\n\nItems:\n${items}${more}` : '')
+        + `\n\nKindly confirm delivery status.\n\nThank you.\n${companyName}`
+      );
+    }
+
+    // Default: PO created / order placed with vendor
+    return (
+      `Dear ${vendorName},\n\n`
+      + `*Purchase Order*\n\n`
+      + `Please find our purchase order *${po}*.`
+      + (date ? `\nPO date: ${formatDate(date)}` : '')
+      + (delivery ? `\nExpected delivery: *${formatDate(delivery)}*` : '')
+      + `\n\nTotal amount: ${total}`
+      + (items ? `\n\nItems:\n${items}${more}` : '')
+      + (purchase.notes ? `\n\nNotes: ${purchase.notes}` : '')
+      + `\n\nPlease confirm availability and delivery.\n\nThank you.\n${companyName}`
+    );
+  };
+
+  const sendVendorWhatsApp = (purchase, type = 'po') => {
+    const phone = vendorPhoneFor(purchase, purchase.vendorName);
+    if (!phone) {
+      toast.error('Vendor WhatsApp phone missing — add phone in Vendors');
+      return;
+    }
+    const msg = buildPoMessage(purchase, type);
+    const result = openWhatsAppChat(phone, msg);
+    if (!result.ok) toast.error('Could not open WhatsApp');
+    else if (type === 'delivery') toast.message('Delivery reminder opened — tap Send');
+    else toast.message('PO message opened — tap Send');
+  };
+
+  const createVendorPayment = async ({ vendorName, vendorPhone, amount, refId, poNumber }) => {
     if (!paymentsAPI?.create || !(Number(amount) > 0)) return;
     try {
-      await paymentsAPI.create({
-        type: 'vendor',
+      const payment = {
+        type: 'outflow',
         amount: Number(amount),
         vendorName: vendorName || '',
         refId: refId || poNumber || '',
@@ -154,9 +330,36 @@ const Purchases = () => {
         category: 'Purchase Payment',
         method: 'Cash',
         party: vendorName || '',
+        partyPhone: vendorPhone || '',
+        phone: vendorPhone || '',
         reference: poNumber || refId || '',
-        notes: `Auto from purchase ${poNumber || refId || ''}`,
-      });
+        notes: `Vendor payment — PO ${poNumber || refId || ''}`,
+        totalAmount: Number(amount),
+        balanceDue: 0,
+      };
+      const res = await paymentsAPI.create(payment);
+      const saved = res?.data || payment;
+
+      if (vendorPhone) {
+        try {
+          await notifyPaymentEvent({
+            ...saved,
+            type: 'outflow',
+            party: vendorName || saved.party,
+            partyPhone: vendorPhone,
+            amount: Number(amount),
+            method: saved.method || 'Cash',
+            reference: poNumber || refId || saved.reference || '',
+            notes: `Payment transfer for PO ${poNumber || refId || ''}`,
+          }, { openWhatsApp: true });
+          toast.success('Payment saved — WhatsApp opened for vendor');
+        } catch (waErr) {
+          console.error('Vendor WhatsApp failed', waErr);
+          toast.message('Payment saved — WhatsApp could not open');
+        }
+      } else {
+        toast.message('Payment saved — add vendor phone to send WhatsApp');
+      }
     } catch (err) {
       console.error('Payment create failed', err);
       toast.error('Purchase saved but payment record failed');
@@ -174,34 +377,69 @@ const Purchases = () => {
       return;
     }
     setSaving(true);
-    const vendor = vendors.find(v => v.id === formData.vendorId);
+    const vendor = vendors.find((v) => String(v.id) === String(formData.vendorId));
+    if (!vendor) {
+      toast.error('Selected vendor not found — list refresh karke dubara select karein');
+      setSaving(false);
+      return;
+    }
     const totalAmount = calcTotal();
     let paidAmount = Number(formData.paidAmount) || 0;
     if (formData.status === 'Fully Paid') paidAmount = totalAmount;
     const payload = {
-      ...formData,
-      vendorName: vendor?.name,
+      vendorId: String(vendor.id),
+      vendorName: String(vendor.name || '').trim(),
+      vendorInvoiceNumber: formData.vendorInvoiceNumber || '',
+      purchaseDate: formData.purchaseDate || new Date().toISOString().split('T')[0],
+      date: formData.purchaseDate || new Date().toISOString().split('T')[0],
+      expectedDeliveryDate: formData.expectedDeliveryDate || '',
+      actualDeliveryDate: formData.status === 'Received'
+        ? (formData.actualDeliveryDate || new Date().toISOString().split('T')[0])
+        : (formData.actualDeliveryDate || ''),
+      status: formData.status || 'Draft',
+      linkedOrderId: formData.linkedOrderId || '',
+      items: formData.items.map(({ productId, name, quantity, rate, unit }) => ({
+        productId, name, quantity: Number(quantity) || 0, rate: Number(rate) || 0, unit: unit || 'piece',
+      })),
+      notes: formData.notes || '',
       totalAmount,
+      total: totalAmount,
       paidAmount,
+      paid: paidAmount,
+      poNumber: formData.poNumber || editing?.poNumber || '',
+      purchaseNo: formData.poNumber || editing?.poNumber || '',
       paymentStatus: formData.status === 'Fully Paid' ? 'Paid'
         : formData.status === 'Partial Paid' ? 'Partially Paid'
           : formData.status === 'Received' && paidAmount >= totalAmount ? 'Paid'
             : paidAmount > 0 ? 'Partially Paid' : 'Unpaid',
-      actualDeliveryDate: formData.status === 'Received'
-        ? (formData.actualDeliveryDate || new Date().toISOString().split('T')[0])
-        : formData.actualDeliveryDate,
     };
     try {
       let saved;
       const wasReceived = editing?.status === 'Received';
       if (editing) {
         const res = await purchasesAPI.update(editing.id, payload);
-        saved = res.data || { ...editing, ...payload };
+        saved = normalizePurchase(res.data || { ...editing, ...payload });
         toast.success('Updated');
       } else {
         const res = await purchasesAPI.create(payload);
-        saved = res.data || payload;
+        saved = normalizePurchase(res.data || payload);
         toast.success('Purchase order created');
+        // Open WhatsApp to vendor with PO details (Ordered / any non-draft, or always on create)
+        if (payload.status !== 'Draft') {
+          sendVendorWhatsApp({ ...saved, vendorName: vendor?.name || payload.vendorName }, 'po');
+        } else if (vendor?.phone) {
+          // Still offer PO message for draft if they want — only auto-send when Ordered+
+        }
+      }
+
+      // When moving Draft → Ordered (or creating as Ordered), notify vendor
+      if (
+        editing
+        && editing.status === 'Draft'
+        && payload.status !== 'Draft'
+        && payload.status !== 'Received'
+      ) {
+        sendVendorWhatsApp({ ...saved, vendorName: vendor?.name || payload.vendorName }, 'po');
       }
 
       if (isPaidStatus(formData.status) && paidAmount > 0) {
@@ -212,6 +450,7 @@ const Purchases = () => {
         if (paymentAmount > 0) {
           await createVendorPayment({
             vendorName: vendor?.name || payload.vendorName,
+            vendorPhone: vendor?.phone || '',
             amount: paymentAmount,
             refId: saved?.id || editing?.id,
             poNumber: saved?.poNumber || editing?.poNumber,
@@ -234,17 +473,24 @@ const Purchases = () => {
 
   const markReceived = async (p) => {
     if (!window.confirm('Mark as received? This updates inventory.')) return;
+    const row = normalizePurchase(p);
     try {
-      await purchasesAPI.update(p.id, {
-        ...p,
+      await purchasesAPI.update(row.id, {
+        ...row,
+        vendorId: row.vendorId,
+        vendorName: row.vendorName,
+        purchaseDate: row.purchaseDate,
+        items: row.items,
+        totalAmount: row.totalAmount,
+        paidAmount: row.paidAmount,
         status: 'Received',
         actualDeliveryDate: new Date().toISOString().split('T')[0],
       });
-      if (p.status !== 'Received') {
-        await applyStockIncrease(p.items);
+      if (row.status !== 'Received') {
+        await applyStockIncrease(row.items);
       }
       toast.success('Marked received. Inventory updated.');
-      if (p.linkedOrderId) toast.info(`Linked order ${p.linkedOrderId} updated to Ready for Delivery.`);
+      if (row.linkedOrderId) toast.info(`Linked order ${row.linkedOrderId} updated to Ready for Delivery.`);
       fetchAll();
     } catch (err) {
       console.error(err);
@@ -256,6 +502,136 @@ const Purchases = () => {
     if (window.confirm('Delete this purchase?')) {
       try { await purchasesAPI.delete(id); toast.success('Deleted'); fetchAll(); }
       catch (e) { toast.error('Failed'); }
+    }
+  };
+
+  const openPayment = (purchase) => {
+    const row = normalizePurchase(purchase);
+    const outstanding = Math.max(0, row.totalAmount - row.paidAmount);
+    if (!(outstanding > 0)) {
+      toast.message('This vendor bill is already fully paid');
+      return;
+    }
+    setPaymentPurchase(row);
+    setPaymentData({
+      amount: outstanding,
+      method: paymentMethods[0] || 'Cash',
+      date: new Date().toISOString().split('T')[0],
+      notes: '',
+    });
+  };
+
+  const saveVendorPayment = async (e) => {
+    e.preventDefault();
+    if (!paymentPurchase) return;
+    const amount = Number(paymentData.amount) || 0;
+    const outstanding = Math.max(0, Number(paymentPurchase.totalAmount) - Number(paymentPurchase.paidAmount));
+    if (!(amount > 0)) {
+      toast.error('Enter a valid payment amount');
+      return;
+    }
+    if (amount > outstanding) {
+      toast.error(`Payment cannot exceed balance due (${formatCurrency(outstanding)})`);
+      return;
+    }
+
+    setPaying(true);
+    try {
+      const vendor = vendors.find((v) => String(v.id) === String(paymentPurchase.vendorId));
+      const poNumber = paymentPurchase.poNumber || paymentPurchase.purchaseNo || paymentPurchase.id;
+      const notes = paymentData.notes || `Vendor bill payment — PO ${poNumber}`;
+      const payBody = {
+        amount,
+        date: paymentData.date,
+        method: paymentData.method,
+        notes,
+        partyPhone: vendor?.phone || '',
+        partyEmail: vendor?.email || '',
+      };
+
+      let result;
+      try {
+        const res = await purchasesAPI.pay(paymentPurchase.id, payBody);
+        result = res?.data || {};
+      } catch (atomicErr) {
+        // Fallback for older GAS deploys without /purchases/:id/pay
+        console.warn('Atomic pay endpoint unavailable, using fallback', atomicErr);
+        const paidAmount = Number(paymentPurchase.paidAmount) + amount;
+        const fullyPaid = paidAmount >= Number(paymentPurchase.totalAmount);
+        const purchaseStatus = paymentPurchase.status === 'Received'
+          ? 'Received'
+          : (fullyPaid ? 'Fully Paid' : 'Partial Paid');
+        await purchasesAPI.update(paymentPurchase.id, {
+          ...paymentPurchase,
+          paidAmount,
+          paid: paidAmount,
+          status: purchaseStatus,
+          paymentStatus: fullyPaid ? 'Paid' : 'Partially Paid',
+        });
+        const payment = {
+          date: paymentData.date,
+          type: 'outflow',
+          category: 'Purchase Payment',
+          method: paymentData.method,
+          vendorId: paymentPurchase.vendorId || '',
+          vendorName: paymentPurchase.vendorName || '',
+          party: paymentPurchase.vendorName || '',
+          partyPhone: vendor?.phone || '',
+          phone: vendor?.phone || '',
+          reference: poNumber,
+          refId: paymentPurchase.id,
+          amount,
+          totalAmount: paymentPurchase.totalAmount,
+          balanceDue: Math.max(0, outstanding - amount),
+          notes,
+        };
+        const payRes = await paymentsAPI.create(payment);
+        await expensesAPI.create({
+          date: paymentData.date,
+          category: 'Purchase Payment',
+          amount,
+          description: `Vendor bill payment · ${paymentPurchase.vendorName || 'Vendor'} · PO ${poNumber}`,
+          paymentMethod: paymentData.method,
+        });
+        result = {
+          purchase: { paidAmount, outstanding: Math.max(0, outstanding - amount) },
+          payment: { ...payment, ...(payRes?.data || {}) },
+        };
+      }
+
+      const savedPayment = {
+        type: 'outflow',
+        category: 'Purchase Payment',
+        party: paymentPurchase.vendorName || '',
+        partyPhone: vendor?.phone || result?.payment?.partyPhone || '',
+        amount,
+        method: paymentData.method,
+        reference: poNumber,
+        date: paymentData.date,
+        notes,
+        totalAmount: Number(paymentPurchase.totalAmount) || 0,
+        balanceDue: Number(result?.payment?.balanceDue ?? Math.max(0, outstanding - amount)) || 0,
+        ...(result?.payment || {}),
+      };
+      try { printPaymentSlip(savedPayment, company || {}); } catch { /* optional */ }
+      if (savedPayment.partyPhone) {
+        try {
+          await notifyPaymentEvent(savedPayment, { openWhatsApp: true });
+        } catch (waErr) {
+          console.warn('Vendor payment WhatsApp failed', waErr);
+        }
+      }
+
+      clearGasCache();
+      setPaymentPurchase(null);
+      const remaining = Number(result?.purchase?.outstanding ?? Math.max(0, outstanding - amount));
+      toast.success(remaining <= 0 ? 'Vendor bill paid in full' : 'Partial vendor payment recorded');
+      fetchAll();
+    } catch (err) {
+      console.error('Vendor payment failed', err);
+      toast.error(err?.response?.data?.message || err?.message || 'Payment could not be recorded');
+    } finally {
+      setPaying(false);
     }
   };
 
@@ -273,17 +649,17 @@ const Purchases = () => {
     <div className="space-y-6" data-testid="purchases-page">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold" style={{ color: '#2E2E2E' }}>Purchases</h1>
+          <h1 className="text-3xl font-bold" style={{ color: '#0747a3' }}>Purchases</h1>
           <p className="text-gray-600 mt-1">Manage purchase orders, deliveries & vendor payments</p>
         </div>
-        <Button onClick={openCreate} style={{ backgroundColor: '#F26522' }} className="text-white" data-testid="add-purchase-button"><Plus className="h-4 w-4 mr-2" />New PO</Button>
+        <Button onClick={openCreate} style={{ backgroundColor: '#ff6d00' }} className="text-white" data-testid="add-purchase-button"><Plus className="h-4 w-4 mr-2" />New PO</Button>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card><CardContent className="p-4"><p className="text-xs text-gray-500 uppercase font-medium mb-1">Total POs</p><p className="text-2xl font-bold">{stats.total}</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-xs text-gray-500 uppercase font-medium mb-1">Pending</p><p className="text-2xl font-bold text-yellow-600">{stats.pending}</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-xs text-gray-500 uppercase font-medium mb-1">Received</p><p className="text-2xl font-bold text-green-600">{stats.received}</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 uppercase font-medium mb-1">Total Value</p><p className="text-xl font-bold" style={{ color: '#F26522' }}>{formatCurrency(stats.totalValue)}</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-xs text-gray-500 uppercase font-medium mb-1">Total Value</p><p className="text-xl font-bold" style={{ color: '#ff6d00' }}>{formatCurrency(stats.totalValue)}</p></CardContent></Card>
         <Card><CardContent className="p-4"><p className="text-xs text-gray-500 uppercase font-medium mb-1">Payable</p><p className="text-xl font-bold text-red-600">{formatCurrency(stats.unpaid)}</p></CardContent></Card>
       </div>
 
@@ -298,17 +674,20 @@ const Purchases = () => {
             <SelectContent><SelectItem value="all">All Statuses</SelectItem>{PO_STATUS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
           </Select>
         </div>
+        <div className="mt-3 max-w-md">
+          <SortBar value={sort} onChange={setSort} options={PURCHASE_SORT_OPTS} />
+        </div>
       </CardContent></Card>
 
       <Card>
         <CardHeader><CardTitle>Purchase Orders</CardTitle></CardHeader>
         <CardContent>
           {loading ? <div className="text-center py-8 text-gray-500">Loading...</div>
-            : filtered.length === 0 ? (
+            : sorted.length === 0 ? (
               <div className="text-center py-12">
                 <ShoppingBag className="h-12 w-12 mx-auto text-gray-300 mb-3" />
                 <p className="text-gray-500 mb-4">No purchase orders yet.</p>
-                <Button onClick={openCreate} style={{ backgroundColor: '#F26522' }} className="text-white"><Plus className="h-4 w-4 mr-2" />Create First PO</Button>
+                <Button onClick={openCreate} style={{ backgroundColor: '#ff6d00' }} className="text-white"><Plus className="h-4 w-4 mr-2" />Create First PO</Button>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -326,14 +705,14 @@ const Purchases = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map(p => {
+                    {sorted.map(p => {
                       const isOverdue = p.expectedDeliveryDate && new Date(p.expectedDeliveryDate) < new Date() && p.status !== 'Received';
                       return (
                         <tr key={p.id} className="border-b hover:bg-orange-50 transition-colors" data-testid={`purchase-row-${p.id}`}>
                           <td className="py-3 px-3">
-                            <p className="font-bold" style={{ color: '#2E2E2E' }}>{p.poNumber}</p>
+                            <p className="font-bold" style={{ color: '#0747a3' }}>{p.poNumber}</p>
                             {p.vendorInvoiceNumber && <p className="text-xs text-gray-500">Inv: {p.vendorInvoiceNumber}</p>}
-                            {p.linkedOrderId && <p className="text-xs" style={{ color: '#F26522' }}><Link2 className="h-3 w-3 inline" /> {p.linkedOrderId}</p>}
+                            {p.linkedOrderId && <p className="text-xs" style={{ color: '#ff6d00' }}><Link2 className="h-3 w-3 inline" /> {p.linkedOrderId}</p>}
                           </td>
                           <td className="py-3 px-3 text-sm">{p.vendorName}</td>
                           <td className="py-3 px-3 text-sm text-gray-600">{formatDate(p.purchaseDate)}</td>
@@ -347,11 +726,43 @@ const Purchases = () => {
                           </td>
                           <td className="py-3 px-3"><Badge className={statusColor(p.status)}>{p.status}</Badge></td>
                           <td className="py-3 px-3 text-right text-sm">{formatCurrency(p.paidAmount || 0)}</td>
-                          <td className="py-3 px-3 text-right font-bold" style={{ color: '#F26522' }}>{formatCurrency(p.totalAmount)}</td>
+                          <td className="py-3 px-3 text-right font-bold" style={{ color: '#ff6d00' }}>{formatCurrency(p.totalAmount)}</td>
                           <td className="py-3 px-3">
                             <div className="flex items-center gap-1 justify-end">
                               {p.status !== 'Received' && (
                                 <Button size="icon" variant="ghost" onClick={() => markReceived(p)} title="Mark Received"><PackageCheck className="h-4 w-4 text-green-600" /></Button>
+                              )}
+                              {Math.max(0, Number(p.totalAmount) - Number(p.paidAmount)) > 0 && (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="text-emerald-700 hover:bg-emerald-50"
+                                  title="Pay vendor bill"
+                                  onClick={() => openPayment(p)}
+                                  data-testid={`pay-vendor-bill-${p.id}`}
+                                >
+                                  <CreditCard className="h-4 w-4" />
+                                </Button>
+                              )}
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="text-green-600 hover:bg-green-50"
+                                title="WhatsApp PO to vendor"
+                                onClick={() => sendVendorWhatsApp(p, 'po')}
+                              >
+                                <WhatsAppIcon className="h-4 w-4" />
+                              </Button>
+                              {p.status !== 'Received' && (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className={isOverdue ? 'text-amber-600 hover:bg-amber-50' : 'text-sky-600 hover:bg-sky-50'}
+                                  title="Delivery reminder"
+                                  onClick={() => sendVendorWhatsApp(p, 'delivery')}
+                                >
+                                  <Truck className="h-4 w-4" />
+                                </Button>
                               )}
                               <Button size="icon" variant="ghost" onClick={() => openView(p)}><Eye className="h-4 w-4" /></Button>
                               <Button size="icon" variant="ghost" onClick={() => openEdit(p)}><Edit className="h-4 w-4" /></Button>
@@ -370,7 +781,7 @@ const Purchases = () => {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle className="text-2xl font-bold" style={{ color: '#2E2E2E' }}>{editing ? 'Edit PO' : 'New Purchase Order'}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="text-2xl font-bold" style={{ color: '#0747a3' }}>{editing ? 'Edit PO' : 'New Purchase Order'}</DialogTitle></DialogHeader>
           <form onSubmit={handleSave} className="space-y-4 mt-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -380,16 +791,33 @@ const Purchases = () => {
                     type="button"
                     variant="link"
                     className="h-auto p-0 text-xs"
-                    style={{ color: '#F26522' }}
+                    style={{ color: '#ff6d00' }}
                     onClick={() => navigate('/accounts/vendors?new=1')}
                   >
                     <Building2 className="h-3 w-3 mr-1" />Add New Vendor
                   </Button>
                 </div>
-                <Select value={formData.vendorId} onValueChange={(v) => setFormData({ ...formData, vendorId: v })}>
+                <Select
+                  value={formData.vendorId ? String(formData.vendorId) : undefined}
+                  onValueChange={(v) => {
+                    const vend = vendors.find((x) => String(x.id) === String(v));
+                    setFormData({
+                      ...formData,
+                      vendorId: String(v),
+                      vendorName: vend?.name || '',
+                    });
+                  }}
+                >
                   <SelectTrigger data-testid="vendor-select"><SelectValue placeholder="Select vendor" /></SelectTrigger>
-                  <SelectContent>{vendors.map(v => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}</SelectContent>
+                  <SelectContent>
+                    {vendors.map((v) => (
+                      <SelectItem key={String(v.id)} value={String(v.id)}>{v.name}</SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
+                {formData.vendorName ? (
+                  <p className="text-[11px] text-gray-500 mt-1">Selected: {formData.vendorName}</p>
+                ) : null}
                 {!vendors.length && (
                   <p className="text-[11px] text-red-600 mt-1">
                     Koi vendor nahi —{' '}
@@ -420,10 +848,22 @@ const Purchases = () => {
               </div>
               <div className="col-span-2"><Label>Linked Customer Order</Label>
                 <Select value={formData.linkedOrderId || undefined} onValueChange={(v) => setFormData({ ...formData, linkedOrderId: v === 'none' ? '' : v })}>
-                  <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
-                  <SelectContent><SelectItem value="none">None</SelectItem>{orders.map(o => <SelectItem key={o.id} value={o.orderId}>{o.orderId} - {o.customerName}</SelectItem>)}</SelectContent>
+                  <SelectTrigger><SelectValue placeholder="Open orders only" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {linkableOrders.map((o) => (
+                      <SelectItem key={o.id || o.orderId} value={o.orderId || o.id}>
+                        {o.orderId || o.id} — {o.customerName || 'Customer'} ({o.status || 'Open'})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
-                <p className="text-xs text-gray-500 mt-1">Linked order auto-updates to &quot;Ready for Delivery&quot; when received.</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Only open orders (not Delivered / Completed / Closed / Cancelled). Auto-updates to &quot;Ready for Delivery&quot; when PO is received.
+                </p>
+                {!linkableOrders.length && (
+                  <p className="text-[11px] text-amber-700 mt-1">No open customer orders available to link.</p>
+                )}
               </div>
             </div>
 
@@ -466,11 +906,11 @@ const Purchases = () => {
                   </div>
                 ))}
               </div>
-              <div className="text-right mt-3 pt-3 border-t"><span className="text-sm text-gray-500">Total: </span><span className="text-xl font-bold" style={{ color: '#F26522' }}>{formatCurrency(calcTotal())}</span></div>
+              <div className="text-right mt-3 pt-3 border-t"><span className="text-sm text-gray-500">Total: </span><span className="text-xl font-bold" style={{ color: '#ff6d00' }}>{formatCurrency(calcTotal())}</span></div>
             </div>
 
             <div className="p-3 bg-orange-50 rounded border border-orange-200">
-              <div className="flex items-center gap-2 mb-2"><Paperclip className="h-4 w-4" style={{ color: '#F26522' }} /><span className="text-sm font-semibold">Attachments</span></div>
+              <div className="flex items-center gap-2 mb-2"><Paperclip className="h-4 w-4" style={{ color: '#ff6d00' }} /><span className="text-sm font-semibold">Attachments</span></div>
               <Input type="file" multiple accept=".pdf,.jpg,.png,.doc,.docx,.xls,.xlsx" className="text-sm" />
               <p className="text-xs text-gray-500 mt-1">Supplier invoices, bills, quotations, receipts (uploads to Google Drive)</p>
             </div>
@@ -479,7 +919,7 @@ const Purchases = () => {
 
             <DialogFooter className="gap-2 pt-4">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}><X className="h-4 w-4 mr-1" />Cancel</Button>
-              <Button type="submit" style={{ backgroundColor: '#F26522' }} className="text-white" disabled={saving}><Save className="h-4 w-4 mr-1" />{saving ? 'Saving...' : editing ? 'Update' : 'Create PO'}</Button>
+              <Button type="submit" style={{ backgroundColor: '#ff6d00' }} className="text-white" disabled={saving}><Save className="h-4 w-4 mr-1" />{saving ? 'Saving...' : editing ? 'Update' : 'Create PO'}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -490,8 +930,8 @@ const Purchases = () => {
           <DialogHeader><DialogTitle className="flex items-center gap-2"><FileText className="h-5 w-5" />Purchase Order Details</DialogTitle></DialogHeader>
           {viewData && (
             <div className="space-y-4">
-              <div className="flex justify-between items-start p-3 rounded-lg" style={{ backgroundColor: '#FFF3ED' }}>
-                <div><p className="text-xs uppercase text-gray-500">PO Number</p><p className="text-xl font-bold" style={{ color: '#F26522' }}>{viewData.poNumber}</p></div>
+              <div className="flex justify-between items-start p-3 rounded-lg" style={{ backgroundColor: '#FFF4EB' }}>
+                <div><p className="text-xs uppercase text-gray-500">PO Number</p><p className="text-xl font-bold" style={{ color: '#ff6d00' }}>{viewData.poNumber}</p></div>
                 <div className="space-y-1 text-right"><Badge className={statusColor(viewData.status)}>{viewData.status}</Badge></div>
               </div>
               <div className="grid grid-cols-2 gap-4 text-sm">
@@ -500,7 +940,7 @@ const Purchases = () => {
                 <div><p className="text-xs text-gray-500">Purchase Date</p><p className="font-semibold">{formatDate(viewData.purchaseDate)}</p></div>
                 <div><p className="text-xs text-gray-500">Expected Delivery</p><p className="font-semibold">{formatDate(viewData.expectedDeliveryDate)}</p></div>
                 <div><p className="text-xs text-gray-500">Actual Delivery</p><p className="font-semibold">{formatDate(viewData.actualDeliveryDate) || 'Not received'}</p></div>
-                <div><p className="text-xs text-gray-500">Linked Order</p><p className="font-semibold" style={{ color: '#F26522' }}>{viewData.linkedOrderId || 'None'}</p></div>
+                <div><p className="text-xs text-gray-500">Linked Order</p><p className="font-semibold" style={{ color: '#ff6d00' }}>{viewData.linkedOrderId || 'None'}</p></div>
               </div>
               <div>
                 <p className="text-xs text-gray-500 uppercase mb-2">Items</p>
@@ -513,13 +953,99 @@ const Purchases = () => {
                   </tbody>
                 </table>
               </div>
-              <div className="p-3 rounded-lg text-white" style={{ backgroundColor: '#F26522' }}>
+              <div className="p-3 rounded-lg text-white" style={{ backgroundColor: '#ff6d00' }}>
                 <div className="flex justify-between"><span>Total</span><span className="text-xl font-bold">{formatCurrency(viewData.totalAmount)}</span></div>
                 <div className="flex justify-between"><span>Paid</span><span>{formatCurrency(viewData.paidAmount || 0)}</span></div>
                 <div className="flex justify-between border-t border-white/20 pt-2 mt-2"><span>Balance</span><span className="font-bold">{formatCurrency((viewData.totalAmount || 0) - (viewData.paidAmount || 0))}</span></div>
               </div>
               {viewData.notes && <div><p className="text-xs text-gray-500">Notes</p><p className="text-sm">{viewData.notes}</p></div>}
+              <div className="flex flex-wrap gap-2 pt-2 border-t">
+                {Math.max(0, Number(viewData.totalAmount) - Number(viewData.paidAmount)) > 0 && (
+                  <Button
+                    type="button"
+                    className="text-white"
+                    style={{ backgroundColor: '#ff6d00' }}
+                    onClick={() => openPayment(viewData)}
+                  >
+                    <CreditCard className="h-4 w-4 mr-2" />Pay vendor bill
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="text-green-700 border-green-200 hover:bg-green-50"
+                  onClick={() => sendVendorWhatsApp(viewData, 'po')}
+                >
+                  <WhatsAppIcon className="h-4 w-4 mr-2" />Send PO to vendor
+                </Button>
+                {viewData.status !== 'Received' && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="text-sky-700 border-sky-200 hover:bg-sky-50"
+                    onClick={() => sendVendorWhatsApp(viewData, 'delivery')}
+                  >
+                    <Truck className="h-4 w-4 mr-2" />Delivery reminder
+                  </Button>
+                )}
+              </div>
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!paymentPurchase} onOpenChange={(open) => { if (!open && !paying) setPaymentPurchase(null); }}>
+        <DialogContent className="max-w-md" data-testid="vendor-payment-dialog">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">Pay Vendor Bill</DialogTitle>
+          </DialogHeader>
+          {paymentPurchase && (
+            <form onSubmit={saveVendorPayment} className="space-y-4 mt-2">
+              <div className="rounded-xl border border-orange-100 bg-orange-50/60 p-3 text-sm">
+                <p className="font-semibold text-gray-900">{paymentPurchase.vendorName || 'Vendor'}</p>
+                <p className="text-gray-600 mt-1">PO: {paymentPurchase.poNumber || paymentPurchase.purchaseNo || '-'}</p>
+                <div className="mt-3 flex justify-between">
+                  <span className="text-gray-600">Balance due</span>
+                  <strong style={{ color: '#ff6d00' }}>{formatCurrency(Math.max(0, paymentPurchase.totalAmount - paymentPurchase.paidAmount))}</strong>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Payment Date</Label>
+                  <Input type="date" value={paymentData.date} onChange={(e) => setPaymentData((p) => ({ ...p, date: e.target.value }))} required />
+                </div>
+                <div>
+                  <Label>Payment Method</Label>
+                  <Select value={paymentData.method} onValueChange={(method) => setPaymentData((p) => ({ ...p, method }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{paymentMethods.map((method) => <SelectItem key={method} value={method}>{method}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label>Amount *</Label>
+                <Input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={paymentData.amount}
+                  onChange={(e) => setPaymentData((p) => ({ ...p, amount: e.target.value }))}
+                  required
+                  autoFocus
+                  data-testid="vendor-payment-amount"
+                />
+              </div>
+              <div>
+                <Label>Note</Label>
+                <Textarea value={paymentData.notes} onChange={(e) => setPaymentData((p) => ({ ...p, notes: e.target.value }))} placeholder="Cheque no., transfer reference, etc." rows={2} />
+              </div>
+              <DialogFooter className="gap-2">
+                <Button type="button" variant="outline" onClick={() => setPaymentPurchase(null)} disabled={paying}>Cancel</Button>
+                <Button type="submit" style={{ backgroundColor: '#ff6d00' }} className="text-white" disabled={paying} data-testid="save-vendor-payment">
+                  <CreditCard className="h-4 w-4 mr-2" />{paying ? 'Saving…' : 'Record payment'}
+                </Button>
+              </DialogFooter>
+            </form>
           )}
         </DialogContent>
       </Dialog>

@@ -106,8 +106,15 @@ const CounterScreen = () => {
   const callToken = async (token) => {
     setLoading(true);
     try {
-      await tokensAPI.call(token.tokenNo || token.id);
+      const res = await tokensAPI.call(token.tokenNo || token.id);
       toast.success(`Calling ${token.tokenNo}`);
+      const gasEmail = res?.data?._notifications?.email;
+      if (gasEmail?.ok) toast.success(`Call email sent to ${token.customerEmail || gasEmail.to}`);
+      else if (gasEmail?.ok === false && gasEmail.reason !== 'missing_email' && gasEmail.error) {
+        toast.error(gasEmail.error);
+      } else if (!token.customerEmail && gasEmail?.reason === 'missing_email') {
+        toast.message('No customer email on token — email skipped');
+      }
       await loadTokens();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to call token');
@@ -189,7 +196,7 @@ const CounterScreen = () => {
             Booking
           </Button>
           <div>
-            <h1 className="text-3xl font-bold" style={{ color: '#2E2E2E' }}>Counter Screen</h1>
+            <h1 className="text-3xl font-bold" style={{ color: '#0747a3' }}>Counter Screen</h1>
             <p className="text-sm text-gray-500">Live queue · auto-refresh every 12s</p>
           </div>
         </div>
@@ -225,7 +232,7 @@ const CounterScreen = () => {
           <CardContent className="p-0">
             <div
               className="min-h-[260px] flex flex-col items-center justify-center text-white p-8"
-              style={{ background: 'linear-gradient(135deg, #F26522 0%, #d4541a 100%)' }}
+              style={{ background: 'linear-gradient(135deg, #ff6d00 0%, #d4541a 100%)' }}
             >
               <div className="text-sm uppercase tracking-[0.2em] opacity-90">Now Serving</div>
               <div className="text-7xl font-bold mt-3" data-testid="now-serving">
@@ -247,7 +254,7 @@ const CounterScreen = () => {
                 disabled={!nextWaiting || loading}
                 onClick={() => callToken(nextWaiting)}
                 className="text-white"
-                style={{ backgroundColor: '#F26522' }}
+                style={{ backgroundColor: '#ff6d00' }}
                 data-testid="call-next"
               >
                 <Bell className="h-4 w-4 mr-2" />
@@ -275,7 +282,7 @@ const CounterScreen = () => {
                     disabled={loading}
                     onClick={() => createOrder(current)}
                     className="text-white"
-                    style={{ backgroundColor: '#2E2E2E' }}
+                    style={{ backgroundColor: '#0747a3' }}
                     data-testid="create-order-from-token"
                   >
                     <ShoppingCart className="h-4 w-4 mr-2" />

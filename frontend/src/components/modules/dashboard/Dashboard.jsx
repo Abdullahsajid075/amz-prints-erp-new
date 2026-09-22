@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { dashboardAPI, expensesAPI } from '@/services/api';
+import { dashboardAPI, expensesAPI, purchasesAPI } from '@/services/api';
+import { totalVendorPayables } from '@/utils/vendorPayables';
 import { useAuth, getUserDisplayName } from '@/context/AuthContext';
 import { useBrand } from '@/context/BrandContext';
-import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
+import ReceivablesDialog from '@/components/shared/ReceivablesDialog';
+import { formatCurrency, formatDate, getStatusColor, isExpenseApproved } from '@/utils/helpers';
 import {
   TrendingUp, TrendingDown, ShoppingCart, CheckCircle, DollarSign,
   Receipt, Users, Calendar, Activity, FileText, FileSpreadsheet, RefreshCw,
@@ -26,13 +28,13 @@ const PIPELINE = [
 ];
 
 const QUICK_ACTIONS = [
-  { label: 'New Order', path: '/orders/new', icon: Plus, tint: '#F26522' },
-  { label: 'Token Booking', path: '/tokens', icon: Ticket, tint: '#0EA5E9' },
-  { label: 'POS Sale', path: '/pos', icon: Store, tint: '#10B981' },
-  { label: 'Quotation', path: '/quotations/new', icon: FileText, tint: '#8B5CF6' },
-  { label: 'Invoice', path: '/invoices/new', icon: FileSpreadsheet, tint: '#F59E0B' },
-  { label: 'Customer', path: '/customers', icon: Users, tint: '#64748B' },
-  { label: 'Cost Calc', path: '/calculator', icon: Calculator, tint: '#0D9488' },
+  { label: 'New Order', path: '/orders/new', module: 'orders', icon: Plus, tint: '#ff6d00' },
+  { label: 'Token Booking', path: '/tokens', module: 'tokens', icon: Ticket, tint: '#0EA5E9' },
+  { label: 'POS Sale', path: '/pos', module: 'pos', icon: Store, tint: '#10B981' },
+  { label: 'Quotation', path: '/quotations/new', module: 'quotations', icon: FileText, tint: '#8B5CF6' },
+  { label: 'Invoice', path: '/invoices/new', module: 'invoices', icon: FileSpreadsheet, tint: '#F59E0B' },
+  { label: 'Customer', path: '/customers', module: 'customers', icon: Users, tint: '#64748B' },
+  { label: 'Cost Calc', path: '/calculator', module: 'calculator', icon: Calculator, tint: '#0D9488' },
 ];
 
 function greetingForHour(h) {
@@ -41,27 +43,60 @@ function greetingForHour(h) {
   return 'Good evening';
 }
 
+function ymd(d) {
+  const x = d instanceof Date ? d : new Date(d);
+  if (Number.isNaN(x.getTime())) return '';
+  const y = x.getFullYear();
+  const m = String(x.getMonth() + 1).padStart(2, '0');
+  const day = String(x.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** Inclusive yyyy-MM-dd filter (same semantics as GAS). */
+function inDateRange(rowDate, from, to) {
+  if (!from && !to) return true;
+  const dk = String(rowDate || '').trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dk)) return false;
+  if (from && dk < from) return false;
+  if (to && dk > to) return false;
+  return true;
+}
+
+function datePresets() {
+  const today = new Date();
+  const to = ymd(today);
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - 6);
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  return {
+    today: { from: to, to },
+    week: { from: ymd(weekStart), to },
+    month: { from: ymd(monthStart), to },
+    all: { from: '', to: '' },
+  };
+}
+
 const MetricTile = ({ label, value, sub, icon: Icon, tint, onClick, testId }) => (
   <button
     type="button"
     data-testid={testId}
     onClick={onClick}
     disabled={!onClick}
-    className={`text-left rounded-2xl p-4 sm:p-5 border transition-all ${
-      onClick ? 'hover:shadow-md hover:-translate-y-0.5 cursor-pointer' : 'cursor-default'
+    className={`erp-kpi text-left w-full ${
+      onClick ? 'cursor-pointer' : 'cursor-default'
     }`}
     style={{
-      background: `linear-gradient(145deg, ${tint}14 0%, #ffffff 55%)`,
-      borderColor: `${tint}33`,
+      background: `linear-gradient(155deg, ${tint}12 0%, #ffffff 52%)`,
+      borderColor: `${tint}28`,
     }}
   >
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">{label}</p>
-        <p className="mt-1.5 text-xl sm:text-2xl font-bold text-gray-900 break-words">{value}</p>
-        {sub && <p className="mt-1 text-xs text-gray-500">{sub}</p>}
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">{label}</p>
+        <p className="mt-1.5 font-display text-xl sm:text-2xl font-bold text-ink break-words">{value}</p>
+        {sub && <p className="mt-1 text-xs text-slate-500">{sub}</p>}
       </div>
-      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: tint }}>
+      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm" style={{ backgroundColor: tint }}>
         <Icon className="h-5 w-5 text-white" />
       </div>
     </div>
@@ -69,23 +104,33 @@ const MetricTile = ({ label, value, sub, icon: Icon, tint, onClick, testId }) =>
 );
 
 const Panel = ({ title, subtitle, action, children, className = '', testId }) => (
-  <div className={`rounded-2xl bg-white border border-gray-100 shadow-sm ${className}`} data-testid={testId}>
-    <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-gray-100">
+  <div className={`erp-panel ${className}`} data-testid={testId}>
+    <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3.5 border-b border-black/[0.05]">
       <div className="min-w-0">
-        <h3 className="text-base font-semibold text-gray-900">{title}</h3>
-        {subtitle && <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>}
+        <h3 className="font-display text-sm font-bold text-ink">{title}</h3>
+        {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
       </div>
       {action}
     </div>
-    <div className="p-5">{children}</div>
+    <div className="p-4 sm:p-5">{children}</div>
   </div>
 );
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, canAccessModule } = useAuth();
   const { company, primary } = useBrand();
-  const brand = primary || '#F26522';
+  const brand = primary || '#ff6d00';
+
+  const quickActions = useMemo(
+    () => QUICK_ACTIONS.filter((a) => canAccessModule(a.module)),
+    [canAccessModule]
+  );
+
+  const goIfAllowed = useCallback((path, moduleKey) => {
+    if (!canAccessModule(moduleKey)) return;
+    navigate(path);
+  }, [canAccessModule, navigate]);
 
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
   const [loading, setLoading] = useState(true);
@@ -94,23 +139,27 @@ const Dashboard = () => {
     totalQuotations: 0, totalOrders: 0, totalInvoices: 0,
     pendingOrders: 0, completedOrders: 0, readyOrders: 0,
     designingOrders: 0, printingOrders: 0,
-    revenue: 0, expenses: 0, receivables: 0, collected: 0,
+    revenue: 0, expenses: 0, receivables: 0, collected: 0, payables: 0,
     activeCustomers: 0, fulfillmentRate: 0, collectionRate: 0,
   });
   const [recentOrders, setRecentOrders] = useState([]);
   const [attention, setAttention] = useState([]);
   const [recentExpenses, setRecentExpenses] = useState([]);
   const [chartData, setChartData] = useState({ monthlySales: [], orderStatus: [] });
+  const [receivablesOpen, setReceivablesOpen] = useState(false);
 
-  const fetchDashboardData = useCallback(async () => {
+  const fetchDashboardDataWith = useCallback(async (range) => {
+    const from = range?.from || '';
+    const to = range?.to || '';
     setLoading(true);
     try {
       const params = {};
-      if (dateRange.from) params.from = dateRange.from;
-      if (dateRange.to) params.to = dateRange.to;
+      if (from) params.from = from;
+      if (to) params.to = to;
 
       const bootPromise = dashboardAPI.bootstrap(params);
-      const expensesPromise = expensesAPI.getAll(params).catch(() => ({ data: [] }));
+      const expensesPromise = expensesAPI.getAll().catch(() => ({ data: [] }));
+      const purchasesPromise = purchasesAPI.getAll().catch(() => ({ data: [] }));
 
       const boot = await bootPromise;
       const data = boot.data || {};
@@ -120,26 +169,41 @@ const Dashboard = () => {
       setAttention(Array.isArray(data.attention) ? data.attention : []);
       setLoading(false);
 
-      const expensesRes = await expensesPromise;
-      const list = Array.isArray(expensesRes.data) ? expensesRes.data : [];
+      const [expensesRes, purchasesRes] = await Promise.all([expensesPromise, purchasesPromise]);
+      const allExpenses = Array.isArray(expensesRes.data) ? expensesRes.data : [];
+      const list = allExpenses.filter((e) => inDateRange(e.date, from, to) && isExpenseApproved(e));
       setRecentExpenses(list.slice(0, 6));
       const expenseTotal = list.reduce((s, e) => s + Number(e.amount || 0), 0);
+      const purchaseList = (Array.isArray(purchasesRes.data) ? purchasesRes.data : [])
+        .filter((p) => inDateRange(p.purchaseDate || p.date, from, to));
+      const payablesFromPurchases = totalVendorPayables(purchaseList);
+      const serverExpenses = Number(data.stats?.expenses);
+      const serverPayables = Number(data.stats?.payables || data.stats?.vendorPayables);
       setStats((prev) => ({
         ...prev,
-        expenses: Number(prev.expenses) > 0 ? prev.expenses : expenseTotal,
+        // Prefer filtered server total when present (incl. 0); else client sum
+        expenses: Number.isFinite(serverExpenses) ? serverExpenses : expenseTotal,
+        payables: Number.isFinite(serverPayables) ? serverPayables : payablesFromPurchases,
       }));
     } catch (error) {
       console.error('Dashboard load failed', error);
       setLoading(false);
     }
-  }, [dateRange]);
+  }, []);
+
+  const fetchDashboardData = useCallback(() => {
+    return fetchDashboardDataWith(dateRange);
+  }, [dateRange, fetchDashboardDataWith]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchDashboardData(); }, []);
 
   const displayName = getUserDisplayName(user);
   const greeting = greetingForHour(new Date().getHours());
-  const net = Number(stats.revenue || 0) - Number(stats.expenses || 0);
+  // Cash net = Payments Cash In − Cash Out (do not mix with Expenses sheet)
+  const net = Number.isFinite(Number(stats.cashNet))
+    ? Number(stats.cashNet)
+    : Number(stats.cashIn || 0) - Number(stats.cashOut || 0);
   const todayLabel = new Date().toLocaleDateString('en-PK', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
@@ -189,75 +253,104 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="space-y-6" data-testid="dashboard">
-      {/* Hero */}
+    <div className="erp-page space-y-5" data-testid="dashboard">
+      {/* Command hero — ink + brand accent */}
       <div
-        className="relative overflow-hidden rounded-3xl text-white shadow-lg"
-        style={{ backgroundColor: brand }}
+        className="relative overflow-hidden rounded-2xl text-white shadow-[0_16px_40px_rgba(28,36,48,0.18)]"
+        style={{
+          background: `
+            radial-gradient(700px 280px at 0% 0%, ${brand}66, transparent 55%),
+            linear-gradient(145deg, #0747a3 0%, #05357c 55%, #042a63 100%)
+          `,
+        }}
       >
-        <div className="relative p-5 sm:p-7">
+        <div className="relative p-5 sm:p-6">
           <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-5">
             <div className="min-w-0">
-              <div className="inline-flex items-center gap-2 rounded-full bg-black/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]">
-                <Sparkles className="h-3.5 w-3.5 text-white" strokeWidth={2.25} />
-                {company?.name || 'AMZ Prints'} Command Center
+              <div className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-white/65">
+                <Sparkles className="h-3.5 w-3.5" style={{ color: brand }} strokeWidth={2.25} />
+                {company?.name || 'AMZ Prints'} · Command
               </div>
-              <h1 className="mt-3 text-2xl sm:text-3xl lg:text-4xl font-bold leading-tight">
+              <h1 className="mt-2 font-display text-2xl sm:text-3xl lg:text-[2.1rem] font-bold leading-tight tracking-tight">
                 {greeting}, {displayName}
               </h1>
-              <p className="mt-1.5 text-sm text-white/90">{todayLabel}</p>
-              <p className="mt-2 text-sm text-white/85 max-w-xl">
-                Track pipeline, cash, and customer work — jump into any module in one click.
-              </p>
+              <p className="mt-1 text-sm text-white/70">{todayLabel}</p>
             </div>
 
             <div className="flex flex-col gap-2 sm:items-stretch">
               <form onSubmit={handleJump} className="flex gap-2">
                 <div className="relative flex-1 min-w-[200px]">
                   <Search
-                    className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-orange-600 pointer-events-none"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none"
+                    style={{ color: brand }}
                     strokeWidth={2.5}
                   />
                   <Input
                     value={jumpQuery}
                     onChange={(e) => setJumpQuery(e.target.value)}
                     placeholder="Find order / tracking / customer"
-                    className="pl-9 h-10 w-full sm:w-[260px] bg-white border-0 text-gray-900 placeholder:text-gray-400 shadow-sm"
+                    className="pl-9 h-10 w-full sm:w-[260px] bg-white border-0 text-ink placeholder:text-slate-400 shadow-sm rounded-xl"
                   />
                 </div>
                 <Button
                   type="submit"
-                  className="h-10 shrink-0 bg-white text-orange-600 hover:bg-orange-50 font-semibold shadow-sm"
+                  className="h-10 shrink-0 bg-white font-bold shadow-sm rounded-xl"
+                  style={{ color: brand }}
                 >
                   Go
                 </Button>
               </form>
 
               <div className="flex flex-wrap items-end gap-2">
-                <div className="flex items-end gap-2 rounded-xl bg-white p-1.5 shadow-sm">
+                <div className="flex flex-wrap items-end gap-2 rounded-xl bg-white/95 p-1.5 shadow-sm">
+                  <div className="flex flex-wrap gap-1 px-1 pb-0.5">
+                    {[
+                      { key: 'today', label: 'Today' },
+                      { key: 'week', label: '7 days' },
+                      { key: 'month', label: 'Month' },
+                      { key: 'all', label: 'All' },
+                    ].map((p) => (
+                      <Button
+                        key={p.key}
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[11px] px-2 rounded-lg"
+                        disabled={loading}
+                        onClick={() => {
+                          const next = datePresets()[p.key];
+                          setDateRange(next);
+                          fetchDashboardDataWith(next);
+                        }}
+                      >
+                        {p.label}
+                      </Button>
+                    ))}
+                  </div>
                   <label className="flex flex-col gap-0.5 px-1">
-                    <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 px-1">From</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 px-1">From</span>
                     <Input
                       type="date"
                       value={dateRange.from}
                       onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
-                      className="h-9 w-[148px] border-gray-200 bg-white text-gray-900 [color-scheme:light]"
+                      className="h-9 w-[148px] border-slate-200 bg-white text-ink [color-scheme:light] rounded-lg"
                       data-testid="date-from-input"
                     />
                   </label>
                   <label className="flex flex-col gap-0.5 px-1">
-                    <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 px-1">To</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 px-1">To</span>
                     <Input
                       type="date"
                       value={dateRange.to}
                       onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
-                      className="h-9 w-[148px] border-gray-200 bg-white text-gray-900 [color-scheme:light]"
+                      className="h-9 w-[148px] border-slate-200 bg-white text-ink [color-scheme:light] rounded-lg"
                       data-testid="date-to-input"
                     />
                   </label>
                   <Button
                     onClick={fetchDashboardData}
-                    className="h-9 mb-0.5 shrink-0 bg-orange-600 hover:bg-orange-700 text-white"
+                    className="h-9 mb-0.5 shrink-0 text-white rounded-lg"
+                    style={{ backgroundColor: brand }}
                     data-testid="apply-filter-button"
                     disabled={loading}
                   >
@@ -267,7 +360,8 @@ const Dashboard = () => {
                 </div>
                 <Button
                   onClick={fetchDashboardData}
-                  className="h-10 w-10 shrink-0 bg-white text-orange-600 hover:bg-orange-50 shadow-sm"
+                  className="h-10 w-10 shrink-0 bg-white hover:bg-white/90 shadow-sm rounded-xl"
+                  style={{ color: brand }}
                   disabled={loading}
                   title="Refresh"
                 >
@@ -277,55 +371,58 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Hero KPI strip */}
-          <div className="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="mt-5 grid grid-cols-2 lg:grid-cols-4 gap-2.5">
             {[
               { label: 'Revenue', value: formatCurrency(stats.revenue), hint: `${stats.collectionRate || 0}% collected` },
-              { label: 'Receivables', value: formatCurrency(stats.receivables), hint: 'Customer balances' },
-              { label: 'Net position', value: formatCurrency(net), hint: 'Revenue − expenses' },
+              { label: 'Receivables', value: formatCurrency(stats.receivables), hint: 'Customer balances', onClick: () => setReceivablesOpen(true) },
+              { label: 'Net position', value: formatCurrency(net), hint: 'Cash In − Cash Out (Payments)' },
               { label: 'Open orders', value: stats.pendingOrders || 0, hint: `${stats.fulfillmentRate || 0}% fulfilled` },
             ].map((k) => (
-              <div key={k.label} className="rounded-2xl bg-black/15 border border-white/25 p-3.5">
-                <p className="text-[10px] uppercase tracking-wider text-white/80 font-semibold">{k.label}</p>
-                <p className="mt-1 text-lg sm:text-xl font-bold">{k.value}</p>
-                <p className="text-[11px] text-white/75 mt-0.5">{k.hint}</p>
+              <div
+                key={k.label}
+                role={k.onClick ? 'button' : undefined}
+                tabIndex={k.onClick ? 0 : undefined}
+                onClick={k.onClick}
+                className={`rounded-xl border border-white/10 bg-white/[0.06] backdrop-blur-sm p-3.5 transition-transform duration-300 hover:-translate-y-0.5 ${k.onClick ? 'cursor-pointer' : ''}`}
+              >
+                <p className="text-[10px] uppercase tracking-[0.12em] text-white/65 font-bold">{k.label}</p>
+                <p className="mt-1 font-display text-lg sm:text-xl font-bold">{k.value}</p>
+                <p className="text-[11px] text-white/55 mt-0.5">{k.hint}</p>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Quick actions */}
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Quick actions</h2>
-          <p className="text-xs text-gray-400">Most-used workflows</p>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {QUICK_ACTIONS.map((a) => {
-            const Icon = a.icon;
-            return (
-              <button
-                key={a.path}
-                type="button"
-                onClick={() => navigate(a.path)}
-                className="group rounded-2xl border border-gray-100 bg-white p-4 text-left hover:shadow-md hover:border-orange-200 transition-all"
-              >
-                <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 group-hover:scale-105 transition-transform"
-                  style={{ backgroundColor: a.tint }}
+      {quickActions.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">Quick actions</h2>
+          </div>
+          <div className="flex flex-nowrap items-stretch gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+            {quickActions.map((a) => {
+              const Icon = a.icon;
+              return (
+                <button
+                  key={a.path}
+                  type="button"
+                  onClick={() => navigate(a.path)}
+                  className="group inline-flex items-center gap-2.5 shrink-0 rounded-xl border border-black/[0.06] bg-white px-3 py-2.5 text-left hover:shadow-md hover:border-orange-200/80 transition-all"
                 >
-                  <Icon className="h-5 w-5 text-white" />
-                </div>
-                <p className="text-sm font-semibold text-gray-800">{a.label}</p>
-                <p className="text-[11px] text-gray-400 mt-0.5 inline-flex items-center gap-1">
-                  Open <ArrowRight className="h-3 w-3" />
-                </p>
-              </button>
-            );
-          })}
-        </div>
-      </section>
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                    style={{ backgroundColor: a.tint }}
+                  >
+                    <Icon className="h-4 w-4 text-white" />
+                  </div>
+                  <span className="text-sm font-semibold text-ink whitespace-nowrap">{a.label}</span>
+                  <ArrowRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-orange-400 shrink-0 transition-colors" />
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Documents + health */}
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -335,7 +432,7 @@ const Dashboard = () => {
           value={stats.totalQuotations || 0}
           icon={FileText}
           tint="#8B5CF6"
-          onClick={() => navigate('/quotations')}
+          onClick={canAccessModule('quotations') ? () => goIfAllowed('/quotations', 'quotations') : undefined}
         />
         <MetricTile
           testId="stat-total-orders"
@@ -344,7 +441,7 @@ const Dashboard = () => {
           sub={`${stats.pendingOrders || 0} in pipeline`}
           icon={ShoppingCart}
           tint={brand}
-          onClick={() => navigate('/orders')}
+          onClick={canAccessModule('orders') ? () => goIfAllowed('/orders', 'orders') : undefined}
         />
         <MetricTile
           testId="stat-total-invoices"
@@ -352,7 +449,7 @@ const Dashboard = () => {
           value={stats.totalInvoices || 0}
           icon={FileSpreadsheet}
           tint="#0EA5E9"
-          onClick={() => navigate('/invoices')}
+          onClick={canAccessModule('invoices') ? () => goIfAllowed('/invoices', 'invoices') : undefined}
         />
         <MetricTile
           testId="stat-customers"
@@ -360,7 +457,7 @@ const Dashboard = () => {
           value={stats.activeCustomers || 0}
           icon={Users}
           tint="#64748B"
-          onClick={() => navigate('/customers')}
+          onClick={canAccessModule('customers') ? () => goIfAllowed('/customers', 'customers') : undefined}
         />
       </section>
 
@@ -497,15 +594,15 @@ const Dashboard = () => {
           sub={`${stats.collectionRate || 0}% collection rate`}
           icon={TrendingUp}
           tint="#F59E0B"
-          onClick={() => navigate('/orders')}
+          onClick={() => setReceivablesOpen(true)}
         />
         <MetricTile
           testId="stat-payables"
-          label="Net position"
-          value={formatCurrency(net)}
-          sub="Revenue − expenses"
-          icon={net >= 0 ? Wallet : TrendingDown}
-          tint={net >= 0 ? '#14B8A6' : '#E11D48'}
+          label="Vendor payables"
+          value={formatCurrency(stats.payables || stats.vendorPayables || 0)}
+          icon={Wallet}
+          tint="#E11D48"
+          onClick={() => navigate('/purchases')}
         />
       </section>
 
@@ -660,6 +757,7 @@ const Dashboard = () => {
           )}
         </Panel>
       </section>
+      <ReceivablesDialog open={receivablesOpen} onOpenChange={setReceivablesOpen} />
     </div>
   );
 };

@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
-import { settingsAPI, usersAPI } from '@/services/api';
+import { settingsAPI, usersAPI, employeesAPI, notificationsAPI } from '@/services/api';
 import { clearGasCache } from '@/services/gasClient';
 import { useBrand } from '@/context/BrandContext';
 import {
@@ -17,14 +17,18 @@ import {
   sendTestEmail,
   openWhatsAppChat,
 } from '@/services/notifications';
-import { Save, Building2, FileText, Palette, Users, ShoppingCart, Package, UserCog, CreditCard, Bell, Shield, Database, Trash2, Plus, X, Edit, MessageCircle, Mail, Kanban } from 'lucide-react';
+import { Save, Building2, FileText, Palette, Users, ShoppingCart, Package, UserCog, CreditCard, Bell, Shield, Database, Trash2, Plus, X, Edit, Mail, Kanban, KeyRound, BookOpen } from 'lucide-react';
+import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
 import { DEFAULT_CRM_STAGES } from '@/utils/crmStages';
+import { migrateThemeColors } from '@/utils/brandColors';
+import { getAssignableModules, hasFullAccess, normalizePermissions } from '@/utils/permissions';
+import GuideBook from '@/components/modules/settings/GuideBook';
 
 const defaultSettings = {
-  company: { name: 'AMZ Prints', tagline: 'Professional Printing & Advertising Services', address: '', phone: '', email: '', website: '', taxId: '', authorizedSignatory: 'Authorized Person', logo: '', stamp: '', signature: '' },
-  invoice: { prefix: 'INV-', taxRate: 0, terms: 'Payment due within 30 days.', showQR: true, showStamp: true, showSignature: true, template: 'classic' },
-  theme: { primary: '#F26522', secondary: '#2E2E2E', accent: '#10B981' },
+  company: { name: 'Amazon Printing Services', tagline: 'Professional Printing & Advertising Services', address: 'King Road, Mandi Bahauddin', phone: '', email: 'amazonprinting@gmail.com', website: 'amzprints.com', taxId: '', authorizedSignatory: 'Authorized Person', logo: '', stamp: '', signature: '' },
+  invoice: { prefix: 'INV-', taxRate: 0, terms: 'Payment due within 30 days.', showQR: true, showStamp: true, showSignature: true, template: 'bold' },
+  theme: { primary: '#ff6d00', secondary: '#0747a3', accent: '#10B981' },
   orders: { autoNumber: true, orderPrefix: 'ORD-', defaultStatus: 'Order Received', requireDeliveryDate: true },
   customers: { autoCode: true, codePrefix: 'CUST-', creditLimit: 50000, requirePhone: true },
   crm: { stages: DEFAULT_CRM_STAGES },
@@ -36,7 +40,7 @@ const defaultSettings = {
     roles: ['Super Admin', 'Admin', 'Manager', 'Sales', 'Designer', 'Production', 'Accounts', 'Cashier'],
     passwordPolicy: 'strong',
     sessionTimeout: 60,
-    /** Optional local mirror — login still uses Users sheet via usersAPI */
+    /** Optional local mirror — login uses the Users API */
     accounts: [],
   },
   notifications: {
@@ -45,16 +49,24 @@ const defaultSettings = {
     emailInvoice: true,
     emailReady: true,
     emailDelivered: true,
+    emailPayment: true,
+    emailToken: true,
+    dailyRemindersEnabled: true,
+    emailPaymentReminder: true,
+    emailOrderStatusReminder: true,
+    dailyReminderHour: 9,
     smsEnabled: false,
     whatsappEnabled: true,
     autoOpenWhatsApp: true,
     whatsappTemplates: {},
     emailSubjects: {},
   },
-  system: { currency: 'PKR', dateFormat: 'DD MMM YYYY', backupEnabled: true, backupFrequency: 'daily' }
+  system: { currency: 'PKR', dateFormat: 'DD MMM YYYY', backupEnabled: true, backupFrequency: 'daily' },
+  guidebook: { openingHours: '', escalation: '', houseRules: '', supportNotes: '' },
 };
 
-const emptyUser = { username: '', password: '', name: '', role: 'Sales', status: 'Active', permissions: [] };
+const emptyUser = { username: '', password: '', name: '', role: 'Sales', status: 'Active', permissions: [], employeeId: '' };
+const ASSIGNABLE_MODULES = getAssignableModules();
 
 const readFileAsDataURL = (file) =>
   new Promise((resolve, reject) => {
@@ -125,7 +137,7 @@ function mergeSettingsFromApi(data) {
     ...defaultSettings,
     company: { ...company, logo, stamp, signature },
     invoice: section('invoice'),
-    theme: section('theme'),
+    theme: migrateThemeColors(section('theme')),
     orders: section('orders'),
     customers: section('customers'),
     crm: (() => {
@@ -147,6 +159,7 @@ function mergeSettingsFromApi(data) {
     users: section('users'),
     notifications: section('notifications'),
     system: section('system'),
+    guidebook: section('guidebook'),
   };
 }
 
@@ -164,9 +177,25 @@ const Settings = () => {
   const [newCategory, setNewCategory] = useState('');
   const [newRole, setNewRole] = useState('');
   const [sheetUsers, setSheetUsers] = useState([]);
+  const [hrEmployees, setHrEmployees] = useState([]);
   const [userForm, setUserForm] = useState(emptyUser);
   const [editingUserId, setEditingUserId] = useState(null);
   const [usersLoading, setUsersLoading] = useState(false);
+  const [reminderStatus, setReminderStatus] = useState(null);
+  const [reminderBusy, setReminderBusy] = useState(false);
+
+  const loadReminderStatus = useCallback(async () => {
+    try {
+      const res = await notificationsAPI.getReminderStatus();
+      setReminderStatus(res.data || res);
+    } catch {
+      setReminderStatus(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadReminderStatus();
+  }, [loadReminderStatus]);
 
   const loadSettings = useCallback(async () => {
     try {
@@ -185,11 +214,15 @@ const Settings = () => {
   const loadUsers = useCallback(async () => {
     setUsersLoading(true);
     try {
-      const res = await usersAPI.getAll();
-      setSheetUsers(Array.isArray(res.data) ? res.data : []);
+      const [usersRes, empRes] = await Promise.all([
+        usersAPI.getAll(),
+        employeesAPI.getAll().catch(() => ({ data: [] })),
+      ]);
+      setSheetUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
+      setHrEmployees(Array.isArray(empRes.data) ? empRes.data : []);
     } catch (err) {
       console.error(err);
-      toast.error('Failed to load users from Users sheet');
+      toast.error('Failed to load users');
     } finally {
       setUsersLoading(false);
     }
@@ -223,7 +256,7 @@ const Settings = () => {
       if (Array.isArray(res.data?._warnings) && res.data._warnings.length) {
         toast.message(`Saved with warnings: ${res.data._warnings.join(', ')}`);
       } else {
-        toast.success('Settings saved permanently to Google Sheets');
+        toast.success('Settings saved');
       }
       // Re-fetch to confirm persistence
       await loadSettings();
@@ -236,7 +269,7 @@ const Settings = () => {
   };
 
   const update = (section, field, value) =>
-    setSettings({ ...settings, [section]: { ...settings[section], [field]: value } });
+    setSettings({ ...settings, [section]: { ...(settings[section] || {}), [field]: value } });
 
   const onImagePick = async (field, file) => {
     if (!file) return;
@@ -267,17 +300,18 @@ const Settings = () => {
         role: userForm.role,
         status: userForm.status,
         permissions: userForm.permissions || [],
+        employeeId: userForm.employeeId || '',
       };
       if (editingUserId) {
         await usersAPI.update(editingUserId, payload);
-        toast.success('User updated (Users sheet)');
+        toast.success('User updated');
       } else {
         if (!payload.password) {
           toast.error('Password required for new user');
           return;
         }
         await usersAPI.create(payload);
-        toast.success('User created (Users sheet — used for login)');
+        toast.success('User created — this account is used for login');
       }
       setUserForm(emptyUser);
       setEditingUserId(null);
@@ -295,8 +329,56 @@ const Settings = () => {
       name: u.name || '',
       role: u.role || 'Sales',
       status: u.status || 'Active',
-      permissions: u.permissions || [],
+      permissions: normalizePermissions(u.permissions),
+      employeeId: u.employeeId || '',
     });
+  };
+
+  const toggleUserModule = (moduleKey) => {
+    const key = String(moduleKey).toLowerCase();
+    setUserForm((prev) => {
+      const current = normalizePermissions(prev.permissions);
+      const next = current.includes(key)
+        ? current.filter((m) => m !== key)
+        : [...current, key];
+      return { ...prev, permissions: next };
+    });
+  };
+
+  const selectAllModules = () => {
+    setUserForm((prev) => ({
+      ...prev,
+      permissions: ASSIGNABLE_MODULES.map((m) => m.key),
+    }));
+  };
+
+  const clearAllModules = () => {
+    setUserForm((prev) => ({ ...prev, permissions: [] }));
+  };
+
+  const grantLoginFromEmployee = (emp) => {
+    const linked = sheetUsers.find((u) => String(u.employeeId || '') === String(emp.id));
+    if (linked) {
+      editUser(linked);
+      toast.message(`${emp.name} already has login — edit below`);
+      return;
+    }
+    const uname = String(emp.email || emp.phone || emp.name || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9._@-]+/g, '')
+      .slice(0, 32) || `emp_${String(emp.id).slice(-6)}`;
+    setEditingUserId(null);
+    setUserForm({
+      ...emptyUser,
+      username: uname,
+      password: '',
+      name: emp.name || '',
+      role: emp.role || 'Sales',
+      status: 'Active',
+      employeeId: emp.id || '',
+    });
+    toast.message(`Set a password for ${emp.name}, then click Add User`);
   };
 
   const deleteUser = async (u) => {
@@ -314,16 +396,16 @@ const Settings = () => {
     <div className="space-y-6" data-testid="settings-page">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold" style={{ color: '#2E2E2E' }}>Settings</h1>
+          <h1 className="text-3xl font-bold" style={{ color: '#0747a3' }}>Settings</h1>
           <p className="text-gray-600 mt-1">Complete system configuration & preferences</p>
         </div>
-        <Button onClick={save} style={{ backgroundColor: primary || '#F26522' }} className="text-white" disabled={saving} data-testid="save-settings-button">
+        <Button onClick={save} style={{ backgroundColor: primary || '#ff6d00' }} className="text-white" disabled={saving} data-testid="save-settings-button">
           <Save className="h-4 w-4 mr-2" />{saving ? 'Saving...' : 'Save All Settings'}
         </Button>
       </div>
 
       <Tabs defaultValue="company" onValueChange={(v) => { if (v === 'users') loadUsers(); }}>
-        <TabsList className="grid w-full grid-cols-3 lg:grid-cols-7 h-auto">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 h-auto">
           <TabsTrigger value="company"><Building2 className="h-4 w-4 mr-1" />Company</TabsTrigger>
           <TabsTrigger value="invoice"><FileText className="h-4 w-4 mr-1" />Invoice</TabsTrigger>
           <TabsTrigger value="theme"><Palette className="h-4 w-4 mr-1" />Theme</TabsTrigger>
@@ -331,6 +413,7 @@ const Settings = () => {
           <TabsTrigger value="users"><Users className="h-4 w-4 mr-1" />Users</TabsTrigger>
           <TabsTrigger value="notifications"><Bell className="h-4 w-4 mr-1" />Notifications</TabsTrigger>
           <TabsTrigger value="system"><Database className="h-4 w-4 mr-1" />System</TabsTrigger>
+          <TabsTrigger value="guidebook" data-testid="settings-tab-guidebook"><BookOpen className="h-4 w-4 mr-1" />Guide Book</TabsTrigger>
         </TabsList>
 
         <TabsContent value="company">
@@ -347,7 +430,7 @@ const Settings = () => {
               <div>
                 <Label>Logo (PNG preferred — transparent background kept)</Label>
                 <Input type="file" accept="image/png,image/webp,image/gif,image/*" onChange={(e) => onImagePick('logo', e.target.files?.[0])} data-testid="logo-file-input" />
-                <p className="text-xs text-gray-500 mt-1">Re-upload your PNG after this fix if the old logo still shows a black background.</p>
+                <p className="text-xs text-gray-500 mt-1">PNG keeps a transparent background. Click Save All Settings after upload.</p>
                 {settings.company.logo && (
                   <div className="mt-2 flex items-center gap-3">
                     <img
@@ -382,7 +465,7 @@ const Settings = () => {
               </div>
               <div>
                 <Label>Invoice Template</Label>
-                <Select value={settings.invoice.template || 'classic'} onValueChange={(v) => update('invoice', 'template', v)}>
+                <Select value={settings.invoice.template || 'bold'} onValueChange={(v) => update('invoice', 'template', v)}>
                   <SelectTrigger data-testid="invoice-template-select"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="classic">Classic</SelectItem>
@@ -394,8 +477,8 @@ const Settings = () => {
               </div>
               <div><Label>Terms & Conditions</Label><Textarea rows={5} value={settings.invoice.terms} onChange={(e) => update('invoice', 'terms', e.target.value)} /></div>
 
-              <div className="rounded-xl border border-orange-100 p-4 space-y-4" style={{ backgroundColor: '#FFF9F5' }}>
-                <p className="text-sm font-semibold" style={{ color: '#2E2E2E' }}>Authorized Signature & Stamp (shown on invoices)</p>
+              <div className="rounded-xl border border-orange-100 p-4 space-y-4" style={{ backgroundColor: '#FFF6ED' }}>
+                <p className="text-sm font-semibold" style={{ color: '#0747a3' }}>Authorized Signature & Stamp (shown on invoices)</p>
                 <div>
                   <Label>Authorized Person Name *</Label>
                   <Input
@@ -620,13 +703,82 @@ const Settings = () => {
           <div className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5" />User Access (Users sheet)</CardTitle>
+                <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" />HR Employees → Grant Login</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-gray-600">
+                  Employees from <strong>HR → Employees</strong>. Click <strong>Grant Login</strong> to create a Users account (username + password).
+                  Role <strong>Designer</strong> employees also appear in order/product designer selection.
+                </p>
+                {usersLoading ? (
+                  <p className="text-sm text-gray-500">Loading employees…</p>
+                ) : (
+                  <div className="overflow-x-auto border rounded-lg max-h-64 overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <thead className="sticky top-0 bg-gray-50">
+                        <tr className="border-b">
+                          <th className="text-left p-2">Employee</th>
+                          <th className="text-left p-2">Role</th>
+                          <th className="text-left p-2">Login</th>
+                          <th className="text-right p-2">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {hrEmployees.map((emp) => {
+                          const linked = sheetUsers.find((u) => String(u.employeeId || '') === String(emp.id));
+                          return (
+                            <tr key={emp.id} className="border-b">
+                              <td className="p-2">
+                                <div className="flex items-center gap-2">
+                                  {emp.photo || emp.image ? (
+                                    <img src={emp.photo || emp.image} alt="" className="w-7 h-7 rounded object-cover" referrerPolicy="no-referrer" />
+                                  ) : (
+                                    <div className="w-7 h-7 rounded bg-gray-100" />
+                                  )}
+                                  <div>
+                                    <p className="font-medium leading-tight">{emp.name}</p>
+                                    <p className="text-[11px] text-gray-500">{emp.phone || emp.email || '—'}</p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="p-2"><Badge variant="outline">{emp.role || 'Staff'}</Badge></td>
+                              <td className="p-2 text-xs text-gray-600">{linked ? linked.username : '—'}</td>
+                              <td className="p-2 text-right">
+                                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => grantLoginFromEmployee(emp)}>
+                                  <KeyRound className="h-3 w-3 mr-1" />
+                                  {linked ? 'Edit Login' : 'Grant Login'}
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {!hrEmployees.length && (
+                          <tr>
+                            <td colSpan={4} className="p-4 text-center text-gray-500">
+                              No employees yet — add them under HR → Employees first
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5" />User Access</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-sm text-gray-600">
-                  These accounts live on the Google Sheet <strong>Users</strong> and are used for login.
-                  Redeploy Code.gs after first deploy so <code>/users</code> CRUD is available. Run Sync Sheets / prepareDatabase to add the Permissions column.
+                  These accounts are used for ERP login. Prefer granting access from the HR employees list above.
                 </p>
+                {userForm.employeeId && (
+                  <p className="text-xs text-orange-700 bg-orange-50 border border-orange-100 rounded px-2 py-1">
+                    Linked employee id: {userForm.employeeId}
+                  </p>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
                   <div><Label>Username</Label><Input value={userForm.username} onChange={(e) => setUserForm({ ...userForm, username: e.target.value })} /></div>
                   <div><Label>Password{editingUserId ? ' (blank = keep)' : ''}</Label><Input type="password" value={userForm.password} onChange={(e) => setUserForm({ ...userForm, password: e.target.value })} /></div>
@@ -649,8 +801,50 @@ const Settings = () => {
                     </Select>
                   </div>
                 </div>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <Label className="text-sm font-semibold">Allowed modules</Label>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Only checked modules appear in the menu. Restricted URLs show &quot;Permission not granted&quot;.
+                        Admin / Super Admin always have full access.
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button type="button" variant="outline" size="sm" onClick={selectAllModules}>Select all</Button>
+                      <Button type="button" variant="outline" size="sm" onClick={clearAllModules}>Clear</Button>
+                    </div>
+                  </div>
+                  {hasFullAccess(userForm) ? (
+                    <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded px-2 py-1.5">
+                      This role has full access to every module (module checkboxes are optional for non-admin roles).
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                      {ASSIGNABLE_MODULES.map((mod) => {
+                        const checked = normalizePermissions(userForm.permissions).includes(mod.key);
+                        return (
+                          <label
+                            key={mod.key}
+                            className={`flex items-center gap-2 rounded-md border px-2.5 py-2 text-sm cursor-pointer bg-white ${
+                              checked ? 'border-orange-300 ring-1 ring-orange-200' : 'border-gray-200'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              className="rounded border-gray-300"
+                              checked={checked}
+                              onChange={() => toggleUserModule(mod.key)}
+                            />
+                            <span>{mod.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
                 <div className="flex gap-2">
-                  <Button onClick={saveUser} className="text-white" style={{ backgroundColor: primary || '#F26522' }}>
+                  <Button onClick={saveUser} className="text-white" style={{ backgroundColor: primary || '#ff6d00' }}>
                     <Save className="h-4 w-4 mr-2" />{editingUserId ? 'Update User' : 'Add User'}
                   </Button>
                   {editingUserId && (
@@ -668,25 +862,33 @@ const Settings = () => {
                           <th className="text-left p-2">Username</th>
                           <th className="text-left p-2">Name</th>
                           <th className="text-left p-2">Role</th>
+                          <th className="text-left p-2">Modules</th>
                           <th className="text-left p-2">Status</th>
                           <th className="text-right p-2">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {sheetUsers.map((u) => (
+                        {sheetUsers.map((u) => {
+                          const perms = normalizePermissions(u.permissions);
+                          const modulesLabel = hasFullAccess(u)
+                            ? 'All'
+                            : (perms.length ? `${perms.length} selected` : 'Dashboard only');
+                          return (
                           <tr key={u.id || u.username} className="border-b">
                             <td className="p-2 font-medium">{u.username}</td>
                             <td className="p-2">{u.name}</td>
                             <td className="p-2"><Badge variant="outline">{u.role}</Badge></td>
+                            <td className="p-2 text-xs text-gray-600">{modulesLabel}</td>
                             <td className="p-2">{u.status}</td>
                             <td className="p-2 text-right">
                               <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => editUser(u)}><Edit className="h-4 w-4" /></Button>
                               <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => deleteUser(u)}><Trash2 className="h-4 w-4 text-red-600" /></Button>
                             </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                         {!sheetUsers.length && (
-                          <tr><td colSpan={5} className="p-4 text-center text-gray-500">No users loaded — check GAS /users endpoint</td></tr>
+                          <tr><td colSpan={6} className="p-4 text-center text-gray-500">No users loaded — check GAS /users endpoint</td></tr>
                         )}
                       </tbody>
                     </table>
@@ -701,7 +903,7 @@ const Settings = () => {
                   <Label>Active Roles</Label>
                   <div className="flex flex-wrap gap-2 mt-2">
                     {settings.users.roles.map((r, i) => (
-                      <Badge key={r} className="gap-1 pr-1" style={{ backgroundColor: '#FFF3ED', color: '#F26522' }}>{r}
+                      <Badge key={r} className="gap-1 pr-1" style={{ backgroundColor: '#FFF4EB', color: '#ff6d00' }}>{r}
                         <button onClick={() => update('users', 'roles', settings.users.roles.filter((_, x) => x !== i))} className="hover:bg-orange-200 rounded p-0.5"><X className="h-3 w-3" /></button>
                       </Badge>
                     ))}
@@ -731,6 +933,9 @@ const Settings = () => {
               <CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5" />Channels</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-md px-3 py-2">
+                All emails send from <strong>amazonprinting@gmail.com</strong>. Deploy Apps Script while logged into that Gmail account, add mail OAuth scopes, authorize once, then Deploy → New version.
+              </p>
               {[
                 { k: 'whatsappEnabled', l: 'WhatsApp notifications (opens Desktop / Mobile app)' },
                 { k: 'autoOpenWhatsApp', l: 'Auto-open WhatsApp on order create / status change' },
@@ -739,6 +944,11 @@ const Settings = () => {
                 { k: 'emailReady', l: 'Email when Ready for collection' },
                 { k: 'emailDelivered', l: 'Email when Delivered' },
                 { k: 'emailInvoice', l: 'Email when invoice generated' },
+                { k: 'emailPayment', l: 'Email on payment (Cash In / Cash Out)' },
+                { k: 'emailToken', l: 'Email on token booked / called' },
+                { k: 'dailyRemindersEnabled', l: 'Daily morning reminders (automatic)' },
+                { k: 'emailPaymentReminder', l: 'Morning payment reminder emails' },
+                { k: 'emailOrderStatusReminder', l: 'Morning order status reminder emails' },
                 { k: 'smsEnabled', l: 'SMS notifications (future — reserved)' },
               ].map((o) => (
                 <div key={o.k} className="flex items-center justify-between gap-4">
@@ -754,23 +964,98 @@ const Settings = () => {
 
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><MessageCircle className="h-5 w-5" />WhatsApp message templates</CardTitle>
+              <CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5" />Daily morning reminders</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-xs text-gray-600">
+                Every morning (Pakistan time), the system emails customers about unpaid invoices and active order updates.
+                WhatsApp cannot be sent fully automatically — use the customer ledger button for manual WhatsApp balance requests.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md">
+                <div>
+                  <Label className="text-xs">Reminder hour (24h, Asia/Karachi)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={23}
+                    value={settings.notifications.dailyReminderHour ?? 9}
+                    onChange={(e) => update('notifications', 'dailyReminderHour', parseInt(e.target.value, 10) || 9)}
+                  />
+                </div>
+                <div className="text-xs text-gray-500 self-end pb-2">
+                  {reminderStatus?.triggerInstalled
+                    ? `Scheduled daily at ${reminderStatus.scheduledHour ?? 9}:00`
+                    : 'Trigger not installed yet'}
+                  {reminderStatus?.lastRun ? (
+                    <p className="mt-1">Last run: {new Date(reminderStatus.lastRun).toLocaleString()}</p>
+                  ) : null}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={reminderBusy}
+                  onClick={async () => {
+                    setReminderBusy(true);
+                    try {
+                      await notificationsAPI.installReminderTrigger();
+                      toast.success('Daily 9 AM reminder trigger installed in Apps Script');
+                      loadReminderStatus();
+                    } catch (err) {
+                      toast.error(err?.response?.data?.message || 'Failed to install trigger — redeploy Code.gs first');
+                    } finally {
+                      setReminderBusy(false);
+                    }
+                  }}
+                >
+                  Enable daily schedule
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={reminderBusy}
+                  onClick={async () => {
+                    setReminderBusy(true);
+                    try {
+                      const res = await notificationsAPI.runDailyReminders();
+                      const data = res.data || res;
+                      const pay = data.report?.paymentReminders?.length || 0;
+                      const ord = data.report?.orderReminders?.length || 0;
+                      toast.success(`Morning reminders ran — ${pay} payment, ${ord} order emails attempted`);
+                      loadReminderStatus();
+                    } catch (err) {
+                      toast.error(err?.response?.data?.message || 'Failed to run reminders');
+                    } finally {
+                      setReminderBusy(false);
+                    }
+                  }}
+                >
+                  Run reminders now
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><WhatsAppIcon className="h-5 w-5 text-green-600" />WhatsApp message templates</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-xs text-gray-500">
-                Placeholders: {'{Customer Name}'}, {'{Order Number}'}, {'{Tracking Number}'}, {'{Status}'}, {'{Company Name}'}
+                Write your own messages below — no footer is added automatically. Empty = message not sent until you fill it in.
+                Placeholders: {'{Customer Name}'}, {'{Order Number}'}, {'{Tracking Number}'}, {'{Status}'}, {'{Company Name}'}, {'{Invoice Link}'}, {'{payment_amount}'}, {'{balance_due}'}
               </p>
-              {['quotation', 'created', 'Order Received', 'Designing', 'Proof Approval', 'Printing', 'Finishing', 'Packing', 'Ready', 'Delivered', 'Cancelled', 'status', 'invoice_generated', 'payment_received', 'payment_sent'].map((key) => {
-                const templates = {
-                  ...DEFAULT_WHATSAPP_TEMPLATES,
-                  ...(settings.notifications.whatsappTemplates || {}),
-                };
+              {['quotation', 'created', 'Order Received', 'Designing', 'Proof Approval', 'Printing', 'Finishing', 'Packing', 'Ready', 'Delivered', 'Cancelled', 'status', 'invoice_generated', 'payment_reminder', 'balance_reminder', 'payment_received', 'payment_sent'].map((key) => {
+                const saved = settings.notifications.whatsappTemplates || {};
                 const labelMap = {
                   quotation: 'Quotation',
                   created: 'Order Created / Received',
                   'Order Received': 'Order Received',
                   status: 'Generic status update',
                   invoice_generated: 'Invoice Generated',
+                  payment_reminder: 'Payment Reminder',
+                  balance_reminder: 'Outstanding Balance Request',
                   payment_received: 'Payment Received (Cash In)',
                   payment_sent: 'Payment Sent (Cash Out)',
                 };
@@ -780,7 +1065,8 @@ const Settings = () => {
                     <Label className="mb-1 block">{label}</Label>
                     <Textarea
                       rows={key === 'created' ? 8 : 5}
-                      value={templates[key] || ''}
+                      value={saved[key] || ''}
+                      placeholder={DEFAULT_WHATSAPP_TEMPLATES[key] ? `Example:\n${DEFAULT_WHATSAPP_TEMPLATES[key].slice(0, 120)}…` : 'Your message…'}
                       onChange={(e) => update('notifications', 'whatsappTemplates', {
                         ...(settings.notifications.whatsappTemplates || {}),
                         [key]: e.target.value,
@@ -797,7 +1083,7 @@ const Settings = () => {
               <CardTitle className="flex items-center gap-2"><Mail className="h-5 w-5" />Email subjects</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {['quotation', 'created', 'status', 'Ready', 'Delivered', 'invoice'].map((key) => {
+              {['quotation', 'created', 'status', 'Ready', 'Delivered', 'invoice', 'payment_received', 'payment_sent', 'token_booked', 'token_called'].map((key) => {
                 const subjects = {
                   ...DEFAULT_EMAIL_SUBJECTS,
                   ...(settings.notifications.emailSubjects || {}),
@@ -826,12 +1112,21 @@ const Settings = () => {
                 variant="outline"
                 onClick={async () => {
                   try {
-                    const to = settings.company.email;
+                    const to = settings.company.email || 'amazonprinting@gmail.com';
                     if (!to) { toast.error('Set company email first'); return; }
-                    await sendTestEmail(to);
-                    toast.success(`Test email sent to ${to}`);
+                    const res = await sendTestEmail(to);
+                    const data = res?.data || res;
+                    if (data?.ok === false || data?.error) {
+                      toast.error(data.error || data.hint || data.reason || 'Email failed — authorize as amazonprinting@gmail.com in Apps Script');
+                      return;
+                    }
+                    if (data?.message && /queued/i.test(String(data.message))) {
+                      toast.error('Backend did not send mail (API stub). Point REACT_APP_GAS_API_URL to Apps Script web app.');
+                      return;
+                    }
+                    toast.success(`Test email sent to ${to} (from amazonprinting@gmail.com) — check inbox/spam`);
                   } catch (err) {
-                    toast.error(err?.response?.data?.message || 'Test email failed — check Apps Script Gmail permissions');
+                    toast.error(err?.response?.data?.message || 'Test email failed — redeploy Code.gs + appsscript.json and authorize Mail');
                   }
                 }}
               >
@@ -847,7 +1142,7 @@ const Settings = () => {
                   toast.message('WhatsApp opened — tap Send');
                 }}
               >
-                <MessageCircle className="h-4 w-4 mr-2" />Test WhatsApp app
+                <WhatsAppIcon className="h-4 w-4 mr-2" />Test WhatsApp app
               </Button>
             </CardContent>
           </Card>
@@ -872,6 +1167,10 @@ const Settings = () => {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="guidebook">
+          <GuideBook settings={settings} onChange={update} primary={primary} />
         </TabsContent>
       </Tabs>
     </div>

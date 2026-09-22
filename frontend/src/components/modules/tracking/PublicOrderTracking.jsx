@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -19,7 +19,7 @@ const PublicOrderTracking = () => {
   const { code: routeCode } = useParams();
   const navigate = useNavigate();
   const { company, primary } = useBrand();
-  const accent = primary || '#F26522';
+  const accent = primary || '#ff6d00';
 
   const [query, setQuery] = useState(routeCode || '');
   const [order, setOrder] = useState(null);
@@ -99,10 +99,16 @@ const PublicOrderTracking = () => {
               {(companyName || 'A').charAt(0)}
             </div>
           )}
-          <div className="min-w-0">
-            <h1 className="text-lg font-bold truncate" style={{ color: '#2E2E2E' }}>{companyName}</h1>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-lg font-bold truncate" style={{ color: '#0747a3' }}>{companyName}</h1>
             <p className="text-xs text-gray-500">Order Tracking · No login required</p>
           </div>
+          <Link
+            to="/login"
+            className="text-xs font-semibold text-gray-500 hover:text-gray-800 shrink-0"
+          >
+            Staff login
+          </Link>
         </div>
       </header>
 
@@ -111,7 +117,7 @@ const PublicOrderTracking = () => {
           <div className="h-1.5" style={{ backgroundColor: accent }} />
           <div className="p-5 sm:p-6 space-y-4">
             <div>
-              <h2 className="text-2xl font-bold" style={{ color: '#2E2E2E' }}>Track your order</h2>
+              <h2 className="text-2xl font-bold" style={{ color: '#0747a3' }}>Track your order</h2>
               <p className="text-sm text-gray-600 mt-1">
                 Enter Order ID or Tracking Number.
               </p>
@@ -157,7 +163,7 @@ const PublicOrderTracking = () => {
                   <User className="h-5 w-5 shrink-0" style={{ color: accent }} />
                   <div className="min-w-0">
                     <p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Customer</p>
-                    <p className="text-xl font-bold truncate" style={{ color: '#2E2E2E' }}>
+                    <p className="text-xl font-bold truncate" style={{ color: '#0747a3' }}>
                       {order.customerName || '—'}
                     </p>
                   </div>
@@ -182,7 +188,7 @@ const PublicOrderTracking = () => {
                       <li
                         key={`${name}-${i}`}
                         className="rounded-xl bg-gray-50 border border-gray-100 px-4 py-3 text-sm font-semibold"
-                        style={{ color: '#2E2E2E' }}
+                        style={{ color: '#0747a3' }}
                       >
                         {name}
                       </li>

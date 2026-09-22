@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { DndContext, PointerSensor, useSensor, useSensors, useDraggable, useDroppable } from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,12 +9,13 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { invoicesAPI, customersAPI, productsAPI } from '@/services/api';
-import { applyServerNotificationHint, notifyOrderEvent, printPaymentSlip, openWhatsAppChat, fillTemplate, resolveWhatsAppTemplate, buildTemplateVars, buildWhatsAppAppUrl } from '@/services/notifications';
+import { invoicesAPI, customersAPI, productsAPI, settingsAPI, ordersAPI } from '@/services/api';
+import { notifyOrderEvent, printPaymentSlip, openWhatsAppChat, buildWhatsAppAppUrl, fillTemplate, resolveWhatsAppTemplate, buildTemplateVars } from '@/services/notifications';
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import { formatCurrency } from '@/utils/helpers';
+import { catalogFieldsForOrderLine } from '@/utils/productImage';
 import { useBrand } from '@/context/BrandContext';
-import { ArrowLeft, Save, Plus, Trash2, PackagePlus } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Trash2, PackagePlus, Receipt, User, GripVertical, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 const emptyItem = () => ({
@@ -23,11 +26,22 @@ const emptyItem = () => ({
   rate: 0,
   size: '',
   material: '',
+  description: '',
+  notes: '',
+  productType: 'Product',
+  sourceOrderId: '',
 });
+
+const isServiceLine = (line, catalog = []) => {
+  if (String(line?.productType || '').toLowerCase() === 'service') return true;
+  const p = catalog.find((x) => String(x.id) === String(line?.productId || ''));
+  return String(p?.productType || '').toLowerCase() === 'service';
+};
 
 const emptyInvoice = {
   invoiceNumber: '',
   orderId: '',
+  orderIds: [],
   customerId: '',
   customerName: '',
   customerEmail: '',
@@ -44,12 +58,102 @@ const emptyInvoice = {
   notes: 'Thank you for your business!',
 };
 
+const orderRef = (order) => String(order?.orderId || order?.id || '').trim();
+
+const isCancelledOrder = (order) => /cancel/i.test(String(order?.status || ''));
+
+const isPlaceholderItems = (items) => (
+  Array.isArray(items)
+  && items.length === 1
+  && !items[0].productId
+  && !String(items[0].name || '').trim()
+);
+
+const linesFromOrder = (order, catalog = []) => {
+  const products = Array.isArray(order?.products) ? order.products : [];
+  const oid = orderRef(order);
+  return products.map((p) => {
+    const service = String(p.productType || '').toLowerCase() === 'service'
+      || isServiceLine(p, catalog);
+    const lineNote = p.description || p.notes || '';
+    const byId = p.productId && catalog.find((x) => String(x.id) === String(p.productId));
+    const byName = !byId && p.name
+      ? catalog.find((x) => String(x.name || '').toLowerCase() === String(p.name).toLowerCase())
+      : null;
+    const matched = byId || byName;
+    return {
+      _key: `ord_${oid}_${Math.random().toString(36).slice(2, 6)}`,
+      productId: matched?.id || p.productId || '',
+      name: matched?.name || p.name || '',
+      quantity: service ? 1 : (Number(p.quantity) || 1),
+      rate: Number(p.rate) || 0,
+      size: service ? '' : (p.size || ''),
+      material: service ? '' : (p.material || ''),
+      description: lineNote,
+      notes: lineNote,
+      productType: service ? 'Service' : 'Product',
+      sourceOrderId: oid,
+    };
+  });
+};
+
+function OpenOrderCard({ order, accent, onAdd }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `open-order-${order.id || order.orderId}`,
+    data: { order },
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    opacity: isDragging ? 0.4 : 1,
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="rounded-xl border border-orange-100 bg-white p-2.5 shadow-sm touch-none"
+      data-testid={`open-order-card-${order.id}`}
+    >
+      <div className="flex items-start gap-2">
+        <button
+          type="button"
+          className="mt-0.5 cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600"
+          title="Drag onto invoice"
+          {...listeners}
+          {...attributes}
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-bold truncate" style={{ color: '#1F2937' }}>{order.orderId}</p>
+          <p className="text-[10px] text-gray-500 truncate">{order.status}</p>
+          <p className="text-xs font-semibold mt-0.5" style={{ color: accent }}>{formatCurrency(order.totalAmount)}</p>
+        </div>
+        <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={() => onAdd(order)}>
+          Add
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function InvoiceItemsDropZone({ children }) {
+  const { setNodeRef, isOver } = useDroppable({ id: 'invoice-items' });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`rounded-xl transition-colors ${isOver ? 'ring-2 ring-orange-400 bg-orange-50/70' : ''}`}
+    >
+      {children}
+    </div>
+  );
+}
+
 const InvoiceForm = () => {
   const navigate = useNavigate();
   const { invoiceId } = useParams();
   const isEdit = !!invoiceId;
   const { primary, company } = useBrand();
-  const accent = primary || '#F26522';
+  const accent = primary || '#ff6d00';
 
   const [formData, setFormData] = useState(emptyInvoice);
   const [customers, setCustomers] = useState([]);
@@ -58,6 +162,12 @@ const InvoiceForm = () => {
   const [loaded, setLoaded] = useState(!isEdit);
   const [pageLoading, setPageLoading] = useState(isEdit);
   const [originalPaid, setOriginalPaid] = useState(0);
+  const [openOrders, setOpenOrders] = useState([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
 
   const loadCustomers = useCallback(async () => {
     try {
@@ -97,21 +207,38 @@ const InvoiceForm = () => {
         if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
         try { return new Date(d).toISOString().slice(0, 10); } catch { return ''; }
       };
-      const items = (inv.items || []).map((i) => ({
-        ...emptyItem(),
-        ...i,
-        _key: i._key || `k_${Math.random().toString(36).slice(2, 8)}`,
-        productId: i.productId || '',
-        name: i.name || '',
-        quantity: Number(i.quantity) || 1,
-        rate: Number(i.rate) || 0,
-        size: i.size || '',
-        material: i.material || '',
-      }));
+      let rawItems = inv.items;
+      if (typeof rawItems === 'string') {
+        try { rawItems = JSON.parse(rawItems); } catch { rawItems = []; }
+      }
+      if (!Array.isArray(rawItems)) rawItems = [];
+      const items = rawItems.map((i) => {
+        const productType = i.productType || 'Product';
+        const service = String(productType).toLowerCase() === 'service';
+        const lineNote = i.description || i.notes || '';
+        return {
+          _key: i._key || `k_${Math.random().toString(36).slice(2, 8)}`,
+          productId: i.productId || '',
+          name: i.name || '',
+          quantity: service ? 1 : (Number(i.quantity) || 1),
+          rate: Number(i.rate) || 0,
+          size: service ? '' : (i.size || ''),
+          material: service ? '' : (i.material || ''),
+          description: lineNote,
+          notes: lineNote,
+          productType: service ? 'Service' : 'Product',
+          sourceOrderId: i.sourceOrderId || '',
+        };
+      });
+      const orderIds = Array.isArray(inv.orderIds) && inv.orderIds.length
+        ? inv.orderIds.map(String).filter(Boolean)
+        : (inv.orderId ? [String(inv.orderId)] : []);
       setFormData({
         ...emptyInvoice,
+        id: inv.id || invoiceId,
         invoiceNumber: inv.invoiceNumber || '',
-        orderId: inv.orderId || '',
+        orderId: orderIds[0] || inv.orderId || '',
+        orderIds,
         customerId: inv.customerId || '',
         customerName: inv.customerName || '',
         customerEmail: inv.customerEmail || '',
@@ -132,17 +259,71 @@ const InvoiceForm = () => {
       setLoaded(true);
     } catch (err) {
       console.error(err);
-      toast.error('Failed to load invoice');
+      toast.error(err?.response?.data?.message || 'Failed to load invoice');
+      setLoaded(false);
+      // Avoid infinite "Loading…" — send user back after failed edit load
+      setTimeout(() => navigate('/invoices'), 800);
     } finally {
       setPageLoading(false);
     }
-  }, [invoiceId, isEdit]);
+  }, [invoiceId, isEdit, navigate]);
 
   useEffect(() => {
     loadCustomers();
     loadCatalog();
     loadInvoice();
   }, [loadCustomers, loadCatalog, loadInvoice]);
+
+  useEffect(() => {
+    const cid = formData.customerId;
+    const phone = String(formData.customerPhone || '').trim();
+    if (!cid && !phone) {
+      setOpenOrders([]);
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      setOrdersLoading(true);
+      try {
+        const [ordRes, invRes] = await Promise.all([
+          ordersAPI.getAll(),
+          invoicesAPI.getAll(),
+        ]);
+        if (cancelled) return;
+        const orders = Array.isArray(ordRes.data) ? ordRes.data : [];
+        const invoices = Array.isArray(invRes.data) ? invRes.data : [];
+        const linked = new Set((formData.orderIds || []).concat(formData.orderId || '').filter(Boolean).map(String));
+        const claimed = new Set();
+        invoices.forEach((inv) => {
+          if (invoiceId && String(inv.id) === String(invoiceId)) return;
+          const ids = [
+            ...(Array.isArray(inv.orderIds) ? inv.orderIds : []),
+            inv.orderId,
+          ].filter(Boolean).map(String);
+          ids.forEach((id) => claimed.add(id));
+        });
+        const available = orders.filter((o) => {
+          if (String(o.docType || 'Order').toLowerCase() === 'quotation') return false;
+          if (isCancelledOrder(o)) return false;
+          const sameCustomer = String(o.customerId || '') === String(cid || '')
+            || (phone && String(o.customerPhone || '') === phone);
+          if (!sameCustomer) return false;
+          const oid = orderRef(o);
+          if (linked.has(oid) || linked.has(String(o.id || ''))) return false;
+          if (o.invoiceId && String(o.invoiceId) !== String(invoiceId || '')) return false;
+          if (claimed.has(oid) || claimed.has(String(o.id || ''))) return false;
+          return true;
+        });
+        setOpenOrders(available);
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) setOpenOrders([]);
+      } finally {
+        if (!cancelled) setOrdersLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [formData.customerId, formData.customerPhone, formData.orderId, formData.orderIds, invoiceId]);
 
   const selectCustomer = async (next) => {
     let prev = formData.previousBalance || 0;
@@ -154,7 +335,15 @@ const InvoiceForm = () => {
         prev = 0;
       }
     }
-    setFormData((f) => ({ ...f, ...next, previousBalance: prev }));
+    setFormData((f) => {
+      const changed = String(f.customerId || '') !== String(next.customerId || '');
+      return {
+        ...f,
+        ...next,
+        previousBalance: prev,
+        ...(changed && !isEdit ? { items: [emptyItem()], orderIds: [], orderId: '', paidAmount: 0 } : {}),
+      };
+    });
   };
 
   const catalogValueFor = (line) => {
@@ -170,16 +359,16 @@ const InvoiceForm = () => {
   const pickProduct = (index, productId) => {
     const p = catalog.find((x) => String(x.id) === String(productId));
     if (!p) return;
+    const fields = catalogFieldsForOrderLine(p);
     setFormData((prev) => {
       const items = prev.items.map((line, i) => (
         i === index
           ? {
               ...line,
-              productId: String(p.id),
-              name: p.name || line.name,
-              rate: Number(p.rate ?? p.basePrice ?? line.rate) || 0,
-              size: p.size || line.size || '',
-              material: p.material || line.material || '',
+              ...fields,
+              _key: line._key,
+              description: line.description || line.notes || fields.notes || '',
+              notes: line.notes || line.description || fields.notes || '',
             }
           : line
       ));
@@ -198,6 +387,56 @@ const InvoiceForm = () => {
     ...prev,
     items: prev.items.filter((_, x) => x !== i),
   }));
+
+  const addOrderToInvoice = useCallback((order) => {
+    const oid = orderRef(order);
+    if (!oid) return;
+    let added = false;
+    let emptyLines = false;
+    setFormData((prev) => {
+      const already = (prev.orderIds || []).map(String).includes(oid) || String(prev.orderId || '') === oid;
+      if (already) return prev;
+      const newLines = linesFromOrder(order, catalog);
+      if (!newLines.length) {
+        emptyLines = true;
+        return prev;
+      }
+      added = true;
+      const items = isPlaceholderItems(prev.items) ? newLines : [...prev.items, ...newLines];
+      const orderIds = [...(prev.orderIds || []).filter(Boolean).map(String), oid];
+      return {
+        ...prev,
+        items,
+        orderIds,
+        orderId: prev.orderId || oid,
+        paidAmount: Number(prev.paidAmount || 0) + Number(order.advancePayment || 0),
+      };
+    });
+    if (emptyLines) toast.error(`Order ${oid} has no line items`);
+    else if (added) toast.success(`Order ${oid} added to invoice`);
+  }, [catalog]);
+
+  const unlinkOrder = (oid) => {
+    const key = String(oid || '');
+    if (!key) return;
+    setFormData((prev) => {
+      const orderIds = (prev.orderIds || []).map(String).filter((id) => id !== key);
+      const items = (prev.items || []).filter((it) => String(it.sourceOrderId || '') !== key);
+      return {
+        ...prev,
+        orderIds,
+        orderId: orderIds[0] || '',
+        items: items.length ? items : [emptyItem()],
+      };
+    });
+  };
+
+  const handleDragEnd = (event) => {
+    const order = event.active?.data?.current?.order;
+    if (order && event.over?.id === 'invoice-items') {
+      addOrderToInvoice(order);
+    }
+  };
 
   const goAddProduct = () => navigate('/warehouse/products?new=1');
 
@@ -234,7 +473,12 @@ const InvoiceForm = () => {
         balance_due: bal,
       }
     );
-    const template = resolveWhatsAppTemplate(null, 'invoice_generated');
+    let templates = null;
+    try {
+      const settingsRes = await settingsAPI.get();
+      templates = settingsRes.data?.notifications?.whatsappTemplates || null;
+    } catch { /* defaults */ }
+    const template = resolveWhatsAppTemplate(templates, 'invoice_generated');
     let text = fillTemplate(template, vars);
     if (invoiceUrl && !text.includes(invoiceUrl)) {
       text = `${text}\n\nInvoice link: ${invoiceUrl}`;
@@ -248,7 +492,10 @@ const InvoiceForm = () => {
     return result;
   };
 
-  const subtotal = formData.items.reduce((s, it) => s + (it.quantity || 0) * (it.rate || 0), 0);
+  const subtotal = formData.items.reduce((s, it) => {
+    const qty = isServiceLine(it, catalog) ? 1 : (Number(it.quantity) || 0);
+    return s + qty * (Number(it.rate) || 0);
+  }, 0);
   const tax = (subtotal * (formData.taxRate || 0)) / 100;
   const total = subtotal + tax - (formData.discount || 0);
   const grandTotal = total + (formData.previousBalance || 0);
@@ -263,12 +510,8 @@ const InvoiceForm = () => {
   const handleSave = async (e) => {
     e.preventDefault();
     if (!requireCustomer(formData)) return;
-    if (!catalog.length) {
-      toast.error('Pehle catalog me product add karein');
-      return;
-    }
-    if (!formData.items.every(lineHasCatalogProduct)) {
-      toast.error('Har line pe catalog se product select karein');
+    if (!formData.items.every((line) => lineHasCatalogProduct(line) || String(line.name || '').trim())) {
+      toast.error('Har line pe product name ya catalog select lazmi hai');
       return;
     }
     if (isEdit && !invoiceId) {
@@ -283,21 +526,44 @@ const InvoiceForm = () => {
         waWindow = window.open('about:blank', '_blank');
       }
       const payload = {
-        ...formData,
-        id: isEdit ? invoiceId : formData.id,
-        subtotal,
+        invoiceNumber: formData.invoiceNumber,
+        orderId: (formData.orderIds && formData.orderIds[0]) || formData.orderId || '',
+        orderIds: (formData.orderIds || []).filter(Boolean),
+        customerId: formData.customerId || '',
+        customerName: formData.customerName || '',
+        customerEmail: formData.customerEmail || '',
+        customerPhone: formData.customerPhone || '',
+        customerAddress: formData.customerAddress || '',
+        date: formData.date,
+        dueDate: formData.dueDate || '',
+        taxRate: Number(formData.taxRate) || 0,
         tax,
+        discount: Number(formData.discount) || 0,
+        previousBalance: Number(formData.previousBalance) || 0,
+        paidAmount: Number(formData.paidAmount) || 0,
+        notes: formData.notes || '',
+        subtotal,
         totalAmount: total,
         status: derivedStatus(),
-        items: formData.items.map(({ productId, name, quantity, rate, size, material }) => ({
-          productId: productId || '',
-          name,
-          quantity: Number(quantity) || 0,
-          rate: Number(rate) || 0,
-          size: size || '',
-          material: material || '',
-        })),
+        items: formData.items.map((it) => {
+          const service = isServiceLine(it, catalog);
+          const lineNote = String(it.description || it.notes || '').trim();
+          return {
+            productId: it.productId || '',
+            name: it.name || '',
+            quantity: service ? 1 : (Number(it.quantity) || 0),
+            rate: Number(it.rate) || 0,
+            size: service ? '' : (it.size || ''),
+            material: service ? '' : (it.material || ''),
+            description: lineNote,
+            notes: lineNote,
+            productType: service ? 'Service' : 'Product',
+            sourceOrderId: it.sourceOrderId || '',
+          };
+        }),
       };
+      if (isEdit) payload.id = invoiceId;
+
       let res;
       if (isEdit) {
         res = await invoicesAPI.update(invoiceId, payload);
@@ -307,72 +573,87 @@ const InvoiceForm = () => {
         const nextPaid = Number(payload.paidAmount) || 0;
         const receivedDelta = Math.max(0, nextPaid - prevPaid);
         if (receivedDelta > 0) {
-          printPaymentSlip({
-            type: 'inflow',
-            party: payload.customerName,
-            partyPhone: payload.customerPhone,
-            amount: receivedDelta,
-            totalAmount: grandTotal,
-            balanceDue: balance,
-            method: 'Invoice payment',
-            category: 'Invoice Payment',
-            reference: payload.invoiceNumber,
-            date: payload.date,
-            notes: `Invoice ${payload.invoiceNumber}`,
-          }, company || {});
-          await notifyOrderEvent({
-            event: 'payment_received',
-            order: {
-              customerName: payload.customerName,
-              customerPhone: payload.customerPhone,
-              customerEmail: payload.customerEmail,
-              orderId: payload.orderId,
-              totalAmount: grandTotal,
-              balanceAmount: balance,
-            },
-            invoice: {
-              ...data,
-              invoiceNumber: payload.invoiceNumber,
-              date: payload.date,
-              totalAmount: grandTotal,
-              paidAmount: nextPaid,
-              balanceAmount: balance,
-            },
-            payment: {
+          try {
+            printPaymentSlip({
+              type: 'inflow',
               party: payload.customerName,
               partyPhone: payload.customerPhone,
               amount: receivedDelta,
-              method: 'Invoice payment',
-              reference: payload.invoiceNumber,
-              type: 'inflow',
+              totalAmount: grandTotal,
               balanceDue: balance,
-            },
-          });
-          toast.message('Payment receipt printed + WhatsApp');
+              method: 'Invoice payment',
+              category: 'Invoice Payment',
+              reference: payload.invoiceNumber,
+              date: payload.date,
+              notes: `Invoice ${payload.invoiceNumber}`,
+            }, company || {});
+            await notifyOrderEvent({
+              event: 'payment_received',
+              order: {
+                customerName: payload.customerName,
+                customerPhone: payload.customerPhone,
+                customerEmail: payload.customerEmail,
+                orderId: payload.orderId,
+                totalAmount: grandTotal,
+                balanceAmount: balance,
+              },
+              invoice: {
+                ...data,
+                invoiceNumber: payload.invoiceNumber,
+                date: payload.date,
+                totalAmount: grandTotal,
+                paidAmount: nextPaid,
+                balanceAmount: balance,
+              },
+              payment: {
+                party: payload.customerName,
+                partyPhone: payload.customerPhone,
+                partyEmail: payload.customerEmail,
+                amount: receivedDelta,
+                method: 'Invoice payment',
+                reference: payload.invoiceNumber,
+                type: 'inflow',
+                balanceDue: balance,
+              },
+              sendEmail: true,
+            });
+            toast.message('Payment receipt printed + WhatsApp');
+          } catch (postErr) {
+            console.error(postErr);
+            toast.message('Invoice saved — payment notify failed');
+          }
         }
       } else {
         res = await invoicesAPI.create(payload);
-        toast.success(`Invoice ${payload.invoiceNumber} created`);
+        toast.success(`Invoice ${payload.invoiceNumber || res.data?.invoiceNumber || ''} created`);
         const data = { ...payload, ...(res.data || {}) };
-        // Always open invoice WhatsApp (link + pending). Do not open a second payment chat.
-        applyServerNotificationHint(data);
-        await sendInvoiceWhatsApp(data, grandTotal, balance, Number(payload.paidAmount) || 0, waWindow);
-        waWindow = null;
-        const paidNow = Number(payload.paidAmount) || 0;
-        if (paidNow > 0) {
-          printPaymentSlip({
-            type: 'inflow',
-            party: payload.customerName,
-            partyPhone: payload.customerPhone,
-            amount: paidNow,
-            totalAmount: grandTotal,
-            balanceDue: balance,
-            method: 'Invoice payment',
-            category: 'Invoice Payment',
-            reference: payload.invoiceNumber,
-            date: payload.date,
-            notes: `Invoice ${payload.invoiceNumber}`,
-          }, company || {});
+        try {
+          // Single WhatsApp open (Settings invoice template) — skip GAS hint to avoid duplicate
+          await sendInvoiceWhatsApp(data, grandTotal, balance, Number(payload.paidAmount) || 0, waWindow);
+          waWindow = null;
+          const paidNow = Number(payload.paidAmount) || 0;
+          if (paidNow > 0) {
+            printPaymentSlip({
+              type: 'inflow',
+              party: payload.customerName,
+              partyPhone: payload.customerPhone,
+              amount: paidNow,
+              totalAmount: grandTotal,
+              balanceDue: balance,
+              method: 'Invoice payment',
+              category: 'Invoice Payment',
+              reference: payload.invoiceNumber,
+              date: payload.date,
+              notes: `Invoice ${payload.invoiceNumber}`,
+            }, company || {});
+          }
+        } catch (postErr) {
+          if (waWindow && !waWindow.closed) {
+            try { waWindow.close(); } catch { /* ignore */ }
+          }
+          waWindow = null;
+          console.error(postErr);
+          toast.message('Invoice saved — WhatsApp / receipt skipped');
         }
       }
       const id = res.data?.id || invoiceId;
@@ -383,7 +664,7 @@ const InvoiceForm = () => {
         try { waWindow.close(); } catch { /* ignore */ }
       }
       console.error(err);
-      toast.error(err.response?.data?.message || 'Failed to save invoice');
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to save invoice');
     } finally {
       setSaving(false);
     }
@@ -430,6 +711,7 @@ const InvoiceForm = () => {
       </div>
 
       <form id="invoice-form-el" onSubmit={handleSave} className="space-y-4">
+        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <Card className="border-orange-100/80 shadow-sm rounded-2xl">
             <CardHeader className="py-3"><CardTitle className="text-base">Customer</CardTitle></CardHeader>
@@ -486,16 +768,52 @@ const InvoiceForm = () => {
                 />
               </div>
               <div className="md:col-span-3">
-                <Label className="text-xs">Order Ref</Label>
-                <Input
-                  value={formData.orderId}
-                  onChange={(e) => setFormData((f) => ({ ...f, orderId: e.target.value }))}
-                  placeholder="ORD-001"
-                />
+                <Label className="text-xs">Linked orders</Label>
+                {(formData.orderIds || []).filter(Boolean).length ? (
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {(formData.orderIds || []).filter(Boolean).map((oid) => (
+                      <Badge key={oid} variant="outline" className="gap-1 pl-2 pr-1 py-1 text-xs">
+                        {oid}
+                        <button
+                          type="button"
+                          className="rounded-full p-0.5 hover:bg-gray-200"
+                          onClick={() => unlinkOrder(oid)}
+                          title="Remove from this invoice"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400 mt-1">Drag open orders onto the products area, or tap Add</p>
+                )}
               </div>
             </CardContent>
           </Card>
         </div>
+
+        {formData.customerId && (ordersLoading || openOrders.length > 0) && (
+          <Card className="border-orange-100/80 shadow-sm rounded-2xl" data-testid="open-orders-tray">
+            <CardHeader className="py-3">
+              <CardTitle className="text-base">Open / pending orders</CardTitle>
+              <p className="text-xs text-gray-500 font-normal">
+                Drag a card onto the invoice, or tap Add. An order already on another invoice cannot be added again.
+              </p>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {ordersLoading && !openOrders.length ? (
+                <p className="text-sm text-gray-400">Loading orders…</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                  {openOrders.map((order) => (
+                    <OpenOrderCard key={order.id || order.orderId} order={order} accent={accent} onAdd={addOrderToInvoice} />
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="border-orange-100/80 shadow-sm rounded-2xl">
           <CardHeader className="py-3 flex flex-row items-center justify-between space-y-0 gap-2">
@@ -510,6 +828,12 @@ const InvoiceForm = () => {
             </div>
           </CardHeader>
           <CardContent className="space-y-2 pt-0">
+            <InvoiceItemsDropZone>
+            {openOrders.length > 0 && (
+              <div className="rounded-xl border border-dashed border-orange-300 bg-orange-50/40 p-2 text-center text-xs text-orange-800 mb-2">
+                Drop open orders here to add their items
+              </div>
+            )}
             {!catalog.length && (
               <div className="rounded-xl border border-dashed border-orange-300 bg-orange-50/60 p-3 text-center text-sm mb-2">
                 Catalog empty —{' '}
@@ -518,49 +842,90 @@ const InvoiceForm = () => {
                 </button>
               </div>
             )}
-            {formData.items.map((it, i) => (
+            {formData.items.map((it, i) => {
+              const service = isServiceLine(it, catalog);
+              const setLineNote = (value) => {
+                setFormData((prev) => {
+                  const items = prev.items.map((line, idx) => (
+                    idx === i ? { ...line, description: value, notes: value } : line
+                  ));
+                  return { ...prev, items };
+                });
+              };
+              return (
               <div key={it._key} className="grid grid-cols-12 gap-2 items-end p-2 border rounded-xl bg-gray-50/50" data-testid={`item-${i}`}>
-                <div className="col-span-12 md:col-span-4">
-                  <Label className="text-xs">Product * (catalog)</Label>
-                  <Select value={catalogValueFor(it)} onValueChange={(v) => pickProduct(i, v)}>
+                <div className={service ? 'col-span-12 md:col-span-5' : 'col-span-12 md:col-span-4'}>
+                  <Label className="text-xs">{service ? 'Service * (catalog)' : 'Product * (catalog)'}</Label>
+                  <Select value={catalogValueFor(it) || undefined} onValueChange={(v) => pickProduct(i, v)}>
                     <SelectTrigger className="bg-white" data-testid={`invoice-product-${i}`}>
-                      <SelectValue placeholder="Select product from catalog" />
+                      <SelectValue placeholder={it.name || (service ? 'Select service' : 'Select product from catalog')} />
                     </SelectTrigger>
                     <SelectContent>
-                      {catalog.map((p) => (
+                      {catalog.filter((p) => p.id).map((p) => (
                         <SelectItem key={p.id} value={String(p.id)}>
-                          {p.name} · {formatCurrency(p.rate || p.basePrice)}
+                          {String(p.productType || '').toLowerCase() === 'service' ? 'Svc · ' : ''}
+                          {p.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  {!lineHasCatalogProduct(it) && (
+                  {!lineHasCatalogProduct(it) && !String(it.name || '').trim() && (
                     <p className="text-[11px] text-red-600 mt-1">Product select lazmi hai</p>
                   )}
+                  {!lineHasCatalogProduct(it) && String(it.name || '').trim() && (
+                    <p className="text-[11px] text-gray-500 mt-1">{it.name}</p>
+                  )}
                 </div>
-                <div className="col-span-4 md:col-span-2">
-                  <Label className="text-xs">Size</Label>
-                  <Input className="bg-white" value={it.size} onChange={(e) => updateItem(i, 'size', e.target.value)} />
-                </div>
-                <div className="col-span-4 md:col-span-1">
-                  <Label className="text-xs">Qty</Label>
-                  <Input className="bg-white" type="number" min="1" value={it.quantity} onChange={(e) => updateItem(i, 'quantity', parseInt(e.target.value, 10) || 0)} />
-                </div>
-                <div className="col-span-4 md:col-span-2">
-                  <Label className="text-xs">Rate</Label>
-                  <Input className="bg-white" type="number" step="0.01" min="0" value={it.rate} onChange={(e) => updateItem(i, 'rate', parseFloat(e.target.value) || 0)} />
-                </div>
-                <div className="col-span-8 md:col-span-2">
-                  <Label className="text-xs">Amount</Label>
-                  <Input disabled className="bg-white font-semibold" value={formatCurrency((it.quantity || 0) * (it.rate || 0))} />
-                </div>
+                {service ? (
+                  <>
+                    <div className="col-span-6 md:col-span-3">
+                      <Label className="text-xs">Service Charges</Label>
+                      <Input className="bg-white" type="number" step="0.01" min="0" value={it.rate} onChange={(e) => updateItem(i, 'rate', parseFloat(e.target.value) || 0)} />
+                    </div>
+                    <div className="col-span-4 md:col-span-3">
+                      <Label className="text-xs">Amount</Label>
+                      <Input disabled className="bg-white font-semibold" value={formatCurrency(Number(it.rate) || 0)} />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="col-span-4 md:col-span-2">
+                      <Label className="text-xs">Size</Label>
+                      <Input className="bg-white" value={it.size} onChange={(e) => updateItem(i, 'size', e.target.value)} />
+                    </div>
+                    <div className="col-span-4 md:col-span-1">
+                      <Label className="text-xs">Qty</Label>
+                      <Input className="bg-white" type="number" min="1" value={it.quantity} onChange={(e) => updateItem(i, 'quantity', parseInt(e.target.value, 10) || 0)} />
+                    </div>
+                    <div className="col-span-4 md:col-span-2">
+                      <Label className="text-xs">Rate</Label>
+                      <Input className="bg-white" type="number" step="0.01" min="0" value={it.rate} onChange={(e) => updateItem(i, 'rate', parseFloat(e.target.value) || 0)} />
+                    </div>
+                    <div className="col-span-8 md:col-span-2">
+                      <Label className="text-xs">Amount</Label>
+                      <Input disabled className="bg-white font-semibold" value={formatCurrency((it.quantity || 0) * (it.rate || 0))} />
+                    </div>
+                  </>
+                )}
                 <div className="col-span-4 md:col-span-1 flex justify-end">
                   <Button type="button" size="icon" variant="ghost" onClick={() => removeItem(i)} disabled={formData.items.length === 1}>
                     <Trash2 className="h-4 w-4 text-red-600" />
                   </Button>
                 </div>
+                <div className="col-span-12">
+                  <Label className="text-xs">Line note / description</Label>
+                  <Input
+                    className="bg-white"
+                    value={it.description || it.notes || ''}
+                    onChange={(e) => setLineNote(e.target.value)}
+                    placeholder={service ? 'Custom service details…' : 'Custom line note / description…'}
+                    data-testid={`invoice-line-note-${i}`}
+                  />
+                </div>
               </div>
-            ))}
+              );
+            })}
+            </InvoiceItemsDropZone>
           </CardContent>
         </Card>
 
@@ -588,7 +953,7 @@ const InvoiceForm = () => {
                   <Textarea rows={2} value={formData.notes} onChange={(e) => setFormData((f) => ({ ...f, notes: e.target.value }))} />
                 </div>
               </div>
-              <div className="space-y-1.5 p-4 rounded-xl" style={{ backgroundColor: '#FFF9F5' }}>
+              <div className="space-y-1.5 p-4 rounded-xl" style={{ backgroundColor: '#FFF6ED' }}>
                 <div className="flex justify-between text-sm"><span className="text-gray-600">Subtotal</span><span className="font-semibold">{formatCurrency(subtotal)}</span></div>
                 <div className="flex justify-between text-sm"><span className="text-gray-600">Tax ({formData.taxRate}%)</span><span className="font-semibold">{formatCurrency(tax)}</span></div>
                 <div className="flex justify-between text-sm"><span className="text-gray-600">Discount</span><span className="font-semibold text-red-600">-{formatCurrency(formData.discount || 0)}</span></div>
@@ -623,6 +988,7 @@ const InvoiceForm = () => {
           </Button>
           <Button type="button" variant="outline" onClick={() => navigate('/invoices')}>Cancel</Button>
         </div>
+        </DndContext>
       </form>
     </div>
   );

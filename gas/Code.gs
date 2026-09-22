@@ -32,36 +32,54 @@ var DEFAULT_CRM_STAGES = [
   { key: 'lead', label: 'Lead', color: '#3B82F6' },
   { key: 'contacted', label: 'Contacted', color: '#8B5CF6' },
   { key: 'qualified', label: 'Qualified', color: '#F59E0B' },
-  { key: 'proposal', label: 'Proposal', color: '#F26522' },
+  { key: 'proposal', label: 'Proposal', color: '#ff6d00' },
   { key: 'negotiation', label: 'Negotiation', color: '#06B6D4' },
   { key: 'won', label: 'Won', color: '#10B981' },
   { key: 'lost', label: 'Lost', color: '#EF4444' },
 ];
 
 var DEFAULT_HEADERS = {
-  Users: ['Username', 'Password', 'Name', 'Role', 'Status', 'Permissions'],
-  Customers: ['Id', 'Name', 'Phone', 'Email', 'Address', 'City', 'Notes', 'InCrm', 'Stage', 'StageUpdatedAt', 'NotifyWhatsApp', 'NotifyEmail'],
+  Users: ['Username', 'Password', 'Name', 'Role', 'Status', 'Permissions', 'EmployeeId'],
+  Customers: [
+    'Id', 'Name', 'Phone', 'Email', 'Address', 'City', 'Notes',
+    'InCrm', 'Stage', 'StageUpdatedAt', 'NotifyWhatsApp', 'NotifyEmail', 'PortalPassword',
+    'CustomerCode', 'Blocked', 'BlockReason', 'BlockedAt', 'BlockedBy', 'CreditBalance'
+  ],
   CrmNotes: ['Id', 'CustomerId', 'Note', 'CreatedAt', 'CreatedBy'],
-  Employees: ['Id', 'Name', 'Phone', 'Email', 'Role', 'Department', 'JoinDate', 'Salary', 'Status', 'Address', 'Notes'],
+  Employees: [
+    'Id', 'EmployeeCode', 'Name', 'Phone', 'Email', 'Cnic', 'Role', 'Designation', 'Department',
+    'JoinDate', 'EndDate', 'ValidFrom', 'ValidUntil', 'Salary', 'Status', 'Address', 'City',
+    'EmergencyContact', 'EmergencyPhone', 'Notes', 'Photo'
+  ],
   Orders: [
     'Id', 'OrderId', 'Date', 'CustomerId', 'CustomerName', 'CustomerPhone',
     'CustomerEmail', 'CustomerAddress', 'Status', 'DeliveryDate', 'Products',
     'TotalAmount', 'AdvancePayment', 'BalanceAmount', 'Remarks', 'AssignedDesigner', 'TokenNo',
-    'DocType', 'TrackingNumber', 'StatusHistory', 'DeliveryAddress', 'QuotationId'
+    'DocType', 'TrackingNumber', 'StatusHistory', 'DeliveryAddress', 'QuotationId',
+    'PaymentMethod', 'PaymentStatus', 'Discount', 'DeliveryCharges', 'OrderSource', 'PaymentHistory'
   ],
-  Products: ['Id', 'Name', 'Category', 'Rate', 'Unit', 'Description', 'Status', 'ProductType', 'Designer', 'Stock', 'Material', 'Size', 'MinQuantity'],
+  Products: [
+    'Id', 'Name', 'Category', 'Rate', 'SalePrice', 'Unit', 'Description', 'FullDescription', 'Status', 'ProductType',
+    'Designer', 'Stock', 'Material', 'Size', 'MinQuantity', 'Image', 'Images', 'ShowOnWebsite', 'ShowOnTop', 'Variations'
+  ],
   Invoices: [
-    'Id', 'InvoiceNo', 'Date', 'DueDate', 'OrderId', 'CustomerId', 'CustomerName', 'CustomerPhone',
+    'Id', 'InvoiceNo', 'Date', 'DueDate', 'OrderId', 'OrderIds', 'CustomerId', 'CustomerName', 'CustomerPhone',
     'CustomerEmail', 'CustomerAddress', 'Items', 'Subtotal', 'TaxRate', 'Tax', 'Discount',
-    'PreviousBalance', 'Total', 'Paid', 'Status', 'Notes', 'ShareToken'
+    'PreviousBalance', 'Total', 'Paid', 'Status', 'Notes', 'ShareToken', 'PaymentHistory'
   ],
   Vendors: ['Id', 'Name', 'Phone', 'Email', 'Address', 'Notes'],
-  Purchases: ['Id', 'PurchaseNo', 'Date', 'VendorId', 'VendorName', 'Items', 'Total', 'Status'],
-  Expenses: ['Id', 'Date', 'Category', 'Amount', 'Description', 'PaymentMethod'],
-  Payments: ['Id', 'Date', 'Type', 'Category', 'RefId', 'CustomerName', 'CustomerId', 'PartyPhone', 'Amount', 'Method', 'Notes', 'BalanceDue', 'TotalAmount'],
+  Purchases: [
+    'Id', 'PurchaseNo', 'Date', 'VendorId', 'VendorName', 'Items', 'Total', 'Paid', 'Status',
+    'VendorInvoiceNumber', 'ExpectedDeliveryDate', 'ActualDeliveryDate', 'LinkedOrderId', 'Notes'
+  ],
+  Expenses: ['Id', 'Date', 'Category', 'Amount', 'Description', 'PaymentMethod', 'PaidTo', 'Notes', 'Approved', 'ApprovedBy', 'ApprovedAt'],
+  Payments: [
+    'Id', 'Date', 'Type', 'Category', 'RefId', 'CustomerName', 'CustomerId',
+    'PartyPhone', 'PartyEmail', 'Amount', 'Method', 'Notes', 'BalanceDue', 'TotalAmount', 'Locked'
+  ],
   Counters: [
     'RecordType', 'CounterName', 'AccessHolder', 'Prefix', 'LastNumber', 'Status',
-    'TokenNo', 'Date', 'Time', 'CustomerId', 'CustomerName', 'CustomerPhone',
+    'TokenNo', 'Date', 'Time', 'CustomerId', 'CustomerName', 'CustomerPhone', 'CustomerEmail',
     'Service', 'ServiceNote', 'TokenStatus', 'CalledAt', 'OrderId', 'Notes'
   ],
   Settings: ['Key', 'Value'],
@@ -206,6 +224,11 @@ function normalizeHeader_(header) {
     doctype: 'doctype', trackingnumber: 'trackingnumber', statushistory: 'statushistory',
     deliveryaddress: 'deliveryaddress', quotationid: 'quotationid',
     unit: 'unit', description: 'description',
+    image: 'image', productimage: 'image', img: 'image', picture: 'photo',
+    photo: 'photo', images: 'images', gallery: 'images', productimages: 'images',
+    employeecode: 'employeecode', cnic: 'cnic', designation: 'designation',
+    validfrom: 'validfrom', validuntil: 'validuntil', enddate: 'enddate',
+    emergencycontact: 'emergencycontact', emergencyphone: 'emergencyphone', employeeid: 'employeeid',
     orderid: 'orderid', date: 'date', time: 'time', deliverydate: 'deliverydate',
     products: 'products', items: 'items', totalamount: 'totalamount', total: 'total',
     advancepayment: 'advancepayment', balanceamount: 'balanceamount', assigneddesigner: 'assigneddesigner',
@@ -214,12 +237,19 @@ function normalizeHeader_(header) {
     accessholder: 'accessholder', holder: 'accessholder', prefix: 'prefix', lastnumber: 'lastnumber',
     lasttoken: 'lastnumber', service: 'service', tokenstatus: 'tokenstatus', calledat: 'calledat',
     invoiceno: 'invoiceno', invoicenumber: 'invoiceno', sharetoken: 'sharetoken',
+    orderids: 'orderids',
     key: 'key', value: 'value',
     amount: 'amount', method: 'method', paymentmethod: 'paymentmethod', vendorname: 'vendorname',
-    vendorid: 'vendorid', purchaseno: 'purchaseno', refid: 'refid',
+    vendorid: 'vendorid', purchaseno: 'purchaseno', ponumber: 'purchaseno',
+    purchasedate: 'date', totalamount: 'total',
+    vendorinvoicenumber: 'vendorinvoicenumber', expecteddeliverydate: 'expecteddeliverydate',
+    actualdeliverydate: 'actualdeliverydate', linkedorderid: 'linkedorderid',
+    refid: 'refid',
     type: 'type',
     paidamount: 'paid', paid: 'paid', taxrate: 'taxrate',
     duedate: 'duedate', previousbalance: 'previousbalance', servicenote: 'servicenote',
+    approved: 'approved', approvedby: 'approvedby', approvedat: 'approvedat',
+    paidto: 'paidto',
     notifywhatsapp: 'notifywhatsapp', whatsappnotify: 'notifywhatsapp',
     notifyemail: 'notifyemail', emailnotify: 'notifyemail',
     balancedue: 'balancedue', totalamountfield: 'totalamount',
@@ -399,6 +429,8 @@ function valueForHeader_(obj, rawHeader) {
     customername: ['customername', 'name', 'party'],
     customerphone: ['customerphone', 'phone', 'mobile', 'partyphone'],
     partyphone: ['partyphone', 'phone', 'customerphone', 'mobile'],
+    partyemail: ['partyemail', 'email', 'customeremail'],
+    customeremail: ['customeremail', 'email', 'partyemail'],
     refid: ['refid', 'reference'],
     tokenstatus: ['tokenstatus'],
     status: ['status'],
@@ -406,6 +438,9 @@ function valueForHeader_(obj, rawHeader) {
     total: ['total', 'totalamount'],
     paid: ['paid', 'paidamount'],
     tax: ['tax'],
+    image: ['image', 'photo'],
+    photo: ['photo', 'image'],
+    images: ['images', 'gallery'],
   };
 
   var keys = fallbacks[key] || [key];
@@ -436,10 +471,12 @@ function appendObject_(sheet, sheetName, obj) {
 }
 
 function updateObjectProps_(sheet, sheetName, rowNumber, updates) {
-  var headers = getRawHeaders_(sheet, sheetName);
+  // Ensure missing columns (e.g. VendorId / VendorName) exist before writing
+  var headers = ensureHeaders_(sheet, sheetName);
   var flat = coerceKeys_(updates);
   headers.forEach(function (rawHeader, i) {
     var key = normalizeHeader_(rawHeader);
+    if (!key) return;
     if (flat[key] !== undefined) {
       sheet.getRange(rowNumber, i + 1).setValue(serializeCell_(flat[key]));
     }
@@ -514,6 +551,7 @@ function sanitizeUser_(user) {
     name: name,
     email: String(user.email || username || '').trim(),
     role: String(user.role || 'Admin').trim(),
+    permissions: parsePermissions_(user.permissions),
   };
 }
 
@@ -705,13 +743,90 @@ function normalizeCustomer_(body) {
     stageupdatedat: body.stageUpdatedAt || body.stageupdatedat || '',
     notifywhatsapp: body.notifyWhatsApp != null ? body.notifyWhatsApp : (body.notifywhatsapp != null ? body.notifywhatsapp : true),
     notifyemail: body.notifyEmail != null ? body.notifyEmail : (body.notifyemail != null ? body.notifyemail : true),
+    customercode: body.customerCode != null ? body.customerCode : (body.customercode != null ? body.customercode : undefined),
+    blocked: body.blocked != null ? body.blocked : undefined,
+    blockreason: body.blockReason != null ? body.blockReason : (body.blockreason != null ? body.blockreason : undefined),
+    blockedat: body.blockedAt != null ? body.blockedAt : (body.blockedat != null ? body.blockedat : undefined),
+    blockedby: body.blockedBy != null ? body.blockedBy : (body.blockedby != null ? body.blockedby : undefined),
   };
+}
+
+function isAdminRole_(user) {
+  var role = String(user && user.role || '').trim().toLowerCase();
+  return role === 'super admin' || role === 'admin' || role === 'administrator' || role === 'owner';
+}
+
+function isCustomerBlocked_(row) {
+  if (!row) return false;
+  var v = row.blocked;
+  if (v === true || v === 1) return true;
+  var s = String(v || '').trim().toLowerCase();
+  return s === '1' || s === 'true' || s === 'yes' || s === 'blocked';
+}
+
+function nextCustomerCode_() {
+  var settings = getSettings_() || {};
+  var custSettings = settings.customers;
+  if (typeof custSettings === 'string') {
+    try { custSettings = JSON.parse(custSettings); } catch (e) { custSettings = {}; }
+  }
+  if (!custSettings || typeof custSettings !== 'object') custSettings = {};
+  var prefix = String(custSettings.codePrefix || 'CUST-').trim() || 'CUST-';
+  var customers = getSheetRows_(SHEET_NAMES.CUSTOMERS);
+  var max = 0;
+  customers.forEach(function (c) {
+    var code = String(c.customercode || c.code || '').trim();
+    var m = code.match(/(\d+)/);
+    if (m) max = Math.max(max, Number(m[1]));
+  });
+  return prefix + pad_(max + 1, 4);
+}
+
+/** Quotations are estimates only — never receivables / payables / ledger. */
+function isQuotation_(o) {
+  return String((o && (o.doctype || o.docType)) || '').toLowerCase() === 'quotation';
+}
+
+function computeCustomerOutstanding_(customer, orders) {
+  if (!customer) return 0;
+  orders = orders || getSheetRows_(SHEET_NAMES.ORDERS);
+  return orders.filter(function (o) {
+    if (isQuotation_(o)) return false;
+    return String(o.customerid) === String(customer.id)
+      || (customer.phone && String(o.customerphone) === String(customer.phone));
+  }).reduce(function (s, o) {
+    return s + Number(o.balanceamount || 0);
+  }, 0);
+}
+
+function buildWelcomeWhatsAppPayload_(cust) {
+  var phone = String(cust.phone || '').trim();
+  if (!phone) return null;
+  var code = cust.customerCode || cust.customercode || cust.id || '';
+  var text = 'Assalam-o-Alaikum ' + (cust.name || 'Customer') + '!\n\n'
+    + 'Amazon Printing Services mein *khush amdeed*.\n\n'
+    + 'Aap ka Customer ID: *' + code + '*\n'
+    + 'Is number ko office tracking ke liye save rakhein.\n\n'
+    + 'Shukriya!\n📍 King Road, Mandi Bahauddin\n🌐 amzprints.com';
+  return { phone: phone, text: text };
+}
+
+function assertCustomerNotBlocked_(customerId) {
+  if (!customerId || String(customerId) === 'cust_walkin') return;
+  var customers = getSheetRows_(SHEET_NAMES.CUSTOMERS);
+  var idx = findById_(customers, customerId);
+  if (idx < 0) return;
+  if (isCustomerBlocked_(customers[idx])) {
+    var reason = String(customers[idx].blockreason || 'Contact Admin to unblock.').trim();
+    throw new Error('Customer is blocked: ' + reason);
+  }
 }
 
 function toApiCustomer_(c) {
   var inCrm = isInCrm_(c.incrm);
   return {
     id: c.id,
+    customerCode: c.customercode || c.code || '',
     name: c.name || '',
     phone: c.phone || '',
     email: c.email || '',
@@ -723,7 +838,57 @@ function toApiCustomer_(c) {
     stageUpdatedAt: c.stageupdatedat || '',
     notifyWhatsApp: isNotifyOn_(c.notifywhatsapp),
     notifyEmail: isNotifyOn_(c.notifyemail),
+    blocked: isCustomerBlocked_(c),
+    blockReason: c.blockreason || '',
+    blockedAt: c.blockedat || '',
+    blockedBy: c.blockedby || '',
+    creditBalance: Number(c.creditbalance || 0),
   };
+}
+
+function enrichApiCustomer_(c, orders) {
+  var api = toApiCustomer_(c);
+  api.outstanding = computeCustomerOutstanding_(c, orders);
+  return api;
+}
+
+function handleCustomerBlock_(customerId, action, body, user) {
+  var sheet = getSheet_(SHEET_NAMES.CUSTOMERS);
+  ensureHeaders_(sheet, SHEET_NAMES.CUSTOMERS);
+  var customers = getSheetRows_(SHEET_NAMES.CUSTOMERS);
+  var index = findById_(customers, customerId);
+  if (index < 0) throw new Error('Customer not found');
+  var prev = customers[index];
+  if (String(prev.id) === 'cust_walkin') throw new Error('Walk-in customer cannot be blocked');
+
+  if (action === 'block') {
+    var reason = String(body.blockReason || body.reason || '').trim();
+    if (!reason) throw new Error('Block reason is required');
+    var blockUpdates = {
+      blocked: true,
+      blockreason: reason,
+      blockedat: new Date().toISOString(),
+      blockedby: String(user && (user.name || user.username) || 'staff'),
+    };
+    updateObjectProps_(sheet, SHEET_NAMES.CUSTOMERS, prev._row, blockUpdates);
+    invalidateSheetCache_(SHEET_NAMES.CUSTOMERS);
+    return enrichApiCustomer_(Object.assign({}, prev, blockUpdates), getSheetRows_(SHEET_NAMES.ORDERS));
+  }
+
+  if (action === 'unblock') {
+    if (!isAdminRole_(user)) throw new Error('Only Admin with Settings access can unblock customers');
+    var unblockUpdates = {
+      blocked: false,
+      blockreason: '',
+      blockedat: '',
+      blockedby: '',
+    };
+    updateObjectProps_(sheet, SHEET_NAMES.CUSTOMERS, prev._row, unblockUpdates);
+    invalidateSheetCache_(SHEET_NAMES.CUSTOMERS);
+    return enrichApiCustomer_(Object.assign({}, prev, unblockUpdates), getSheetRows_(SHEET_NAMES.ORDERS));
+  }
+
+  throw new Error('Invalid action');
 }
 
 function toApiCrmNote_(n) {
@@ -850,6 +1015,9 @@ function upsertCustomer_(body) {
       city: data.city || existing.city,
       notes: data.notes || existing.notes,
     };
+    if (!existing.customercode && !existing.code) {
+      updates.customercode = nextCustomerCode_();
+    }
     // Only touch CRM fields when explicitly requested (never auto-add to CRM)
     if (data.incrm !== undefined) {
       updates.incrm = data.incrm;
@@ -872,6 +1040,7 @@ function upsertCustomer_(body) {
   }
 
   data.id = data.id || ('cust_' + Date.now());
+  if (!data.customercode) data.customercode = nextCustomerCode_();
   // Regular customers stay out of CRM unless inCrm is explicitly true
   data.incrm = data.incrm === true;
   if (data.incrm) {
@@ -885,30 +1054,81 @@ function upsertCustomer_(body) {
   if (data.notifyemail === undefined || data.notifyemail === '') data.notifyemail = true;
   ensureHeaders_(sheet, SHEET_NAMES.CUSTOMERS);
   appendObject_(sheet, SHEET_NAMES.CUSTOMERS, data);
-  return toApiCustomer_(data);
+  invalidateSheetCache_(SHEET_NAMES.CUSTOMERS);
+  var apiNew = enrichApiCustomer_(data, getSheetRows_(SHEET_NAMES.ORDERS));
+  apiNew._welcomeWhatsApp = buildWelcomeWhatsAppPayload_(apiNew);
+  return apiNew;
 }
 
-function handleCustomers_(path, method, body) {
+function handleCustomers_(path, method, body, user) {
   var sheet = getSheet_(SHEET_NAMES.CUSTOMERS);
   ensureHeaders_(sheet, SHEET_NAMES.CUSTOMERS);
   var customers = getSheetRows_(SHEET_NAMES.CUSTOMERS);
+
+  var blockMatch = path.match(/^\/customers\/([^/]+)\/(block|unblock)$/);
+  if (blockMatch && method === 'POST') {
+    return handleCustomerBlock_(decodeURIComponent(blockMatch[1]), blockMatch[2], body || {}, user);
+  }
 
   if (path.endsWith('/ledger')) {
     var ledgerId = path.split('/')[2];
     var customer = customers.find(function (c) { return String(c.id) === String(ledgerId); });
     if (!customer) throw new Error('Customer not found');
     var orders = getSheetRows_(SHEET_NAMES.ORDERS).filter(function (o) {
+      if (isQuotation_(o)) return false;
       return String(o.customerid) === String(customer.id) || String(o.customerphone) === String(customer.phone);
     });
+    var payRows = [];
+    try {
+      payRows = getSheetRows_(SHEET_NAMES.PAYMENTS).filter(function (p) {
+        var t = String(p.type || 'inflow').toLowerCase();
+        if (t === 'outflow' || t === 'out') return false;
+        return String(p.customerid) === String(customer.id)
+          || String(p.partyphone || p.phone || '') === String(customer.phone || '')
+          || String(p.customername || p.party || '').toLowerCase() === String(customer.name || '').toLowerCase();
+      });
+    } catch (eLed) { payRows = []; }
+    var invRows = [];
+    try {
+      invRows = getSheetRows_(SHEET_NAMES.INVOICES).filter(function (inv) {
+        return String(inv.customerid) === String(customer.id)
+          || String(inv.customerphone) === String(customer.phone);
+      });
+    } catch (eInv) { invRows = []; }
+    var orderPaid = orders.reduce(function (s, o) { return s + Number(o.advancepayment || 0); }, 0);
+    var paymentPaid = payRows.reduce(function (s, p) { return s + Number(p.amount || 0); }, 0);
+    var ledger = computeCustomerLedger_(customer, orders, invRows, payRows);
     return {
-      customer: toApiCustomer_(customer),
-      invoices: [],
-      orders: orders,
-      payments: [],
-      totalBilled: orders.reduce(function (s, o) { return s + Number(o.totalamount || o.total || 0); }, 0),
-      totalPaid: orders.reduce(function (s, o) { return s + Number(o.advancepayment || 0); }, 0),
-      outstanding: orders.reduce(function (s, o) { return s + Number(o.balanceamount || 0); }, 0),
+      customer: enrichApiCustomer_(customer, orders),
+      invoices: invRows.map(toApiInvoice_),
+      orders: orders.map(toApiOrder_),
+      payments: payRows.map(function (p) {
+        return {
+          id: p.id,
+          date: p.date || '',
+          type: p.type || 'inflow',
+          amount: Number(p.amount || 0),
+          method: p.method || '',
+          reference: p.refid || p.reference || '',
+          party: p.customername || p.party || '',
+          notes: p.notes || '',
+          locked: isNotifyOn_(p.locked) || String(p.id || '').indexOf('pay_') === 0,
+        };
+      }),
+      totalBilled: ledger.totalBilled,
+      totalPaid: ledger.totalPaid,
+      outstanding: ledger.outstanding,
+      orderOutstanding: ledger.orderOutstanding,
+      invoiceOutstanding: ledger.invoiceOutstanding,
+      creditBalance: ledger.creditBalance,
+      payable: ledger.payable,
+      statement: ledger.statement || [],
     };
+  }
+
+  var payCustMatch = path.match(/^\/customers\/([^/]+)\/payment$/);
+  if (payCustMatch && method === 'POST') {
+    return recordCustomerPayment_(decodeURIComponent(payCustMatch[1]), body || {});
   }
 
   // /customers/:id/notes  or  /customers/:id/notes/:noteId
@@ -960,7 +1180,8 @@ function handleCustomers_(path, method, body) {
 
   if (path === '/customers') {
     if (method === 'GET') {
-      return customers.map(toApiCustomer_);
+      var orderRows = getSheetRows_(SHEET_NAMES.ORDERS);
+      return customers.map(function (c) { return enrichApiCustomer_(c, orderRows); });
     }
     if (method === 'POST') return upsertCustomer_(body);
   }
@@ -969,7 +1190,7 @@ function handleCustomers_(path, method, body) {
   var index = findById_(customers, id);
   if (index < 0) throw new Error('Customer not found');
 
-  if (method === 'GET') return toApiCustomer_(customers[index]);
+  if (method === 'GET') return enrichApiCustomer_(customers[index], getSheetRows_(SHEET_NAMES.ORDERS));
   if (method === 'PUT') {
     var prev = customers[index];
     var updates = normalizeCustomer_(Object.assign({}, prev, body));
@@ -984,7 +1205,8 @@ function handleCustomers_(path, method, body) {
       updates.stageupdatedat = prev.stageupdatedat || '';
     }
     updateObjectProps_(sheet, SHEET_NAMES.CUSTOMERS, prev._row, updates);
-    return toApiCustomer_(updates);
+    invalidateSheetCache_(SHEET_NAMES.CUSTOMERS);
+    return enrichApiCustomer_(Object.assign({}, prev, updates), getSheetRows_(SHEET_NAMES.ORDERS));
   }
   if (method === 'DELETE') {
     deleteRow_(sheet, customers[index]._row, SHEET_NAMES.CUSTOMERS);
@@ -994,6 +1216,10 @@ function handleCustomers_(path, method, body) {
 }
 
 /* ===================== NOTIFICATIONS (Email + WhatsApp hints) ===================== */
+
+/** All ERP emails should appear from this mailbox (deploy Apps Script as this Google account). */
+var NOTIFY_FROM_EMAIL_ = 'amazonprinting@gmail.com';
+var NOTIFY_FROM_NAME_ = 'Amazon Printing Services';
 
 function getNotificationSettings_() {
   var settings = getSettings_() || {};
@@ -1009,6 +1235,12 @@ function getNotificationSettings_() {
     emailInvoice: isNotifyOn_(n.emailInvoice != null ? n.emailInvoice : true),
     emailReady: isNotifyOn_(n.emailReady != null ? n.emailReady : true),
     emailDelivered: isNotifyOn_(n.emailDelivered != null ? n.emailDelivered : true),
+    emailPayment: isNotifyOn_(n.emailPayment != null ? n.emailPayment : true),
+    emailToken: isNotifyOn_(n.emailToken != null ? n.emailToken : true),
+    dailyRemindersEnabled: isNotifyOn_(n.dailyRemindersEnabled != null ? n.dailyRemindersEnabled : true),
+    emailPaymentReminder: isNotifyOn_(n.emailPaymentReminder != null ? n.emailPaymentReminder : true),
+    emailOrderStatusReminder: isNotifyOn_(n.emailOrderStatusReminder != null ? n.emailOrderStatusReminder : true),
+    dailyReminderHour: Number(n.dailyReminderHour != null ? n.dailyReminderHour : 9) || 9,
     whatsappTemplates: (n.whatsappTemplates && typeof n.whatsappTemplates === 'object') ? n.whatsappTemplates : {},
     emailSubjects: (n.emailSubjects && typeof n.emailSubjects === 'object') ? n.emailSubjects : {},
   };
@@ -1022,7 +1254,14 @@ function getCompanyForNotify_() {
   }
   if (!company || typeof company !== 'object') company = {};
   if (settings.companyLogo && !company.logo) company.logo = settings.companyLogo;
+  if (!company.name) company.name = NOTIFY_FROM_NAME_;
+  if (!String(company.email || '').trim()) company.email = NOTIFY_FROM_EMAIL_;
   return company;
+}
+
+function isValidEmail_(value) {
+  var s = String(value || '').trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 }
 
 function findCustomerPrefs_(orderApi) {
@@ -1061,7 +1300,7 @@ function defaultWhatsAppTemplate_(event, status) {
     return 'Dear {Customer Name},\n\nYour order is now in production.\n\nOrder No: {Order Number}\n\n{Company Name}';
   }
   if (status === 'Ready') {
-    return 'Good news!\n\nYour order is ready for collection.\n\nOrder No: {Order Number}\nTracking No: {Tracking Number}\n\n{Company Name}';
+    return 'Dear {Customer Name},\nYour order #{Order Number} is ready for pickup/delivery.\n\nPlease visit our office to receive your Order\n\n*( Paid Home Delivery Available )*\n\nThank you for choosing Amazon Printing Services.\n\n📍 King Road, Mandi Bahauddin\n🌐 amzprints.com\n\nTrack your order : {Track Url}';
   }
   if (status === 'Delivered') {
     return 'Dear {Customer Name},\n\nYour order has been delivered successfully.\n\nOrder No: {Order Number}\n\nThank you for choosing {Company Name}.';
@@ -1080,10 +1319,17 @@ function fillNotifyTemplate_(template, vars) {
 
 function buildNotifyVars_(orderApi, company, extras) {
   extras = extras || {};
+  var trackNo = orderApi.trackingNumber || extras.trackingNumber || '';
+  var trackUrl = extras.trackUrl || '';
+  if (!trackUrl && trackNo) {
+    trackUrl = 'https://erp.amzprints.com/track/' + encodeURIComponent(trackNo);
+  }
   return {
     'Customer Name': orderApi.customerName || extras.customerName || 'Customer',
     'Order Number': orderApi.orderId || orderApi.id || '',
-    'Tracking Number': orderApi.trackingNumber || '',
+    'Tracking Number': trackNo,
+    'Track Url': trackUrl,
+    TrackUrl: trackUrl,
     Status: orderApi.status || extras.status || '',
     'Company Name': company.name || 'AMZ Prints',
     'Company Phone': company.phone || '',
@@ -1097,10 +1343,10 @@ function buildOrderEmailHtml_(orderApi, company, bodyText) {
   var logo = company.logo
     ? '<img src="' + company.logo + '" alt="logo" style="max-height:64px;max-width:180px;margin-bottom:12px" />'
     : '';
-  var primary = '#F26522';
+  var primary = '#ff6d00';
   return ''
     + '<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#1F2937">'
-    + '<div style="background:linear-gradient(135deg,' + primary + ',#FF8A50);padding:20px;border-radius:12px 12px 0 0;color:#fff">'
+    + '<div style="background:linear-gradient(135deg,' + primary + ',#0747a3);padding:20px;border-radius:12px 12px 0 0;color:#fff">'
     + '<h2 style="margin:0">' + (company.name || 'AMZ Prints') + '</h2>'
     + '<p style="margin:6px 0 0;opacity:.9">' + (company.tagline || 'Professional Printing Services') + '</p>'
     + '</div>'
@@ -1116,27 +1362,88 @@ function buildOrderEmailHtml_(orderApi, company, bodyText) {
     + '</div></div>';
 }
 
+function isMailAuthError_(msg) {
+  var s = String(msg || '').toLowerCase();
+  return s.indexOf('permission') >= 0
+    || s.indexOf('authorization') >= 0
+    || s.indexOf('required permissions') >= 0
+    || s.indexOf('access not granted') >= 0
+    || s.indexOf('oauth') >= 0
+    || s.indexOf('not been authorized') >= 0;
+}
+
+/** Short user-facing mail error (never dump Google OAuth scope URLs into ERP toasts). */
+function friendlyMailError_(err) {
+  var raw = String(err && err.message ? err.message : (err || ''));
+  if (isMailAuthError_(raw)) {
+    return 'Email not authorized. Open Apps Script as ' + NOTIFY_FROM_EMAIL_
+      + ' → Review permissions / Run a function → Allow Mail → Deploy → New version.';
+  }
+  if (raw.length > 140) return raw.slice(0, 140) + '…';
+  return raw || 'Email send failed';
+}
+
+/**
+ * Send email as Amazon Printing.
+ * From address = Google account that deployed/runs this web app (must be amazonprinting@gmail.com).
+ * Reply-To always amazonprinting@gmail.com (or company email).
+ * Prefers MailApp (script.send_mail). GmailApp is only a non-auth fallback.
+ */
 function sendMailSafe_(to, subject, htmlBody, textBody) {
-  if (!to) return { ok: false, reason: 'missing_email' };
+  to = String(to || '').trim();
+  if (!isValidEmail_(to)) return { ok: false, reason: 'missing_email', error: 'Valid customer email is required' };
+
+  var company = getCompanyForNotify_();
+  var fromName = company.name || NOTIFY_FROM_NAME_;
+  var replyTo = isValidEmail_(company.email) ? String(company.email).trim() : NOTIFY_FROM_EMAIL_;
+  var plain = textBody || String(htmlBody || '').replace(/<[^>]+>/g, ' ');
+  var mailAppError = '';
+
   try {
     MailApp.sendEmail({
-      to: String(to).trim(),
+      to: to,
       subject: subject || 'Notification',
       htmlBody: htmlBody || '',
-      body: textBody || String(htmlBody || '').replace(/<[^>]+>/g, ' '),
-      name: (getCompanyForNotify_().name || 'AMZ Prints'),
+      body: plain,
+      name: fromName,
+      replyTo: replyTo,
     });
-    return { ok: true, to: to };
+    return { ok: true, to: to, replyTo: replyTo, via: 'mailapp', fromHint: NOTIFY_FROM_EMAIL_ };
   } catch (err) {
-    try {
-      GmailApp.sendEmail(String(to).trim(), subject || 'Notification', textBody || '', {
-        htmlBody: htmlBody || '',
-        name: (getCompanyForNotify_().name || 'AMZ Prints'),
-      });
-      return { ok: true, to: to, via: 'gmail' };
-    } catch (err2) {
-      return { ok: false, error: String(err2 && err2.message ? err2.message : err2) };
+    mailAppError = String(err && err.message ? err.message : err);
+    // Auth/scope problems — do not fall through to GmailApp (longer scary OAuth error)
+    if (isMailAuthError_(mailAppError)) {
+      return {
+        ok: false,
+        reason: 'auth',
+        error: friendlyMailError_(err),
+        hint: 'Authorize Mail as ' + NOTIFY_FROM_EMAIL_ + ', then Deploy → New version',
+      };
     }
+  }
+
+  // Non-auth MailApp failure (quota / transient) — optional GmailApp retry
+  try {
+    var opts = {
+      htmlBody: htmlBody || '',
+      name: fromName,
+      replyTo: replyTo,
+    };
+    GmailApp.sendEmail(to, subject || 'Notification', plain, opts);
+    return {
+      ok: true,
+      to: to,
+      replyTo: replyTo,
+      via: 'gmail',
+      note: 'Deploy Apps Script as ' + NOTIFY_FROM_EMAIL_ + ' so the From address matches',
+    };
+  } catch (err2) {
+    return {
+      ok: false,
+      reason: isMailAuthError_(err2) || isMailAuthError_(mailAppError) ? 'auth' : 'send_failed',
+      error: friendlyMailError_(err2) || friendlyMailError_(mailAppError),
+      hint: 'Authorize Mail as ' + NOTIFY_FROM_EMAIL_ + ' (appsscript.json mail scopes), then Deploy → New version',
+    };
   }
 }
 
@@ -1170,21 +1477,39 @@ function dispatchOrderNotifications_(orderApi, event, extras) {
   var wantEmail = false;
   if (event === 'created') wantEmail = notif.emailNewOrder;
   else if (event === 'invoice') wantEmail = notif.emailInvoice;
+  else if (event === 'payment_received' || event === 'payment_sent' || event === 'payment') wantEmail = notif.emailPayment;
+  else if (event === 'token_booked' || event === 'token_called' || event === 'token') wantEmail = notif.emailToken;
   else if (status === 'Ready') wantEmail = notif.emailReady && notif.emailOrderStatus;
   else if (status === 'Delivered') wantEmail = notif.emailDelivered && notif.emailOrderStatus;
   else wantEmail = notif.emailOrderStatus;
 
   var emailTo = orderApi.customerEmail || prefs.email || extras.email;
   if (wantEmail && prefs.notifyEmail && emailTo) {
-    var subjects = notif.emailSubjects || {};
-    var subjectKey = event === 'created' ? 'created' : (event === 'invoice' ? 'invoice' : (status === 'Ready' || status === 'Delivered' ? status : 'status'));
-    var subjectTpl = subjects[subjectKey]
-      || (subjectKey === 'created' ? 'Order Confirmed — {Order Number} | {Company Name}'
-        : subjectKey === 'invoice' ? 'Invoice {Invoice Number} | {Company Name}'
-          : 'Order Update — {Order Number} is now {Status}');
-    var subject = fillNotifyTemplate_(subjectTpl, vars);
-    var html = buildOrderEmailHtml_(orderApi, company, text);
-    out.email = sendMailSafe_(emailTo, subject, html, text);
+    if (!isValidEmail_(emailTo)) {
+      out.email = { ok: false, reason: 'missing_email', error: 'Valid customer email is required' };
+    } else {
+      var subjects = notif.emailSubjects || {};
+      var subjectKey = event === 'created' ? 'created'
+        : (event === 'invoice' ? 'invoice'
+          : (event === 'payment_received' ? 'payment_received'
+            : (event === 'payment_sent' ? 'payment_sent'
+              : (event === 'token_booked' ? 'token_booked'
+                : (event === 'token_called' ? 'token_called'
+                  : (status === 'Ready' || status === 'Delivered' ? status : 'status'))))));
+      var subjectTpl = subjects[subjectKey]
+        || (subjectKey === 'created' ? 'Order Confirmed — {Order Number} | {Company Name}'
+          : subjectKey === 'invoice' ? 'Invoice {Invoice Number} | {Company Name}'
+            : subjectKey === 'payment_received' ? 'Payment Received | {Company Name}'
+              : subjectKey === 'payment_sent' ? 'Payment Sent | {Company Name}'
+                : subjectKey === 'token_booked' ? 'Token Booked — {Order Number} | {Company Name}'
+                  : subjectKey === 'token_called' ? 'Token Called — {Order Number} | {Company Name}'
+                    : 'Order Update — {Order Number} is now {Status}');
+      var subject = fillNotifyTemplate_(subjectTpl, vars);
+      var html = buildOrderEmailHtml_(orderApi, company, text);
+      out.email = sendMailSafe_(emailTo, subject, html, text);
+    }
+  } else if (wantEmail && prefs.notifyEmail && !emailTo) {
+    out.email = { ok: false, reason: 'missing_email', error: 'Customer email is required for email notifications' };
   }
 
   return out;
@@ -1200,21 +1525,270 @@ function withNotifications_(apiOrder, event, extras) {
   return result;
 }
 
+/** --- Daily morning reminders (payment + order status) --- */
+
+function reminderTodayKey_(prefix, id) {
+  var today = Utilities.formatDate(new Date(), 'Asia/Karachi', 'yyyy-MM-dd');
+  return String(prefix || 'rem') + '_' + today + '_' + String(id || '').trim();
+}
+
+function wasReminderSentToday_(key) {
+  if (!key) return false;
+  return PropertiesService.getScriptProperties().getProperty('rem_' + key) === '1';
+}
+
+function markReminderSent_(key) {
+  if (!key) return;
+  PropertiesService.getScriptProperties().setProperty('rem_' + key, '1');
+}
+
+function orderDesignApproved_(orderApi) {
+  var s = String(orderApi.status || '').trim().toLowerCase();
+  if (!s) return false;
+  if (/design\s*approved|proof\s*approved|approved/.test(s) && !/proof\s*approval/.test(s)) return true;
+  return ['printing', 'finishing', 'packing', 'ready', 'delivered', 'completed', 'complete'].some(function (stage) {
+    return s === stage || s.indexOf(stage) === 0;
+  });
+}
+
+function invoiceBalanceDue_(invApi) {
+  return Math.max(0,
+    Number(invApi.totalAmount || 0)
+    + Number(invApi.previousBalance || 0)
+    - Number(invApi.paidAmount || 0)
+  );
+}
+
+function defaultPaymentReminderBody_(vars) {
+  return ''
+    + 'Dear ' + (vars['Customer Name'] || 'Customer') + ',\n\n'
+    + 'Payment reminder for invoice ' + (vars['Invoice Number'] || '') + '.\n\n'
+    + (vars['Invoice Link'] ? ('Invoice: ' + vars['Invoice Link'] + '\n\n') : '')
+    + 'Total: ' + (vars.Amount || '') + '\n'
+    + 'Paid: ' + (vars['Paid Amount'] || '0') + '\n'
+    + 'Pending balance: ' + (vars['Balance Due'] || vars.Amount || '') + '\n\n'
+    + 'Kindly arrange payment soon. Thank you — Amazon Printing Services.\n\n'
+    + '📍 King Road, Mandi Bahauddin\n🌐 amzprints.com';
+}
+
+function defaultBalanceReminderBody_(vars) {
+  return ''
+    + 'Dear ' + (vars['Customer Name'] || 'Customer') + ',\n\n'
+    + 'This is a friendly reminder regarding your outstanding balance with Amazon Printing Services.\n\n'
+    + 'Total outstanding: ' + (vars['Balance Due'] || vars.Amount || '') + '\n\n'
+    + 'Please arrange payment at your earliest convenience. If you have already paid, kindly share the payment reference.\n\n'
+    + 'Thank you.\nAmazon Printing Services';
+}
+
+function buildOrderReminderBody_(orderApi, company, reminderType) {
+  var name = orderApi.customerName || 'Customer';
+  var oid = orderApi.orderId || orderApi.id || '';
+  var status = orderApi.status || '';
+  if (reminderType === 'approval') {
+    return 'Dear ' + name + ',\n\nYour order *' + oid + '* is waiting for design/proof approval.\n\nPlease review and approve so we can start production.\n\nThank you,\n' + (company.name || 'Amazon Printing Services');
+  }
+  if (reminderType === 'advance') {
+    return 'Dear ' + name + ',\n\nSoft reminder — advance payment for order *' + oid + '* is still pending.\n\nPlease pay the advance so we can continue your order.\n\nThank you,\n' + (company.name || 'Amazon Printing Services');
+  }
+  var trackNo = orderApi.trackingNumber || '';
+  var trackUrl = trackNo ? ('https://erp.amzprints.com/track/' + encodeURIComponent(trackNo)) : '';
+  return 'Dear ' + name + ',\n\nYour order *' + oid + '* status: *' + status + '*.\n\n'
+    + (trackNo ? ('Tracking: ' + trackNo + '\n') : '')
+    + (trackUrl ? ('Track online: ' + trackUrl + '\n\n') : '\n')
+    + 'Thank you for choosing ' + (company.name || 'Amazon Printing Services') + '.';
+}
+
+function sendDailyPaymentReminderForInvoice_(invApi, company, settings, report) {
+  var balance = invoiceBalanceDue_(invApi);
+  if (!(balance > 0) || String(invApi.status || '').toLowerCase() === 'paid') return;
+  var key = reminderTodayKey_('pay_inv', invApi.id || invApi.invoiceNumber);
+  if (wasReminderSentToday_(key)) return;
+
+  var orderApi = {
+    customerName: invApi.customerName,
+    customerEmail: invApi.customerEmail,
+    customerPhone: invApi.customerPhone,
+    customerId: invApi.customerId,
+    orderId: invApi.orderId,
+  };
+  var prefs = findCustomerPrefs_(orderApi);
+  if (!prefs.notifyEmail) return;
+  var emailTo = String(invApi.customerEmail || prefs.email || '').trim();
+  if (!isValidEmail_(emailTo)) return;
+
+  var invoiceUrl = invApi.shareToken
+    ? ('https://erp.amzprints.com/invoice/' + encodeURIComponent(String(invApi.shareToken)))
+    : '';
+  var vars = buildNotifyVars_(orderApi, company, {
+    invoiceNumber: invApi.invoiceNumber,
+    amount: balance,
+    trackUrl: invoiceUrl,
+  });
+  vars['Invoice Number'] = invApi.invoiceNumber || '';
+  vars['Invoice Link'] = invoiceUrl;
+  vars['Balance Due'] = String(balance);
+  vars['Paid Amount'] = String(invApi.paidAmount || 0);
+  vars.Amount = String(invApi.totalAmount || balance);
+
+  var templates = settings.whatsappTemplates || {};
+  var tpl = templates.payment_reminder || defaultPaymentReminderBody_(vars);
+  var text = fillNotifyTemplate_(tpl, vars);
+  if (!text) text = defaultPaymentReminderBody_(vars);
+  var subjects = settings.emailSubjects || {};
+  var subject = fillNotifyTemplate_(
+    subjects.payment_reminder || 'Payment Reminder — {Invoice Number} | {Company Name}',
+    vars
+  );
+  var result = sendMailSafe_(emailTo, subject, buildOrderEmailHtml_(orderApi, company, text), text);
+  if (result.ok) markReminderSent_(key);
+  report.paymentReminders.push({
+    invoice: invApi.invoiceNumber,
+    orderId: invApi.orderId,
+    to: emailTo,
+    ok: !!result.ok,
+    error: result.error || '',
+  });
+}
+
+function sendDailyOrderReminder_(orderApi, company, settings, report) {
+  var status = String(orderApi.status || '').trim();
+  if (!status || /delivered|completed|cancelled/i.test(status)) return;
+
+  var reminderType = 'status';
+  if (/proof\s*approval/i.test(status) && !orderDesignApproved_(orderApi)) reminderType = 'approval';
+  else if (Number(orderApi.advancePayment || 0) <= 0) reminderType = 'advance';
+
+  var key = reminderTodayKey_('ord_' + reminderType, orderApi.id || orderApi.orderId);
+  if (wasReminderSentToday_(key)) return;
+
+  var prefs = findCustomerPrefs_(orderApi);
+  if (!prefs.notifyEmail) return;
+  var emailTo = String(orderApi.customerEmail || prefs.email || '').trim();
+  if (!isValidEmail_(emailTo)) return;
+
+  var text = buildOrderReminderBody_(orderApi, company, reminderType);
+  var vars = buildNotifyVars_(orderApi, company, {});
+  var subject = fillNotifyTemplate_(
+    (settings.emailSubjects || {}).status || 'Order Update — {Order Number} | {Company Name}',
+    vars
+  );
+  var result = sendMailSafe_(emailTo, subject, buildOrderEmailHtml_(orderApi, company, text), text);
+  if (result.ok) markReminderSent_(key);
+  report.orderReminders.push({
+    orderId: orderApi.orderId,
+    status: status,
+    type: reminderType,
+    to: emailTo,
+    ok: !!result.ok,
+    error: result.error || '',
+  });
+}
+
+/** Time-based entry point — install with installDailyReminderTrigger_(). */
+function runDailyMorningReminders() {
+  var settings = getNotificationSettings_();
+  if (!isNotifyOn_(settings.dailyRemindersEnabled)) {
+    return { ok: true, skipped: true, reason: 'daily_reminders_disabled' };
+  }
+
+  var company = getCompanyForNotify_();
+  var report = { paymentReminders: [], orderReminders: [], errors: [] };
+
+  if (isNotifyOn_(settings.emailPaymentReminder)) {
+    try {
+      getSheetRows_(SHEET_NAMES.INVOICES).forEach(function (row) {
+        try {
+          sendDailyPaymentReminderForInvoice_(toApiInvoice_(row), company, settings, report);
+        } catch (eInv) {
+          report.errors.push({ type: 'invoice', id: row.id, error: String(eInv.message || eInv) });
+        }
+      });
+    } catch (ePay) {
+      report.errors.push({ type: 'invoices_sheet', error: String(ePay.message || ePay) });
+    }
+  }
+
+  if (isNotifyOn_(settings.emailOrderStatusReminder)) {
+    try {
+      getSheetRows_(SHEET_NAMES.ORDERS).forEach(function (row) {
+        var dt = String(row.doctype || 'Order').toLowerCase();
+        if (dt === 'quotation' || dt === 'pos') return;
+        try {
+          sendDailyOrderReminder_(toApiOrder_(row), company, settings, report);
+        } catch (eOrd) {
+          report.errors.push({ type: 'order', id: row.id, error: String(eOrd.message || eOrd) });
+        }
+      });
+    } catch (eOrdSheet) {
+      report.errors.push({ type: 'orders_sheet', error: String(eOrdSheet.message || eOrdSheet) });
+    }
+  }
+
+  var props = PropertiesService.getScriptProperties();
+  props.setProperty('lastDailyReminderRun', new Date().toISOString());
+  props.setProperty('lastDailyReminderReport', JSON.stringify(report));
+  return { ok: true, ranAt: props.getProperty('lastDailyReminderRun'), report: report };
+}
+
+function removeDailyReminderTriggers_() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction && t.getHandlerFunction() === 'runDailyMorningReminders') {
+      ScriptApp.deleteTrigger(t);
+    }
+  });
+}
+
+function installDailyReminderTrigger_() {
+  removeDailyReminderTriggers_();
+  var settings = getNotificationSettings_();
+  var hour = Math.min(23, Math.max(0, Number(settings.dailyReminderHour != null ? settings.dailyReminderHour : 9) || 9));
+  ScriptApp.newTrigger('runDailyMorningReminders')
+    .timeBased()
+    .everyDays(1)
+    .atHour(hour)
+    .nearMinute(0)
+    .inTimezone('Asia/Karachi')
+    .create();
+  PropertiesService.getScriptProperties().setProperty('dailyReminderTriggerHour', String(hour));
+  return { ok: true, hour: hour, timezone: 'Asia/Karachi' };
+}
+
+function getDailyReminderStatus_() {
+  var props = PropertiesService.getScriptProperties();
+  var triggers = ScriptApp.getProjectTriggers().filter(function (t) {
+    return t.getHandlerFunction && t.getHandlerFunction() === 'runDailyMorningReminders';
+  });
+  var lastReport = null;
+  try {
+    lastReport = JSON.parse(props.getProperty('lastDailyReminderReport') || 'null');
+  } catch (e) { lastReport = null; }
+  return {
+    triggerInstalled: triggers.length > 0,
+    triggerCount: triggers.length,
+    scheduledHour: Number(props.getProperty('dailyReminderTriggerHour') || getNotificationSettings_().dailyReminderHour || 9),
+    timezone: 'Asia/Karachi',
+    lastRun: props.getProperty('lastDailyReminderRun') || '',
+    lastReport: lastReport,
+  };
+}
+
 function handleNotifications_(path, method, body) {
   if (method === 'POST' && path === '/notifications/test') {
     var channel = String(body.channel || 'email').toLowerCase();
     if (channel === 'email') {
       var company = getCompanyForNotify_();
-      var to = body.to || company.email;
-      if (!to) throw new Error('Provide a test email address (or set company email in Settings)');
+      var to = body.to || company.email || NOTIFY_FROM_EMAIL_;
+      if (!isValidEmail_(to)) throw new Error('Provide a valid test email address (or set company email in Settings)');
       var html = buildOrderEmailHtml_({
         customerName: 'Test Customer',
         orderId: 'ORD-TEST',
         trackingNumber: 'TRK-TEST',
         status: 'Order Received',
         totalAmount: 0,
-      }, company, 'This is a test notification from AMZ Prints ERP.\n\nIf you received this, email notifications are working.');
-      return sendMailSafe_(to, 'Test Notification | ' + (company.name || 'AMZ Prints'), html, 'Test notification from AMZ Prints ERP');
+      }, company, 'This is a test notification from Amazon Printing Services.\n\nSent via Apps Script as ' + NOTIFY_FROM_EMAIL_ + '.\n\nIf you received this, email notifications are working.');
+      var testResult = sendMailSafe_(to, 'Test Notification | ' + (company.name || NOTIFY_FROM_NAME_), html, 'Test notification from Amazon Printing Services');
+      testResult.fromAccountHint = NOTIFY_FROM_EMAIL_;
+      return testResult;
     }
     if (channel === 'whatsapp') {
       return {
@@ -1234,7 +1808,28 @@ function handleNotifications_(path, method, body) {
     var company2 = getCompanyForNotify_();
     var text = body.text || body.message || '';
     var html2 = body.html || buildOrderEmailHtml_(order, company2, text);
-    return sendMailSafe_(body.to || order.customerEmail, body.subject || 'Notification', html2, text);
+    var toAddr = body.to || order.customerEmail || (body.invoice && body.invoice.customerEmail) || '';
+    if (!isValidEmail_(toAddr)) {
+      return { ok: false, reason: 'missing_email', error: 'Customer email is required for email notifications' };
+    }
+    return sendMailSafe_(toAddr, body.subject || 'Notification', html2, text);
+  }
+
+  if (method === 'GET' && path === '/notifications/reminders/status') {
+    return getDailyReminderStatus_();
+  }
+
+  if (method === 'POST' && path === '/notifications/reminders/run') {
+    return runDailyMorningReminders();
+  }
+
+  if (method === 'POST' && path === '/notifications/reminders/trigger/install') {
+    return installDailyReminderTrigger_();
+  }
+
+  if (method === 'POST' && path === '/notifications/reminders/trigger/remove') {
+    removeDailyReminderTriggers_();
+    return { ok: true, removed: true };
   }
 
   throw new Error('Not found');
@@ -1254,34 +1849,78 @@ function nextOrderId_() {
 
 function normalizeOrder_(body, existing) {
   existing = existing || {};
-  var products = body.products || body.items || existing.products || [];
-  return {
+  var products = body.products != null ? body.products : (body.items != null ? body.items : existing.products);
+  if (typeof products === 'string') {
+    try { products = JSON.parse(products); } catch (e) { products = existing.products || []; }
+  }
+  if (!Array.isArray(products)) products = [];
+  // Strip UI-only keys; keep catalog fields that matter for reprints / slips
+  products = products.map(function (p) {
+    p = p || {};
+    return {
+      productId: p.productId || p.id || '',
+      name: p.name || '',
+      quantity: Number(p.quantity) || 0,
+      rate: Number(p.rate) || 0,
+      size: p.size || '',
+      material: p.material || '',
+      notes: p.notes || '',
+    };
+  });
+  function pick(keyCamel, keyLower, fallback) {
+    if (body[keyCamel] !== undefined && body[keyCamel] !== null) return body[keyCamel];
+    if (body[keyLower] !== undefined && body[keyLower] !== null) return body[keyLower];
+    return fallback;
+  }
+  var rec = {
     id: body.id || existing.id || ('order_' + Date.now()),
     orderid: body.orderId || body.orderid || existing.orderid || nextOrderId_(),
-    date: body.date || existing.date || nowDate_(),
-    customerid: body.customerId || body.customerid || existing.customerid || '',
-    customername: body.customerName || body.customername || existing.customername || '',
-    customerphone: body.customerPhone || body.customerphone || existing.customerphone || '',
-    customeremail: body.customerEmail || body.customeremail || existing.customeremail || '',
-    customeraddress: body.customerAddress || body.customeraddress || existing.customeraddress || '',
-    status: body.status || existing.status || 'Order Received',
-    deliverydate: body.deliveryDate || body.deliverydate || existing.deliverydate || '',
+    date: pick('date', 'date', existing.date || nowDate_()) || nowDate_(),
+    customerid: pick('customerId', 'customerid', existing.customerid || '') || '',
+    customername: pick('customerName', 'customername', existing.customername || '') || '',
+    customerphone: pick('customerPhone', 'customerphone', existing.customerphone || '') || '',
+    customeremail: pick('customerEmail', 'customeremail', existing.customeremail || '') || '',
+    customeraddress: pick('customerAddress', 'customeraddress', existing.customeraddress || '') || '',
+    status: pick('status', 'status', existing.status || 'Order Received') || 'Order Received',
+    deliverydate: pick('deliveryDate', 'deliverydate', existing.deliverydate || '') || '',
     products: products,
     totalamount: Number(body.totalAmount != null ? body.totalAmount : (body.totalamount != null ? body.totalamount : existing.totalamount || 0)),
     advancepayment: Number(body.advancePayment != null ? body.advancePayment : (body.advancepayment != null ? body.advancepayment : existing.advancepayment || 0)),
     balanceamount: Number(body.balanceAmount != null ? body.balanceAmount : (body.balanceamount != null ? body.balanceamount : existing.balanceamount || 0)),
-    remarks: body.remarks || existing.remarks || '',
-    assigneddesigner: body.assignedDesigner || body.assigneddesigner || existing.assigneddesigner || '',
-    tokenno: body.tokenNo || body.tokenno || existing.tokenno || '',
-    doctype: body.docType || body.doctype || existing.doctype || 'Order',
-    trackingnumber: body.trackingNumber || body.trackingnumber || existing.trackingnumber || '',
-    statushistory: body.statusHistory || body.statushistory || existing.statushistory || [],
-    deliveryaddress: body.deliveryAddress || body.deliveryaddress || existing.deliveryaddress || '',
-    quotationid: body.quotationId || body.quotationid || existing.quotationid || '',
+    remarks: pick('remarks', 'remarks', existing.remarks || '') || '',
+    assigneddesigner: pick('assignedDesigner', 'assigneddesigner', existing.assigneddesigner || '') || '',
+    tokenno: pick('tokenNo', 'tokenno', existing.tokenno || '') || '',
+    doctype: pick('docType', 'doctype', existing.doctype || 'Order') || 'Order',
+    trackingnumber: pick('trackingNumber', 'trackingnumber', existing.trackingnumber || '') || '',
+    statushistory: body.statusHistory != null ? body.statusHistory : (body.statushistory != null ? body.statushistory : (existing.statushistory || [])),
+    deliveryaddress: pick('deliveryAddress', 'deliveryaddress', existing.deliveryaddress || '') || '',
+    quotationid: pick('quotationId', 'quotationid', existing.quotationid || '') || '',
+    paymentmethod: pick('paymentMethod', 'paymentmethod', existing.paymentmethod || '') || '',
+    paymentstatus: pick('paymentStatus', 'paymentstatus', existing.paymentstatus || '') || '',
+    discount: Number(body.discount != null ? body.discount : (body.Discount != null ? body.Discount : (existing.discount || 0))),
+    deliverycharges: Number(body.deliveryCharges != null ? body.deliveryCharges : (body.deliverycharges != null ? body.deliverycharges : (existing.deliverycharges || 0))),
+    ordersource: pick('orderSource', 'ordersource', existing.ordersource || '') || '',
+    paymenthistory: body.paymentHistory != null ? body.paymentHistory : (body.paymenthistory != null ? body.paymenthistory : (existing.paymenthistory || [])),
   };
+  // Quotation totals stay on the quote document only — never as receivable/payable
+  if (isQuotation_(rec)) {
+    rec.advancepayment = 0;
+    rec.balanceamount = 0;
+  }
+  return rec;
 }
 
 function toApiOrder_(o) {
+  var products = o.products;
+  if (typeof products === 'string') {
+    try { products = JSON.parse(products); } catch (e) { products = []; }
+  }
+  if (!Array.isArray(products)) products = [];
+  var statusHistory = o.statushistory;
+  if (typeof statusHistory === 'string') {
+    try { statusHistory = JSON.parse(statusHistory); } catch (e2) { statusHistory = []; }
+  }
+  if (!Array.isArray(statusHistory)) statusHistory = statusHistory ? [statusHistory] : [];
   return {
     id: o.id,
     orderId: o.orderid,
@@ -1293,7 +1932,7 @@ function toApiOrder_(o) {
     customerAddress: o.customeraddress,
     status: o.status,
     deliveryDate: o.deliverydate,
-    products: Array.isArray(o.products) ? o.products : [],
+    products: products,
     totalAmount: Number(o.totalamount != null && o.totalamount !== '' ? o.totalamount : (o.total != null ? o.total : 0)),
     advancePayment: Number(o.advancepayment || 0),
     balanceAmount: Number(
@@ -1306,9 +1945,21 @@ function toApiOrder_(o) {
     tokenNo: o.tokenno || '',
     docType: o.doctype || 'Order',
     trackingNumber: o.trackingnumber || '',
-    statusHistory: Array.isArray(o.statushistory) ? o.statushistory : (o.statushistory ? o.statushistory : []),
+    statusHistory: statusHistory,
     deliveryAddress: o.deliveryaddress || '',
     quotationId: o.quotationid || '',
+    paymentMethod: o.paymentmethod || '',
+    paymentStatus: o.paymentstatus || '',
+    discount: Number(o.discount || 0),
+    deliveryCharges: Number(o.deliverycharges || 0),
+    orderSource: o.ordersource || '',
+    paymentHistory: (function () {
+      var ph = o.paymenthistory;
+      if (typeof ph === 'string') {
+        try { ph = JSON.parse(ph); } catch (ePh) { ph = []; }
+      }
+      return Array.isArray(ph) ? ph : (ph ? [ph] : []);
+    })(),
   };
 }
 
@@ -1345,6 +1996,7 @@ function handleQuotations_(path, method, body) {
         });
         body.customerId = cust.id;
       }
+      assertCustomerNotBlocked_(body.customerId);
       body.docType = 'Quotation';
       body.doctype = 'Quotation';
       if (!body.status) body.status = 'Draft';
@@ -1411,6 +2063,7 @@ function toApiUser_(u, includePassword) {
     name: u.name || '',
     role: u.role || 'Sales',
     status: u.status || 'Active',
+    employeeId: u.employeeid || '',
     permissions: parsePermissions_(u.permissions),
   };
   if (includePassword) out.password = u.password || '';
@@ -1439,6 +2092,7 @@ function handleUsers_(path, method, body) {
         name: body.name || username,
         role: body.role || 'Sales',
         status: body.status || 'Active',
+        employeeid: body.employeeId || body.employeeid || '',
         permissions: Array.isArray(body.permissions) || Array.isArray(body.menus)
           ? JSON.stringify(body.permissions || body.menus || [])
           : (body.permissions || '[]'),
@@ -1466,6 +2120,7 @@ function handleUsers_(path, method, body) {
       name: body.name != null ? body.name : users[index].name,
       role: body.role != null ? body.role : users[index].role,
       status: body.status != null ? body.status : users[index].status,
+      employeeid: body.employeeId != null ? body.employeeId : (body.employeeid != null ? body.employeeid : (users[index].employeeid || '')),
       permissions: body.permissions != null || body.menus != null
         ? JSON.stringify(body.permissions || body.menus || [])
         : users[index].permissions,
@@ -1485,10 +2140,13 @@ function handleOrders_(method, body) {
   var orders = getSheetRows_(SHEET_NAMES.ORDERS);
 
   if (method === 'GET') {
+    var invMap = buildOrderInvoiceMap_();
     return orders.filter(function (o) {
       var dt = String(o.doctype || 'Order').toLowerCase();
       return dt !== 'quotation';
-    }).map(toApiOrder_);
+    }).map(function (o) {
+      return withInvoiceMeta_(toApiOrder_(o), invMap);
+    });
   }
 
   if (method === 'POST') {
@@ -1503,6 +2161,8 @@ function handleOrders_(method, body) {
         updatedDup.orderid = orders[dupIdx].orderid;
         updateObjectProps_(sheet, SHEET_NAMES.ORDERS, orders[dupIdx]._row, updatedDup);
         var apiDup = toApiOrder_(updatedDup);
+        var extraDup = Math.max(0, Number(apiDup.advancePayment || 0) - Number(prevDup.advancePayment || 0));
+        apiDup = withAdvanceInvoice_(apiDup, updatedDup, extraDup);
         if (String(prevDup.status || '') !== String(apiDup.status || '')) {
           return withNotifications_(apiDup, 'status');
         }
@@ -1533,6 +2193,7 @@ function handleOrders_(method, body) {
       });
       body.customerId = cust.id;
     }
+    assertCustomerNotBlocked_(body.customerId);
     if (!body.trackingNumber && !body.trackingnumber) {
       body.trackingNumber = 'TRK-' + String(Math.floor(1000 + Math.random() * 9000));
     }
@@ -1547,7 +2208,7 @@ function handleOrders_(method, body) {
       }];
     }
     appendObject_(sheet, SHEET_NAMES.ORDERS, record);
-    return withNotifications_(toApiOrder_(record), 'created');
+    return withNotifications_(withAdvanceInvoice_(toApiOrder_(record), record, 0), 'created');
   }
   throw new Error('Method not allowed');
 }
@@ -1582,21 +2243,330 @@ function handleOrderById_(path, method, body) {
 
   if (index < 0) throw new Error('Order not found');
 
-  if (method === 'GET') return toApiOrder_(orders[index]);
+  if (path.indexOf('/payment') !== -1 && method === 'POST') {
+    var orderForPayment = orders[index];
+    if (isQuotation_(orderForPayment)) {
+      throw new Error('Quotations are estimates only. Convert to an order before recording payment.');
+    }
+    var invoiceForPay = findOrCreateInvoiceForOrder_(orderForPayment);
+    var invPayResult = recordInvoicePayment_(invoiceForPay.id || invoiceForPay.invoiceno, Object.assign({}, body || {}, {
+      orderId: orderForPayment.orderid || orderForPayment.id,
+    }));
+    return {
+      order: withInvoiceMeta_(invPayResult.order || toApiOrder_(orderForPayment)),
+      invoice: invPayResult.invoice,
+      payment: invPayResult.payment,
+      applied: invPayResult.applied,
+      extra: invPayResult.extra,
+      creditBalance: invPayResult.creditBalance,
+    };
+  }
+
+  if (method === 'GET') return withInvoiceMeta_(toApiOrder_(orders[index]));
   if (method === 'PUT') {
+    if (/^(delivered|completed|complete)$/i.test(String(orders[index].status || ''))) {
+      throw new Error('Delivered order is locked. Record payments on the invoice.');
+    }
     var prev = toApiOrder_(orders[index]);
     var updated = normalizeOrder_(body, orders[index]);
     updated.id = orders[index].id;
     updated.orderid = orders[index].orderid;
     updateObjectProps_(sheet, SHEET_NAMES.ORDERS, orders[index]._row, updated);
     var apiUpdated = toApiOrder_(updated);
+    var extraAdv = Math.max(0, Number(apiUpdated.advancePayment || 0) - Number(prev.advancePayment || 0));
+    apiUpdated = withAdvanceInvoice_(apiUpdated, updated, extraAdv);
     if (String(prev.status || '') !== String(apiUpdated.status || '')) {
       return withNotifications_(apiUpdated, 'status');
     }
     return apiUpdated;
   }
   if (method === 'DELETE') {
+    if (/^(delivered|completed|complete)$/i.test(String(orders[index].status || ''))) {
+      throw new Error('Delivered order cannot be deleted.');
+    }
     deleteRow_(sheet, orders[index]._row, SHEET_NAMES.ORDERS);
+    return { success: true };
+  }
+  throw new Error('Method not allowed');
+}
+
+/* ===================== PURCHASES ===================== */
+
+function parsePurchaseItems_(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string' && raw.trim()) {
+    try {
+      var parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) { return []; }
+  }
+  return [];
+}
+
+function nextPurchaseNo_() {
+  var rows = getSheetRows_(SHEET_NAMES.PURCHASES);
+  var year = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Karachi', 'yyyy');
+  var max = 0;
+  rows.forEach(function (r) {
+    var no = String(r.purchaseno || '');
+    var m = no.match(/PO-?\d{4}-?(\d+)/i) || no.match(/(\d+)$/);
+    if (m) max = Math.max(max, Number(m[1]) || 0);
+  });
+  var next = String(max + 1);
+  while (next.length < 4) next = '0' + next;
+  return 'PO-' + year + '-' + next;
+}
+
+function toApiPurchase_(p) {
+  var items = parsePurchaseItems_(p.items);
+  var total = Number(p.total != null ? p.total : (p.totalamount || 0));
+  var paid = Number(p.paid != null ? p.paid : (p.paidamount || 0));
+  var po = p.purchaseno || p.ponumber || '';
+  var date = p.date || p.purchasedate || '';
+  return {
+    id: p.id,
+    poNumber: po,
+    purchaseNo: po,
+    purchaseDate: date,
+    date: date,
+    vendorId: p.vendorid || '',
+    vendorName: p.vendorname || '',
+    vendorInvoiceNumber: p.vendorinvoicenumber || '',
+    expectedDeliveryDate: p.expecteddeliverydate || '',
+    actualDeliveryDate: p.actualdeliverydate || '',
+    linkedOrderId: p.linkedorderid || '',
+    items: items,
+    totalAmount: total,
+    total: total,
+    paidAmount: paid,
+    paid: paid,
+    status: p.status || 'Draft',
+    notes: p.notes || '',
+    outstanding: Math.max(0, total - paid),
+  };
+}
+
+function normalizePurchase_(body, existing) {
+  existing = existing || {};
+  var id = body.id || existing.id || ('purchase_' + Date.now());
+  var items = body.items != null ? body.items : (existing.items || []);
+  if (typeof items === 'string') items = parsePurchaseItems_(items);
+  if (!Array.isArray(items)) items = [];
+
+  var total = body.totalAmount != null ? body.totalAmount
+    : (body.total != null ? body.total : (existing.total != null ? existing.total : 0));
+  if (!(Number(total) > 0) && items.length) {
+    total = items.reduce(function (s, it) {
+      return s + (Number(it.quantity || 0) * Number(it.rate || 0));
+    }, 0);
+  }
+
+  var paid = body.paidAmount != null ? body.paidAmount
+    : (body.paid != null ? body.paid : (existing.paid != null ? existing.paid : 0));
+
+  var po = body.poNumber || body.purchaseNo || body.purchaseno
+    || existing.purchaseno || existing.ponumber || '';
+  if (!po) po = nextPurchaseNo_();
+
+  var date = body.purchaseDate || body.date || existing.date
+    || Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Karachi', 'yyyy-MM-dd');
+
+  // Always prefer incoming vendor fields on update (do not keep stale vendorName)
+  var hasVendorId = body.vendorId != null && String(body.vendorId) !== '';
+  var hasVendorName = body.vendorName != null && String(body.vendorName).trim() !== '';
+  var vendorId = hasVendorId ? String(body.vendorId) : String(existing.vendorid || '');
+  var vendorName = hasVendorName ? String(body.vendorName).trim() : String(existing.vendorname || '');
+
+  return {
+    id: id,
+    purchaseno: po,
+    date: date,
+    vendorid: vendorId,
+    vendorname: vendorName,
+    items: items,
+    total: Number(total || 0),
+    paid: Number(paid || 0),
+    status: body.status || existing.status || 'Draft',
+    vendorinvoicenumber: body.vendorInvoiceNumber != null ? body.vendorInvoiceNumber : (existing.vendorinvoicenumber || ''),
+    expecteddeliverydate: body.expectedDeliveryDate != null ? body.expectedDeliveryDate : (existing.expecteddeliverydate || ''),
+    actualdeliverydate: body.actualDeliveryDate != null ? body.actualDeliveryDate : (existing.actualdeliverydate || ''),
+    linkedorderid: body.linkedOrderId != null ? body.linkedOrderId : (existing.linkedorderid || ''),
+    notes: body.notes != null ? body.notes : (existing.notes || ''),
+  };
+}
+
+/**
+ * Atomically record a vendor bill payment:
+ * update Purchases.Paid/status + append Payments outflow + Expenses audit.
+ */
+function handlePurchasePay_(purchaseId, body) {
+  body = body || {};
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var sheet = getSheet_(SHEET_NAMES.PURCHASES);
+    ensureHeaders_(sheet, SHEET_NAMES.PURCHASES);
+    var rows = getSheetRows_(SHEET_NAMES.PURCHASES);
+    var index = findById_(rows, purchaseId);
+    if (index < 0) throw new Error('Purchase not found');
+
+    var existing = rows[index];
+    if (/cancel/i.test(String(existing.status || ''))) {
+      throw new Error('Cancelled purchase cannot be paid');
+    }
+
+    var total = Number(existing.total != null ? existing.total : (existing.totalamount || 0)) || 0;
+    var paidPrev = Number(existing.paid != null ? existing.paid : (existing.paidamount || 0)) || 0;
+    var outstanding = Math.max(0, total - paidPrev);
+    var amount = Number(body.amount != null ? body.amount : 0) || 0;
+    if (!(amount > 0)) throw new Error('Enter a valid payment amount');
+    if (amount > outstanding + 0.0001) {
+      throw new Error('Payment cannot exceed balance due (' + outstanding + ')');
+    }
+
+    var paidNext = paidPrev + amount;
+    var fullyPaid = paidNext >= total;
+    var prevStatus = String(existing.status || 'Ordered');
+    var nextStatus = prevStatus;
+    if (!/^received$/i.test(prevStatus)) {
+      nextStatus = fullyPaid ? 'Fully Paid' : 'Partial Paid';
+    }
+
+    var updated = normalizePurchase_({
+      paidAmount: paidNext,
+      paid: paidNext,
+      status: nextStatus,
+    }, existing);
+    updated.id = existing.id;
+    updateObjectProps_(sheet, SHEET_NAMES.PURCHASES, existing._row, updated);
+    invalidateSheetCache_(SHEET_NAMES.PURCHASES);
+
+    var vendorId = String(updated.vendorid || existing.vendorid || '');
+    var vendorName = String(updated.vendorname || existing.vendorname || '').trim();
+    var vendorPhone = String(body.partyPhone || body.phone || '').trim();
+    var vendorEmail = String(body.partyEmail || body.email || '').trim();
+    if ((!vendorPhone || !vendorEmail) && vendorId) {
+      try {
+        var vendors = getSheetRows_(SHEET_NAMES.VENDORS);
+        var vIdx = findById_(vendors, vendorId);
+        if (vIdx >= 0) {
+          if (!vendorPhone) vendorPhone = String(vendors[vIdx].phone || '').trim();
+          if (!vendorEmail) vendorEmail = String(vendors[vIdx].email || '').trim();
+          if (!vendorName) vendorName = String(vendors[vIdx].name || '').trim();
+        }
+      } catch (eVend) { /* optional */ }
+    }
+
+    var po = String(updated.purchaseno || existing.purchaseno || existing.ponumber || purchaseId);
+    var payDate = String(body.date || nowDate_()).slice(0, 10);
+    var method = String(body.method || body.paymentMethod || 'Cash').trim() || 'Cash';
+    var notes = String(body.notes || ('Vendor bill payment — PO ' + po)).trim();
+    var balanceDue = Math.max(0, total - paidNext);
+
+    var paySheet = getSheet_(SHEET_NAMES.PAYMENTS);
+    ensureHeaders_(paySheet, SHEET_NAMES.PAYMENTS);
+    var payment = {
+      id: 'pay_po_' + Date.now(),
+      date: payDate,
+      type: 'outflow',
+      category: 'Purchase Payment',
+      refid: purchaseId,
+      customername: vendorName,
+      customerid: vendorId,
+      partyphone: vendorPhone,
+      partyemail: vendorEmail,
+      amount: amount,
+      method: method,
+      notes: notes,
+      balancedue: balanceDue,
+      totalamount: total,
+    };
+    appendObject_(paySheet, SHEET_NAMES.PAYMENTS, payment);
+    invalidateSheetCache_(SHEET_NAMES.PAYMENTS);
+
+    var expSheet = getSheet_(SHEET_NAMES.EXPENSES);
+    ensureHeaders_(expSheet, SHEET_NAMES.EXPENSES);
+    var expense = {
+      id: 'exp_po_' + Date.now(),
+      date: payDate,
+      category: 'Purchase Payment',
+      amount: amount,
+      description: 'Vendor bill payment · ' + (vendorName || 'Vendor') + ' · PO ' + po,
+      paymentmethod: method,
+      approved: true,
+      approvedby: 'system',
+      approvedat: nowDate_() + ' ' + nowTime_(),
+    };
+    appendObject_(expSheet, SHEET_NAMES.EXPENSES, expense);
+    invalidateSheetCache_(SHEET_NAMES.EXPENSES);
+
+    return {
+      success: true,
+      purchase: toApiPurchase_(updated),
+      payment: {
+        id: payment.id,
+        date: payment.date,
+        type: payment.type,
+        category: payment.category,
+        reference: po,
+        refId: payment.refid,
+        party: payment.customername,
+        partyPhone: payment.partyphone,
+        amount: payment.amount,
+        method: payment.method,
+        notes: payment.notes,
+        balanceDue: payment.balancedue,
+        totalAmount: payment.totalamount,
+      },
+      expense: {
+        id: expense.id,
+        date: expense.date,
+        category: expense.category,
+        amount: expense.amount,
+        description: expense.description,
+        paymentMethod: expense.paymentmethod,
+      },
+    };
+  } finally {
+    try { lock.releaseLock(); } catch (eLock) { /* ignore */ }
+  }
+}
+
+function handlePurchases_(path, method, body) {
+  var sheet = getSheet_(SHEET_NAMES.PURCHASES);
+  ensureHeaders_(sheet, SHEET_NAMES.PURCHASES);
+  var rows = getSheetRows_(SHEET_NAMES.PURCHASES);
+
+  if (path === '/purchases') {
+    if (method === 'GET') return rows.map(toApiPurchase_);
+    if (method === 'POST') {
+      var created = normalizePurchase_(body || {});
+      appendObject_(sheet, SHEET_NAMES.PURCHASES, created);
+      return toApiPurchase_(created);
+    }
+  }
+
+  var parts = String(path || '').split('/');
+  var id = parts[2];
+  var action = parts[3] || '';
+  var index = findById_(rows, id);
+  if (index < 0) throw new Error('Purchase not found');
+
+  if (action === 'pay') {
+    if (method !== 'POST') throw new Error('Method not allowed');
+    return handlePurchasePay_(id, body || {});
+  }
+
+  if (method === 'GET') return toApiPurchase_(rows[index]);
+  if (method === 'PUT') {
+    var updated = normalizePurchase_(body || {}, rows[index]);
+    updated.id = rows[index].id;
+    if (!updated.purchaseno) updated.purchaseno = rows[index].purchaseno || nextPurchaseNo_();
+    updateObjectProps_(sheet, SHEET_NAMES.PURCHASES, rows[index]._row, updated);
+    return toApiPurchase_(updated);
+  }
+  if (method === 'DELETE') {
+    deleteRow_(sheet, rows[index]._row, SHEET_NAMES.PURCHASES);
     return { success: true };
   }
   throw new Error('Method not allowed');
@@ -1627,15 +2597,684 @@ function handleCollection_(sheetName, path, method, body, basePath) {
 
   if (method === 'GET') return rows[index];
   if (method === 'PUT') {
+    var prev = rows[index];
+    if (isNotifyOn_(prev.locked) || String(prev.id || '').indexOf('pay_') === 0) {
+      if (!body || body.allowEditFromPortal !== true) {
+        throw new Error('This payment is locked. Edit only from Customer Portal.');
+      }
+    }
     var updates = coerceKeys_(Object.assign({}, rows[index], body));
     updateObjectProps_(sheet, sheetName, rows[index]._row, updates);
     return updates;
   }
   if (method === 'DELETE') {
+    var prevDel = rows[index];
+    if (isNotifyOn_(prevDel.locked) || String(prevDel.id || '').indexOf('pay_') === 0) {
+      throw new Error('Recorded payments cannot be deleted. Contact Admin.');
+    }
     deleteRow_(sheet, rows[index]._row, sheetName);
     return { success: true };
   }
   throw new Error('Method not allowed');
+}
+
+/* ===================== PAYMENTS (unified ledger) ===================== */
+
+function parsePaymentHistory_(raw) {
+  if (!raw) return [];
+  if (typeof raw === 'string') {
+    try { raw = JSON.parse(raw); } catch (e) { return []; }
+  }
+  return Array.isArray(raw) ? raw : (raw ? [raw] : []);
+}
+
+function invoiceTotalDue_(inv) {
+  return Number(inv.total || inv.totalamount || 0) + Number(inv.previousbalance || 0);
+}
+
+function invoiceStatusFromPaid_(totalDue, paid) {
+  paid = Number(paid || 0);
+  totalDue = Number(totalDue || 0);
+  if (paid <= 0) return 'Unpaid';
+  if (paid >= totalDue - 0.01) return 'Paid';
+  return 'Partial';
+}
+
+function appendPaymentsSheetRow_(opts) {
+  opts = opts || {};
+  var paySheet = getSheet_(SHEET_NAMES.PAYMENTS);
+  ensureHeaders_(paySheet, SHEET_NAMES.PAYMENTS);
+  var payment = {
+    id: opts.id || ('pay_' + Date.now()),
+    date: opts.date || nowDate_(),
+    type: opts.type || 'inflow',
+    category: opts.category || 'Invoice Payment',
+    refid: opts.refId || opts.reference || '',
+    customername: opts.customerName || opts.party || '',
+    customerid: opts.customerId || '',
+    partyphone: opts.customerPhone || opts.partyPhone || '',
+    partyemail: opts.customerEmail || opts.partyEmail || '',
+    amount: Number(opts.amount || 0),
+    method: opts.method || 'Cash',
+    notes: opts.notes || '',
+    balancedue: Number(opts.balanceDue != null ? opts.balanceDue : 0),
+    totalamount: Number(opts.totalAmount != null ? opts.totalAmount : 0),
+    locked: opts.locked === false ? false : true,
+  };
+  appendObject_(paySheet, SHEET_NAMES.PAYMENTS, payment);
+  invalidateSheetCache_(SHEET_NAMES.PAYMENTS);
+  return payment;
+}
+
+function addCustomerCredit_(customerId, amount, note) {
+  amount = Number(amount || 0);
+  if (!(amount > 0) || !customerId) return 0;
+  var sheet = getSheet_(SHEET_NAMES.CUSTOMERS);
+  var customers = getSheetRows_(SHEET_NAMES.CUSTOMERS);
+  var idx = findById_(customers, customerId);
+  if (idx < 0) return 0;
+  var prev = Number(customers[idx].creditbalance || 0);
+  var next = prev + amount;
+  updateObjectProps_(sheet, SHEET_NAMES.CUSTOMERS, customers[idx]._row, {
+    creditbalance: next,
+  });
+  invalidateSheetCache_(SHEET_NAMES.CUSTOMERS);
+  return next;
+}
+
+/** Display-only snapshot on the order card — payment records live on the invoice. */
+function snapshotOrderPaid_(orderRef, paidAmount) {
+  if (!orderRef) return null;
+  var sheet = getSheet_(SHEET_NAMES.ORDERS);
+  var orders = getSheetRows_(SHEET_NAMES.ORDERS);
+  var idx = orders.findIndex(function (o) {
+    return String(o.id) === String(orderRef)
+      || String(o.orderid) === String(orderRef);
+  });
+  if (idx < 0) return null;
+  var order = orders[idx];
+  var total = Number(order.totalamount || order.total || 0);
+  var paid = Math.max(0, Number(paidAmount || 0));
+  var balance = Math.max(0, total - paid);
+  updateObjectProps_(sheet, SHEET_NAMES.ORDERS, order._row, {
+    advancepayment: Math.min(paid, total),
+    balanceamount: balance,
+  });
+  invalidateSheetCache_(SHEET_NAMES.ORDERS);
+  return toApiOrder_(Object.assign({}, order, {
+    advancepayment: Math.min(paid, total),
+    balanceamount: balance,
+  }));
+}
+
+function parseInvoiceOrderIds_(inv) {
+  var ids = [];
+  var push = function (v) {
+    var s = String(v || '').trim();
+    if (!s || ids.indexOf(s) !== -1) return;
+    ids.push(s);
+  };
+  if (!inv) return ids;
+  push(inv.orderid);
+  var extra = inv.orderids;
+  if (typeof extra === 'string') {
+    var t = extra.trim();
+    if (t.charAt(0) === '[') {
+      try { extra = JSON.parse(t); } catch (eIds) { extra = t ? t.split(/[,|]/) : []; }
+    } else if (t) {
+      extra = t.split(/[,|]/);
+    } else {
+      extra = [];
+    }
+  }
+  if (Array.isArray(extra)) extra.forEach(push);
+  return ids;
+}
+
+function collectInvoiceOrderIds_(body, existing) {
+  existing = existing || {};
+  var raw = body && (body.orderIds != null ? body.orderIds : body.orderids);
+  if (raw == null && existing.orderids != null) raw = existing.orderids;
+  var ids = [];
+  var push = function (v) {
+    var s = String(v || '').trim();
+    if (!s || ids.indexOf(s) !== -1) return;
+    ids.push(s);
+  };
+  if (typeof raw === 'string') {
+    var t = raw.trim();
+    if (t.charAt(0) === '[') {
+      try { raw = JSON.parse(t); } catch (eCol) { raw = t.split(/[,|]/); }
+    } else if (t) {
+      raw = t.split(/[,|]/);
+    } else {
+      raw = [];
+    }
+  }
+  if (Array.isArray(raw)) raw.forEach(push);
+  push(body && (body.orderId || body.orderid));
+  if (!ids.length) push(existing.orderid);
+  return ids;
+}
+
+function buildOrderInvoiceMap_() {
+  var map = {};
+  try {
+    getSheetRows_(SHEET_NAMES.INVOICES).forEach(function (inv) {
+      parseInvoiceOrderIds_(inv).forEach(function (oid) {
+        if (!map[oid]) map[oid] = inv;
+      });
+    });
+  } catch (eMap) { /* invoices sheet missing */ }
+  return map;
+}
+
+function withInvoiceMeta_(api, map) {
+  api = api || {};
+  map = map || buildOrderInvoiceMap_();
+  var keys = [api.orderId, api.id].filter(Boolean).map(String);
+  for (var i = 0; i < keys.length; i++) {
+    var inv = map[keys[i]];
+    if (inv) {
+      api.invoiceId = inv.id || '';
+      api.invoiceNumber = inv.invoiceno || '';
+      return api;
+    }
+  }
+  api.invoiceId = '';
+  api.invoiceNumber = '';
+  return api;
+}
+
+/** After an order is saved with advance, attach an invoice (existing unpaid or new). */
+function withAdvanceInvoice_(apiOrder, sheetRecord, extraPayment) {
+  extraPayment = Number(extraPayment || 0);
+  if (isQuotation_(sheetRecord)) return withInvoiceMeta_(apiOrder);
+  var advance = Number((sheetRecord && sheetRecord.advancepayment) || 0);
+  if (!(advance > 0) && extraPayment <= 0) return withInvoiceMeta_(apiOrder);
+  try {
+    ensureInvoicedForAdvance_(sheetRecord, extraPayment, { skipOrderSnapshot: true });
+  } catch (eInv) {
+    apiOrder = apiOrder || {};
+    apiOrder._invoiceError = String(eInv.message || eInv);
+  }
+  return withInvoiceMeta_(apiOrder);
+}
+
+function assertOrdersNotOnOtherInvoice_(orderIds, exceptInvoiceId) {
+  var map = buildOrderInvoiceMap_();
+  (orderIds || []).forEach(function (oid) {
+    var inv = map[String(oid)];
+    if (inv && String(inv.id) !== String(exceptInvoiceId || '')) {
+      throw new Error('Order ' + oid + ' is already on invoice ' + (inv.invoiceno || inv.id) + ' and cannot be added again.');
+    }
+  });
+}
+
+function invoiceIsUnpaidOpen_(inv) {
+  if (!inv) return false;
+  var status = String(inv.status || '').toLowerCase();
+  if (status === 'paid' || status === 'cancelled' || status === 'canceled' || status === 'void') return false;
+  return Number(inv.paid || inv.paidamount || 0) <= 0.009;
+}
+
+function isWalkInOrPosOrder_(order) {
+  var dt = String((order && (order.doctype || order.docType)) || '').toLowerCase();
+  if (dt === 'pos') return true;
+  var cid = String((order && (order.customerid || order.customerId)) || '');
+  if (cid === 'cust_walkin') return true;
+  return /walk-?in/i.test(String((order && (order.customername || order.customerName)) || ''));
+}
+
+function sameInvoiceCustomer_(inv, order) {
+  if (!inv || !order) return false;
+  var cid = String(order.customerid || order.customerId || '');
+  var phone = String(order.customerphone || order.customerPhone || '').trim();
+  if (cid && String(inv.customerid || '') === cid) return true;
+  if (phone && String(inv.customerphone || '') === phone) return true;
+  return false;
+}
+
+function findUnpaidInvoiceForCustomer_(order) {
+  var invoices = [];
+  try { invoices = getSheetRows_(SHEET_NAMES.INVOICES); } catch (eInv) { return null; }
+  var matches = invoices.filter(function (inv) {
+    return invoiceIsUnpaidOpen_(inv) && sameInvoiceCustomer_(inv, order);
+  });
+  if (!matches.length) return null;
+  matches.sort(function (a, b) {
+    return String(b.date || '').localeCompare(String(a.date || ''));
+  });
+  return matches[0];
+}
+
+function mapOrderProductsToInvoiceItems_(order) {
+  var items = order && order.products;
+  if (typeof items === 'string') {
+    try { items = JSON.parse(items); } catch (eMap) { items = []; }
+  }
+  if (!Array.isArray(items)) items = [];
+  var oid = String((order && (order.orderid || order.id)) || '');
+  return items.map(function (p) {
+    p = p || {};
+    return {
+      productId: p.productId || p.productid || '',
+      name: p.name || '',
+      quantity: Number(p.quantity || 0),
+      rate: Number(p.rate || 0),
+      size: p.size || '',
+      material: p.material || '',
+      description: p.description || p.notes || '',
+      notes: p.notes || p.description || '',
+      productType: p.productType || p.producttype || 'Product',
+      sourceOrderId: oid,
+    };
+  });
+}
+
+function addOrderAdvanceSnapshot_(orderRef, addAmount) {
+  if (!orderRef) return null;
+  var sheet = getSheet_(SHEET_NAMES.ORDERS);
+  var orders = getSheetRows_(SHEET_NAMES.ORDERS);
+  var idx = orders.findIndex(function (o) {
+    return String(o.id) === String(orderRef) || String(o.orderid) === String(orderRef);
+  });
+  if (idx < 0) return null;
+  var order = orders[idx];
+  var total = Number(order.totalamount || order.total || 0);
+  var prev = Number(order.advancepayment || 0);
+  var paid = Math.min(total, Math.max(0, prev + Number(addAmount || 0)));
+  var balance = Math.max(0, total - paid);
+  updateObjectProps_(sheet, SHEET_NAMES.ORDERS, order._row, {
+    advancepayment: paid,
+    balanceamount: balance,
+  });
+  invalidateSheetCache_(SHEET_NAMES.ORDERS);
+  return toApiOrder_(Object.assign({}, order, {
+    advancepayment: paid,
+    balanceamount: balance,
+  }));
+}
+
+function linkOrderOntoInvoice_(inv, order) {
+  var oid = String((order && (order.orderid || order.id)) || '');
+    if (!oid) throw new Error('Order is missing an ID and cannot be linked to an invoice.');
+  assertOrdersNotOnOtherInvoice_([oid], inv.id);
+  var ids = parseInvoiceOrderIds_(inv);
+  if (ids.indexOf(oid) < 0) ids.push(oid);
+  var extraItems = mapOrderProductsToInvoiceItems_(order);
+  var items = inv.items;
+  if (typeof items === 'string') {
+    try { items = JSON.parse(items); } catch (eItems) { items = []; }
+  }
+  if (!Array.isArray(items)) items = [];
+  extraItems.forEach(function (it) { items.push(it); });
+  var subtotal = items.reduce(function (s, it) {
+    return s + Number(it.quantity || 0) * Number(it.rate || 0);
+  }, 0);
+  var taxRate = Number(inv.taxrate || 0);
+  var tax = (subtotal * taxRate) / 100;
+  var discount = Number(inv.discount || 0);
+  var total = Math.max(0, subtotal + tax - discount);
+  var sheet = getSheet_(SHEET_NAMES.INVOICES);
+  ensureHeaders_(sheet, SHEET_NAMES.INVOICES);
+  var notes = String(inv.notes || '');
+  if (notes.indexOf(oid) < 0) {
+    notes = (notes ? notes + '\n' : '') + 'Linked order ' + oid;
+  }
+  var paid = Number(inv.paid || 0);
+  var updated = Object.assign({}, inv, {
+    orderid: ids[0] || oid,
+    orderids: ids,
+    items: items,
+    subtotal: subtotal,
+    tax: tax,
+    total: total,
+    notes: notes,
+    status: invoiceStatusFromPaid_(total + Number(inv.previousbalance || 0), paid),
+  });
+  updateObjectProps_(sheet, SHEET_NAMES.INVOICES, inv._row, updated);
+  invalidateSheetCache_(SHEET_NAMES.INVOICES);
+  return updated;
+}
+
+function createInvoiceFromOrder_(order) {
+  var mapped = mapOrderProductsToInvoiceItems_(order);
+  var subtotal = mapped.reduce(function (s, it) {
+    return s + Number(it.quantity || 0) * Number(it.rate || 0);
+  }, 0);
+  if (!(subtotal > 0)) subtotal = Number(order.totalamount || order.total || 0);
+  var sheet = getSheet_(SHEET_NAMES.INVOICES);
+  ensureHeaders_(sheet, SHEET_NAMES.INVOICES);
+  var created = normalizeInvoice_({
+    orderId: order.orderid || order.id,
+    orderIds: [order.orderid || order.id].filter(Boolean),
+    customerId: order.customerid,
+    customerName: order.customername,
+    customerPhone: order.customerphone,
+    customerEmail: order.customeremail,
+    customerAddress: order.customeraddress,
+    items: mapped,
+    subtotal: subtotal,
+    taxRate: 0,
+    tax: 0,
+    discount: 0,
+    previousBalance: 0,
+    totalAmount: subtotal,
+    paidAmount: 0,
+    status: 'Unpaid',
+    notes: 'From order ' + (order.orderid || order.id),
+  });
+  if (!created.invoiceno) {
+    created.invoiceno = 'INV-' + Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Karachi', 'yyyy') + '-' + String(Date.now()).slice(-4);
+  }
+  appendObject_(sheet, SHEET_NAMES.INVOICES, created);
+  invalidateSheetCache_(SHEET_NAMES.INVOICES);
+  return created;
+}
+
+function findInvoiceForOrder_(order) {
+  if (!order) return null;
+  var map = buildOrderInvoiceMap_();
+  return map[String(order.orderid || '')] || map[String(order.id || '')] || null;
+}
+
+function findOrCreateInvoiceForOrder_(order) {
+  if (isQuotation_(order)) {
+    throw new Error('Quotations are estimates only. Convert to an order before recording payment.');
+  }
+  var existing = findInvoiceForOrder_(order);
+  if (existing) return existing;
+  if (!isWalkInOrPosOrder_(order)) {
+    var unpaid = findUnpaidInvoiceForCustomer_(order);
+    if (unpaid) return linkOrderOntoInvoice_(unpaid, order);
+  }
+  return createInvoiceFromOrder_(order);
+}
+
+function ensureInvoicedForAdvance_(order, extraPayment, opts) {
+  opts = opts || {};
+  extraPayment = Number(extraPayment || 0);
+  var advance = Number((order && (order.advancepayment || order.advancePayment)) || 0);
+  if (!(advance > 0) && !(extraPayment > 0)) return null;
+  var inv = findOrCreateInvoiceForOrder_(order);
+  var paid = Number(inv.paid || inv.paidamount || 0);
+  var amountToRecord = extraPayment > 0 ? extraPayment : ((advance > 0 && paid <= 0.01) ? advance : 0);
+  if (!(amountToRecord > 0)) return inv;
+  var pay = recordInvoicePayment_(inv.id || inv.invoiceno, {
+    amount: amountToRecord,
+    method: opts.method || order.paymentmethod || 'Cash',
+    notes: opts.notes || ('Advance payment for order ' + (order.orderid || order.id)),
+    date: opts.date || order.date || nowDate_(),
+    skipOrderSnapshot: opts.skipOrderSnapshot !== false,
+    orderId: order.orderid || order.id,
+  });
+  return pay.invoice || inv;
+}
+
+function recordInvoicePayment_(invoiceId, body) {
+  body = body || {};
+  var amount = Number(body.amount || 0);
+  if (!(amount > 0)) throw new Error('Enter a valid payment amount');
+  var sheet = getSheet_(SHEET_NAMES.INVOICES);
+  ensureHeaders_(sheet, SHEET_NAMES.INVOICES);
+  var rows = getSheetRows_(SHEET_NAMES.INVOICES);
+  var idx = findById_(rows, invoiceId);
+  if (idx < 0) {
+    idx = rows.findIndex(function (r) {
+      return String(r.invoiceno || '') === String(invoiceId || '');
+    });
+  }
+  if (idx < 0) throw new Error('Invoice not found');
+  var inv = rows[idx];
+  var totalDue = invoiceTotalDue_(inv);
+  var paidBefore = Number(inv.paid || 0);
+  var balanceBefore = Math.max(0, totalDue - paidBefore);
+  var applied = Math.min(amount, balanceBefore);
+  var extra = Math.max(0, amount - applied);
+  var paidAfter = paidBefore + applied;
+  var balanceAfter = Math.max(0, totalDue - paidAfter);
+  var payDate = body.date || nowDate_();
+  var history = parsePaymentHistory_(inv.paymenthistory);
+  var payId = 'pay_inv_' + Date.now();
+  history.push({
+    id: payId,
+    date: payDate,
+    amount: amount,
+    applied: applied,
+    extra: extra,
+    method: body.method || 'Cash',
+    notes: body.notes || '',
+    locked: true,
+  });
+  var status = invoiceStatusFromPaid_(totalDue, paidAfter);
+  updateObjectProps_(sheet, SHEET_NAMES.INVOICES, inv._row, {
+    paid: paidAfter,
+    status: status,
+    paymenthistory: history,
+  });
+  invalidateSheetCache_(SHEET_NAMES.INVOICES);
+
+  var paymentRow = appendPaymentsSheetRow_({
+    id: payId,
+    date: payDate,
+    category: 'Invoice Payment',
+    refId: inv.invoiceno || inv.id,
+    customerId: inv.customerid || '',
+    customerName: inv.customername || '',
+    customerPhone: inv.customerphone || '',
+    customerEmail: inv.customeremail || '',
+    amount: amount,
+    method: body.method || 'Cash',
+    notes: body.notes || ('Invoice payment — ' + (inv.invoiceno || inv.id)),
+    balanceDue: balanceAfter,
+    totalAmount: totalDue,
+    locked: true,
+  });
+
+  var linkedOrder = null;
+  if (!body.skipOrderSnapshot) {
+    var snapRef = body.orderId || body.linkedOrderId;
+    if (snapRef) {
+      linkedOrder = addOrderAdvanceSnapshot_(snapRef, applied);
+    } else {
+      var snapIds = parseInvoiceOrderIds_(inv);
+      if (snapIds.length === 1) {
+        linkedOrder = addOrderAdvanceSnapshot_(snapIds[0], applied);
+      }
+    }
+  }
+
+  var creditBalance = 0;
+  if (extra > 0 && inv.customerid) {
+    creditBalance = addCustomerCredit_(inv.customerid, extra, 'Overpayment on invoice ' + (inv.invoiceno || inv.id));
+  }
+
+  var updatedInv = Object.assign({}, inv, {
+    paid: paidAfter,
+    status: status,
+    paymenthistory: history,
+  });
+  return {
+    invoice: toApiInvoice_(updatedInv),
+    payment: paymentRow,
+    applied: applied,
+    extra: extra,
+    creditBalance: creditBalance,
+    order: linkedOrder,
+  };
+}
+
+function recordCustomerPayment_(customerId, body) {
+  body = body || {};
+  var amount = Number(body.amount || 0);
+  if (!(amount > 0)) throw new Error('Enter a valid payment amount');
+  if (body.invoiceId || body.linkedInvoiceId) {
+    var invResult = recordInvoicePayment_(body.invoiceId || body.linkedInvoiceId, body);
+    var customers = getSheetRows_(SHEET_NAMES.CUSTOMERS);
+    var cIdx = findById_(customers, customerId);
+    var cust = cIdx >= 0 ? customers[cIdx] : null;
+    return Object.assign({ customer: cust ? enrichApiCustomer_(cust, getSheetRows_(SHEET_NAMES.ORDERS)) : null }, invResult);
+  }
+
+  var customers = getSheetRows_(SHEET_NAMES.CUSTOMERS);
+  var idx = findById_(customers, customerId);
+  if (idx < 0) throw new Error('Customer not found');
+  var cust = customers[idx];
+  var payDate = body.date || nowDate_();
+  var payId = 'pay_cust_' + Date.now();
+  var refId = body.reference || body.refId || body.linkedOrderId || payId;
+  var applied = 0;
+  var extra = amount;
+  var linkedOrder = null;
+
+  if (body.orderId || body.linkedOrderId) {
+    var orderRef = body.orderId || body.linkedOrderId;
+    var orders = getSheetRows_(SHEET_NAMES.ORDERS);
+    var oIdx = orders.findIndex(function (o) {
+      return String(o.id) === String(orderRef) || String(o.orderid) === String(orderRef);
+    });
+    if (oIdx >= 0) {
+      var invForOrder = findOrCreateInvoiceForOrder_(orders[oIdx]);
+      var invPay = recordInvoicePayment_(invForOrder.id || invForOrder.invoiceno, Object.assign({}, body, {
+        orderId: orders[oIdx].orderid || orders[oIdx].id,
+      }));
+      return Object.assign({
+        customer: enrichApiCustomer_(cust, getSheetRows_(SHEET_NAMES.ORDERS)),
+      }, invPay);
+    }
+  }
+
+  var paymentRow = appendPaymentsSheetRow_({
+    id: payId,
+    date: payDate,
+    category: body.category || 'Invoice Payment',
+    refId: refId,
+    customerId: cust.id,
+    customerName: cust.name || '',
+    customerPhone: cust.phone || '',
+    customerEmail: cust.email || '',
+    amount: amount,
+    method: body.method || 'Cash',
+    notes: body.notes || (applied > 0 ? 'Customer payment' : 'Unallocated customer credit'),
+    balanceDue: 0,
+    totalAmount: amount,
+    locked: true,
+  });
+
+  var creditBalance = Number(cust.creditbalance || 0);
+  if (extra > 0) {
+    creditBalance = addCustomerCredit_(cust.id, extra, body.notes || '');
+  }
+
+  return {
+    customer: enrichApiCustomer_(Object.assign({}, cust, { creditbalance: creditBalance }), getSheetRows_(SHEET_NAMES.ORDERS)),
+    payment: paymentRow,
+    applied: applied,
+    extra: extra,
+    creditBalance: creditBalance,
+    order: linkedOrder,
+  };
+}
+
+function computeCustomerLedger_(customer, orders, invoices, payRows) {
+  orders = (orders || []).filter(function (o) { return !isQuotation_(o); });
+  invoices = invoices || [];
+  payRows = payRows || [];
+  var invoicedRefs = {};
+  invoices.forEach(function (inv) {
+    var ref = String(inv.orderid || '');
+    if (ref) invoicedRefs[ref] = true;
+  });
+  var orphanOrders = orders.filter(function (o) {
+    return !invoicedRefs[String(o.orderid || '')] && !invoicedRefs[String(o.id || '')];
+  });
+  var invoiceBilled = invoices.reduce(function (s, inv) { return s + invoiceTotalDue_(inv); }, 0);
+  var orphanBilled = orphanOrders.reduce(function (s, o) { return s + Number(o.totalamount || o.total || 0); }, 0);
+  var invoiceOutstanding = invoices.reduce(function (s, inv) {
+    return s + Math.max(0, invoiceTotalDue_(inv) - Number(inv.paid || 0));
+  }, 0);
+  var orphanOutstanding = orphanOrders.reduce(function (s, o) { return s + Number(o.balanceamount || 0); }, 0);
+  var paymentPaid = payRows.reduce(function (s, p) {
+    var t = String(p.type || 'inflow').toLowerCase();
+    if (t === 'outflow' || t === 'out') return s - Number(p.amount || 0);
+    return s + Number(p.amount || 0);
+  }, 0);
+  var credit = Number(customer.creditbalance || 0);
+  var outstanding = Math.max(0, invoiceOutstanding + orphanOutstanding - credit);
+  var statement = buildLedgerStatement_(invoices, payRows, orphanOrders);
+  return {
+    totalBilled: invoiceBilled + orphanBilled,
+    totalPaid: Math.max(0, paymentPaid),
+    orderOutstanding: orphanOutstanding,
+    invoiceOutstanding: invoiceOutstanding,
+    outstanding: outstanding,
+    creditBalance: credit,
+    payable: outstanding,
+    statement: statement,
+  };
+}
+
+function buildLedgerStatement_(invoices, payRows, orphanOrders) {
+  var lines = [];
+  (invoices || []).forEach(function (inv) {
+    var due = invoiceTotalDue_(inv);
+    if (!(due > 0)) return;
+    lines.push({
+      date: inv.date || '',
+      type: 'debit',
+      particular: 'Invoice ' + (inv.invoiceno || inv.id || ''),
+      reference: inv.invoiceno || '',
+      invoiceNumber: inv.invoiceno || '',
+      orderId: inv.orderid || '',
+      debit: due,
+      credit: 0,
+      method: '',
+      notes: inv.notes || '',
+    });
+  });
+  (orphanOrders || []).forEach(function (o) {
+    var amt = Number(o.totalamount || o.total || 0);
+    if (!(amt > 0)) return;
+    lines.push({
+      date: o.date || '',
+      type: 'debit',
+      particular: 'Order ' + (o.orderid || o.id || '') + ' (no invoice)',
+      reference: o.orderid || '',
+      invoiceNumber: '',
+      orderId: o.orderid || '',
+      debit: amt,
+      credit: 0,
+      method: '',
+      notes: '',
+    });
+  });
+  (payRows || []).forEach(function (p) {
+    var amt = Number(p.amount || 0);
+    if (!(amt > 0)) return;
+    var outflow = String(p.type || 'inflow').toLowerCase() === 'outflow' || String(p.type || '').toLowerCase() === 'out';
+    lines.push({
+      date: p.date || '',
+      type: outflow ? 'debit' : 'credit',
+      particular: p.notes || p.category || (outflow ? 'Payment out' : 'Payment received'),
+      reference: p.refid || p.reference || p.id || '',
+      invoiceNumber: '',
+      orderId: '',
+      debit: outflow ? amt : 0,
+      credit: outflow ? 0 : amt,
+      method: p.method || '',
+      notes: p.notes || '',
+    });
+  });
+  lines.sort(function (a, b) {
+    return String(a.date || '').localeCompare(String(b.date || ''));
+  });
+  var running = 0;
+  return lines.map(function (line) {
+    running += Number(line.debit || 0) - Number(line.credit || 0);
+    line.balance = running;
+    return line;
+  });
 }
 
 /* ===================== INVOICES ===================== */
@@ -1676,7 +3315,11 @@ function normalizeInvoice_(body, existing) {
     invoiceno: body.invoiceNumber || body.invoiceno || existing.invoiceno || '',
     date: body.date || existing.date || nowDate_(),
     duedate: body.dueDate || body.duedate || existing.duedate || '',
-    orderid: body.orderId || body.orderid || existing.orderid || '',
+    orderid: (function () {
+      var ids = collectInvoiceOrderIds_(body, existing);
+      return ids[0] || '';
+    })(),
+    orderids: collectInvoiceOrderIds_(body, existing),
     customerid: body.customerId || body.customerid || existing.customerid || '',
     customername: body.customerName || body.customername || existing.customername || '',
     customerphone: body.customerPhone || body.customerphone || existing.customerphone || '',
@@ -1696,6 +3339,8 @@ function normalizeInvoice_(body, existing) {
       body.paidAmount != null ? body.paidAmount
         : (body.paid != null ? body.paid : existing.paid || 0)
     ),
+    paymenthistory: body.paymentHistory != null ? body.paymentHistory
+      : (body.paymenthistory != null ? body.paymenthistory : existing.paymenthistory || []),
     status: body.status || existing.status || 'Unpaid',
     notes: body.notes || existing.notes || '',
     sharetoken: body.shareToken || body.sharetoken || existing.sharetoken
@@ -1704,26 +3349,39 @@ function normalizeInvoice_(body, existing) {
 }
 
 function toApiInvoice_(inv) {
+  var items = inv.items;
+  if (typeof items === 'string') {
+    try { items = JSON.parse(items); } catch (eItems) { items = []; }
+  }
+  if (!Array.isArray(items)) items = [];
+  items = items.filter(function (it) { return !!it; });
+  var paymentHistory = parsePaymentHistory_(inv.paymenthistory);
+  var totalDue = invoiceTotalDue_(inv);
+  var paid = Number(inv.paid || inv.paidamount || 0);
+  var orderIds = parseInvoiceOrderIds_(inv);
   return {
     id: inv.id,
     invoiceNumber: inv.invoiceno || '',
     date: inv.date || '',
     dueDate: inv.duedate || '',
-    orderId: inv.orderid || '',
+    orderId: orderIds[0] || inv.orderid || '',
+    orderIds: orderIds,
     customerId: inv.customerid || '',
     customerName: inv.customername || '',
     customerPhone: inv.customerphone || '',
     customerEmail: inv.customeremail || '',
     customerAddress: inv.customeraddress || '',
-    items: Array.isArray(inv.items) ? inv.items : [],
+    items: items,
     subtotal: Number(inv.subtotal || 0),
     taxRate: Number(inv.taxrate || 0),
     tax: Number(inv.tax || 0),
     discount: Number(inv.discount || 0),
     previousBalance: Number(inv.previousbalance || 0),
     totalAmount: Number(inv.total || inv.totalamount || 0),
-    paidAmount: Number(inv.paid || inv.paidamount || 0),
-    status: inv.status || 'Unpaid',
+    paidAmount: paid,
+    balanceAmount: Math.max(0, totalDue - paid),
+    paymentHistory: paymentHistory,
+    status: inv.status || invoiceStatusFromPaid_(totalDue, paid),
     notes: inv.notes || '',
     shareToken: inv.sharetoken || '',
   };
@@ -1737,7 +3395,40 @@ function handleInvoices_(path, method, body) {
   var rows = getSheetRows_(SHEET_NAMES.INVOICES);
 
   if (path === '/invoices') {
-    if (method === 'GET') return rows.map(toApiInvoice_);
+    if (method === 'GET') {
+      return rows.map(function (r) {
+        try {
+          return toApiInvoice_(r);
+        } catch (eInv) {
+          return {
+            id: r.id || '',
+            invoiceNumber: r.invoiceno || '',
+            date: r.date || '',
+            dueDate: r.duedate || '',
+            orderId: r.orderid || '',
+            orderIds: parseInvoiceOrderIds_(r),
+            customerId: r.customerid || '',
+            customerName: r.customername || '',
+            customerPhone: r.customerphone || '',
+            customerEmail: r.customeremail || '',
+            customerAddress: r.customeraddress || '',
+            items: [],
+            subtotal: Number(r.subtotal || 0),
+            taxRate: Number(r.taxrate || 0),
+            tax: Number(r.tax || 0),
+            discount: Number(r.discount || 0),
+            previousBalance: Number(r.previousbalance || 0),
+            totalAmount: Number(r.total || r.totalamount || 0),
+            paidAmount: Number(r.paid || r.paidamount || 0),
+            balanceAmount: 0,
+            paymentHistory: [],
+            status: r.status || 'Unpaid',
+            notes: r.notes || '',
+            shareToken: r.sharetoken || '',
+          };
+        }
+      });
+    }
     if (method === 'POST') {
       var existingInvId = body.id || body.invoiceNumber || body.invoiceno || body.invoiceNo;
       if (existingInvId) {
@@ -1748,6 +3439,8 @@ function handleInvoices_(path, method, body) {
           });
         }
         if (invDupIdx >= 0) {
+          var dupIds = collectInvoiceOrderIds_(body, rows[invDupIdx]);
+          assertOrdersNotOnOtherInvoice_(dupIds, rows[invDupIdx].id);
           var updInv = normalizeInvoice_(body, rows[invDupIdx]);
           updInv.id = rows[invDupIdx].id;
           if (!updInv.sharetoken) updInv.sharetoken = rows[invDupIdx].sharetoken;
@@ -1764,11 +3457,17 @@ function handleInvoices_(path, method, body) {
         });
         body.customerId = cust.id;
       }
-      var created = normalizeInvoice_(body);
-      appendObject_(sheet, SHEET_NAMES.INVOICES, created);
+      var createdIds = collectInvoiceOrderIds_(body, {});
+      assertOrdersNotOnOtherInvoice_(createdIds, '');
+  var created = normalizeInvoice_(body);
+  if (!created.invoiceno) {
+    created.invoiceno = 'INV-' + Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Karachi', 'yyyy') + '-' + String(Date.now()).slice(-4);
+  }
+  appendObject_(sheet, SHEET_NAMES.INVOICES, created);
       var apiInv = toApiInvoice_(created);
-      try {
-        apiInv._notifications = dispatchOrderNotifications_({
+      if (body.notifyOnCreate === true) {
+        try {
+          apiInv._notifications = dispatchOrderNotifications_({
           customerName: apiInv.customerName,
           customerPhone: apiInv.customerPhone,
           customerEmail: apiInv.customerEmail,
@@ -1782,23 +3481,51 @@ function handleInvoices_(path, method, body) {
           amount: apiInv.totalAmount,
           email: apiInv.customerEmail,
         });
-      } catch (notifyErr) {
-        apiInv._notifications = { error: String(notifyErr) };
+        } catch (notifyErr) {
+          apiInv._notifications = { error: String(notifyErr) };
+        }
       }
       return apiInv;
     }
     throw new Error('Method not allowed');
   }
 
+  var payInvMatch = path.match(/^\/invoices\/([^/]+)\/payment$/);
+  if (payInvMatch && method === 'POST') {
+    return recordInvoicePayment_(decodeURIComponent(payInvMatch[1]), body || {});
+  }
+
   var id = path.split('/')[2];
   var index = findById_(rows, id);
+  if (index < 0) {
+    index = rows.findIndex(function (r) {
+      return String(r.invoiceno || '').toLowerCase() === String(id || '').toLowerCase()
+        || String(r.sharetoken || '') === String(id || '');
+    });
+  }
   if (index < 0) throw new Error('Invoice not found');
 
-  if (method === 'GET') return toApiInvoice_(rows[index]);
+  if (method === 'GET') {
+    try { return toApiInvoice_(rows[index]); } catch (eGet) {
+      throw new Error('Invoice could not be read: ' + (eGet.message || eGet));
+    }
+  }
   if (method === 'PUT') {
+    var prevInv = rows[index];
+    var prevHistory = parsePaymentHistory_(prevInv.paymenthistory);
+    if (prevHistory.length > 0 && (body.paidAmount != null || body.paid != null)) {
+      throw new Error('Paid amount is locked — use Record Payment to add payments. Edit history only from Customer Portal.');
+    }
+    var updatedIds = collectInvoiceOrderIds_(body, rows[index]);
+    assertOrdersNotOnOtherInvoice_(updatedIds, rows[index].id);
     var updated = normalizeInvoice_(body, rows[index]);
     updated.id = rows[index].id;
     if (!updated.sharetoken) updated.sharetoken = rows[index].sharetoken;
+    if (prevHistory.length > 0) {
+      updated.paid = Number(prevInv.paid || 0);
+      updated.paymenthistory = prevHistory;
+      updated.status = invoiceStatusFromPaid_(invoiceTotalDue_(updated), updated.paid);
+    }
     updateObjectProps_(sheet, SHEET_NAMES.INVOICES, rows[index]._row, updated);
     return toApiInvoice_(updated);
   }
@@ -1844,6 +3571,18 @@ function dateKey_(value) {
     return Utilities.formatDate(parsed, tz, 'yyyy-MM-dd');
   }
   return s;
+}
+
+/** Inclusive yyyy-MM-dd range. Empty from/to = no bound. Missing row date excluded when any bound set. */
+function inDateRange_(rowDate, from, to) {
+  var f = from ? String(from).slice(0, 10) : '';
+  var t = to ? String(to).slice(0, 10) : '';
+  if (!f && !t) return true;
+  var dk = dateKey_(rowDate);
+  if (!dk) return false;
+  if (f && dk < f) return false;
+  if (t && dk > t) return false;
+  return true;
 }
 
 function getCounterMasters_() {
@@ -1901,6 +3640,7 @@ function toApiToken_(t) {
     customerId: t.customerid,
     customerName: t.customername,
     customerPhone: t.customerphone,
+    customerEmail: t.customeremail || '',
     service: t.service,
     serviceNote: t.servicenote || '',
     status: t.tokenstatus || t.status || 'Waiting',
@@ -1908,6 +3648,26 @@ function toApiToken_(t) {
     orderId: t.orderid || '',
     notes: t.notes || '',
   };
+}
+
+function notifyTokenEmail_(tokenApi, event) {
+  var notif = getNotificationSettings_();
+  if (!notif.emailToken) return { ok: false, reason: 'disabled' };
+  var emailTo = tokenApi.customerEmail || '';
+  if (!isValidEmail_(emailTo)) return { ok: false, reason: 'missing_email' };
+  var company = getCompanyForNotify_();
+  var tokenNo = tokenApi.tokenNo || tokenApi.tokenno || '';
+  var text = event === 'token_called'
+    ? ('Dear ' + (tokenApi.customerName || 'Customer') + ',\n\nYour token *' + tokenNo + '* is now being called at ' + (tokenApi.counterName || 'the counter') + '.\n\nPlease proceed to the counter.\n\n' + (company.name || NOTIFY_FROM_NAME_))
+    : ('Dear ' + (tokenApi.customerName || 'Customer') + ',\n\nYour token *' + tokenNo + '* has been booked.\n\nCounter: ' + (tokenApi.counterName || '') + '\nService: ' + (tokenApi.service || '') + '\n\nPlease wait for your token to be called.\n\n' + (company.name || NOTIFY_FROM_NAME_));
+  var subject = (event === 'token_called' ? 'Token Called — ' : 'Token Booked — ') + tokenNo + ' | ' + (company.name || NOTIFY_FROM_NAME_);
+  var html = buildOrderEmailHtml_({
+    customerName: tokenApi.customerName,
+    orderId: tokenNo,
+    status: tokenApi.status || (event === 'token_called' ? 'Called' : 'Waiting'),
+    totalAmount: 0,
+  }, company, text);
+  return sendMailSafe_(emailTo, subject, html, text.replace(/\*/g, ''));
 }
 
 function resolveCounterForService_(serviceName, explicitCounter) {
@@ -1995,6 +3755,7 @@ function handleTokens_(path, method, body, params) {
 
     var customerName = String(body.customerName || body.name || '').trim();
     var customerPhone = String(body.customerPhone || body.phone || '').trim();
+    var customerEmail = String(body.customerEmail || body.email || '').trim();
     if (!customerName || !customerPhone) {
       throw new Error('Customer name and phone are required');
     }
@@ -2004,13 +3765,14 @@ function handleTokens_(path, method, body, params) {
       customer = upsertCustomer_({
         name: customerName,
         phone: customerPhone,
-        email: body.email,
+        email: customerEmail,
         address: body.address,
       });
     } catch (custErr) {
       // Don't block token booking if Customers sheet has a temporary issue
-      customer = { id: 'cust_temp_' + Date.now(), name: customerName, phone: customerPhone };
+      customer = { id: 'cust_temp_' + Date.now(), name: customerName, phone: customerPhone, email: customerEmail };
     }
+    if (customer && customer.id) assertCustomerNotBlocked_(customer.id);
 
     // Re-read counter row after possible cache changes
     invalidateSheetCache_(SHEET_NAMES.COUNTERS);
@@ -2030,6 +3792,7 @@ function handleTokens_(path, method, body, params) {
       customerid: customer.id || '',
       customername: customer.name || customerName,
       customerphone: customer.phone || customerPhone,
+      customeremail: customer.email || customerEmail || '',
       service: serviceName,
       servicenote: body.serviceNote || body.servicenote || '',
       tokenstatus: 'Waiting',
@@ -2042,7 +3805,13 @@ function handleTokens_(path, method, body, params) {
     // Return clean date (without Sheets apostrophe) to the client
     token.date = today;
     invalidateSheetCache_(SHEET_NAMES.COUNTERS);
-    return toApiToken_(token);
+    var apiToken = toApiToken_(token);
+    try {
+      apiToken._notifications = { email: notifyTokenEmail_(apiToken, 'token_booked') };
+    } catch (tokMailErr) {
+      apiToken._notifications = { email: { ok: false, error: String(tokMailErr) } };
+    }
+    return apiToken;
   }
 
   // /tokens/:id/...
@@ -2060,7 +3829,13 @@ function handleTokens_(path, method, body, params) {
     });
     tokenRow.tokenstatus = 'Called';
     tokenRow.calledat = nowTime_();
-    return toApiToken_(tokenRow);
+    var calledApi = toApiToken_(tokenRow);
+    try {
+      calledApi._notifications = { email: notifyTokenEmail_(calledApi, 'token_called') };
+    } catch (callMailErr) {
+      calledApi._notifications = { email: { ok: false, error: String(callMailErr) } };
+    }
+    return calledApi;
   }
 
   if (path.indexOf('/complete') !== -1 && method === 'POST') {
@@ -2148,17 +3923,36 @@ function handleCounters_(path, method, body) {
 
 /* ===================== DASHBOARD / SETTINGS ===================== */
 
-function getDashboardBootstrap_() {
+function getDashboardBootstrap_(params) {
+  params = params || {};
+  var from = params.from ? String(params.from).slice(0, 10) : '';
+  var to = params.to ? String(params.to).slice(0, 10) : '';
+
   // One Orders + Customers + Invoices read for the whole dashboard
   var ordersAll = getSheetRows_(SHEET_NAMES.ORDERS);
-  var invoices = getSheetRows_(SHEET_NAMES.INVOICES);
+  var invoicesAll = getSheetRows_(SHEET_NAMES.INVOICES);
   var customers = getSheetRows_(SHEET_NAMES.CUSTOMERS);
+  var expensesAll = [];
+  try { expensesAll = getSheetRows_(SHEET_NAMES.EXPENSES); } catch (e1) { expensesAll = []; }
+  var purchasesAll = [];
+  try { purchasesAll = getSheetRows_(SHEET_NAMES.PURCHASES); } catch (e2) { purchasesAll = []; }
 
   var quotations = ordersAll.filter(function (o) {
-    return String(o.doctype || '').toLowerCase() === 'quotation';
+    return String(o.doctype || '').toLowerCase() === 'quotation'
+      && inDateRange_(o.date, from, to);
   });
   var orders = ordersAll.filter(function (o) {
-    return String(o.doctype || 'Order').toLowerCase() !== 'quotation';
+    return String(o.doctype || 'Order').toLowerCase() !== 'quotation'
+      && inDateRange_(o.date, from, to);
+  });
+  var invoices = invoicesAll.filter(function (inv) {
+    return inDateRange_(inv.date, from, to);
+  });
+  var expenses = expensesAll.filter(function (ex) {
+    return inDateRange_(ex.date, from, to) && isExpenseApproved_(ex);
+  });
+  var purchases = purchasesAll.filter(function (p) {
+    return inDateRange_(p.date || p.purchasedate, from, to);
   });
 
   var completed = orders.filter(function (o) {
@@ -2191,15 +3985,64 @@ function getDashboardBootstrap_() {
   var revenue = invoiceRevenue || orderRevenue;
   var receivables = orders.reduce(function (s, o) { return s + Number(o.balanceamount || 0); }, 0);
   var collected = orders.reduce(function (s, o) { return s + Number(o.advancepayment || 0); }, 0);
+  var expenseTotal = expenses.reduce(function (s, ex) {
+    return s + Number(ex.amount || 0);
+  }, 0);
 
-  // Last 6 months sales from orders
+  // Payments cash position (Cash In / Cash Out) — drives Net cash on dashboard
+  var paymentsAll = [];
+  try { paymentsAll = getSheetRows_(SHEET_NAMES.PAYMENTS); } catch (ePay) { paymentsAll = []; }
+  var paymentsInRange = paymentsAll.filter(function (p) {
+    return inDateRange_(p.date, from, to);
+  });
+  var cashIn = paymentsInRange.reduce(function (s, p) {
+    var t = String(p.type || 'inflow').toLowerCase();
+    if (t === 'outflow' || t === 'out') return s;
+    return s + Number(p.amount || 0);
+  }, 0);
+  var cashOut = paymentsInRange.reduce(function (s, p) {
+    var t = String(p.type || '').toLowerCase();
+    if (t === 'outflow' || t === 'out') return s + Number(p.amount || 0);
+    return s;
+  }, 0);
+  // Net cash = Payments Cash In − Cash Out only (never substitute Expenses sheet)
+  var cashNet = cashIn - cashOut;
+  // Collected = order advances + cash-in payments (cash position visibility)
+  collected = collected + cashIn;
+
+  // Vendor payables from Purchases (Total − PaidAmount) in range
+  var payables = purchases.reduce(function (s, p) {
+    var status = String(p.status || '').toLowerCase();
+    if (status.indexOf('cancel') !== -1) return s;
+    var total = Number(p.total || 0);
+    var paid = Number(p.paidamount || p.paid || 0);
+    if (status.indexOf('fully paid') !== -1 || status === 'paid') return s;
+    return s + Math.max(0, total - paid);
+  }, 0);
+
+  // Chart months: last 6 months, or months covering the selected range
   var monthMap = {};
+  var tz = Session.getScriptTimeZone() || 'Asia/Karachi';
   var now = new Date();
-  for (var m = 5; m >= 0; m--) {
-    var d = new Date(now.getFullYear(), now.getMonth() - m, 1);
-    var key = Utilities.formatDate(d, Session.getScriptTimeZone() || 'Asia/Karachi', 'yyyy-MM');
-    var label = Utilities.formatDate(d, Session.getScriptTimeZone() || 'Asia/Karachi', 'MMM');
+  var startM;
+  var endM;
+  if (from || to) {
+    var fDate = from ? new Date(from + 'T12:00:00') : now;
+    var tDate = to ? new Date(to + 'T12:00:00') : now;
+    startM = new Date(fDate.getFullYear(), fDate.getMonth(), 1);
+    endM = new Date(tDate.getFullYear(), tDate.getMonth(), 1);
+  } else {
+    startM = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    endM = new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+  var cursor = new Date(startM.getFullYear(), startM.getMonth(), 1);
+  var guard = 0;
+  while (cursor.getTime() <= endM.getTime() && guard < 36) {
+    var key = Utilities.formatDate(cursor, tz, 'yyyy-MM');
+    var label = Utilities.formatDate(cursor, tz, 'MMM');
     monthMap[key] = { month: label, sales: 0, orders: 0, key: key };
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+    guard++;
   }
   orders.forEach(function (o) {
     var dk = dateKey_(o.date);
@@ -2214,7 +4057,7 @@ function getDashboardBootstrap_() {
     return { month: monthMap[k].month, sales: monthMap[k].sales, orders: monthMap[k].orders };
   });
 
-  // Needs attention: Ready + high balance
+  // Needs attention: Ready + high balance (within filtered orders)
   var attention = orders
     .filter(function (o) {
       var s = String(o.status || '').toLowerCase();
@@ -2238,13 +4081,19 @@ function getDashboardBootstrap_() {
       designingOrders: designingCount,
       printingOrders: printingCount,
       revenue: revenue,
-      expenses: 0,
+      expenses: expenseTotal,
       receivables: receivables,
       collected: collected,
-      payables: 0,
+      cashIn: cashIn,
+      cashOut: cashOut,
+      cashNet: cashNet,
+      payables: payables,
+      vendorPayables: payables,
       activeCustomers: customers.length,
       fulfillmentRate: orders.length ? Math.round((completed / orders.length) * 100) : 0,
       collectionRate: revenue > 0 ? Math.round((collected / revenue) * 100) : 0,
+      from: from || '',
+      to: to || '',
     },
     charts: {
       monthlySales: monthlySales,
@@ -2257,13 +4106,13 @@ function getDashboardBootstrap_() {
   };
 }
 
-function getDashboardStats_() {
-  var boot = getDashboardBootstrap_();
+function getDashboardStats_(params) {
+  var boot = getDashboardBootstrap_(params);
   return boot.stats;
 }
 
-function getDashboardCharts_() {
-  var boot = getDashboardBootstrap_();
+function getDashboardCharts_(params) {
+  var boot = getDashboardBootstrap_(params);
   return boot.charts;
 }
 
@@ -2328,6 +4177,13 @@ function getSettings_() {
   ['invoice', 'theme', 'orders', 'customers', 'crm', 'products', 'payments', 'users', 'notifications', 'system', 'designers', 'employees'].forEach(function (sec) {
     if (typeof obj[sec] === 'string') obj[sec] = parseSettingsValue_(obj[sec]);
   });
+
+  if (!obj.theme || typeof obj.theme !== 'object') obj.theme = {};
+  var prim = String(obj.theme.primary || '').toLowerCase();
+  var sec = String(obj.theme.secondary || '').toLowerCase();
+  if (!prim || prim === '#f26522') obj.theme.primary = '#ff6d00';
+  if (!sec || sec === '#2e2e2e') obj.theme.secondary = '#0747a3';
+  if (!obj.theme.accent) obj.theme.accent = '#10B981';
 
   return obj;
 }
@@ -2435,7 +4291,290 @@ function getReports_(params) {
   return { period: (params && params.period) || 'month', summary: stats };
 }
 
-function handlePublic_(path, method) {
+function hashPortalPassword_(password, salt) {
+  var raw = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    String(salt || '') + '|' + String(password || ''),
+    Utilities.Charset.UTF_8
+  );
+  return raw.map(function (b) {
+    var v = (b < 0 ? b + 256 : b).toString(16);
+    return v.length === 1 ? '0' + v : v;
+  }).join('');
+}
+
+function issueCustomerPortalToken_(customer) {
+  var token = Utilities.base64EncodeWebSafe(JSON.stringify({
+    typ: 'customer',
+    id: String(customer.id || ''),
+    exp: Date.now() + 7 * 24 * 60 * 60 * 1000,
+  }));
+  return token;
+}
+
+function validateCustomerPortalToken_(token) {
+  if (!token) return null;
+  try {
+    var payload = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(token)).getDataAsString());
+    if (payload.typ !== 'customer') return null;
+    if (payload.exp && Date.now() > payload.exp) return null;
+    var customers = getSheetRows_(SHEET_NAMES.CUSTOMERS);
+    var match = customers.find(function (c) { return String(c.id) === String(payload.id); });
+    return match || null;
+  } catch (err) {
+    return null;
+  }
+}
+
+function sanitizePortalCustomer_(c) {
+  return {
+    id: c.id,
+    name: c.name || '',
+    phone: c.phone || '',
+    email: c.email || '',
+    address: c.address || '',
+    city: c.city || '',
+  };
+}
+
+function parseProductVariations_(raw) {
+  var list = raw;
+  if (typeof list === 'string') {
+    try { list = JSON.parse(list); } catch (eVar) { list = []; }
+  }
+  if (!Array.isArray(list)) return [];
+  return list.map(function (v, idx) {
+    v = v || {};
+    return {
+      id: String(v.id || ('var_' + (idx + 1))),
+      name: String(v.name || v.label || '').trim(),
+      price: v.price != null && v.price !== '' ? Number(v.price) : null,
+      sku: String(v.sku || '').trim(),
+    };
+  }).filter(function (v) { return !!v.name; });
+}
+
+/** Product gallery — JSON array of data-URLs / http(s) URLs (max 5). Primary image first. */
+function parseProductImages_(raw, primary) {
+  var out = [];
+  var seen = {};
+  var push = function (v) {
+    var s = sanitizeCatalogImage_(v);
+    if (!s || seen[s]) return;
+    if (out.length >= 5) return;
+    seen[s] = true;
+    out.push(s);
+  };
+  push(primary);
+  var list = raw;
+  if (typeof list === 'string') {
+    var t = String(list || '').trim();
+    if (t.charAt(0) === '[') {
+      try { list = JSON.parse(t); } catch (eImg) { list = []; }
+    } else if (t.indexOf('data:image') === 0 || /^https?:\/\//i.test(t)) {
+      list = [t];
+    } else {
+      list = [];
+    }
+  }
+  if (Array.isArray(list)) {
+    list.forEach(function (img) { push(img); });
+  }
+  return out;
+}
+
+function isShowOnWebsite_(p) {
+  if (!p) return false;
+  if (p.showonwebsite === undefined || p.showonwebsite === null || p.showonwebsite === '') {
+    // Legacy rows without the column: keep visible if Active
+    return String(p.status || 'Active').toLowerCase() !== 'inactive';
+  }
+  return isNotifyOn_(p.showonwebsite);
+}
+
+function isShowOnTop_(p) {
+  if (!p) return false;
+  if (p.showontop === undefined || p.showontop === null || p.showontop === '') return false;
+  return isNotifyOn_(p.showontop);
+}
+
+function productSalePrice_(p) {
+  var sale = Number(p.saleprice != null ? p.saleprice : (p.salePrice != null ? p.salePrice : 0));
+  return sale > 0 ? sale : 0;
+}
+
+function productEffectivePrice_(p) {
+  var regular = Number(p.rate || p.baseprice || 0);
+  var sale = productSalePrice_(p);
+  return sale > 0 ? sale : regular;
+}
+
+function toPublicProduct_(p) {
+  var api = toApiProduct_(p);
+  if (!api.active) return null;
+  if (!api.showOnWebsite) return null;
+  if (!Array.isArray(api.images) || !api.images.length) {
+    api.images = api.image ? [api.image] : [];
+  }
+  // Always expose the full gallery to the website (HD Drive URLs or stored photos)
+  if (api.image && api.images.indexOf(api.image) < 0) {
+    api.images = [api.image].concat(api.images);
+  }
+  return api;
+}
+
+function handlePublicWebsiteOrder_(body, customer) {
+  body = body || {};
+  if (!customer) throw new Error('Login required to place an order');
+  if (!body.acceptPolicy && body.policyAccepted !== true) {
+    throw new Error('Please accept the Order Processing Policy before placing the order');
+  }
+
+  var paymentMethodRaw = String(body.paymentMethod || body.payment_method || 'Cash on Delivery').trim();
+  var isCod = /cod|cash\s*on\s*delivery/i.test(paymentMethodRaw);
+  var paymentMethod = isCod ? 'Cash on Delivery' : 'Online Payment';
+  var paymentStatus = isCod ? 'Unpaid' : 'Payment Pending';
+
+  var catalog = getSheetRows_(SHEET_NAMES.PRODUCTS);
+  var linesIn = Array.isArray(body.products) ? body.products : (Array.isArray(body.items) ? body.items : []);
+  if (!linesIn.length) throw new Error('Cart is empty');
+
+  var products = [];
+  var subtotal = 0;
+  linesIn.forEach(function (line) {
+    line = line || {};
+    var pid = String(line.productId || line.id || '').trim();
+    var qty = Math.max(1, Number(line.quantity) || 1);
+    var match = pid ? catalog.find(function (p) { return String(p.id) === pid; }) : null;
+    if (!match && line.name) {
+      match = catalog.find(function (p) {
+        return String(p.name || '').trim().toLowerCase() === String(line.name).trim().toLowerCase();
+      });
+    }
+    if (!match) throw new Error('Product not found: ' + (line.name || pid || 'unknown'));
+    if (String(match.status || 'Active').toLowerCase() === 'inactive') {
+      throw new Error('Product unavailable: ' + (match.name || pid));
+    }
+    if (!isShowOnWebsite_(match)) {
+      throw new Error('Product not available on website: ' + (match.name || pid));
+    }
+    var rate = productEffectivePrice_(match);
+    var lineName = match.name;
+    var variations = parseProductVariations_(match.variations);
+    var variationId = String(line.variationId || line.variation_id || '').trim();
+    var variationName = String(line.variationName || line.variation || '').trim();
+    if (variationId || variationName) {
+      var picked = variations.find(function (v) {
+        return (variationId && String(v.id) === variationId)
+          || (variationName && String(v.name).toLowerCase() === variationName.toLowerCase());
+      });
+      if (picked) {
+        if (picked.price != null && !isNaN(picked.price)) rate = Number(picked.price);
+        lineName = match.name + ' — ' + picked.name;
+      }
+    }
+    var minQ = Number(match.minquantity || 1) || 1;
+    if (qty < minQ) qty = minQ;
+    products.push({
+      productId: match.id,
+      name: lineName,
+      quantity: qty,
+      rate: rate,
+      size: match.size || '',
+      material: match.material || '',
+      notes: line.notes || '',
+      variationId: variationId || '',
+      variationName: variationName || '',
+    });
+    subtotal += qty * rate;
+  });
+
+  var discount = Math.max(0, Number(body.discount) || 0);
+  var deliveryCharges = Math.max(0, Number(body.deliveryCharges != null ? body.deliveryCharges : body.delivery_charges) || 0);
+  if (discount > subtotal) discount = subtotal;
+  var totalAmount = Math.max(0, subtotal - discount + deliveryCharges);
+
+  var paymentHistory = [{
+    at: new Date().toISOString(),
+    status: paymentStatus,
+    method: paymentMethod,
+    amount: 0,
+    note: isCod
+      ? 'Order placed under Cash on Delivery terms'
+      : 'Online payment selected — order created; processing starts after payment confirmation',
+  }];
+
+  var orderBody = {
+    customerId: customer.id,
+    customerName: customer.name || body.customerName || '',
+    customerPhone: customer.phone || body.customerPhone || '',
+    customerEmail: customer.email || body.customerEmail || '',
+    customerAddress: body.customerAddress || customer.address || '',
+    deliveryAddress: body.deliveryAddress || body.customerAddress || customer.address || '',
+    products: products,
+    totalAmount: totalAmount,
+    advancePayment: 0,
+    balanceAmount: totalAmount,
+    discount: discount,
+    deliveryCharges: deliveryCharges,
+    paymentMethod: paymentMethod,
+    paymentStatus: paymentStatus,
+    orderSource: 'website',
+    paymentHistory: paymentHistory,
+    status: 'Order Received',
+    docType: 'Order',
+    remarks: [
+      'Website order',
+      paymentMethod,
+      'Payment: ' + paymentStatus,
+      body.notes ? String(body.notes) : '',
+    ].filter(Boolean).join(' · '),
+    trackingNumber: 'TRK-' + String(Math.floor(1000 + Math.random() * 9000)),
+    statusHistory: [{ status: 'Order Received', at: new Date().toISOString(), by: 'website' }],
+  };
+
+  var sheet = getSheet_(SHEET_NAMES.ORDERS);
+  ensureHeaders_(sheet, SHEET_NAMES.ORDERS);
+  var record = normalizeOrder_(orderBody);
+  appendObject_(sheet, SHEET_NAMES.ORDERS, record);
+  invalidateSheetCache_(SHEET_NAMES.ORDERS);
+
+  // Payment history stub in Payments sheet (amount 0 until confirmed)
+  try {
+    var paySheet = getSheet_(SHEET_NAMES.PAYMENTS);
+    ensureHeaders_(paySheet, SHEET_NAMES.PAYMENTS);
+    appendObject_(paySheet, SHEET_NAMES.PAYMENTS, {
+      id: 'pay_web_' + Date.now(),
+      date: nowDate_(),
+      type: 'inflow',
+      category: isCod ? 'COD Order' : 'Online Order',
+      refid: record.orderid,
+      customername: record.customername,
+      customerid: record.customerid,
+      partyphone: record.customerphone,
+      partyemail: record.customeremail,
+      amount: 0,
+      method: paymentMethod,
+      notes: 'Website order ' + record.orderid + ' · status ' + paymentStatus,
+      balancedue: totalAmount,
+      totalamount: totalAmount,
+    });
+    invalidateSheetCache_(SHEET_NAMES.PAYMENTS);
+  } catch (payErr) { /* non-blocking */ }
+
+  var api = toApiOrder_(record);
+  api.subtotal = subtotal;
+  return api;
+}
+
+function handlePublic_(path, method, body) {
+  body = body || {};
+  var authHeader = '';
+  try {
+    // token may arrive as body.token for public customer calls
+    authHeader = String(body.token || body.customerToken || '').trim();
+  } catch (eTok) { authHeader = ''; }
+
   if (method === 'GET' && path === '/public/branding') {
     var settings = getSettings_();
     var company = settings.company || {};
@@ -2455,6 +4594,150 @@ function handlePublic_(path, method) {
       companySignature: company.signature || '',
     };
   }
+
+  if (method === 'GET' && path === '/public/products') {
+    ensureHeaders_(getSheet_(SHEET_NAMES.PRODUCTS), SHEET_NAMES.PRODUCTS);
+    var products = getSheetRows_(SHEET_NAMES.PRODUCTS)
+      .map(toPublicProduct_)
+      .filter(function (p) { return !!p; });
+    products.sort(function (a, b) {
+      var at = a.showOnTop ? 1 : 0;
+      var bt = b.showOnTop ? 1 : 0;
+      if (bt !== at) return bt - at;
+      return String(a.name || '').localeCompare(String(b.name || ''));
+    });
+    return { products: products };
+  }
+
+  if (method === 'GET' && path.indexOf('/public/products/') === 0) {
+    var productId = decodeURIComponent(path.replace('/public/products/', '')).trim();
+    var productRows = getSheetRows_(SHEET_NAMES.PRODUCTS);
+    var productRow = productRows.find(function (p) { return String(p.id) === productId; });
+    if (!productRow) throw new Error('Product not found');
+    var pub = toPublicProduct_(productRow);
+    if (!pub) throw new Error('Product not available');
+    return pub;
+  }
+
+  if (method === 'POST' && path === '/public/lead') {
+    var lead = upsertCustomer_({
+      name: body.name,
+      phone: body.phone,
+      email: body.email,
+      address: body.address || '',
+      notes: [body.product || body.service || '', body.quantity || '', body.details || body.message || '']
+        .filter(Boolean).join(' | '),
+      inCrm: true,
+      stage: 'lead',
+      source: body.source || 'website',
+    });
+    try {
+      addCrmNote_(lead.id, {
+        note: 'Website lead: ' + (body.details || body.message || body.product || 'Inquiry'),
+        createdBy: 'website',
+      });
+    } catch (noteErr) { /* ignore */ }
+    return { ok: true, customerId: lead.id, stage: lead.stage || 'lead' };
+  }
+
+  if (method === 'POST' && path === '/public/customer/register') {
+    var regName = String(body.name || '').trim();
+    var regPhone = String(body.phone || '').trim();
+    var regEmail = String(body.email || '').trim().toLowerCase();
+    var regPass = String(body.password || '');
+    if (!regName || !regPhone) throw new Error('Name and phone are required');
+    if (!isValidEmail_(regEmail)) throw new Error('Valid email is required');
+    if (regPass.length < 6) throw new Error('Password must be at least 6 characters');
+
+    var sheetC = getSheet_(SHEET_NAMES.CUSTOMERS);
+    ensureHeaders_(sheetC, SHEET_NAMES.CUSTOMERS);
+    var existingPhone = findCustomerByPhone_(regPhone);
+    var existingEmail = getSheetRows_(SHEET_NAMES.CUSTOMERS).find(function (c) {
+      return String(c.email || '').trim().toLowerCase() === regEmail;
+    });
+    if (existingEmail && existingEmail.portalpassword) {
+      throw new Error('An account with this email already exists — please login');
+    }
+    var salt = Utilities.getUuid();
+    var hash = hashPortalPassword_(regPass, salt);
+    var portalPass = salt + ':' + hash;
+    var customer;
+    if (existingPhone) {
+      updateObjectProps_(sheetC, SHEET_NAMES.CUSTOMERS, existingPhone._row, {
+        name: regName || existingPhone.name,
+        email: regEmail || existingPhone.email,
+        address: body.address || existingPhone.address || '',
+        portalpassword: portalPass,
+        notifyemail: true,
+        notifywhatsapp: true,
+      });
+      invalidateSheetCache_(SHEET_NAMES.CUSTOMERS);
+      customer = Object.assign({}, existingPhone, {
+        name: regName || existingPhone.name,
+        email: regEmail || existingPhone.email,
+        address: body.address || existingPhone.address || '',
+        portalpassword: portalPass,
+      });
+    } else {
+      customer = {
+        id: 'cust_' + Date.now(),
+        name: regName,
+        phone: regPhone,
+        email: regEmail,
+        address: body.address || '',
+        city: body.city || '',
+        notes: 'Website portal account',
+        incrm: false,
+        stage: '',
+        notifywhatsapp: true,
+        notifyemail: true,
+        portalpassword: portalPass,
+      };
+      appendObject_(sheetC, SHEET_NAMES.CUSTOMERS, customer);
+      invalidateSheetCache_(SHEET_NAMES.CUSTOMERS);
+    }
+    var tokenReg = issueCustomerPortalToken_(customer);
+    return { ok: true, token: tokenReg, customer: sanitizePortalCustomer_(customer) };
+  }
+
+  if (method === 'POST' && path === '/public/customer/login') {
+    var loginId = String(body.email || body.phone || body.username || '').trim().toLowerCase();
+    var loginPass = String(body.password || '');
+    if (!loginId || !loginPass) throw new Error('Email/phone and password are required');
+    var custRows = getSheetRows_(SHEET_NAMES.CUSTOMERS);
+    var loginCust = custRows.find(function (c) {
+      var email = String(c.email || '').trim().toLowerCase();
+      var phone = String(c.phone || '').replace(/\D/g, '');
+      var needlePhone = loginId.replace(/\D/g, '');
+      return (email && email === loginId)
+        || (phone && needlePhone && (phone === needlePhone || phone.slice(-10) === needlePhone.slice(-10)));
+    });
+    if (!loginCust || !loginCust.portalpassword) throw new Error('Invalid login or account not registered online');
+    var parts = String(loginCust.portalpassword).split(':');
+    if (parts.length !== 2) throw new Error('Invalid login — reset password via shop staff');
+    if (hashPortalPassword_(loginPass, parts[0]) !== parts[1]) throw new Error('Invalid email/phone or password');
+    return {
+      ok: true,
+      token: issueCustomerPortalToken_(loginCust),
+      customer: sanitizePortalCustomer_(loginCust),
+    };
+  }
+
+  if ((method === 'GET' || method === 'POST') && path === '/public/customer/me') {
+    var meTok = authHeader || String(body.token || '').trim();
+    var me = validateCustomerPortalToken_(meTok);
+    if (!me) throw new Error('Unauthorized');
+    return { ok: true, customer: sanitizePortalCustomer_(me) };
+  }
+
+  if (method === 'POST' && (path === '/public/orders' || path === '/public/checkout')) {
+    var orderTok = authHeader || String(body.token || body.customerToken || '').trim();
+    var orderCust = validateCustomerPortalToken_(orderTok);
+    if (!orderCust) throw new Error('Login required to place an order');
+    var createdOrder = handlePublicWebsiteOrder_(body, orderCust);
+    return { ok: true, order: createdOrder };
+  }
+
   if (method === 'GET' && path.indexOf('/public/invoice/') === 0) {
     var token = path.replace('/public/invoice/', '');
     var invoices = getSheetRows_(SHEET_NAMES.INVOICES);
@@ -2476,7 +4759,51 @@ function handlePublic_(path, method) {
     if (!order) throw new Error('Order not found for: ' + tracking);
     return toPublicTrackOrder_(order);
   }
+  if (method === 'GET' && path.indexOf('/public/employee/') === 0) {
+    var empCode = decodeURIComponent(path.replace('/public/employee/', '')).trim();
+    return toPublicEmployeeVerify_(empCode);
+  }
   throw new Error('Not found');
+}
+
+/** Public employee / experience-letter verification (no sensitive fields). */
+function toPublicEmployeeVerify_(code) {
+  var needle = String(code || '').trim().toLowerCase();
+  if (!needle) throw new Error('Employee code required');
+  getOrCreateSheet_(SHEET_NAMES.EMPLOYEES);
+  var rows = getSheetRows_(SHEET_NAMES.EMPLOYEES);
+  var row = rows.find(function (e) {
+    var keys = [e.id, e.employeecode]
+      .map(function (v) { return String(v || '').trim().toLowerCase(); })
+      .filter(Boolean);
+    return keys.indexOf(needle) !== -1;
+  });
+  if (!row) throw new Error('Employee not found');
+  var api = toApiEmployee_(row);
+  var status = String(api.status || 'Active');
+  var active = status.toLowerCase() === 'active';
+  var validUntil = api.validUntil || '';
+  var expired = false;
+  if (validUntil) {
+    try {
+      expired = new Date(validUntil).getTime() < Date.now();
+    } catch (e) { /* ignore */ }
+  }
+  return {
+    verified: true,
+    employeeCode: api.employeeCode || api.id || '',
+    name: api.name || '',
+    designation: api.designation || api.role || '',
+    department: api.department || '',
+    joinDate: api.joinDate || '',
+    endDate: api.endDate || '',
+    validFrom: api.validFrom || '',
+    validUntil: validUntil,
+    status: status,
+    active: active && !expired,
+    expired: expired,
+    companyNote: 'Verified employment record — Amazon Printing / AMZ Prints.',
+  };
 }
 
 /** Customer-safe tracking payload (no login). */
@@ -2518,8 +4845,203 @@ function toPublicTrackOrder_(o) {
   };
 }
 
+/**
+ * Product photos: HD files go to Drive (public view URLs) so the website can
+ * show multiple sharp images. Sheets only stores short URLs (or a tiny fallback).
+ */
+var MAX_SHEET_IMAGE_CHARS_ = 49000;
+var PRODUCT_PHOTOS_FOLDER_ = 'AMZ ERP Product Photos';
+
+function getOrCreateProductPhotosFolder_() {
+  var it = DriveApp.getFoldersByName(PRODUCT_PHOTOS_FOLDER_);
+  if (it.hasNext()) return it.next();
+  return DriveApp.createFolder(PRODUCT_PHOTOS_FOLDER_);
+}
+
+function drivePublicImageUrl_(fileId) {
+  return 'https://lh3.googleusercontent.com/d/' + fileId + '=s0';
+}
+
+/** Run once in Apps Script to grant Drive access, then deploy a New version. */
+function authorizeDriveAccess() {
+  var folder = getOrCreateProductPhotosFolder_();
+  return {
+    ok: true,
+    message: 'Drive authorized. Product photos save as HD files and the website can show the full gallery.',
+    folder: folder.getName(),
+    driveRequired: true,
+  };
+}
+
+/** Normalize / persist a catalog image. Prefers Drive HD URL; falls back to Sheets cell. */
+function saveImageToSheetCell_(dataUrl, fileId) {
+  var raw = String(dataUrl || '').trim();
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (raw.indexOf('data:image') === 0) {
+    if (raw.length > MAX_SHEET_IMAGE_CHARS_) {
+      throw new Error(
+        'Photo too large for Sheets fallback (' + raw.length + ' chars). Authorize Drive (run authorizeDriveAccess) and deploy a New version.'
+      );
+    }
+    return raw;
+  }
+  if (raw.length > 2000) {
+    throw new Error('Invalid image data. Choose a photo again.');
+  }
+  return raw;
+}
+
+function saveDataUrlImageToDrive_(dataUrl, fileId, folderName) {
+  return saveProductImageToDrive_(dataUrl, fileId);
+}
+
+function saveProductImageToDrive_(dataUrl, productId) {
+  var raw = String(dataUrl || '').trim();
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (raw.indexOf('data:image') !== 0) return saveImageToSheetCell_(raw, productId);
+
+  try {
+    var comma = raw.indexOf(',');
+    if (comma < 0) throw new Error('Invalid data URL');
+    var meta = raw.substring(0, comma);
+    var b64 = raw.substring(comma + 1);
+    var mime = 'image/jpeg';
+    var mm = meta.match(/data:([^;]+)/);
+    if (mm && mm[1]) mime = mm[1];
+    var ext = 'jpg';
+    if (mime.indexOf('png') !== -1) ext = 'png';
+    else if (mime.indexOf('webp') !== -1) ext = 'webp';
+    else if (mime.indexOf('gif') !== -1) ext = 'gif';
+    var bytes = Utilities.base64Decode(b64);
+    var blob = Utilities.newBlob(bytes, mime, String(productId || 'product') + '_' + Date.now() + '.' + ext);
+    var folder = getOrCreateProductPhotosFolder_();
+    var file = folder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    return drivePublicImageUrl_(file.getId());
+  } catch (driveErr) {
+    Logger.log('Drive photo save failed: ' + driveErr);
+    if (raw.length <= MAX_SHEET_IMAGE_CHARS_) return raw;
+    throw new Error(
+      'Could not save HD photo. In Apps Script run authorizeDriveAccess once, then Deploy → New version. ('
+      + String(driveErr.message || driveErr) + ')'
+    );
+  }
+}
+
+function saveEmployeePhotoToDrive_(dataUrl, employeeId) {
+  return saveImageToSheetCell_(dataUrl, employeeId);
+}
+
+function toApiEmployee_(e) {
+  var photo = e.photo || e.image || '';
+  return {
+    id: e.id,
+    employeeCode: e.employeecode || '',
+    name: e.name || '',
+    phone: e.phone || '',
+    email: e.email || '',
+    cnic: e.cnic || '',
+    role: e.role || 'Staff',
+    designation: e.designation || '',
+    department: e.department || 'General',
+    joinDate: e.joindate || '',
+    endDate: e.enddate || '',
+    validFrom: e.validfrom || '',
+    validUntil: e.validuntil || '',
+    salary: Number(e.salary || 0),
+    status: e.status || 'Active',
+    address: e.address || '',
+    city: e.city || '',
+    emergencyContact: e.emergencycontact || '',
+    emergencyPhone: e.emergencyphone || '',
+    notes: e.notes || '',
+    photo: photo,
+    image: photo,
+  };
+}
+
+function normalizeEmployee_(body, existing) {
+  existing = existing || {};
+  var id = body.id || existing.id || ('emp_' + Date.now());
+  var incomingPhoto = body.photo != null ? body.photo : (body.image != null ? body.image : null);
+  var photoVal = incomingPhoto != null
+    ? saveEmployeePhotoToDrive_(incomingPhoto, id)
+    : (existing.photo || existing.image || '');
+  return {
+    id: id,
+    employeecode: body.employeeCode != null ? body.employeeCode : (body.employeecode != null ? body.employeecode : (existing.employeecode || '')),
+    name: body.name || existing.name || '',
+    phone: body.phone != null ? body.phone : (existing.phone || ''),
+    email: body.email != null ? body.email : (existing.email || ''),
+    cnic: body.cnic != null ? body.cnic : (existing.cnic || ''),
+    role: body.role || existing.role || 'Staff',
+    designation: body.designation != null ? body.designation : (existing.designation || ''),
+    department: body.department || existing.department || 'General',
+    joindate: body.joinDate != null ? body.joinDate : (body.joindate != null ? body.joindate : (existing.joindate || '')),
+    enddate: body.endDate != null ? body.endDate : (body.enddate != null ? body.enddate : (existing.enddate || '')),
+    validfrom: body.validFrom != null ? body.validFrom : (body.validfrom != null ? body.validfrom : (existing.validfrom || '')),
+    validuntil: body.validUntil != null ? body.validUntil : (body.validuntil != null ? body.validuntil : (existing.validuntil || '')),
+    salary: Number(body.salary != null ? body.salary : (existing.salary || 0)),
+    status: body.status || existing.status || 'Active',
+    address: body.address != null ? body.address : (existing.address || ''),
+    city: body.city != null ? body.city : (existing.city || ''),
+    emergencycontact: body.emergencyContact != null ? body.emergencyContact : (existing.emergencycontact || ''),
+    emergencyphone: body.emergencyPhone != null ? body.emergencyPhone : (existing.emergencyphone || ''),
+    notes: body.notes != null ? body.notes : (existing.notes || ''),
+    photo: photoVal,
+  };
+}
+
+function handleEmployees_(path, method, body) {
+  var sheet = getOrCreateSheet_(SHEET_NAMES.EMPLOYEES);
+  ensureHeaders_(sheet, SHEET_NAMES.EMPLOYEES);
+  var rows = getSheetRows_(SHEET_NAMES.EMPLOYEES);
+
+  if (path === '/employees') {
+    if (method === 'GET') return rows.map(toApiEmployee_);
+    if (method === 'POST') {
+      var created = normalizeEmployee_(body);
+      appendObject_(sheet, SHEET_NAMES.EMPLOYEES, created);
+      return toApiEmployee_(created);
+    }
+  }
+
+  var id = path.split('/')[2];
+  var index = findById_(rows, id);
+  if (index < 0) throw new Error('Employee not found');
+
+  if (method === 'GET') return toApiEmployee_(rows[index]);
+  if (method === 'PUT') {
+    var updated = normalizeEmployee_(body, rows[index]);
+    updated.id = rows[index].id;
+    updateObjectProps_(sheet, SHEET_NAMES.EMPLOYEES, rows[index]._row, updated);
+    return toApiEmployee_(updated);
+  }
+  if (method === 'DELETE') {
+    deleteRow_(sheet, rows[index]._row, SHEET_NAMES.EMPLOYEES);
+    return { success: true };
+  }
+  throw new Error('Method not allowed');
+}
+
+function sanitizeCatalogImage_(img) {
+  var s = String(img || '').trim();
+  if (!s) return '';
+  if (/^https?:\/\//i.test(s)) return s;
+  if (s.indexOf('data:image') === 0) {
+    return s.length <= MAX_SHEET_IMAGE_CHARS_ ? s : '';
+  }
+  return s.length <= 2000 ? s : '';
+}
+
 function toApiProduct_(p) {
   var rate = Number(p.rate || p.baseprice || 0);
+  var salePrice = productSalePrice_(p);
+  var images = parseProductImages_(p.images || p.gallery, p.image || p.photo || '');
+  var img = images.length ? images[0] : '';
+  var variations = parseProductVariations_(p.variations);
   return {
     id: p.id,
     name: p.name,
@@ -2527,48 +5049,107 @@ function toApiProduct_(p) {
     productType: p.producttype || (String(p.category || '').toLowerCase().indexOf('service') >= 0 ? 'Service' : 'Product'),
     basePrice: rate,
     rate: rate,
+    salePrice: salePrice,
+    effectivePrice: salePrice > 0 ? salePrice : rate,
     unit: p.unit || 'per piece',
     description: p.description || '',
+    fullDescription: p.fulldescription || p.fullDescription || '',
     material: p.material || '',
     size: p.size || '',
     minQuantity: Number(p.minquantity || 1),
     stock: Number(p.stock || 0),
     designer: p.designer || '',
+    image: img,
+    photo: img,
+    images: images,
     active: String(p.status || 'Active').toLowerCase() !== 'inactive',
     status: p.status || 'Active',
+    showOnWebsite: isShowOnWebsite_(p),
+    showOnTop: isShowOnTop_(p),
+    variations: variations,
   };
 }
 
 function normalizeProduct_(body, existing) {
   existing = existing || {};
   var rate = body.basePrice != null ? body.basePrice : (body.rate != null ? body.rate : (existing.rate || 0));
+  var saleRaw = body.salePrice != null ? body.salePrice
+    : (body.saleprice != null ? body.saleprice : (existing.saleprice != null ? existing.saleprice : 0));
+  var salePrice = Number(saleRaw) > 0 ? Number(saleRaw) : 0;
+  var ptype = body.productType || body.producttype || existing.producttype || 'Product';
+  var isService = String(ptype).toLowerCase() === 'service';
+  var id = body.id || existing.id || ('product_' + Date.now());
+  var incomingImages = body.images != null ? body.images
+    : (body.gallery != null ? body.gallery : null);
+  var imageList = [];
+  if (incomingImages != null) {
+    imageList = parseProductImages_(incomingImages, body.image || body.photo || '');
+  } else {
+    var incomingImage = body.image != null ? body.image : (body.photo != null ? body.photo : null);
+    if (incomingImage != null) {
+      imageList = parseProductImages_(existing.images || existing.gallery, incomingImage);
+    } else {
+      imageList = parseProductImages_(existing.images || existing.gallery, existing.image || existing.photo || '');
+    }
+  }
+  // Persist each data-URL through size check
+  imageList = imageList.map(function (img) {
+    return saveProductImageToDrive_(img, id);
+  }).filter(function (s) { return !!s; });
+  if (imageList.length > 5) imageList = imageList.slice(0, 5);
+  var imageVal = imageList.length ? imageList[0] : '';
+  // Primary photo → Image column (full quality). Gallery extras → Images JSON only.
+  var galleryExtras = imageList.length > 1 ? imageList.slice(1) : [];
+  var variationsRaw = body.variations != null ? body.variations : existing.variations;
+  var variations = parseProductVariations_(variationsRaw);
+  var showWeb = true;
+  if (body.showOnWebsite != null) showWeb = isNotifyOn_(body.showOnWebsite);
+  else if (body.showonwebsite != null) showWeb = isNotifyOn_(body.showonwebsite);
+  else if (existing.showonwebsite != null && existing.showonwebsite !== '') showWeb = isNotifyOn_(existing.showonwebsite);
+  var showTop = false;
+  if (body.showOnTop != null) showTop = isNotifyOn_(body.showOnTop);
+  else if (body.showontop != null) showTop = isNotifyOn_(body.showontop);
+  else if (existing.showontop != null && existing.showontop !== '') showTop = isNotifyOn_(existing.showontop);
   return {
-    id: body.id || existing.id || ('product_' + Date.now()),
+    id: id,
     name: body.name || existing.name || '',
-    category: body.category || existing.category || '',
-    producttype: body.productType || body.producttype || existing.producttype || 'Product',
+    category: isService ? (body.category || existing.category || 'Services') : (body.category || existing.category || ''),
+    producttype: ptype,
     rate: Number(rate || 0),
-    unit: body.unit || existing.unit || 'per piece',
-    description: body.description || existing.description || '',
-    material: body.material || existing.material || '',
-    size: body.size || existing.size || '',
-    minquantity: Number(body.minQuantity != null ? body.minQuantity : (existing.minquantity || 1)),
+    saleprice: salePrice,
+    unit: isService ? 'service' : (body.unit || existing.unit || 'per piece'),
+    description: body.description != null ? body.description : (existing.description || ''),
+    fulldescription: body.fullDescription != null ? body.fullDescription
+      : (body.fulldescription != null ? body.fulldescription : (existing.fulldescription || '')),
+    material: isService ? '' : (body.material || existing.material || ''),
+    size: isService ? '' : (body.size || existing.size || ''),
+    minquantity: isService ? 1 : Number(body.minQuantity != null ? body.minQuantity : (existing.minquantity || 1)),
     stock: Number(body.stock != null ? body.stock : (existing.stock || 0)),
-    designer: body.designer || existing.designer || '',
+    designer: isService ? '' : (body.designer || existing.designer || ''),
+    image: imageVal,
+    images: galleryExtras,
     status: body.active === false ? 'Inactive' : (body.status || existing.status || 'Active'),
+    showonwebsite: showWeb,
+    showontop: showTop,
+    variations: variations,
   };
 }
 
 function handleProducts_(path, method, body) {
   var sheet = getSheet_(SHEET_NAMES.PRODUCTS);
+  ensureHeaders_(sheet, SHEET_NAMES.PRODUCTS);
   var rows = getSheetRows_(SHEET_NAMES.PRODUCTS);
 
   if (path === '/products') {
     if (method === 'GET') return rows.map(toApiProduct_);
     if (method === 'POST') {
-      var created = normalizeProduct_(body);
+      var created = normalizeProduct_(body || {});
       appendObject_(sheet, SHEET_NAMES.PRODUCTS, created);
-      return toApiProduct_(created);
+      var apiCreated = toApiProduct_(created);
+      if ((body && (body.image || body.photo)) && !apiCreated.image) {
+        throw new Error('Photo was not stored. Use a clearer photo (under Sheets cell limit).');
+      }
+      return apiCreated;
     }
   }
 
@@ -2578,13 +5159,142 @@ function handleProducts_(path, method, body) {
 
   if (method === 'GET') return toApiProduct_(rows[index]);
   if (method === 'PUT') {
-    var updated = normalizeProduct_(body, rows[index]);
+    var updated = normalizeProduct_(body || {}, rows[index]);
     updated.id = rows[index].id;
     updateObjectProps_(sheet, SHEET_NAMES.PRODUCTS, rows[index]._row, updated);
-    return toApiProduct_(updated);
+    var apiUpdated = toApiProduct_(updated);
+    if ((body && (body.image || body.photo)) && !apiUpdated.image) {
+      throw new Error('Photo was not stored. Use a clearer photo (under Sheets cell limit).');
+    }
+    return apiUpdated;
   }
   if (method === 'DELETE') {
     deleteRow_(sheet, rows[index]._row, SHEET_NAMES.PRODUCTS);
+    return { success: true };
+  }
+  throw new Error('Method not allowed');
+}
+
+/* ===================== EXPENSES ===================== */
+
+/** Legacy blank Approved = already on the books. Explicit false/pending/rejected = not approved. */
+function isExpenseApproved_(ex) {
+  if (!ex) return false;
+  var v = ex.approved;
+  if (v === false || v === 0) return false;
+  var s = String(v == null ? '' : v).trim().toLowerCase();
+  if (s === 'false' || s === '0' || s === 'no' || s === 'pending' || s === 'rejected') return false;
+  return true;
+}
+
+function userLabel_(user) {
+  if (!user) return '';
+  return String(user.name || user.username || user.email || '').trim();
+}
+
+function normalizeExpense_(body, existing) {
+  existing = existing || {};
+  body = body || {};
+  return {
+    id: body.id || existing.id || ('expense_' + Date.now()),
+    date: body.date || existing.date || nowDate_(),
+    category: body.category || existing.category || 'Other',
+    amount: Number(body.amount != null ? body.amount : (existing.amount || 0)),
+    description: body.description != null ? body.description : (existing.description || ''),
+    paymentmethod: body.paymentMethod || body.paymentmethod || existing.paymentmethod || 'Cash',
+    paidto: body.paidTo != null ? body.paidTo : (body.paidto != null ? body.paidto : (existing.paidto || '')),
+    notes: body.notes != null ? body.notes : (existing.notes || ''),
+    approved: existing.approved,
+    approvedby: existing.approvedby || '',
+    approvedat: existing.approvedat || '',
+  };
+}
+
+function toApiExpense_(ex) {
+  ex = ex || {};
+  var approved = isExpenseApproved_(ex);
+  return {
+    id: ex.id,
+    date: ex.date || '',
+    category: ex.category || '',
+    amount: Number(ex.amount || 0),
+    description: ex.description || '',
+    paymentMethod: ex.paymentmethod || '',
+    paidTo: ex.paidto || '',
+    notes: ex.notes || '',
+    approved: approved,
+    approvedBy: ex.approvedby || '',
+    approvedAt: ex.approvedat || '',
+    status: approved ? 'Approved' : 'Pending',
+  };
+}
+
+function handleExpenses_(path, method, body, user) {
+  var sheet = getSheet_(SHEET_NAMES.EXPENSES);
+  ensureHeaders_(sheet, SHEET_NAMES.EXPENSES);
+  var rows = getSheetRows_(SHEET_NAMES.EXPENSES);
+  body = body || {};
+
+  if (path === '/expenses') {
+    if (method === 'GET') return rows.map(toApiExpense_);
+    if (method === 'POST') {
+      var created = normalizeExpense_(body, {});
+      if (isAdminRole_(user)) {
+        created.approved = true;
+        created.approvedby = userLabel_(user) || 'admin';
+        created.approvedat = nowDate_() + ' ' + nowTime_();
+      } else {
+        created.approved = false;
+        created.approvedby = '';
+        created.approvedat = '';
+      }
+      appendObject_(sheet, SHEET_NAMES.EXPENSES, created);
+      return toApiExpense_(created);
+    }
+    throw new Error('Method not allowed');
+  }
+
+  var parts = String(path || '').split('/');
+  var id = parts[2];
+  var action = String(parts[3] || '').toLowerCase();
+  var index = findById_(rows, id);
+  if (index < 0) throw new Error('Expense not found');
+
+  if (action === 'approve' && method === 'POST') {
+    if (!isAdminRole_(user)) throw new Error('Only Admin with Settings access can approve expenses');
+    var next = Object.assign({}, rows[index]);
+    var reject = body.approved === false || String(body.action || '').toLowerCase() === 'reject';
+    if (reject) {
+      next.approved = false;
+      next.approvedby = userLabel_(user) || 'admin';
+      next.approvedat = nowDate_() + ' ' + nowTime_();
+    } else {
+      next.approved = true;
+      next.approvedby = userLabel_(user) || 'admin';
+      next.approvedat = nowDate_() + ' ' + nowTime_();
+    }
+    updateObjectProps_(sheet, SHEET_NAMES.EXPENSES, rows[index]._row, next);
+    return toApiExpense_(next);
+  }
+
+  if (method === 'GET') return toApiExpense_(rows[index]);
+  if (method === 'PUT') {
+    if (!isAdminRole_(user) && isExpenseApproved_(rows[index])) {
+      throw new Error('Approved expenses can only be edited by Admin');
+    }
+    var updated = normalizeExpense_(body, rows[index]);
+    updated.id = rows[index].id;
+    updated.approved = rows[index].approved;
+    updated.approvedby = rows[index].approvedby;
+    updated.approvedat = rows[index].approvedat;
+    updateObjectProps_(sheet, SHEET_NAMES.EXPENSES, rows[index]._row, updated);
+    return toApiExpense_(updated);
+  }
+  if (method === 'DELETE') {
+    if (!isAdminRole_(user) && isExpenseApproved_(rows[index])) {
+      throw new Error('Approved expenses can only be deleted by Admin');
+    }
+    deleteRow_(sheet, rows[index]._row, SHEET_NAMES.EXPENSES);
     return { success: true };
   }
   throw new Error('Method not allowed');
@@ -2615,9 +5325,15 @@ function handleRequest_(e) {
     if (method === 'GET' && path === '/auth/me') return jsonResponse_(sanitizeUser_(user));
     if (method === 'POST' && path === '/auth/logout') return jsonResponse_({ success: true });
 
-    if (method === 'GET' && path === '/dashboard/bootstrap') return jsonResponse_(getDashboardBootstrap_());
-    if (method === 'GET' && path === '/dashboard/stats') return jsonResponse_(getDashboardStats_());
-    if (method === 'GET' && path === '/dashboard/charts') return jsonResponse_(getDashboardCharts_());
+    if (method === 'GET' && path === '/dashboard/bootstrap') {
+      return jsonResponse_(getDashboardBootstrap_(e.parameter || {}));
+    }
+    if (method === 'GET' && path === '/dashboard/stats') {
+      return jsonResponse_(getDashboardStats_(e.parameter || {}));
+    }
+    if (method === 'GET' && path === '/dashboard/charts') {
+      return jsonResponse_(getDashboardCharts_(e.parameter || {}));
+    }
     if (method === 'GET' && path === '/dashboard/recent-orders') return jsonResponse_(getRecentOrders_());
 
     // Token booking page: one round-trip instead of counters + products
@@ -2650,12 +5366,11 @@ function handleRequest_(e) {
     }
 
     if (path === '/customers' || path.indexOf('/customers/') === 0) {
-      return jsonResponse_(handleCustomers_(path, method, body));
+      return jsonResponse_(handleCustomers_(path, method, body, user));
     }
 
     if (path === '/employees' || path.indexOf('/employees/') === 0) {
-      getOrCreateSheet_(SHEET_NAMES.EMPLOYEES);
-      return jsonResponse_(handleCollection_(SHEET_NAMES.EMPLOYEES, path, method, body, '/employees'));
+      return jsonResponse_(handleEmployees_(path, method, body));
     }
 
     if (path === '/products' || path.indexOf('/products/') === 0) {
@@ -2669,34 +5384,34 @@ function handleRequest_(e) {
       return jsonResponse_(handleCollection_(SHEET_NAMES.VENDORS, path, method, body, '/vendors'));
     }
     if (path === '/purchases' || path.indexOf('/purchases/') === 0) {
-      return jsonResponse_(handleCollection_(SHEET_NAMES.PURCHASES, path, method, body, '/purchases'));
+      return jsonResponse_(handlePurchases_(path, method, body));
     }
     if (path === '/expenses' || path.indexOf('/expenses/') === 0) {
-      return jsonResponse_(handleCollection_(SHEET_NAMES.EXPENSES, path, method, body, '/expenses'));
+      return jsonResponse_(handleExpenses_(path, method, body, user));
     }
     if (path === '/payments' || path.indexOf('/payments/') === 0) {
       return jsonResponse_(handleCollection_(SHEET_NAMES.PAYMENTS, path, method, body, '/payments'));
     }
 
     if (path === '/designers' && method === 'GET') {
-      var users = getSheetRows_(SHEET_NAMES.USERS);
-      var designers = users.filter(function (u) {
-        var role = String(u.role || '');
-        var status = String(u.status || 'Active').toLowerCase();
+      // Designer selection comes from HR Employees (role Designer), not a separate module
+      getOrCreateSheet_(SHEET_NAMES.EMPLOYEES);
+      var empRows = getSheetRows_(SHEET_NAMES.EMPLOYEES);
+      var designers = empRows.filter(function (e) {
+        var role = String(e.role || '').toLowerCase();
+        var status = String(e.status || 'Active').toLowerCase();
         if (status === 'inactive') return false;
-        return role.toLowerCase().indexOf('designer') !== -1;
+        return role.indexOf('designer') !== -1;
       });
-      if (!designers.length) {
-        designers = users.filter(function (u) {
-          return String(u.status || 'Active').toLowerCase() !== 'inactive';
-        });
-      }
-      return jsonResponse_(designers.map(function (u) {
+      return jsonResponse_(designers.map(function (e) {
+        var api = toApiEmployee_(e);
         return {
-          id: u.id || u.username || '',
-          name: u.name || u.username || '',
-          email: u.email || '',
-          role: u.role || '',
+          id: api.id || '',
+          name: api.name || '',
+          email: api.email || '',
+          phone: api.phone || '',
+          role: api.role || 'Designer',
+          photo: api.photo || '',
         };
       }));
     }
@@ -2779,8 +5494,26 @@ function prepareDatabase() {
   });
   ensureDefaultCounters_();
   var adminCreds = resetAdminLogin_();
+  var quotesCleared = 0;
+  try {
+    var orderSheet = getSheet_(SHEET_NAMES.ORDERS);
+    ensureHeaders_(orderSheet, SHEET_NAMES.ORDERS);
+    var orderRows = getSheetRows_(SHEET_NAMES.ORDERS);
+    orderRows.forEach(function (o) {
+      if (!isQuotation_(o)) return;
+      if (Number(o.balanceamount || 0) === 0 && Number(o.advancepayment || 0) === 0) return;
+      updateObjectProps_(orderSheet, SHEET_NAMES.ORDERS, o._row, {
+        balanceamount: 0,
+        advancepayment: 0,
+      });
+      quotesCleared += 1;
+    });
+    if (quotesCleared) invalidateSheetCache_(SHEET_NAMES.ORDERS);
+  } catch (qErr) {
+    Logger.log('Quote balance clear: ' + qErr);
+  }
   Logger.log(JSON.stringify(report, null, 2));
-  return { sheets: report, admin: adminCreds };
+  return { sheets: report, admin: adminCreds, quotationsReceivableCleared: quotesCleared };
 }
 
 function getSchema_() {

@@ -34,6 +34,52 @@ export const calculateOrderTotal = (products = []) => {
   }, 0);
 };
 
+/** Always a string array — never crash .join() if the API sent a JSON string. */
+export const invoiceOrderIds = (invoice) => {
+  if (!invoice) return [];
+  const ids = [];
+  const push = (v) => {
+    const s = String(v || '').trim();
+    if (s && !ids.includes(s)) ids.push(s);
+  };
+  let extra = invoice.orderIds ?? invoice.orderids;
+  if (typeof extra === 'string') {
+    const t = extra.trim();
+    if (!t) extra = [];
+    else if (t.startsWith('[')) {
+      try { extra = JSON.parse(t); } catch { extra = t.split(/[,|]/); }
+    } else extra = t.split(/[,|]/);
+  }
+  if (Array.isArray(extra)) extra.forEach(push);
+  push(invoice.orderId || invoice.orderid);
+  return ids;
+};
+
+export const invoiceLineItems = (invoice) => {
+  let items = invoice?.items;
+  if (typeof items === 'string') {
+    try { items = JSON.parse(items); } catch { items = []; }
+  }
+  return Array.isArray(items) ? items.filter(Boolean) : [];
+};
+
+export const invoiceBalanceDue = (invoice) =>
+  Math.max(
+    0,
+    Number(invoice?.totalAmount ?? invoice?.total ?? 0)
+      + Number(invoice?.previousBalance ?? invoice?.previousbalance ?? 0)
+      - Number(invoice?.paidAmount ?? invoice?.paid ?? 0)
+  );
+
+/** 2 = unpaid, 1 = partial due, 0 = paid / cancelled — used to pin pending invoices on top. */
+export function invoicePendingScore(invoice) {
+  const st = String(invoice?.status || '').toLowerCase();
+  if (st === 'paid' || st === 'cancelled' || st === 'canceled' || st === 'void') return 0;
+  if (!(invoiceBalanceDue(invoice) > 0.009)) return 0;
+  const paid = Number(invoice?.paidAmount ?? invoice?.paid ?? 0);
+  return paid <= 0.009 ? 2 : 1;
+}
+
 export const getStatusColor = (status) => {
   const colors = {
     'Order Received': 'bg-blue-100 text-blue-800',
@@ -47,6 +93,15 @@ export const getStatusColor = (status) => {
     'Cancelled': 'bg-red-100 text-red-800'
   };
   return colors[status] || 'bg-gray-100 text-gray-800';
+};
+
+/** Legacy blank / missing approved counts as approved so old expenses stay on the books. */
+export const isExpenseApproved = (expense) => {
+  if (!expense) return false;
+  if (expense.approved === false) return false;
+  const s = String(expense.approved ?? expense.status ?? '').trim().toLowerCase();
+  if (s === 'false' || s === '0' || s === 'no' || s === 'pending' || s === 'rejected') return false;
+  return true;
 };
 
 export const debounce = (func, wait) => {

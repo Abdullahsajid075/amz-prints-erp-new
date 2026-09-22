@@ -1,12 +1,92 @@
 /**
  * Internal printing production cost engine.
  * All dimensions normalized to mm for area math.
+ *
+ * Paper cost: (sheets / 500) × ream rate (price of 500 sheets).
+ * Colour plate + tracing: fixed costs by colour count (editable in Rates).
  */
+
+export const REAM_SHEETS = 500;
+export const RATES_STORAGE_KEY = 'amz_paper_ream_rates_v1';
+export const COLOUR_PLATE_STORAGE_KEY = 'amz_colour_plate_costs_v1';
+
+export const PAPER_CATEGORIES = [
+  { id: 'paper_sheet', label: 'Paper Sheet' },
+  { id: 'box_board', label: 'Box Board Card' },
+  { id: 'every_card', label: 'Every Card' },
+  { id: 'carbonless', label: 'Carbon Less' },
+];
+
+export const PAPER_QUALITIES = [
+  { id: 'normal', label: 'Normal' },
+  { id: 'good', label: 'Good' },
+];
+
+/** Default ream rates from shop price list (Rs per 500 sheets). Editable in calculator Rates tab. */
+export const DEFAULT_REAM_RATES = [
+  // Paper Sheet 23 × 36
+  { id: 'ps_23x36_55_n', category: 'paper_sheet', sizeId: '23x36', sizeLabel: '23 × 36 in', gsm: '55', quality: 'normal', rate500: 3100 },
+  { id: 'ps_23x36_55_g', category: 'paper_sheet', sizeId: '23x36', sizeLabel: '23 × 36 in', gsm: '55', quality: 'good', rate500: 0 },
+  { id: 'ps_23x36_68_n', category: 'paper_sheet', sizeId: '23x36', sizeLabel: '23 × 36 in', gsm: '68', quality: 'normal', rate500: 4600 },
+  { id: 'ps_23x36_68_g', category: 'paper_sheet', sizeId: '23x36', sizeLabel: '23 × 36 in', gsm: '68', quality: 'good', rate500: 5500 },
+  { id: 'ps_23x36_70_n', category: 'paper_sheet', sizeId: '23x36', sizeLabel: '23 × 36 in', gsm: '70', quality: 'normal', rate500: 8500 },
+  { id: 'ps_23x36_70_g', category: 'paper_sheet', sizeId: '23x36', sizeLabel: '23 × 36 in', gsm: '70', quality: 'good', rate500: 7800 },
+  { id: 'ps_23x36_80_n', category: 'paper_sheet', sizeId: '23x36', sizeLabel: '23 × 36 in', gsm: '80', quality: 'normal', rate500: 10000 },
+  { id: 'ps_23x36_80_g', category: 'paper_sheet', sizeId: '23x36', sizeLabel: '23 × 36 in', gsm: '80', quality: 'good', rate500: 9000 },
+  { id: 'ps_23x36_100_n', category: 'paper_sheet', sizeId: '23x36', sizeLabel: '23 × 36 in', gsm: '100', quality: 'normal', rate500: 12000 },
+  { id: 'ps_23x36_100_g', category: 'paper_sheet', sizeId: '23x36', sizeLabel: '23 × 36 in', gsm: '100', quality: 'good', rate500: 11000 },
+
+  // Box Board Card
+  { id: 'bb_22x28_r_n', category: 'box_board', sizeId: '22x28', sizeLabel: '22 × 28 in', gsm: 'R', quality: 'normal', rate500: 0 },
+  { id: 'bb_22x28_r_g', category: 'box_board', sizeId: '22x28', sizeLabel: '22 × 28 in', gsm: 'R', quality: 'good', rate500: 2100 },
+  { id: 'bb_25x30_r_n', category: 'box_board', sizeId: '25x30', sizeLabel: '25 × 30 in', gsm: 'R', quality: 'normal', rate500: 0 },
+  { id: 'bb_25x30_r_g', category: 'box_board', sizeId: '25x30', sizeLabel: '25 × 30 in', gsm: 'R', quality: 'good', rate500: 2500 },
+
+  // Paper Sheet 20 × 30
+  { id: 'ps_20x30_55_n', category: 'paper_sheet', sizeId: '20x30', sizeLabel: '20 × 30 in', gsm: '55', quality: 'normal', rate500: 2600 },
+  { id: 'ps_20x30_55_g', category: 'paper_sheet', sizeId: '20x30', sizeLabel: '20 × 30 in', gsm: '55', quality: 'good', rate500: 0 },
+  { id: 'ps_20x30_68_n', category: 'paper_sheet', sizeId: '20x30', sizeLabel: '20 × 30 in', gsm: '68', quality: 'normal', rate500: 3400 },
+  { id: 'ps_20x30_68_g', category: 'paper_sheet', sizeId: '20x30', sizeLabel: '20 × 30 in', gsm: '68', quality: 'good', rate500: 3700 },
+  { id: 'ps_20x30_70_n', category: 'paper_sheet', sizeId: '20x30', sizeLabel: '20 × 30 in', gsm: '70', quality: 'normal', rate500: 6500 },
+  { id: 'ps_20x30_70_g', category: 'paper_sheet', sizeId: '20x30', sizeLabel: '20 × 30 in', gsm: '70', quality: 'good', rate500: 5800 },
+  { id: 'ps_20x30_80_n', category: 'paper_sheet', sizeId: '20x30', sizeLabel: '20 × 30 in', gsm: '80', quality: 'normal', rate500: 7600 },
+  { id: 'ps_20x30_80_g', category: 'paper_sheet', sizeId: '20x30', sizeLabel: '20 × 30 in', gsm: '80', quality: 'good', rate500: 0 },
+  { id: 'ps_20x30_100_n', category: 'paper_sheet', sizeId: '20x30', sizeLabel: '20 × 30 in', gsm: '100', quality: 'normal', rate500: 9000 },
+  { id: 'ps_20x30_100_g', category: 'paper_sheet', sizeId: '20x30', sizeLabel: '20 × 30 in', gsm: '100', quality: 'good', rate500: 0 },
+
+  // Every Card 22 × 25
+  { id: 'ec_22x25_r_n', category: 'every_card', sizeId: '22x25', sizeLabel: '22 × 25 in', gsm: 'R', quality: 'normal', rate500: 0 },
+  { id: 'ec_22x25_r_g', category: 'every_card', sizeId: '22x25', sizeLabel: '22 × 25 in', gsm: 'R', quality: 'good', rate500: 2600 },
+
+  // Carbon Less 22 × 25
+  { id: 'cl_22x25_r_n', category: 'carbonless', sizeId: '22x25', sizeLabel: '22 × 25 in', gsm: 'R', quality: 'normal', rate500: 3200 },
+  { id: 'cl_22x25_r_g', category: 'carbonless', sizeId: '22x25', sizeLabel: '22 × 25 in', gsm: 'R', quality: 'good', rate500: 3400 },
+
+  // Paper Sheet 17 × 27 (Good rates)
+  { id: 'ps_17x27_55_n', category: 'paper_sheet', sizeId: '17x27', sizeLabel: '17 × 27 in', gsm: '55', quality: 'normal', rate500: 0 },
+  { id: 'ps_17x27_55_g', category: 'paper_sheet', sizeId: '17x27', sizeLabel: '17 × 27 in', gsm: '55', quality: 'good', rate500: 1800 },
+  { id: 'ps_17x27_68_n', category: 'paper_sheet', sizeId: '17x27', sizeLabel: '17 × 27 in', gsm: '68', quality: 'normal', rate500: 0 },
+  { id: 'ps_17x27_68_g', category: 'paper_sheet', sizeId: '17x27', sizeLabel: '17 × 27 in', gsm: '68', quality: 'good', rate500: 2600 },
+  { id: 'ps_17x27_70_n', category: 'paper_sheet', sizeId: '17x27', sizeLabel: '17 × 27 in', gsm: '70', quality: 'normal', rate500: 0 },
+  { id: 'ps_17x27_70_g', category: 'paper_sheet', sizeId: '17x27', sizeLabel: '17 × 27 in', gsm: '70', quality: 'good', rate500: 5200 },
+  { id: 'ps_17x27_80_n', category: 'paper_sheet', sizeId: '17x27', sizeLabel: '17 × 27 in', gsm: '80', quality: 'normal', rate500: 0 },
+  { id: 'ps_17x27_80_g', category: 'paper_sheet', sizeId: '17x27', sizeLabel: '17 × 27 in', gsm: '80', quality: 'good', rate500: 5600 },
+  { id: 'ps_17x27_100_n', category: 'paper_sheet', sizeId: '17x27', sizeLabel: '17 × 27 in', gsm: '100', quality: 'normal', rate500: 0 },
+  { id: 'ps_17x27_100_g', category: 'paper_sheet', sizeId: '17x27', sizeLabel: '17 × 27 in', gsm: '100', quality: 'good', rate500: 7000 },
+];
+
+/** Fixed printing plates + tracing cost by colour (Rs total, not per plate). */
+export const DEFAULT_COLOUR_PLATE_COSTS = {
+  1: 1200,
+  2: 2000,
+  4: 3000,
+};
 
 export const PAPER_SHEET_PRESETS = [
   { id: '17x27', label: '17 × 27 in', w: 17, h: 27, unit: 'inch' },
   { id: '20x30', label: '20 × 30 in', w: 20, h: 30, unit: 'inch' },
-  { id: '22x28', label: 'Ivory 22 × 28 in', w: 22, h: 28, unit: 'inch' },
+  { id: '22x25', label: '22 × 25 in', w: 22, h: 25, unit: 'inch' },
+  { id: '22x28', label: '22 × 28 in', w: 22, h: 28, unit: 'inch' },
   { id: '17x24', label: 'Carbonless 17 × 24 in', w: 17, h: 24, unit: 'inch' },
   { id: '25x30', label: 'Boxboard 25 × 30 in', w: 25, h: 30, unit: 'inch' },
   { id: '23x36', label: '23 × 36 in', w: 23, h: 36, unit: 'inch' },
@@ -17,6 +97,155 @@ export const PAPER_SHEET_PRESETS = [
   { id: 'A4', label: 'A4 (210 × 297 mm)', w: 210, h: 297, unit: 'mm' },
   { id: 'custom', label: 'Custom', w: 0, h: 0, unit: 'inch' },
 ];
+
+export function loadReamRates() {
+  try {
+    const raw = localStorage.getItem(RATES_STORAGE_KEY);
+    if (!raw) return DEFAULT_REAM_RATES.map((r) => ({ ...r }));
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || !parsed.length) return DEFAULT_REAM_RATES.map((r) => ({ ...r }));
+    // Merge saved rates onto defaults so new catalog rows appear after updates
+    const byId = Object.fromEntries(parsed.map((r) => [r.id, r]));
+    return DEFAULT_REAM_RATES.map((def) => {
+      const saved = byId[def.id];
+      if (!saved) return { ...def };
+      return { ...def, rate500: Number(saved.rate500) || 0 };
+    });
+  } catch {
+    return DEFAULT_REAM_RATES.map((r) => ({ ...r }));
+  }
+}
+
+export function saveReamRates(rates) {
+  const list = Array.isArray(rates) ? rates : [];
+  localStorage.setItem(RATES_STORAGE_KEY, JSON.stringify(list));
+  return list;
+}
+
+export function resetReamRates() {
+  localStorage.removeItem(RATES_STORAGE_KEY);
+  return DEFAULT_REAM_RATES.map((r) => ({ ...r }));
+}
+
+export function loadColourPlateCosts() {
+  try {
+    const raw = localStorage.getItem(COLOUR_PLATE_STORAGE_KEY);
+    if (!raw) return { ...DEFAULT_COLOUR_PLATE_COSTS };
+    const parsed = JSON.parse(raw);
+    return {
+      1: Number(parsed[1] ?? parsed['1']) || DEFAULT_COLOUR_PLATE_COSTS[1],
+      2: Number(parsed[2] ?? parsed['2']) || DEFAULT_COLOUR_PLATE_COSTS[2],
+      4: Number(parsed[4] ?? parsed['4']) || DEFAULT_COLOUR_PLATE_COSTS[4],
+    };
+  } catch {
+    return { ...DEFAULT_COLOUR_PLATE_COSTS };
+  }
+}
+
+export function saveColourPlateCosts(costs) {
+  const next = {
+    1: Number(costs[1] ?? costs['1']) || 0,
+    2: Number(costs[2] ?? costs['2']) || 0,
+    4: Number(costs[4] ?? costs['4']) || 0,
+  };
+  localStorage.setItem(COLOUR_PLATE_STORAGE_KEY, JSON.stringify(next));
+  return next;
+}
+
+export function resetColourPlateCosts() {
+  localStorage.removeItem(COLOUR_PLATE_STORAGE_KEY);
+  return { ...DEFAULT_COLOUR_PLATE_COSTS };
+}
+
+export function lookupReamRate(rates, { category, sizeId, gsm, quality }) {
+  const list = Array.isArray(rates) ? rates : DEFAULT_REAM_RATES;
+  return list.find((r) => (
+    r.category === category
+    && r.sizeId === sizeId
+    && String(r.gsm) === String(gsm)
+    && r.quality === quality
+  )) || null;
+}
+
+export function sizesForCategory(rates, category) {
+  const seen = new Set();
+  const out = [];
+  (rates || DEFAULT_REAM_RATES).forEach((r) => {
+    if (r.category !== category || seen.has(r.sizeId)) return;
+    seen.add(r.sizeId);
+    out.push({ id: r.sizeId, label: r.sizeLabel });
+  });
+  return out;
+}
+
+export function gsmsForSelection(rates, category, sizeId) {
+  const seen = new Set();
+  const out = [];
+  (rates || DEFAULT_REAM_RATES).forEach((r) => {
+    if (r.category !== category || r.sizeId !== sizeId || seen.has(String(r.gsm))) return;
+    seen.add(String(r.gsm));
+    out.push(String(r.gsm));
+  });
+  return out;
+}
+
+export function applyPaperSelection(form, rates, patch = {}) {
+  const next = { ...form, ...patch };
+  const category = next.paperCategory || 'paper_sheet';
+  const sizes = sizesForCategory(rates, category);
+  if (!sizes.some((s) => s.id === next.paperSizeId)) {
+    next.paperSizeId = sizes[0]?.id || next.paperSizeId;
+  }
+  const gsms = gsmsForSelection(rates, category, next.paperSizeId);
+  if (!gsms.includes(String(next.paperGsm))) {
+    next.paperGsm = gsms[0] || next.paperGsm;
+  }
+  const row = lookupReamRate(rates, {
+    category,
+    sizeId: next.paperSizeId,
+    gsm: next.paperGsm,
+    quality: next.paperQuality || 'normal',
+  });
+  // If selected quality has no rate, try the other quality
+  let rateRow = row;
+  if (!rateRow || !(Number(rateRow.rate500) > 0)) {
+    const altQ = (next.paperQuality || 'normal') === 'normal' ? 'good' : 'normal';
+    const alt = lookupReamRate(rates, {
+      category,
+      sizeId: next.paperSizeId,
+      gsm: next.paperGsm,
+      quality: altQ,
+    });
+    if (alt && Number(alt.rate500) > 0) {
+      next.paperQuality = altQ;
+      rateRow = alt;
+    }
+  }
+  next.reamRate500 = rateRow ? (Number(rateRow.rate500) || 0) : (Number(next.reamRate500) || 0);
+  next.paperCostPerSheet = next.reamRate500 / REAM_SHEETS;
+
+  const preset = PAPER_SHEET_PRESETS.find((p) => p.id === next.paperSizeId);
+  if (preset && preset.id !== 'custom') {
+    next.sheetPreset = preset.id;
+    next.sheetWidth = preset.w;
+    next.sheetHeight = preset.h;
+    next.sheetUnit = preset.unit;
+  }
+
+  const catLabel = PAPER_CATEGORIES.find((c) => c.id === category)?.label || category;
+  next.paperType = catLabel;
+  return next;
+}
+
+export function applyColourPlateCost(form, plateCosts, colourId) {
+  const key = String(colourId ?? form.colour ?? '4');
+  const costs = plateCosts || DEFAULT_COLOUR_PLATE_COSTS;
+  return {
+    ...form,
+    colour: key,
+    colourPlateCost: Number(costs[key] ?? costs[Number(key)]) || 0,
+  };
+}
 
 /** Press composing charts (inches): Original cut size vs Composing (print) size. */
 export const COMPOSING_SIZE_CHARTS = [
@@ -138,9 +367,9 @@ export const PAPER_TYPES = [
 
 export const PRINT_METHODS = ['Offset', 'Digital', 'Screen', 'UV'];
 export const COLOUR_OPTIONS = [
-  { id: '1', label: 'Single Colour', plates: 1 },
-  { id: '2', label: 'Two Colour', plates: 2 },
-  { id: '4', label: 'Four Colour (CMYK)', plates: 4 },
+  { id: '1', label: 'Single Colour', plates: 1, defaultPlateCost: 1200 },
+  { id: '2', label: 'Two Colour', plates: 2, defaultPlateCost: 2000 },
+  { id: '4', label: 'Four Colour (CMYK)', plates: 4, defaultPlateCost: 3000 },
 ];
 export const SIDE_OPTIONS = [
   { id: '1', label: 'Single Side', multiplier: 1 },
@@ -247,20 +476,25 @@ export function emptyFinishingState() {
   }, {});
 }
 
-export function defaultFullForm() {
-  return {
+export function defaultFullForm(rates, plateCosts) {
+  const base = {
     productName: '',
     jobName: '',
     quantity: 1000,
     finishedWidth: 4,
     finishedHeight: 6.5,
     unit: 'inch',
-    paperType: 'Art Card',
+    paperCategory: 'paper_sheet',
+    paperSizeId: '20x30',
+    paperGsm: '80',
+    paperQuality: 'normal',
+    paperType: 'Paper Sheet',
     sheetPreset: '20x30',
     sheetWidth: 20,
     sheetHeight: 30,
     sheetUnit: 'inch',
-    paperCostPerSheet: 50,
+    reamRate500: 7600,
+    paperCostPerSheet: 7600 / REAM_SHEETS,
     printWidth: 4,
     printHeight: 6.5,
     margin: 0,
@@ -268,8 +502,9 @@ export function defaultFullForm() {
     printMethod: 'Offset',
     colour: '4',
     sides: '1',
-    machineCostPerSheet: 2,
-    platePrice: 800,
+    machineCostPerSheet: 0,
+    colourPlateCost: 3000,
+    platePrice: 0,
     finishing: emptyFinishingState(),
     labourCost: 0,
     packingCost: 0,
@@ -277,6 +512,8 @@ export function defaultFullForm() {
     miscCost: 0,
     composingSizeLabel: '',
   };
+  const withPaper = applyPaperSelection(base, rates || DEFAULT_REAM_RATES, {});
+  return applyColourPlateCost(withPaper, plateCosts || DEFAULT_COLOUR_PLATE_COSTS, withPaper.colour);
 }
 
 export function applySheetPreset(form, presetId) {
@@ -322,12 +559,20 @@ export function calculateFullCost(form) {
   const wastageSheets = Math.ceil(requiredSheets * (wastagePct / 100));
   const finalSheets = requiredSheets + wastageSheets;
 
-  const paperCost = finalSheets * (Number(form.paperCostPerSheet) || 0);
+  // Paper: (sheets ÷ 500) × ream price. Fallback from legacy per-sheet field.
+  const reamRate = Number(form.reamRate500) > 0
+    ? Number(form.reamRate500)
+    : (Number(form.paperCostPerSheet) || 0) * REAM_SHEETS;
+  const paperCost = (finalSheets / REAM_SHEETS) * reamRate;
+  const reamsUsed = finalSheets / REAM_SHEETS;
 
   const colour = COLOUR_OPTIONS.find((c) => c.id === String(form.colour)) || COLOUR_OPTIONS[2];
   const sides = SIDE_OPTIONS.find((s) => s.id === String(form.sides)) || SIDE_OPTIONS[0];
   const platesRequired = colour.plates;
-  const plateCost = platesRequired * (Number(form.platePrice) || 0);
+  // Fixed plates + tracing cost for selected colour (not per-plate × count)
+  const plateCost = Number(form.colourPlateCost) > 0
+    ? Number(form.colourPlateCost)
+    : (Number(colour.defaultPlateCost) || (platesRequired * (Number(form.platePrice) || 0)));
 
   const printPerSheet = (Number(form.machineCostPerSheet) || 0) * sides.multiplier;
   const printingCost = finalSheets * printPerSheet;
@@ -358,6 +603,8 @@ export function calculateFullCost(form) {
     requiredSheets,
     wastageSheets,
     finalSheets,
+    reamRate500: reamRate,
+    reamsUsed,
     paperCost,
     platesRequired,
     plateCost,

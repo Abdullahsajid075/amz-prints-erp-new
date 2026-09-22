@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,13 +7,25 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { paymentsAPI, settingsAPI, customersAPI, expensesAPI } from '@/services/api';
+import { paymentsAPI, settingsAPI, customersAPI, expensesAPI, ordersAPI, invoicesAPI } from '@/services/api';
+import { clearGasCache } from '@/services/gasClient';
 import { notifyPaymentEvent, printPaymentSlip } from '@/services/notifications';
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import { formatCurrency, formatDate } from '@/utils/helpers';
+import { sortBy } from '@/utils/sortBy';
+import SortBar from '@/components/shared/SortBar';
+import PageHeader from '@/components/shared/PageHeader';
 import { useBrand } from '@/context/BrandContext';
-import { Plus, Search, Edit, Trash2, CreditCard, TrendingUp, TrendingDown, Wallet, Building, Save, X, ArrowDownLeft, ArrowUpRight, Printer, MessageCircle } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, CreditCard, TrendingUp, TrendingDown, Wallet, Building, Save, X, ArrowDownLeft, ArrowUpRight, Printer } from 'lucide-react';
+import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
+
+const PAYMENT_SORT_OPTS = [
+  { value: 'date', label: 'Date' },
+  { value: 'party', label: 'Party' },
+  { value: 'amount', label: 'Amount' },
+  { value: 'type', label: 'Type' },
+];
 
 const CATEGORIES = ['Invoice Payment', 'Purchase Payment', 'Expense Payment', 'Refund', 'Other Income', 'Owner Deposit', 'Owner Withdrawal'];
 const TYPES = [
@@ -36,6 +48,9 @@ const empty = {
   notes: '',
   balanceDue: 0,
   totalAmount: 0,
+  linkedOrderId: '',
+  linkedInvoiceId: '',
+  linkedLabel: '',
 };
 
 function normalizePayment(p = {}) {
@@ -47,7 +62,7 @@ function normalizePayment(p = {}) {
     customerId: p.customerId || p.customerid || '',
     party: p.party || p.customerName || p.customername || '',
     partyPhone: p.partyPhone || p.partyphone || p.phone || '',
-    partyEmail: p.partyEmail || p.email || '',
+    partyEmail: p.partyEmail || p.partyemail || p.email || p.customerEmail || '',
     partyAddress: p.partyAddress || p.address || '',
     reference: p.reference || p.refId || p.refid || '',
     amount: Number(p.amount) || 0,
@@ -55,7 +70,21 @@ function normalizePayment(p = {}) {
     notes: p.notes || '',
     balanceDue: Number(p.balanceDue ?? p.balancedue ?? 0) || 0,
     totalAmount: Number(p.totalAmount ?? p.totalamount ?? 0) || 0,
+    linkedOrderId: p.linkedOrderId || p.linkedorderid || '',
+    linkedInvoiceId: p.linkedInvoiceId || p.linkedinvoiceid || '',
+    linkedLabel: p.linkedLabel || '',
+    locked: p.locked === true || p.locked === 'true' || String(p.id || '').startsWith('pay_'),
   };
+}
+
+function matchRef(row, needle) {
+  const n = String(needle || '').trim().toLowerCase();
+  if (!n) return false;
+  const keys = [
+    row.orderId, row.orderid, row.id, row.trackingNumber, row.trackingnumber,
+    row.invoiceNumber, row.invoiceno, row.invoiceNo, row.shareToken,
+  ].map((v) => String(v || '').trim().toLowerCase()).filter(Boolean);
+  return keys.includes(n) || keys.some((k) => k.endsWith(n) || n.endsWith(k));
 }
 
 const Payments = () => {
@@ -65,10 +94,12 @@ const Payments = () => {
   const [methods, setMethods] = useState(['Cash', 'Bank Transfer', 'UPI', 'Card', 'Cheque']);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({ search: '', category: undefined, method: undefined, from: '', to: '' });
+  const [sort, setSort] = useState({ field: 'date', dir: 'desc' });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [formData, setFormData] = useState(empty);
   const [saving, setSaving] = useState(false);
+  const [lookingUp, setLookingUp] = useState(false);
 
   const loadCustomers = useCallback(async () => {
     try {
@@ -116,6 +147,13 @@ const Payments = () => {
     p.reference?.toLowerCase().includes(filters.search.toLowerCase())
   );
 
+  const sorted = useMemo(() => sortBy(filtered, sort, {
+    date: (p) => p.date || '',
+    party: (p) => p.party || '',
+    amount: (p) => Number(p.amount || 0),
+    type: (p) => p.type || '',
+  }), [filtered, sort]);
+
   const stats = {
     inflow: filtered.filter(p => p.type === 'inflow').reduce((s, p) => s + (p.amount || 0), 0),
     outflow: filtered.filter(p => p.type === 'outflow').reduce((s, p) => s + (p.amount || 0), 0),
@@ -125,7 +163,12 @@ const Payments = () => {
 
   const openCreate = () => { setEditing(null); setFormData(empty); setDialogOpen(true); };
   const openEdit = (p) => {
-    setEditing(p);
+    const row = normalizePayment(p);
+    if (row.locked || String(row.id || '').startsWith('pay_')) {
+      toast.error('This payment is locked. Edit only from Customer Portal.');
+      return;
+    }
+    setEditing(row);
     setFormData({
       ...empty,
       ...p,
@@ -133,14 +176,121 @@ const Payments = () => {
       partyPhone: p.partyPhone || p.phone || '',
       balanceDue: Number(p.balanceDue) || 0,
       totalAmount: Number(p.totalAmount) || 0,
+      linkedOrderId: p.linkedOrderId || '',
+      linkedInvoiceId: p.linkedInvoiceId || '',
     });
     setDialogOpen(true);
   };
 
-  const afterSaveActions = async (payment) => {
+  /** Auto-fill amount / customer from Order or Invoice number (optional link). */
+  const lookupReference = async () => {
+    const ref = String(formData.reference || '').trim();
+    if (!ref) {
+      toast.error('Enter Order / Invoice number first');
+      return;
+    }
+    setLookingUp(true);
+    try {
+      const [ordRes, invRes] = await Promise.all([
+        ordersAPI.getAll().catch(() => ({ data: [] })),
+        invoicesAPI.getAll().catch(() => ({ data: [] })),
+      ]);
+      const orders = Array.isArray(ordRes.data) ? ordRes.data : [];
+      const invoices = Array.isArray(invRes.data) ? invRes.data : [];
+
+      const order = orders.find((o) => matchRef(o, ref) && String(o.docType || 'Order').toLowerCase() !== 'quotation');
+      if (order) {
+        const total = Number(order.totalAmount || 0) || 0;
+        const bal = Number(order.balanceAmount != null ? order.balanceAmount : Math.max(0, total - Number(order.advancePayment || 0)));
+        setFormData((prev) => ({
+          ...prev,
+          reference: order.orderId || ref,
+          linkedOrderId: order.id || '',
+          linkedInvoiceId: '',
+          linkedLabel: `Order ${order.orderId || order.id}`,
+          customerId: order.customerId || prev.customerId,
+          party: order.customerName || prev.party,
+          partyPhone: order.customerPhone || prev.partyPhone,
+          partyEmail: order.customerEmail || prev.partyEmail,
+          partyAddress: order.customerAddress || prev.partyAddress,
+          totalAmount: total,
+          balanceDue: bal,
+          amount: bal > 0 ? bal : total,
+          category: prev.category || 'Invoice Payment',
+          type: 'inflow',
+        }));
+        toast.success(`Linked to order ${order.orderId} — amount set to balance`);
+        return;
+      }
+
+      const invoice = invoices.find((inv) => matchRef(inv, ref));
+      if (invoice) {
+        const total = Number(invoice.total ?? invoice.totalAmount ?? 0) || 0;
+        const paid = Number(invoice.paidAmount ?? invoice.paid ?? 0) || 0;
+        const bal = Number(invoice.balanceAmount != null ? invoice.balanceAmount : Math.max(0, total - paid));
+        setFormData((prev) => ({
+          ...prev,
+          reference: invoice.invoiceNumber || invoice.invoiceNo || ref,
+          linkedInvoiceId: invoice.id || '',
+          linkedOrderId: invoice.orderId || '',
+          linkedLabel: `Invoice ${invoice.invoiceNumber || invoice.invoiceNo || invoice.id}`,
+          customerId: invoice.customerId || prev.customerId,
+          party: invoice.customerName || prev.party,
+          partyPhone: invoice.customerPhone || prev.partyPhone,
+          partyEmail: invoice.customerEmail || prev.partyEmail,
+          partyAddress: invoice.customerAddress || prev.partyAddress,
+          totalAmount: total,
+          balanceDue: bal,
+          amount: bal > 0 ? bal : total,
+          category: 'Invoice Payment',
+          type: 'inflow',
+        }));
+        toast.success(`Linked to invoice — amount set to balance due`);
+        return;
+      }
+
+      toast.error('No matching order or invoice — payment can still be saved as general Cash In');
+      setFormData((prev) => ({ ...prev, linkedOrderId: '', linkedInvoiceId: '', linkedLabel: '' }));
+    } catch (err) {
+      console.error(err);
+      toast.error('Lookup failed');
+    } finally {
+      setLookingUp(false);
+    }
+  };
+
+  const recordLinkedInflow = async (payload) => {
+    if (payload.linkedInvoiceId) {
+      const res = await invoicesAPI.pay(payload.linkedInvoiceId, {
+        amount: payload.amount,
+        method: payload.method,
+        notes: payload.notes,
+        date: payload.date,
+        orderId: payload.linkedOrderId || undefined,
+      });
+      const data = res.data || {};
+      const invNo = data.invoice?.invoiceNumber || data.invoice?.invoiceNo;
+      if (invNo) toast.message(`Recorded on invoice ${invNo}`);
+      return normalizePayment({ ...payload, ...(data.payment || {}) });
+    }
+    const res = await ordersAPI.pay(payload.linkedOrderId, {
+      amount: payload.amount,
+      method: payload.method,
+      notes: payload.notes,
+      date: payload.date,
+    });
+    const data = res.data || {};
+    const invNo = data.invoice?.invoiceNumber || data.invoice?.invoiceNo;
+    if (invNo) toast.message(`Order linked to invoice ${invNo}`);
+    if (Number(data.extra) > 0) toast.message(`Extra ${formatCurrency(data.extra)} saved as customer credit`);
+    return normalizePayment({ ...payload, ...(data.payment || {}) });
+  };
+
+  const afterSaveActions = async (payment, { pendingWindow = null } = {}) => {
+    // Slip via hidden iframe (no popup permission)
     const slip = printPaymentSlip(payment, company || {});
-    if (!slip.ok) toast.error('Allow popups to print pocket slip');
-    else toast.message('Payment receipt printed (with barcode)');
+    if (!slip.ok) toast.error('Could not open print dialog for payment slip');
+    else toast.message('Payment slip ready — use Print / Save as PDF');
 
     // Cash Out must also land in Expenses for daily audit / reports
     const isOut = String(payment.type || '').toLowerCase() === 'outflow';
@@ -160,18 +310,24 @@ const Payments = () => {
       }
     }
 
-    if (payment.partyPhone || payment.phone) {
-      const notify = await notifyPaymentEvent({
-        ...payment,
-        amount: payment.amount,
-        balanceDue: payment.balanceDue,
-      }, {
-        openWhatsApp: true,
-      });
-      if (notify?.whatsappOpened) toast.message('WhatsApp opened — Total / Received / Balance');
-      else toast.message('Payment saved (check phone / WhatsApp settings)');
-    } else if (!isOut) {
-      toast.error('Customer phone missing — WhatsApp not sent');
+    const phone = payment.partyPhone || payment.phone;
+    const notify = await notifyPaymentEvent({
+      ...payment,
+      amount: payment.amount,
+      balanceDue: payment.balanceDue,
+      partyEmail: payment.partyEmail || payment.email || '',
+    }, {
+      openWhatsApp: !!phone,
+      pendingWindow,
+      sendEmail: true,
+    });
+    if (notify?.emailSent) toast.success(`Email sent to ${payment.partyEmail || payment.email}`);
+    else if (notify?.emailError) toast.error(notify.emailError);
+    if (phone) {
+      if (notify?.whatsappOpened) toast.message('WhatsApp opened — tap Send');
+      else toast.error('WhatsApp did not open — check phone / Settings → Notifications');
+    } else if (pendingWindow && !pendingWindow.closed) {
+      try { pendingWindow.close(); } catch { /* ignore */ }
     }
   };
 
@@ -182,6 +338,7 @@ const Payments = () => {
         customerId: formData.customerId,
         customerName: formData.party,
         customerPhone: formData.partyPhone,
+        customerEmail: formData.partyEmail,
       })) return;
     } else if (!formData.party?.trim()) {
       toast.error('Party / person is required');
@@ -195,6 +352,17 @@ const Payments = () => {
       toast.error('Missing payment id — will not create duplicate');
       return;
     }
+
+    // Pre-open WhatsApp tab during click (survives popup blocker after await)
+    let waWindow = null;
+    if (!editing && formData.type === 'inflow' && String(formData.partyPhone || '').trim()) {
+      try {
+        waWindow = window.open('about:blank', '_blank');
+      } catch {
+        waWindow = null;
+      }
+    }
+
     setSaving(true);
     try {
       const ref = formData.reference || `TXN-${Date.now().toString().slice(-8)}`;
@@ -209,34 +377,47 @@ const Payments = () => {
         customerName: formData.party,
         partyPhone: formData.partyPhone || '',
         phone: formData.partyPhone || '',
+        partyEmail: formData.partyEmail || '',
+        email: formData.partyEmail || '',
         reference: ref,
         refId: ref,
         amount: Number(formData.amount) || 0,
         notes: formData.notes || '',
         balanceDue: Number(formData.balanceDue) || 0,
         totalAmount: Number(formData.totalAmount) || 0,
+        linkedOrderId: formData.linkedOrderId || '',
+        linkedInvoiceId: formData.linkedInvoiceId || '',
       };
       let saved;
       if (editing) {
         const res = await paymentsAPI.update(editing.id, payload);
         saved = normalizePayment(res.data || { ...editing, ...payload });
         toast.success('Payment updated');
+      } else if (payload.type === 'inflow' && (payload.linkedOrderId || payload.linkedInvoiceId)) {
+        saved = await recordLinkedInflow(payload);
+        toast.success('Cash In recorded');
       } else {
         const res = await paymentsAPI.create(payload);
         saved = normalizePayment({ ...payload, ...(res.data || {}) });
         toast.success(payload.type === 'outflow' ? 'Cash Out recorded' : 'Cash In recorded');
       }
+      clearGasCache();
       setDialogOpen(false);
       loadPayments();
       if (!editing) {
         await afterSaveActions({
           ...saved,
-          // For WhatsApp Amount placeholder = bill total when provided
           totalAmount: saved.totalAmount || payload.totalAmount,
-        });
+          balanceDue: saved.balanceDue ?? payload.balanceDue,
+        }, { pendingWindow: waWindow });
+      } else if (waWindow && !waWindow.closed) {
+        try { waWindow.close(); } catch { /* ignore */ }
       }
     } catch (err) {
       console.error(err);
+      if (waWindow && !waWindow.closed) {
+        try { waWindow.close(); } catch { /* ignore */ }
+      }
       toast.error(err.response?.data?.message || 'Failed to save payment');
     } finally {
       setSaving(false);
@@ -245,7 +426,7 @@ const Payments = () => {
 
   const reprint = (p) => {
     const slip = printPaymentSlip(p, company || {});
-    if (!slip.ok) toast.error('Allow popups to print');
+    if (!slip.ok) toast.error('Could not print slip');
   };
 
   const resendWhatsApp = async (p) => {
@@ -253,7 +434,9 @@ const Payments = () => {
       toast.error('No phone on this payment — edit and add party phone');
       return;
     }
-    const notify = await notifyPaymentEvent(p);
+    let waWindow = null;
+    try { waWindow = window.open('about:blank', '_blank'); } catch { waWindow = null; }
+    const notify = await notifyPaymentEvent(p, { pendingWindow: waWindow });
     if (notify?.whatsappOpened) toast.message('WhatsApp opened — tap Send');
     else toast.error('Could not open WhatsApp');
   };
@@ -266,49 +449,50 @@ const Payments = () => {
   };
 
   return (
-    <div className="space-y-6" data-testid="payments-page">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold" style={{ color: '#1F2937' }}>Payments</h1>
-          <p className="text-gray-600 mt-1">Complete transaction history — money in & out</p>
-        </div>
-        <Button onClick={openCreate} style={{ backgroundColor: '#F26522' }} className="text-white" data-testid="add-payment-button">
-          <Plus className="h-4 w-4 mr-2" />Record Transaction
-        </Button>
-      </div>
+    <div className="erp-page space-y-5" data-testid="payments-page">
+      <PageHeader
+        eyebrow="Finance"
+        title="Payments"
+        subtitle="Complete transaction history — money in & out"
+        actions={(
+          <Button onClick={openCreate} style={{ backgroundColor: '#ff6d00' }} className="text-white rounded-xl" data-testid="add-payment-button">
+            <Plus className="h-4 w-4 mr-2" />Record Transaction
+          </Button>
+        )}
+      />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card><CardContent className="p-4 flex items-center gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="erp-kpi flex items-center gap-3">
           <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#10B981' }}>
             <TrendingUp className="h-5 w-5 text-white" />
           </div>
-          <div><p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Money In</p><p className="text-lg font-bold text-emerald-700">{formatCurrency(stats.inflow)}</p></div>
-        </CardContent></Card>
-        <Card><CardContent className="p-4 flex items-center gap-3">
+          <div><p className="text-[10px] uppercase tracking-[0.12em] text-slate-500 font-bold">Money In</p><p className="font-display text-lg font-bold text-emerald-700">{formatCurrency(stats.inflow)}</p></div>
+        </div>
+        <div className="erp-kpi flex items-center gap-3">
           <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#EF4444' }}>
             <TrendingDown className="h-5 w-5 text-white" />
           </div>
-          <div><p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Money Out</p><p className="text-lg font-bold text-rose-600">{formatCurrency(stats.outflow)}</p></div>
-        </CardContent></Card>
-        <Card><CardContent className="p-4 flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#F26522' }}>
+          <div><p className="text-[10px] uppercase tracking-[0.12em] text-slate-500 font-bold">Money Out</p><p className="font-display text-lg font-bold text-rose-600">{formatCurrency(stats.outflow)}</p></div>
+        </div>
+        <div className="erp-kpi flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#ff6d00' }}>
             <Wallet className="h-5 w-5 text-white" />
           </div>
-          <div><p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Net Balance</p><p className={`text-lg font-bold ${stats.net >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{formatCurrency(stats.net)}</p></div>
-        </CardContent></Card>
-        <Card><CardContent className="p-4 flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#8B5CF6' }}>
+          <div><p className="text-[10px] uppercase tracking-[0.12em] text-slate-500 font-bold">Net Balance</p><p className={`font-display text-lg font-bold ${stats.net >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{formatCurrency(stats.net)}</p></div>
+        </div>
+        <div className="erp-kpi flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#1C2430' }}>
             <CreditCard className="h-5 w-5 text-white" />
           </div>
-          <div><p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Transactions</p><p className="text-lg font-bold" style={{ color: '#1F2937' }}>{stats.count}</p></div>
-        </CardContent></Card>
+          <div><p className="text-[10px] uppercase tracking-[0.12em] text-slate-500 font-bold">Transactions</p><p className="font-display text-lg font-bold text-ink">{stats.count}</p></div>
+        </div>
       </div>
 
-      <Card><CardContent className="p-4">
+      <div className="erp-panel p-4">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
           <div className="md:col-span-2 relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-            <Input placeholder="Search by party or reference..." value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} className="pl-10" data-testid="payment-search" />
+            <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+            <Input placeholder="Search by party or reference..." value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} className="pl-10 rounded-xl" data-testid="payment-search" />
           </div>
           <Select value={filters.category} onValueChange={(v) => setFilters({ ...filters, category: v === 'all' ? undefined : v })}>
             <SelectTrigger data-testid="category-filter"><SelectValue placeholder="All Categories" /></SelectTrigger>
@@ -318,35 +502,40 @@ const Payments = () => {
             <SelectTrigger data-testid="method-filter"><SelectValue placeholder="All Methods" /></SelectTrigger>
             <SelectContent><SelectItem value="all">All Methods</SelectItem>{methods.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
           </Select>
-          <Button onClick={loadPayments} style={{ backgroundColor: '#F26522' }} className="text-white">Apply</Button>
+          <Button onClick={loadPayments} style={{ backgroundColor: '#ff6d00' }} className="text-white rounded-xl">Apply</Button>
         </div>
-      </CardContent></Card>
+        <div className="mt-3 max-w-md">
+          <SortBar value={sort} onChange={setSort} options={PAYMENT_SORT_OPTS} />
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader><CardTitle>Transaction History</CardTitle></CardHeader>
-        <CardContent>
-          {loading ? <div className="text-center py-8 text-gray-500">Loading...</div>
-            : filtered.length === 0 ? (
+      <div className="erp-table-wrap">
+        <div className="px-4 py-3 border-b border-black/[0.05]">
+          <h3 className="font-display text-sm font-bold text-ink">Transaction History</h3>
+        </div>
+        <div className="p-2 sm:p-3">
+          {loading ? <div className="text-center py-8 text-slate-500">Loading...</div>
+            : sorted.length === 0 ? (
               <div className="text-center py-12">
-                <CreditCard className="h-12 w-12 mx-auto text-gray-300 mb-3" />
-                <p className="text-gray-500 mb-4">No transactions yet.</p>
-                <Button onClick={openCreate} style={{ backgroundColor: '#F26522' }} className="text-white"><Plus className="h-4 w-4 mr-2" />Record First Transaction</Button>
+                <CreditCard className="h-12 w-12 mx-auto text-slate-300 mb-3" />
+                <p className="text-slate-500 mb-4">No transactions yet.</p>
+                <Button onClick={openCreate} style={{ backgroundColor: '#ff6d00' }} className="text-white rounded-xl"><Plus className="h-4 w-4 mr-2" />Record First Transaction</Button>
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead><tr className="border-b bg-gray-50">
-                    <th className="text-left py-3 px-3 text-xs uppercase font-semibold text-gray-600">Date</th>
-                    <th className="text-left py-3 px-3 text-xs uppercase font-semibold text-gray-600">Type</th>
-                    <th className="text-left py-3 px-3 text-xs uppercase font-semibold text-gray-600">Category</th>
-                    <th className="text-left py-3 px-3 text-xs uppercase font-semibold text-gray-600">Party</th>
-                    <th className="text-left py-3 px-3 text-xs uppercase font-semibold text-gray-600">Reference</th>
-                    <th className="text-left py-3 px-3 text-xs uppercase font-semibold text-gray-600">Method</th>
-                    <th className="text-right py-3 px-3 text-xs uppercase font-semibold text-gray-600">Amount</th>
-                    <th className="text-right py-3 px-3 text-xs uppercase font-semibold text-gray-600">Actions</th>
+                <table>
+                  <thead><tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Category</th>
+                    <th>Party</th>
+                    <th>Reference</th>
+                    <th>Method</th>
+                    <th className="!text-right">Amount</th>
+                    <th className="!text-right">Actions</th>
                   </tr></thead>
                   <tbody>
-                    {filtered.map(p => {
+                    {sorted.map(p => {
                       const isIn = p.type === 'inflow';
                       const T = isIn ? ArrowDownLeft : ArrowUpRight;
                       return (
@@ -359,7 +548,7 @@ const Payments = () => {
                           </td>
                           <td className="py-3 px-3 text-sm">{p.category}</td>
                           <td className="py-3 px-3 text-sm font-medium">{p.party}</td>
-                          <td className="py-3 px-3 text-xs" style={{ color: '#F26522' }}>{p.reference || '-'}</td>
+                          <td className="py-3 px-3 text-xs" style={{ color: '#ff6d00' }}>{p.reference || '-'}</td>
                           <td className="py-3 px-3"><Badge variant="outline" className="text-xs gap-1"><Building className="h-3 w-3" />{p.method}</Badge></td>
                           <td className={`py-3 px-3 text-right font-bold ${isIn ? 'text-emerald-700' : 'text-rose-600'}`}>{isIn ? '+' : '-'}{formatCurrency(p.amount)}</td>
                           <td className="py-3 px-3 text-right">
@@ -368,7 +557,7 @@ const Payments = () => {
                                 <Printer className="h-4 w-4" />
                               </Button>
                               <Button size="icon" variant="ghost" className="text-green-600" title="WhatsApp" onClick={() => resendWhatsApp(p)}>
-                                <MessageCircle className="h-4 w-4" />
+                                <WhatsAppIcon className="h-4 w-4" />
                               </Button>
                               <Button size="icon" variant="ghost" onClick={() => openEdit(p)} data-testid={`edit-payment-${p.id}`}><Edit className="h-4 w-4" /></Button>
                               <Button size="icon" variant="ghost" onClick={() => handleDelete(p.id)} data-testid={`delete-payment-${p.id}`}><Trash2 className="h-4 w-4 text-red-600" /></Button>
@@ -381,8 +570,8 @@ const Payments = () => {
                 </table>
               </div>
             )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg" data-testid="payment-dialog">
@@ -451,16 +640,45 @@ const Payments = () => {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div><Label>Bill / Order Total (optional)</Label><Input type="number" min="0" step="0.01" value={formData.totalAmount || 0} onChange={(e) => setFormData({ ...formData, totalAmount: parseFloat(e.target.value) || 0 })} placeholder="For WhatsApp Total" /></div>
-              <div><Label>Balance Due (optional)</Label><Input type="number" min="0" step="0.01" value={formData.balanceDue || 0} onChange={(e) => setFormData({ ...formData, balanceDue: parseFloat(e.target.value) || 0 })} /></div>
+            <div>
+              <Label>Order / Invoice # (optional)</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={formData.reference}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    reference: e.target.value,
+                    linkedOrderId: '',
+                    linkedInvoiceId: '',
+                    linkedLabel: '',
+                  })}
+                  onBlur={() => {
+                    if (formData.reference?.trim() && !formData.linkedOrderId && !formData.linkedInvoiceId) {
+                      lookupReference();
+                    }
+                  }}
+                  placeholder="ORD-0001 / INV-… / leave blank for general Cash In"
+                  data-testid="payment-reference-input"
+                />
+                <Button type="button" variant="outline" className="shrink-0" disabled={lookingUp} onClick={lookupReference}>
+                  {lookingUp ? '…' : 'Lookup'}
+                </Button>
+              </div>
+              {formData.linkedLabel ? (
+                <p className="text-[11px] text-emerald-700 mt-1">Linked: {formData.linkedLabel} — saved on that invoice (or a new one if the order has none)</p>
+              ) : (
+                <p className="text-[11px] text-gray-500 mt-1">An order payment must go on an invoice. Lookup an order to attach it to this customer&apos;s unpaid invoice, or a new invoice is created. Blank = general cash in.</p>
+              )}
             </div>
-            <div><Label>Reference / Txn #</Label><Input value={formData.reference} onChange={(e) => setFormData({ ...formData, reference: e.target.value })} placeholder="Invoice, Order or Txn ID" /></div>
+            <div className="grid grid-cols-2 gap-4">
+              <div><Label>Bill / Order Total</Label><Input type="number" min="0" step="0.01" value={formData.totalAmount || 0} onChange={(e) => setFormData({ ...formData, totalAmount: parseFloat(e.target.value) || 0 })} placeholder="Auto from lookup" /></div>
+              <div><Label>Balance Due</Label><Input type="number" min="0" step="0.01" value={formData.balanceDue || 0} onChange={(e) => setFormData({ ...formData, balanceDue: parseFloat(e.target.value) || 0 })} /></div>
+            </div>
             <div><Label>Notes</Label><Textarea rows={2} value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} /></div>
-            <p className="text-xs text-gray-500">Save → pocket slip + WhatsApp (Total / Received / Balance). Edit never creates a duplicate payment.</p>
+            <p className="text-xs text-gray-500">Save → updates order/invoice balance (if linked) · mini slip · WhatsApp · Dashboard / Reports / Ledger refresh.</p>
             <DialogFooter className="gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}><X className="h-4 w-4 mr-1" />Cancel</Button>
-              <Button type="submit" style={{ backgroundColor: '#F26522' }} className="text-white" disabled={saving} data-testid="save-payment-button"><Save className="h-4 w-4 mr-1" />{saving ? 'Saving...' : editing ? 'Update' : 'Record'}</Button>
+              <Button type="submit" style={{ backgroundColor: '#ff6d00' }} className="text-white" disabled={saving} data-testid="save-payment-button"><Save className="h-4 w-4 mr-1" />{saving ? 'Saving...' : editing ? 'Update' : 'Record'}</Button>
             </DialogFooter>
           </form>
         </DialogContent>

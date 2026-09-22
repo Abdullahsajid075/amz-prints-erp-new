@@ -13,8 +13,21 @@ const origins = String(process.env.CORS_ORIGINS || '*')
   .map((s) => s.trim())
   .filter(Boolean);
 
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  if (origins.includes('*') || origins.includes(origin)) return true;
+  try {
+    const host = new URL(origin).hostname;
+    if (host === 'localhost' || host === '127.0.0.1') return true;
+    if (host.endsWith('.vercel.app')) return true;
+  } catch {
+    return false;
+  }
+  return false;
+}
+
 app.use(cors({
-  origin: origins.includes('*') ? true : origins,
+  origin: (origin, cb) => cb(null, isAllowedOrigin(origin) ? origin || true : false),
   credentials: true,
 }));
 
@@ -29,12 +42,19 @@ app.use((req, _res, next) => {
   next();
 });
 
-app.all('/', dispatch);
-app.all('/api', dispatch);
-app.all('/exec', dispatch);
-
-app.get('/health', (_req, res) => {
+function sendHealth(_req, res) {
   res.json({ ok: true, backend: 'supabase', service: 'amz-erp-api' });
+}
+
+// Vercel may mount this app at /, /api, or /api/index
+app.all('*', (req, res) => {
+  const p = String(req.path || '/').replace(/\/+$/, '') || '/';
+  const gasPath = String(req.query.path || '').trim();
+  const isHealth = p === '/health' || p === '/api/health' || p.endsWith('/health');
+  if (isHealth || (!gasPath && (p === '/' || p === '/api' || p === '/api/index'))) {
+    return sendHealth(req, res);
+  }
+  return dispatch(req, res);
 });
 
 module.exports = app;

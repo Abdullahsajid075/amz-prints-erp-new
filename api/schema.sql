@@ -13,6 +13,7 @@ create table if not exists users (
   status text default 'Active',
   permissions jsonb default '[]'::jsonb,
   email text default '',
+  employee_id text default '',
   created_at timestamptz default now()
 );
 
@@ -30,6 +31,13 @@ create table if not exists customers (
   stage_updated_at text default '',
   notify_whatsapp boolean default true,
   notify_email boolean default true,
+  customer_code text default '',
+  blocked boolean default false,
+  block_reason text default '',
+  blocked_at text default '',
+  blocked_by text default '',
+  credit_balance numeric default 0,
+  portal_password text default '',
   created_at timestamptz default now()
 );
 create index if not exists customers_phone_idx on customers (phone);
@@ -47,18 +55,33 @@ create index if not exists crm_notes_customer_idx on crm_notes (customer_id);
 -- ========== EMPLOYEES ==========
 create table if not exists employees (
   id text primary key,
+  employee_code text default '',
   name text default '',
   phone text default '',
   email text default '',
+  cnic text default '',
   role text default 'Staff',
+  designation text default '',
   department text default 'General',
   join_date text default '',
+  end_date text default '',
+  valid_from text default '',
+  valid_until text default '',
   salary numeric default 0,
   status text default 'Active',
   address text default '',
+  city text default '',
+  emergency_contact text default '',
+  emergency_phone text default '',
   notes text default '',
+  photo text default '',
   created_at timestamptz default now()
 );
+
+-- alter table employees add column if not exists end_date text default '';
+-- alter table employees add column if not exists valid_from text default '';
+-- alter table employees add column if not exists valid_until text default '';
+-- alter table users add column if not exists employee_id text default '';
 
 -- ========== PRODUCTS ==========
 create table if not exists products (
@@ -75,8 +98,17 @@ create table if not exists products (
   material text default '',
   size text default '',
   min_quantity numeric default 0,
+  image text default '',
+  images jsonb default '[]'::jsonb,
+  sale_price numeric default 0,
+  show_on_top boolean default false,
+  show_on_website boolean default true,
+  full_description text default '',
+  variations jsonb default '[]'::jsonb,
   created_at timestamptz default now()
 );
+
+-- alter table products add column if not exists image text default '';
 
 -- ========== ORDERS (+ quotations / POS via doc_type) ==========
 create table if not exists orders (
@@ -116,6 +148,7 @@ create table if not exists invoices (
   date text default '',
   due_date text default '',
   order_id text default '',
+  order_ids jsonb default '[]'::jsonb,
   customer_id text default '',
   customer_name text default '',
   customer_phone text default '',
@@ -132,6 +165,7 @@ create table if not exists invoices (
   status text default 'Unpaid',
   notes text default '',
   share_token text default '',
+  payment_history jsonb default '[]'::jsonb,
   created_at timestamptz default now()
 );
 create index if not exists invoices_share_token_idx on invoices (share_token);
@@ -157,11 +191,25 @@ create table if not exists purchases (
   date text default '',
   vendor_id text default '',
   vendor_name text default '',
+  vendor_invoice_number text default '',
+  expected_delivery_date text default '',
+  actual_delivery_date text default '',
+  linked_order_id text default '',
   items jsonb default '[]'::jsonb,
   total numeric default 0,
-  status text default 'Pending',
+  paid_amount numeric default 0,
+  status text default 'Draft',
+  notes text default '',
   created_at timestamptz default now()
 );
+
+-- Existing projects: run once in SQL editor if columns missing
+-- alter table purchases add column if not exists paid_amount numeric default 0;
+-- alter table purchases add column if not exists vendor_invoice_number text default '';
+-- alter table purchases add column if not exists expected_delivery_date text default '';
+-- alter table purchases add column if not exists actual_delivery_date text default '';
+-- alter table purchases add column if not exists linked_order_id text default '';
+-- alter table purchases add column if not exists notes text default '';
 
 -- ========== EXPENSES / PAYMENTS ==========
 create table if not exists expenses (
@@ -171,6 +219,11 @@ create table if not exists expenses (
   amount numeric default 0,
   description text default '',
   payment_method text default '',
+  paid_to text default '',
+  notes text default '',
+  approved boolean default false,
+  approved_by text default '',
+  approved_at text default '',
   created_at timestamptz default now()
 );
 
@@ -236,3 +289,28 @@ on conflict (id) do nothing;
 insert into users (id, username, password, name, role, status, email)
 values ('user_admin', 'admin', 'admin123', 'Admin', 'Super Admin', 'Active', 'admin')
 on conflict (id) do nothing;
+
+-- ========== EXISTING PROJECTS: add missing columns (safe to re-run) ==========
+alter table customers add column if not exists customer_code text default '';
+alter table customers add column if not exists blocked boolean default false;
+alter table customers add column if not exists block_reason text default '';
+alter table customers add column if not exists blocked_at text default '';
+alter table customers add column if not exists blocked_by text default '';
+alter table customers add column if not exists credit_balance numeric default 0;
+alter table customers add column if not exists portal_password text default '';
+
+alter table products add column if not exists images jsonb default '[]'::jsonb;
+alter table products add column if not exists sale_price numeric default 0;
+alter table products add column if not exists show_on_top boolean default false;
+alter table products add column if not exists show_on_website boolean default true;
+alter table products add column if not exists full_description text default '';
+alter table products add column if not exists variations jsonb default '[]'::jsonb;
+
+alter table invoices add column if not exists order_ids jsonb default '[]'::jsonb;
+alter table invoices add column if not exists payment_history jsonb default '[]'::jsonb;
+
+alter table expenses add column if not exists paid_to text default '';
+alter table expenses add column if not exists notes text default '';
+alter table expenses add column if not exists approved boolean default false;
+alter table expenses add column if not exists approved_by text default '';
+alter table expenses add column if not exists approved_at text default '';

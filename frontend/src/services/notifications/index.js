@@ -36,6 +36,9 @@ function truthy(v, fallback = true) {
   return true;
 }
 
+/** ERP outbound mailbox — Apps Script must be deployed as this Google account. */
+export const NOTIFY_FROM_EMAIL = 'amazonprinting@gmail.com';
+
 function mergeNotificationSettings(raw = {}) {
   return {
     whatsappEnabled: truthy(raw.whatsappEnabled, true),
@@ -44,11 +47,21 @@ function mergeNotificationSettings(raw = {}) {
     emailInvoice: truthy(raw.emailInvoice, true),
     emailReady: truthy(raw.emailReady, true),
     emailDelivered: truthy(raw.emailDelivered, true),
+    emailPayment: truthy(raw.emailPayment, true),
+    emailToken: truthy(raw.emailToken, true),
+    dailyRemindersEnabled: truthy(raw.dailyRemindersEnabled, true),
+    emailPaymentReminder: truthy(raw.emailPaymentReminder, true),
+    emailOrderStatusReminder: truthy(raw.emailOrderStatusReminder, true),
+    dailyReminderHour: Number(raw.dailyReminderHour) || 9,
     smsEnabled: truthy(raw.smsEnabled, false),
     autoOpenWhatsApp: truthy(raw.autoOpenWhatsApp, true),
-    whatsappTemplates: { ...DEFAULT_WHATSAPP_TEMPLATES, ...(raw.whatsappTemplates || {}) },
-    emailSubjects: { ...DEFAULT_EMAIL_SUBJECTS, ...(raw.emailSubjects || {}) },
+    whatsappTemplates: raw.whatsappTemplates && typeof raw.whatsappTemplates === 'object' ? raw.whatsappTemplates : {},
+    emailSubjects: raw.emailSubjects && typeof raw.emailSubjects === 'object' ? raw.emailSubjects : {},
   };
+}
+
+export function isValidNotifyEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
 }
 
 async function loadNotificationSettings() {
@@ -82,7 +95,15 @@ function shouldSendEmail(notifications, event, status) {
   if (event === 'quotation') return true;
   if (event === 'created') return notifications.emailNewOrder;
   if (event === 'invoice' || event === 'invoice_generated') return notifications.emailInvoice;
-  if (event === 'payment_received' || event === 'payment_sent') return false;
+  if (event === 'payment_received' || event === 'payment_sent' || event === 'payment') {
+    return notifications.emailPayment !== false;
+  }
+  if (event === 'payment_reminder' || event === 'balance_reminder') {
+    return notifications.emailPaymentReminder !== false && notifications.emailPayment !== false;
+  }
+  if (event === 'token_booked' || event === 'token_called' || event === 'token') {
+    return notifications.emailToken !== false;
+  }
   if (event === 'status') {
     if (status === 'Ready') return notifications.emailReady !== false && notifications.emailOrderStatus;
     if (status === 'Delivered') return notifications.emailDelivered !== false && notifications.emailOrderStatus;
@@ -105,6 +126,8 @@ export async function notifyOrderEvent({
   company: companyOverride,
   notifications: notifOverride,
   openWhatsApp = true,
+  pendingWindow = null,
+  sendEmail = true,
 } = {}) {
   if (!order && !invoice && !payment) return { ok: false, reason: 'no_payload' };
 
@@ -129,13 +152,19 @@ export async function notifyOrderEvent({
     || payment?.phone
     || '';
 
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://erp.amzprints.com';
+  const trackingNumber = order?.trackingNumber || '';
+  const trackUrl = trackingNumber ? `${origin}/track/${encodeURIComponent(trackingNumber)}` : '';
   const vars = buildTemplateVars(order || {}, company, {
     status,
     customerName: order?.customerName || customer?.name || invoice?.customerName || payment?.party,
+    trackUrl,
+    TrackUrl: trackUrl,
+    trackingNumber,
     invoice_number: invoice?.invoiceNumber || invoice?.invoiceNo || payment?.reference || '',
     invoice_date: invoice?.date || invoice?.invoiceDate || '',
     invoice_url: invoice?.shareToken
-      ? `${typeof window !== 'undefined' ? window.location.origin : ''}/invoice/${invoice.shareToken}`
+      ? `${origin}/invoice/${invoice.shareToken}`
       : (invoice?.invoiceUrl || ''),
     amount: invoice?.totalAmount ?? invoice?.total ?? order?.totalAmount ?? payment?.amount,
     paidAmount: invoice?.paidAmount ?? payment?.amount ?? 0,
@@ -152,7 +181,7 @@ export async function notifyOrderEvent({
 
   // Ensure invoice link appears for invoice / reminder messages
   if (
-    (event === 'invoice' || event === 'invoice_generated' || event === 'payment_reminder' || event === 'reminder')
+    (event === 'invoice' || event === 'invoice_generated' || event === 'payment_reminder' || event === 'balance_reminder' || event === 'reminder')
     && vars.invoice_url
     && !String(vars.invoice_url).includes('undefined')
   ) {
@@ -171,35 +200,54 @@ export async function notifyOrderEvent({
     && phone
   ) {
     const template = resolveWhatsAppTemplate(notifications.whatsappTemplates, event, status);
-    const text = fillTemplate(template, vars);
-    whatsappResult = openWhatsAppChat(phone, text);
-    channelIds.push('whatsapp');
-    payloadBase.text = text;
+    const text = String(template || '').trim() ? fillTemplate(template, vars) : '';
+    if (text) {
+      whatsappResult = openWhatsAppChat(phone, text, { pendingWindow });
+      channelIds.push('whatsapp');
+      payloadBase.text = text;
+    } else if (pendingWindow && !pendingWindow.closed) {
+      try { pendingWindow.close(); } catch { /* ignore */ }
+    }
+  } else if (pendingWindow && !pendingWindow.closed) {
+    try { pendingWindow.close(); } catch { /* ignore */ }
   }
 
-  const emailTo = order?.customerEmail || customer?.email || invoice?.customerEmail || payment?.partyEmail;
-  if (
-    emailTo
-    && customerAllows(customer, 'email')
-    && shouldSendEmail(notifications, event, status)
-  ) {
-    const subjectKey = event === 'created'
-      ? 'created'
-      : (event === 'invoice' || event === 'invoice_generated')
-        ? 'invoice_generated'
-        : event === 'quotation'
-          ? 'quotation'
-          : (status === 'Ready' || status === 'Delivered' || status === 'Order Received' ? status : 'status');
-    const subjectTpl = notifications.emailSubjects[subjectKey]
-      || DEFAULT_EMAIL_SUBJECTS[subjectKey]
-      || DEFAULT_EMAIL_SUBJECTS.status;
-    payloadBase.subject = fillTemplate(subjectTpl, vars);
-    payloadBase.to = emailTo;
-    payloadBase.message = fillTemplate(
-      resolveWhatsAppTemplate(notifications.whatsappTemplates, event, status),
-      vars
-    );
-    channelIds.push('email');
+  const emailTo = order?.customerEmail
+    || customer?.email
+    || invoice?.customerEmail
+    || payment?.partyEmail
+    || payment?.email
+    || '';
+  let emailSkipped = null;
+  if (sendEmail && customerAllows(customer, 'email') && shouldSendEmail(notifications, event, status)) {
+    if (!isValidNotifyEmail(emailTo)) {
+      emailSkipped = { ok: false, reason: 'missing_email', error: 'Customer email is required for email notifications' };
+    } else {
+      const subjectKey = event === 'created'
+        ? 'created'
+        : (event === 'invoice' || event === 'invoice_generated')
+          ? 'invoice_generated'
+          : event === 'payment_reminder' || event === 'balance_reminder'
+            ? event
+          : event === 'quotation'
+            ? 'quotation'
+            : (event === 'payment_received' || event === 'payment_sent'
+              ? event
+              : (event === 'token_booked' || event === 'token_called'
+                ? event
+                : (status === 'Ready' || status === 'Delivered' || status === 'Order Received' ? status : 'status')));
+      const subjectTpl = notifications.emailSubjects[subjectKey]
+        || DEFAULT_EMAIL_SUBJECTS[subjectKey]
+        || DEFAULT_EMAIL_SUBJECTS.status;
+      payloadBase.subject = fillTemplate(subjectTpl, vars);
+      payloadBase.to = String(emailTo).trim();
+      const bodyTpl = resolveWhatsAppTemplate(notifications.whatsappTemplates, event, status);
+      payloadBase.message = String(bodyTpl || '').trim()
+        ? fillTemplate(bodyTpl, vars)
+        : fillTemplate(`Dear {CustomerName},\n\nUpdate for order #{OrderNo}.`, vars);
+      payloadBase.replyTo = NOTIFY_FROM_EMAIL;
+      channelIds.push('email');
+    }
   }
 
   const results = await sendViaChannels(
@@ -207,8 +255,63 @@ export async function notifyOrderEvent({
     payloadBase
   );
   if (whatsappResult) results.whatsapp = whatsappResult;
+  if (emailSkipped) results.email = emailSkipped;
 
-  return { ok: true, results, event, status, whatsappOpened: !!whatsappResult?.ok };
+  const rawEmailErr = results.email?.ok === false
+    ? (results.email.error || results.email.reason || '')
+    : '';
+  const emailError = rawEmailErr
+    ? (/permission|authorization|required permissions|oauth/i.test(rawEmailErr)
+      ? 'Email not authorized. Open Apps Script as amazonprinting@gmail.com → Allow Mail → Deploy → New version.'
+      : (rawEmailErr.length > 160 ? `${rawEmailErr.slice(0, 160)}…` : rawEmailErr))
+    : null;
+
+  return {
+    ok: true,
+    results,
+    event,
+    status,
+    whatsappOpened: !!whatsappResult?.ok,
+    emailSent: !!(results.email?.ok),
+    emailError,
+  };
+}
+
+export async function notifyBalanceReminder(customer, ledger, options = {}) {
+  if (!customer || !(Number(ledger?.outstanding) > 0)) {
+    return { ok: false, reason: 'no_balance' };
+  }
+  const openInvoice = (ledger.invoices || []).find((inv) => {
+    const bal = Math.max(0, Number(inv.totalAmount || 0) + Number(inv.previousBalance || 0) - Number(inv.paidAmount || 0));
+    return bal > 0;
+  });
+  const linkedOrder = ledger.orders?.[0];
+  return notifyOrderEvent({
+    event: 'balance_reminder',
+    customer,
+    order: {
+      customerName: customer.name,
+      customerPhone: customer.phone,
+      customerEmail: customer.email,
+      orderId: openInvoice?.orderId || linkedOrder?.orderId || linkedOrder?.id || '',
+      totalAmount: ledger.outstanding,
+      balanceAmount: ledger.outstanding,
+    },
+    invoice: openInvoice ? {
+      ...openInvoice,
+      balanceAmount: ledger.outstanding,
+      balance: ledger.outstanding,
+    } : {
+      customerName: customer.name,
+      customerPhone: customer.phone,
+      customerEmail: customer.email,
+      totalAmount: ledger.outstanding,
+      balanceAmount: ledger.outstanding,
+      balance: ledger.outstanding,
+    },
+    openWhatsApp: options.openWhatsApp !== false,
+    sendEmail: options.sendEmail !== false,
+  });
 }
 
 /** Notify + helpers for Cash In / Cash Out. */
@@ -232,10 +335,33 @@ export async function notifyPaymentEvent(payment, options = {}) {
     order: {
       customerName: payment?.party || payment?.customerName,
       customerPhone: payment?.partyPhone || payment?.phone,
+      customerEmail: payment?.partyEmail || payment?.email || payment?.customerEmail || '',
       totalAmount: total || received,
       balanceAmount: balance,
     },
     openWhatsApp: options.openWhatsApp !== false,
+    pendingWindow: options.pendingWindow || null,
+    sendEmail: options.sendEmail !== false,
+  });
+}
+
+/** Token booked / called email (+ optional WhatsApp). */
+export async function notifyTokenEvent(token, options = {}) {
+  const event = options.event || 'token_booked';
+  const tokenNo = token?.tokenNo || token?.tokenno || '';
+  return notifyOrderEvent({
+    event,
+    order: {
+      customerName: token?.customerName,
+      customerPhone: token?.customerPhone,
+      customerEmail: token?.customerEmail || token?.email || '',
+      orderId: tokenNo,
+      status: token?.status || (event === 'token_called' ? 'Called' : 'Waiting'),
+      totalAmount: 0,
+    },
+    openWhatsApp: options.openWhatsApp === true,
+    pendingWindow: options.pendingWindow || null,
+    sendEmail: options.sendEmail !== false,
   });
 }
 

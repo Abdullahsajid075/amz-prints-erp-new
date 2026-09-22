@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,65 +8,63 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
 import { productsAPI, designersAPI } from '@/services/api';
 import { formatCurrency } from '@/utils/helpers';
-import { Plus, Search, Edit, Trash2, Package, Layers, Ruler, DollarSign, X, Save } from 'lucide-react';
+import { sortBy } from '@/utils/sortBy';
+import SortBar from '@/components/shared/SortBar';
+import PageHeader from '@/components/shared/PageHeader';
+import { clearGasCache } from '@/services/gasClient';
+import { compressGalleryImageFile, productImageSrc, productImagesList, fitImagesForSheets, MAX_PRODUCT_IMAGES } from '@/utils/productImage';
+import {
+  Plus, Search, Edit, Trash2, Package, X, Save, Wrench, ImagePlus, Boxes, Globe,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
+const PRODUCT_SORT_OPTS = [
+  { value: 'name', label: 'Name' },
+  { value: 'basePrice', label: 'Price' },
+  { value: 'stock', label: 'Stock' },
+  { value: 'category', label: 'Category' },
+];
+
 const PRODUCT_CATEGORIES = [
-  'Business Cards',
-  'Flyers & Brochures',
-  'Posters',
-  'Banners',
-  'Stickers & Labels',
-  'Books & Magazines',
-  'Packaging',
-  'Signage',
-  'Apparel Printing',
-  'Photo Prints',
-  'Other'
+  'Business Cards', 'Flyers & Brochures', 'Posters', 'Banners', 'Stickers & Labels',
+  'Books & Magazines', 'Packaging', 'Signage', 'Apparel Printing', 'Photo Prints', 'Services', 'Other',
 ];
 
 const MATERIALS = [
-  'Premium Card Stock',
-  'Matte Paper',
-  'Glossy Paper',
-  'Vinyl',
-  'Canvas',
-  'PVC',
-  'Fabric',
-  'Metal',
-  'Acrylic',
-  'Corrugated'
+  'Premium Card Stock', 'Matte Paper', 'Glossy Paper', 'Vinyl', 'Canvas',
+  'PVC', 'Fabric', 'Metal', 'Acrylic', 'Corrugated',
 ];
 
-const CATEGORY_COLORS = {
-  'Business Cards': { bg: '#FFF3ED', text: '#F26522' },
-  'Flyers & Brochures': { bg: '#EFF6FF', text: '#3B82F6' },
-  'Posters': { bg: '#F0FDF4', text: '#10B981' },
-  'Banners': { bg: '#FEF3F2', text: '#EF4444' },
-  'Stickers & Labels': { bg: '#FEF9C3', text: '#CA8A04' },
-  'Books & Magazines': { bg: '#F3E8FF', text: '#9333EA' },
-  'Packaging': { bg: '#FCE7F3', text: '#DB2777' },
-  'Signage': { bg: '#ECFEFF', text: '#0891B2' },
-  'Apparel Printing': { bg: '#E0E7FF', text: '#4F46E5' },
-  'Photo Prints': { bg: '#FED7AA', text: '#EA580C' },
-  'Other': { bg: '#F3F4F6', text: '#6B7280' }
-};
+const emptyVariation = () => ({
+  id: `var_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+  name: '',
+  price: '',
+  sku: '',
+});
 
 const emptyProduct = {
   name: '',
   category: '',
   productType: 'Product',
   description: '',
+  fullDescription: '',
   basePrice: 0,
+  salePrice: '',
   unit: 'per piece',
   material: '',
   size: '',
   minQuantity: 1,
   stock: 0,
   designer: '',
-  active: true
+  image: '',
+  images: [],
+  active: true,
+  showOnWebsite: true,
+  showOnTop: false,
+  variations: [],
 };
 
 const Products = () => {
@@ -75,20 +73,30 @@ const Products = () => {
   const [designers, setDesigners] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const [sort, setSort] = useState({ field: 'name', dir: 'asc' });
   const [categoryFilter, setCategoryFilter] = useState(undefined);
   const [typeFilter, setTypeFilter] = useState('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [formData, setFormData] = useState(emptyProduct);
   const [saving, setSaving] = useState(false);
+  const [imageBusy, setImageBusy] = useState(false);
+  const [stockDialog, setStockDialog] = useState({ open: false, product: null, value: '' });
+  const [stockSaving, setStockSaving] = useState(false);
+
+  const isService = String(formData.productType || '').toLowerCase() === 'service';
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
+      clearGasCache();
       const response = await productsAPI.getAll();
       const list = (response.data || []).map((p) => ({
         ...p,
         basePrice: p.basePrice ?? p.rate ?? 0,
+        images: productImagesList(p),
+        image: productImageSrc(p),
+        stock: Number(p.stock ?? 0) || 0,
       }));
       setProducts(list);
     } catch (error) {
@@ -103,8 +111,7 @@ const Products = () => {
     try {
       const response = await designersAPI.getAll();
       setDesigners(response.data || []);
-    } catch (error) {
-      console.error('Error fetching designers:', error);
+    } catch {
       setDesigners([]);
     }
   }, []);
@@ -114,13 +121,21 @@ const Products = () => {
     fetchDesigners();
   }, [fetchProducts, fetchDesigners]);
 
-  const filteredProducts = products.filter(p => {
+  const filteredProducts = products.filter((p) => {
     const matchSearch = !search || p.name?.toLowerCase().includes(search.toLowerCase());
     const matchCategory = !categoryFilter || p.category === categoryFilter;
     const productType = p.productType || 'Product';
     const matchType = typeFilter === 'all' || productType === typeFilter;
     return matchSearch && matchCategory && matchType;
   });
+
+  const sorted = useMemo(() => sortBy(filteredProducts, sort, {
+    name: (p) => p.name || '',
+    basePrice: (p) => Number(p.basePrice ?? p.rate ?? 0) || 0,
+    rate: (p) => Number(p.basePrice ?? p.rate ?? 0) || 0,
+    stock: (p) => Number(p.stock ?? 0) || 0,
+    category: (p) => p.category || '',
+  }), [filteredProducts, sort]);
 
   const openCreateDialog = useCallback(() => {
     setEditingProduct(null);
@@ -139,132 +154,220 @@ const Products = () => {
 
   const openEditDialog = (product) => {
     setEditingProduct(product);
+    const variations = Array.isArray(product.variations)
+      ? product.variations.map((v, i) => ({
+          id: v.id || `var_${i + 1}`,
+          name: v.name || '',
+          price: v.price != null && v.price !== '' ? String(v.price) : '',
+          sku: v.sku || '',
+        }))
+      : [];
     setFormData({
       ...emptyProduct,
       ...product,
       basePrice: product.basePrice ?? product.rate ?? 0,
+      salePrice: product.salePrice > 0 ? product.salePrice : '',
       productType: product.productType || 'Product',
+      description: product.description || '',
+      fullDescription: product.fullDescription || '',
       designer: product.designer || '',
+      stock: Number(product.stock ?? 0) || 0,
+      images: productImagesList(product),
+      image: productImageSrc(product),
+      showOnWebsite: product.showOnWebsite !== false,
+      showOnTop: !!product.showOnTop,
+      variations,
     });
     setDialogOpen(true);
+  };
+
+  const onPickImages = async (ev) => {
+    const files = Array.from(ev.target.files || []);
+    ev.target.value = '';
+    if (!files.length) return;
+    const room = MAX_PRODUCT_IMAGES - (formData.images?.length || 0);
+    if (room <= 0) {
+      toast.error(`Max ${MAX_PRODUCT_IMAGES} photos`);
+      return;
+    }
+    const batch = files.slice(0, room);
+    setImageBusy(true);
+    try {
+      const added = [];
+      for (const file of batch) {
+        // Gallery budget keeps multiple photos under Sheets cell limit
+        const dataUrl = await compressGalleryImageFile(file);
+        added.push(dataUrl);
+      }
+      setFormData((prev) => {
+        const merged = [...(prev.images || []), ...added];
+        const images = merged.slice(0, MAX_PRODUCT_IMAGES);
+        return { ...prev, images, image: images[0] || '' };
+      });
+      toast.success(added.length > 1 ? `${added.length} photos ready (original resolution)` : 'Photo ready (original resolution)');
+    } catch (err) {
+      toast.error(err.message || 'Photo failed — try a smaller file');
+    } finally {
+      setImageBusy(false);
+    }
+  };
+
+  const removeImageAt = (idx) => {
+    setFormData((prev) => {
+      const images = (prev.images || []).filter((_, i) => i !== idx);
+      return { ...prev, images, image: images[0] || '' };
+    });
+  };
+
+  const openStockEdit = (product) => {
+    setStockDialog({
+      open: true,
+      product,
+      value: String(Number(product.stock ?? 0) || 0),
+    });
+  };
+
+  const saveStock = async () => {
+    const product = stockDialog.product;
+    if (!product?.id) return;
+    const next = Math.max(0, Math.floor(Number(stockDialog.value)));
+    if (Number.isNaN(next)) {
+      toast.error('Enter a valid stock number');
+      return;
+    }
+    setStockSaving(true);
+    try {
+      await productsAPI.update(product.id, {
+        ...product,
+        name: product.name,
+        stock: next,
+        basePrice: product.basePrice ?? product.rate ?? 0,
+        rate: product.basePrice ?? product.rate ?? 0,
+        productType: product.productType || 'Product',
+        image: productImageSrc(product) || '',
+        images: productImagesList(product),
+        status: product.active === false ? 'Inactive' : (product.status || 'Active'),
+        active: product.active !== false,
+      });
+      clearGasCache();
+      toast.success(`Stock updated to ${next}`);
+      setStockDialog({ open: false, product: null, value: '' });
+      fetchProducts();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err?.message || 'Stock update failed');
+    } finally {
+      setStockSaving(false);
+    }
   };
 
   const handleSave = async (e) => {
     e.preventDefault();
     setSaving(true);
     try {
-      const payload = {
-        ...formData,
-        basePrice: Number(formData.basePrice),
-        rate: Number(formData.basePrice),
-        productType: formData.productType,
-        designer: formData.designer,
-      };
+      const service = String(formData.productType || '').toLowerCase() === 'service';
+      const variations = (formData.variations || [])
+        .map((v, i) => ({
+          id: v.id || `var_${i + 1}`,
+          name: String(v.name || '').trim(),
+          price: v.price === '' || v.price == null ? null : Number(v.price),
+          sku: String(v.sku || '').trim(),
+        }))
+        .filter((v) => v.name);
+      const salePrice = Number(formData.salePrice) > 0 ? Number(formData.salePrice) : 0;
+      const images = fitImagesForSheets(formData.images || []);
+      const image = images[0] || '';
+      const payload = service
+        ? {
+            name: formData.name,
+            productType: 'Service',
+            category: formData.category || 'Services',
+            description: formData.description || '',
+            fullDescription: formData.fullDescription || '',
+            basePrice: Number(formData.basePrice) || 0,
+            rate: Number(formData.basePrice) || 0,
+            salePrice,
+            unit: 'service',
+            material: '',
+            size: '',
+            designer: '',
+            minQuantity: 1,
+            stock: 0,
+            image,
+            images,
+            active: formData.active !== false,
+            status: formData.active === false ? 'Inactive' : 'Active',
+            showOnWebsite: formData.showOnWebsite !== false,
+            showOnTop: !!formData.showOnTop,
+            variations,
+          }
+        : {
+            name: formData.name,
+            category: formData.category || '',
+            productType: formData.productType || 'Product',
+            description: formData.description || '',
+            fullDescription: formData.fullDescription || '',
+            basePrice: Number(formData.basePrice) || 0,
+            rate: Number(formData.basePrice) || 0,
+            salePrice,
+            unit: formData.unit || 'per piece',
+            material: formData.material || '',
+            size: formData.size || '',
+            minQuantity: formData.minQuantity || 1,
+            stock: Math.max(0, Math.floor(Number(formData.stock) || 0)),
+            designer: formData.designer || '',
+            image,
+            images,
+            active: formData.active !== false,
+            status: formData.active === false ? 'Inactive' : 'Active',
+            showOnWebsite: formData.showOnWebsite !== false,
+            showOnTop: !!formData.showOnTop,
+            variations,
+          };
       if (editingProduct) {
         await productsAPI.update(editingProduct.id, payload);
-        toast.success('Product updated successfully');
+        toast.success(service ? 'Service updated' : 'Product updated');
       } else {
         await productsAPI.create(payload);
-        toast.success('Product created successfully');
+        toast.success(service ? 'Service created' : 'Product created');
       }
+      clearGasCache();
       setDialogOpen(false);
       fetchProducts();
-    } catch (error) {
-      toast.error(editingProduct ? 'Failed to update product' : 'Failed to create product');
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || 'Save failed';
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (product) => {
-    if (window.confirm(`Delete "${product.name}"?`)) {
-      try {
-        await productsAPI.delete(product.id);
-        toast.success('Product deleted successfully');
-        fetchProducts();
-      } catch (error) {
-        toast.error('Failed to delete product');
-      }
+    if (!window.confirm(`Delete "${product.name}"?`)) return;
+    try {
+      await productsAPI.delete(product.id);
+      toast.success('Deleted');
+      fetchProducts();
+    } catch {
+      toast.error('Delete failed');
     }
   };
 
-  const categoryStats = PRODUCT_CATEGORIES.map(cat => ({
-    name: cat,
-    count: products.filter(p => p.category === cat).length
-  })).filter(s => s.count > 0);
-
   return (
-    <div className="space-y-6" data-testid="products-page">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold" style={{ color: '#2E2E2E' }}>Products</h1>
-          <p className="text-gray-600 mt-1">Manage your product catalog and pricing</p>
-        </div>
-        <Button
-          onClick={openCreateDialog}
-          style={{ backgroundColor: '#F26522' }}
-          className="text-white"
-          data-testid="add-product-button"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Add Product
-        </Button>
-      </div>
+    <div className="erp-page space-y-4" data-testid="products-page">
+      <PageHeader
+        eyebrow="Operations"
+        title="Products"
+        subtitle="Catalog with photos · manual stock edit"
+        actions={(
+          <Button onClick={openCreateDialog} style={{ backgroundColor: '#ff6d00' }} className="text-white h-9 rounded-xl" data-testid="add-product-button">
+            <Plus className="h-4 w-4 mr-1.5" />
+            Add
+          </Button>
+        )}
+      />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#F26522' }}>
-              <Package className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase font-medium">Total Products</p>
-              <p className="text-2xl font-bold" style={{ color: '#2E2E2E' }}>{products.length}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#10B981' }}>
-              <Layers className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase font-medium">Categories</p>
-              <p className="text-2xl font-bold" style={{ color: '#2E2E2E' }}>{categoryStats.length}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#3B82F6' }}>
-              <Ruler className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase font-medium">Active</p>
-              <p className="text-2xl font-bold" style={{ color: '#2E2E2E' }}>{products.filter(p => p.active).length}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#8B5CF6' }}>
-              <DollarSign className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase font-medium">Avg Price</p>
-              <p className="text-2xl font-bold" style={{ color: '#2E2E2E' }}>
-                {products.length > 0
-                  ? formatCurrency(products.reduce((s, p) => s + (p.basePrice ?? p.rate ?? 0), 0) / products.length)
-                  : formatCurrency(0)}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-wrap gap-2 mb-3" data-testid="product-type-filter">
+      <div className="erp-panel p-3 space-y-2">
+          <div className="flex flex-wrap gap-1.5" data-testid="product-type-filter">
             {[
               { value: 'all', label: 'All' },
               { value: 'Product', label: 'Products' },
@@ -275,346 +378,574 @@ const Products = () => {
                 type="button"
                 size="sm"
                 variant={typeFilter === tab.value ? 'default' : 'outline'}
-                style={typeFilter === tab.value ? { backgroundColor: '#F26522' } : undefined}
-                className={typeFilter === tab.value ? 'text-white' : ''}
+                style={typeFilter === tab.value ? { backgroundColor: '#ff6d00' } : undefined}
+                className={`h-7 text-xs rounded-lg ${typeFilter === tab.value ? 'text-white' : ''}`}
                 onClick={() => setTypeFilter(tab.value)}
-                data-testid={`type-filter-${tab.value}`}
               >
                 {tab.label}
               </Button>
             ))}
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="md:col-span-2 relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="sm:col-span-2 relative">
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
               <Input
-                placeholder="Search products by name..."
+                placeholder="Search…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-10"
+                className="pl-8 h-9 text-sm rounded-xl"
                 data-testid="product-search-input"
               />
             </div>
-            <Select
-              value={categoryFilter}
-              onValueChange={(v) => setCategoryFilter(v === 'all' ? undefined : v)}
-            >
-              <SelectTrigger data-testid="category-filter">
-                <SelectValue placeholder="All Categories" />
+            <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v === 'all' ? undefined : v)}>
+              <SelectTrigger className="h-9 text-sm rounded-xl" data-testid="category-filter">
+                <SelectValue placeholder="All categories" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {PRODUCT_CATEGORIES.map(cat => (
+                <SelectItem value="all">All categories</SelectItem>
+                {PRODUCT_CATEGORIES.map((cat) => (
                   <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-        </CardContent>
-      </Card>
+          <div className="mt-2 max-w-md">
+            <SortBar value={sort} onChange={setSort} options={PRODUCT_SORT_OPTS} />
+          </div>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Product Catalog</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div className="erp-panel">
+        <div className="py-3 px-4 border-b border-black/[0.05]">
+          <h3 className="font-display text-sm font-bold text-ink">Catalog ({sorted.length})</h3>
+        </div>
+        <div className="px-3 pb-3 pt-3">
           {loading ? (
-            <div className="text-center py-8 text-gray-500">Loading products...</div>
-          ) : filteredProducts.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: '#FFF3ED' }}>
-                <Package className="h-8 w-8" style={{ color: '#F26522' }} />
-              </div>
-              <p className="text-gray-500 mb-4">
-                {products.length === 0
-                  ? 'No products yet. Add your first product to build your catalog.'
-                  : 'No products match your search criteria.'}
-              </p>
-              {products.length === 0 && (
-                <Button onClick={openCreateDialog} style={{ backgroundColor: '#F26522' }} className="text-white">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Your First Product
-                </Button>
-              )}
+            <div className="text-center py-8 text-sm text-slate-500">Loading…</div>
+          ) : sorted.length === 0 ? (
+            <div className="text-center py-10">
+              <Package className="h-8 w-8 mx-auto text-slate-300 mb-2" />
+              <p className="text-sm text-slate-500 mb-3">No items yet.</p>
+              <Button onClick={openCreateDialog} style={{ backgroundColor: '#ff6d00' }} className="text-white h-8 text-sm rounded-xl">
+                <Plus className="h-3.5 w-3.5 mr-1" />Add first
+              </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filteredProducts.map(product => {
-                const colors = CATEGORY_COLORS[product.category] || CATEGORY_COLORS['Other'];
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+              {sorted.map((product) => {
+                const service = String(product.productType || '').toLowerCase() === 'service';
+                const imgs = productImagesList(product);
+                const img = imgs[0] || '';
                 return (
                   <div
                     key={product.id}
-                    className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-lg hover:border-orange-300 transition-all duration-200"
+                    className="rounded-xl border-2 border-gray-700 bg-white overflow-hidden hover:border-orange-500 hover:shadow-md transition-all"
                     data-testid={`product-card-${product.id}`}
                   >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: colors.bg }}>
-                        <Package className="h-6 w-6" style={{ color: colors.text }} />
-                      </div>
-                      {product.active ? (
-                        <Badge className="bg-green-100 text-green-800 text-xs">Active</Badge>
+                    <div className="aspect-[4/3] bg-gray-50 flex items-center justify-center overflow-hidden relative">
+                      {img ? (
+                        <img src={img} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : service ? (
+                        <Wrench className="h-8 w-8 text-gray-300" />
                       ) : (
-                        <Badge className="bg-gray-100 text-gray-600 text-xs">Inactive</Badge>
+                        <Package className="h-8 w-8 text-gray-300" />
                       )}
-                    </div>
-
-                    <h3 className="font-bold text-base mb-1 truncate" style={{ color: '#2E2E2E' }}>
-                      {product.name}
-                    </h3>
-                    <div className="flex flex-wrap gap-1 mb-2">
-                      {product.category && (
-                        <Badge className="text-xs" style={{ backgroundColor: colors.bg, color: colors.text }}>
-                          {product.category}
+                      {imgs.length > 1 && (
+                        <Badge className="absolute bottom-1.5 right-1.5 text-[10px] px-1.5 py-0 h-5 bg-black/70 text-white border-0">
+                          {imgs.length} photos
                         </Badge>
                       )}
-                      <Badge className="text-xs bg-gray-100 text-gray-700">
-                        {product.productType || 'Product'}
+                      <Badge
+                        variant="outline"
+                        className="absolute top-1.5 left-1.5 text-[10px] px-1.5 py-0 h-5 bg-white/90 border-gray-600 text-gray-700"
+                      >
+                        {service ? 'Service' : 'Product'}
                       </Badge>
+                      {product.showOnWebsite !== false ? (
+                        <Badge className="absolute top-1.5 right-1.5 text-[10px] px-1.5 py-0 h-5 bg-emerald-600 text-white border-0">
+                          <Globe className="h-3 w-3 mr-0.5" />Web
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="absolute top-1.5 right-1.5 text-[10px] px-1.5 py-0 h-5 bg-white/90 text-gray-500">
+                          Hidden
+                        </Badge>
+                      )}
+                      {product.showOnTop ? (
+                        <Badge className="absolute bottom-1.5 left-1.5 text-[10px] px-1.5 py-0 h-5 bg-orange-600 text-white border-0">
+                          Top
+                        </Badge>
+                      ) : null}
                     </div>
-                    {product.description && (
-                      <p className="text-xs text-gray-500 mb-3 line-clamp-2">{product.description}</p>
-                    )}
-
-                    <div className="space-y-1.5 pb-3 border-b border-gray-100 mb-3">
-                      {product.material && (
-                        <div className="flex justify-between text-xs">
-                          <span className="text-gray-500">Material:</span>
-                          <span className="font-medium" style={{ color: '#2E2E2E' }}>{product.material}</span>
-                        </div>
-                      )}
-                      {product.size && (
-                        <div className="flex justify-between text-xs">
-                          <span className="text-gray-500">Size:</span>
-                          <span className="font-medium" style={{ color: '#2E2E2E' }}>{product.size}</span>
-                        </div>
-                      )}
-                      {product.designer && (
-                        <div className="flex justify-between text-xs">
-                          <span className="text-gray-500">Designer:</span>
-                          <span className="font-medium" style={{ color: '#2E2E2E' }}>{product.designer}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between text-xs">
-                        <span className="text-gray-500">Min Qty:</span>
-                        <span className="font-medium" style={{ color: '#2E2E2E' }}>{product.minQuantity}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-end justify-between mb-3">
-                      <div>
-                        <p className="text-xs text-gray-500">Base Price</p>
-                        <p className="text-xl font-bold" style={{ color: '#F26522' }}>
+                    <div className="p-3 space-y-1.5">
+                      <p className="text-sm font-semibold leading-snug line-clamp-2 min-h-[2.5rem]" style={{ color: '#0747a3' }}>
+                        {product.name}
+                      </p>
+                      {Number(product.salePrice) > 0 ? (
+                        <p className="text-base font-bold" style={{ color: '#ff6d00' }}>
+                          <span className="text-gray-400 text-xs font-medium line-through mr-1.5">
+                            {formatCurrency(product.basePrice ?? product.rate ?? 0)}
+                          </span>
+                          {formatCurrency(product.salePrice)}
+                        </p>
+                      ) : (
+                        <p className="text-base font-bold" style={{ color: '#ff6d00' }}>
                           {formatCurrency(product.basePrice ?? product.rate ?? 0)}
                         </p>
-                        <p className="text-xs text-gray-500">{product.unit || 'per piece'}</p>
+                      )}
+                      {!service && (
+                        <button
+                          type="button"
+                          onClick={() => openStockEdit(product)}
+                          className="flex items-center gap-1 text-[11px] font-medium text-gray-700 hover:text-orange-600"
+                          title="Edit stock"
+                        >
+                          <Boxes className="h-3.5 w-3.5" />
+                          Stock: <span className="font-bold">{Number(product.stock ?? 0) || 0}</span>
+                          <span className="text-orange-600 underline ml-0.5">Edit</span>
+                        </button>
+                      )}
+                      <div className="flex gap-1.5 pt-1">
+                        <Button size="sm" variant="outline" className="h-8 flex-1 text-xs border-gray-600" onClick={() => openEditDialog(product)}>
+                          <Edit className="h-3.5 w-3.5 mr-1" />Edit
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => handleDelete(product)}>
+                          <Trash2 className="h-3.5 w-3.5 text-red-600" />
+                        </Button>
                       </div>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="flex-1"
-                        onClick={() => openEditDialog(product)}
-                        data-testid={`edit-product-${product.id}`}
-                      >
-                        <Edit className="h-3 w-3 mr-1" />
-                        Edit
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => handleDelete(product)}
-                        data-testid={`delete-product-${product.id}`}
-                      >
-                        <Trash2 className="h-4 w-4 text-red-600" />
-                      </Button>
                     </div>
                   </div>
                 );
               })}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
+
+      <Dialog open={stockDialog.open} onOpenChange={(open) => setStockDialog((s) => ({ ...s, open }))}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Edit stock</DialogTitle>
+            <DialogDescription>
+              {stockDialog.product?.name || 'Product'} — set quantity manually.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Stock quantity</Label>
+              <Input
+                type="number"
+                min="0"
+                step="1"
+                value={stockDialog.value}
+                onChange={(e) => setStockDialog((s) => ({ ...s, value: e.target.value }))}
+                autoFocus
+              />
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {[-10, -1, +1, +10, +50].map((n) => (
+                <Button
+                  key={n}
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs"
+                  onClick={() => {
+                    const cur = Math.max(0, Math.floor(Number(stockDialog.value) || 0));
+                    setStockDialog((s) => ({ ...s, value: String(Math.max(0, cur + n)) }));
+                  }}
+                >
+                  {n > 0 ? `+${n}` : n}
+                </Button>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setStockDialog({ open: false, product: null, value: '' })}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="text-white"
+              style={{ backgroundColor: '#ff6d00' }}
+              disabled={stockSaving}
+              onClick={saveStock}
+            >
+              {stockSaving ? 'Saving…' : 'Save stock'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="product-dialog">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" data-testid="product-dialog">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-bold" style={{ color: '#2E2E2E' }}>
-              {editingProduct ? 'Edit Product' : 'Add New Product'}
+            <DialogTitle className="text-xl font-bold" style={{ color: '#0747a3' }}>
+              {editingProduct ? (isService ? 'Edit Service' : 'Edit Product') : (isService ? 'Add Service' : 'Add Product')}
             </DialogTitle>
             <DialogDescription>
-              {editingProduct ? 'Update product details below' : 'Fill in the details to add a new product to your catalog'}
+              {isService
+                ? 'Service: description + charges. Optional photo for catalog.'
+                : 'Product photo + stock for warehouse catalog (orders/invoices keep no photo).'}
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSave} className="space-y-4 mt-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2">
-                <Label htmlFor="name">Product Name *</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                  data-testid="product-name-input"
-                />
+          <form onSubmit={handleSave} className="space-y-3 mt-2">
+            <div className="space-y-2">
+              <Label>Catalog photos (up to {MAX_PRODUCT_IMAGES})</Label>
+              <div className="flex flex-wrap gap-2">
+                {(formData.images || []).map((src, idx) => (
+                  <div key={`${idx}_${src.slice(-12)}`} className="relative w-20 h-20 rounded-lg border bg-gray-50 overflow-hidden group">
+                    <img src={src} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    {idx === 0 && (
+                      <span className="absolute bottom-0 inset-x-0 bg-black/55 text-white text-[9px] text-center py-0.5">Main</span>
+                    )}
+                    <button
+                      type="button"
+                      className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-red-600 text-white text-xs leading-none opacity-90 hover:opacity-100"
+                      onClick={() => removeImageAt(idx)}
+                      title="Remove"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+                {(formData.images?.length || 0) < MAX_PRODUCT_IMAGES && (
+                  <label className="w-20 h-20 rounded-lg border border-dashed border-gray-300 bg-gray-50 flex flex-col items-center justify-center cursor-pointer hover:border-orange-400 text-gray-400">
+                    <ImagePlus className="h-5 w-5" />
+                    <span className="text-[9px] mt-0.5">Add</span>
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={onPickImages}
+                      disabled={imageBusy}
+                      className="hidden"
+                    />
+                  </label>
+                )}
               </div>
-
-              <div>
-                <Label htmlFor="category">Category *</Label>
-                <Select
-                  value={formData.category || undefined}
-                  onValueChange={(v) => setFormData({ ...formData, category: v })}
-                >
-                  <SelectTrigger data-testid="product-category-select">
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PRODUCT_CATEGORIES.map(cat => (
-                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="productType">Product Type</Label>
-                <Select
-                  value={formData.productType || 'Product'}
-                  onValueChange={(v) => setFormData({ ...formData, productType: v })}
-                >
-                  <SelectTrigger data-testid="product-type-select">
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Product">Product</SelectItem>
-                    <SelectItem value="Service">Service</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="designer">Designer</Label>
-                <Select
-                  value={formData.designer || undefined}
-                  onValueChange={(v) => setFormData({ ...formData, designer: v === 'none' ? '' : v })}
-                >
-                  <SelectTrigger data-testid="product-designer-select">
-                    <SelectValue placeholder="Select designer" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {designers.map((d) => (
-                      <SelectItem key={d.id || d.name} value={d.name || d.id}>
-                        {d.name || d.id}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="material">Material</Label>
-                <Select
-                  value={formData.material || undefined}
-                  onValueChange={(v) => setFormData({ ...formData, material: v })}
-                >
-                  <SelectTrigger data-testid="product-material-select">
-                    <SelectValue placeholder="Select material" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MATERIALS.map(mat => (
-                      <SelectItem key={mat} value={mat}>{mat}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="basePrice">Base Price (Rs) *</Label>
-                <Input
-                  id="basePrice"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={formData.basePrice}
-                  onChange={(e) => setFormData({ ...formData, basePrice: parseFloat(e.target.value) || 0 })}
-                  required
-                  data-testid="product-price-input"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="unit">Unit</Label>
-                <Select
-                  value={formData.unit || 'per piece'}
-                  onValueChange={(v) => setFormData({ ...formData, unit: v })}
-                >
-                  <SelectTrigger data-testid="product-unit-select">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="per piece">Per Piece</SelectItem>
-                    <SelectItem value="per sq ft">Per Sq Ft</SelectItem>
-                    <SelectItem value="per sq meter">Per Sq Meter</SelectItem>
-                    <SelectItem value="per 100">Per 100 Units</SelectItem>
-                    <SelectItem value="per 1000">Per 1000 Units</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="size">Size / Dimensions</Label>
-                <Input
-                  id="size"
-                  placeholder="e.g., 3.5 x 2 inches, A4"
-                  value={formData.size}
-                  onChange={(e) => setFormData({ ...formData, size: e.target.value })}
-                  data-testid="product-size-input"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="minQuantity">Min Order Quantity</Label>
-                <Input
-                  id="minQuantity"
-                  type="number"
-                  min="1"
-                  value={formData.minQuantity}
-                  onChange={(e) => setFormData({ ...formData, minQuantity: parseInt(e.target.value) || 1 })}
-                  data-testid="product-minqty-input"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  placeholder="Describe your product..."
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  rows={3}
-                  data-testid="product-description-input"
-                />
-              </div>
+              <p className="text-[11px] text-gray-500">
+                {imageBusy ? 'Processing…' : 'Up to 5 photos. HD copies go to the website gallery when Show on website is on.'}
+              </p>
             </div>
 
-            <DialogFooter className="gap-2 pt-4">
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} data-testid="cancel-product-button">
-                <X className="h-4 w-4 mr-1" />
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                style={{ backgroundColor: '#F26522' }}
-                className="text-white"
-                disabled={saving}
-                data-testid="save-product-button"
+            <div>
+              <Label>Type</Label>
+              <Select
+                value={formData.productType || 'Product'}
+                onValueChange={(v) => setFormData({
+                  ...formData,
+                  productType: v,
+                  category: v === 'Service' ? (formData.category || 'Services') : formData.category,
+                  unit: v === 'Service' ? 'service' : (formData.unit || 'per piece'),
+                })}
               >
+                <SelectTrigger data-testid="product-type-select"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Product">Product</SelectItem>
+                  <SelectItem value="Service">Service</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-orange-100 bg-[#FFF6ED] px-3 py-2.5">
+              <div>
+                <Label htmlFor="show-on-website" className="text-sm font-semibold">Show on website</Label>
+                <p className="text-[11px] text-gray-500 mt-0.5">Off = hidden from storefront catalog &amp; checkout</p>
+              </div>
+              <Switch
+                id="show-on-website"
+                checked={formData.showOnWebsite !== false}
+                onCheckedChange={(v) => setFormData({ ...formData, showOnWebsite: !!v })}
+                data-testid="product-show-website-switch"
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-orange-100 bg-[#FFF6ED] px-3 py-2.5">
+              <div>
+                <Label htmlFor="show-on-top" className="text-sm font-semibold">Show on top of website products</Label>
+                <p className="text-[11px] text-gray-500 mt-0.5">Pinned to the top of the Products page listing</p>
+              </div>
+              <Switch
+                id="show-on-top"
+                checked={!!formData.showOnTop}
+                onCheckedChange={(v) => setFormData({ ...formData, showOnTop: !!v })}
+                data-testid="product-show-top-switch"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="name">{isService ? 'Service name *' : 'Product name *'}</Label>
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                required
+                data-testid="product-name-input"
+              />
+            </div>
+
+            {isService ? (
+              <>
+                <div>
+                  <Label htmlFor="description">Short description *</Label>
+                  <Textarea
+                    id="description"
+                    placeholder="What this service includes…"
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    rows={3}
+                    required
+                    data-testid="product-description-input"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="fullDescription">Full description</Label>
+                  <Textarea
+                    id="fullDescription"
+                    placeholder="Detailed service info shown on the website product page…"
+                    value={formData.fullDescription}
+                    onChange={(e) => setFormData({ ...formData, fullDescription: e.target.value })}
+                    rows={5}
+                    data-testid="product-full-description-input"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="basePrice">Service Charges (Rs) *</Label>
+                  <Input
+                    id="basePrice"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formData.basePrice}
+                    onChange={(e) => setFormData({ ...formData, basePrice: parseFloat(e.target.value) || 0 })}
+                    required
+                    data-testid="product-price-input"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="salePrice">Sale price (Rs)</Label>
+                  <Input
+                    id="salePrice"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="Optional — leave blank for no sale"
+                    value={formData.salePrice}
+                    onChange={(e) => setFormData({ ...formData, salePrice: e.target.value })}
+                    data-testid="product-sale-price-input"
+                  />
+                  <p className="text-[11px] text-gray-500 mt-1">Website shows old price struck through + this sale price.</p>
+                </div>
+              </>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <Label>Category</Label>
+                  <Select value={formData.category || undefined} onValueChange={(v) => setFormData({ ...formData, category: v })}>
+                    <SelectTrigger data-testid="product-category-select"><SelectValue placeholder="Category" /></SelectTrigger>
+                    <SelectContent>
+                      {PRODUCT_CATEGORIES.map((cat) => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Designer</Label>
+                  <Select value={formData.designer || undefined} onValueChange={(v) => setFormData({ ...formData, designer: v === 'none' ? '' : v })}>
+                    <SelectTrigger><SelectValue placeholder="Designer" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {designers.map((d) => (
+                        <SelectItem key={d.id || d.name} value={d.name || d.id}>{d.name || d.id}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Material</Label>
+                  <Select value={formData.material || undefined} onValueChange={(v) => setFormData({ ...formData, material: v })}>
+                    <SelectTrigger><SelectValue placeholder="Material" /></SelectTrigger>
+                    <SelectContent>
+                      {MATERIALS.map((mat) => <SelectItem key={mat} value={mat}>{mat}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Base / regular price (Rs) *</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formData.basePrice}
+                    onChange={(e) => setFormData({ ...formData, basePrice: parseFloat(e.target.value) || 0 })}
+                    required
+                    data-testid="product-price-input"
+                  />
+                </div>
+                <div>
+                  <Label>Sale price (Rs)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="Optional"
+                    value={formData.salePrice}
+                    onChange={(e) => setFormData({ ...formData, salePrice: e.target.value })}
+                    data-testid="product-sale-price-input"
+                  />
+                  <p className="text-[11px] text-gray-500 mt-1">Shown as current price; regular price gets strikethrough.</p>
+                </div>
+                <div>
+                  <Label>Unit</Label>
+                  <Select value={formData.unit || 'per piece'} onValueChange={(v) => setFormData({ ...formData, unit: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="per piece">Per Piece</SelectItem>
+                      <SelectItem value="per sq ft">Per Sq Ft</SelectItem>
+                      <SelectItem value="per sq meter">Per Sq Meter</SelectItem>
+                      <SelectItem value="per 100">Per 100</SelectItem>
+                      <SelectItem value="per 1000">Per 1000</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Size</Label>
+                  <Input value={formData.size} onChange={(e) => setFormData({ ...formData, size: e.target.value })} placeholder="e.g. A4" />
+                </div>
+                <div>
+                  <Label>Stock (manual)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={formData.stock}
+                    onChange={(e) => setFormData({ ...formData, stock: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                    data-testid="product-stock-input"
+                  />
+                </div>
+                <div>
+                  <Label>Min quantity</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={formData.minQuantity}
+                    onChange={(e) => setFormData({ ...formData, minQuantity: Math.max(1, parseInt(e.target.value, 10) || 1) })}
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <Label>Short description</Label>
+                  <Textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    rows={2}
+                    placeholder="Shown on product cards / lists"
+                    data-testid="product-description-input"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <Label>Full description</Label>
+                  <Textarea
+                    value={formData.fullDescription}
+                    onChange={(e) => setFormData({ ...formData, fullDescription: e.target.value })}
+                    rows={5}
+                    placeholder="Full details for the website product page"
+                    data-testid="product-full-description-input"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="rounded-lg border p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <Label className="text-sm font-semibold">Variations</Label>
+                  <p className="text-[11px] text-gray-500">e.g. A4 Matte, A3 Gloss — optional price override</p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8"
+                  onClick={() => setFormData((prev) => ({
+                    ...prev,
+                    variations: [...(prev.variations || []), emptyVariation()],
+                  }))}
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1" />Add
+                </Button>
+              </div>
+              {(formData.variations || []).length === 0 ? (
+                <p className="text-xs text-gray-500">No variations — base price is used.</p>
+              ) : (
+                <div className="space-y-2">
+                  {(formData.variations || []).map((v, idx) => (
+                    <div key={v.id || idx} className="grid grid-cols-12 gap-2 items-end">
+                      <div className="col-span-5">
+                        <Label className="text-[11px]">Name</Label>
+                        <Input
+                          value={v.name}
+                          placeholder="A4 / Matte"
+                          onChange={(e) => setFormData((prev) => {
+                            const variations = [...(prev.variations || [])];
+                            variations[idx] = { ...variations[idx], name: e.target.value };
+                            return { ...prev, variations };
+                          })}
+                        />
+                      </div>
+                      <div className="col-span-3">
+                        <Label className="text-[11px]">Price (optional)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={v.price}
+                          placeholder="Base"
+                          onChange={(e) => setFormData((prev) => {
+                            const variations = [...(prev.variations || [])];
+                            variations[idx] = { ...variations[idx], price: e.target.value };
+                            return { ...prev, variations };
+                          })}
+                        />
+                      </div>
+                      <div className="col-span-3">
+                        <Label className="text-[11px]">SKU</Label>
+                        <Input
+                          value={v.sku}
+                          placeholder="Optional"
+                          onChange={(e) => setFormData((prev) => {
+                            const variations = [...(prev.variations || [])];
+                            variations[idx] = { ...variations[idx], sku: e.target.value };
+                            return { ...prev, variations };
+                          })}
+                        />
+                      </div>
+                      <div className="col-span-1">
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="h-9 w-9"
+                          onClick={() => setFormData((prev) => ({
+                            ...prev,
+                            variations: (prev.variations || []).filter((_, i) => i !== idx),
+                          }))}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-600" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                <X className="h-4 w-4 mr-1" />Cancel
+              </Button>
+              <Button type="submit" style={{ backgroundColor: '#ff6d00' }} className="text-white" disabled={saving || imageBusy}>
                 <Save className="h-4 w-4 mr-1" />
-                {saving ? 'Saving...' : editingProduct ? 'Update Product' : 'Create Product'}
+                {saving ? 'Saving…' : 'Save'}
               </Button>
             </DialogFooter>
           </form>

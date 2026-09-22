@@ -7,11 +7,16 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { tokensAPI, customersAPI, debugAPI } from '@/services/api';
+import { notifyTokenEvent } from '@/services/notifications';
+import { documentFileName } from '@/utils/printHelpers';
+import { isCustomerBlocked, getBlockMessage } from '@/utils/customerHelpers';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import {
-  Ticket, Printer, MessageCircle, Monitor, Search, Plus, XCircle,
+  Ticket, Printer, Monitor, Search, Plus, XCircle,
   Loader2, RefreshCw,
 } from 'lucide-react';
+import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 
 const DEFAULT_SERVICES = [
   { name: 'Designing', counter: 'Table 01' },
@@ -42,11 +47,16 @@ function buildWhatsAppUrl(phone, text) {
 }
 
 function printToken(token) {
+  const printTitle = documentFileName({
+    docType: 'Token',
+    customerName: token.customerName,
+    orderNumber: token.tokenNo,
+  });
   const html = `
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Token ${token.tokenNo}</title>
+  <title>${printTitle}</title>
   <style>
     @page { size: 80mm auto; margin: 4mm; }
     body { font-family: Arial, sans-serif; width: 72mm; margin: 0; color: #000; }
@@ -86,6 +96,7 @@ function printToken(token) {
 const emptyForm = {
   customerName: '',
   customerPhone: '',
+  customerEmail: '',
   counterName: '',
   service: '',
   serviceNote: '',
@@ -104,6 +115,8 @@ const TokenBooking = () => {
   const [tokens, setTokens] = useState([]);
   const [listLoading, setListLoading] = useState(false);
   const [listFilter, setListFilter] = useState('today'); // today | all
+  const [blockedCustomer, setBlockedCustomer] = useState(null);
+  const [matchedCustomer, setMatchedCustomer] = useState(null);
 
   const loadMeta = useCallback(async () => {
     try {
@@ -202,13 +215,21 @@ const TokenBooking = () => {
         return p && (p === digits || p.slice(-10) === digits.slice(-10));
       });
       if (match) {
+        if (isCustomerBlocked(match)) {
+          setBlockedCustomer(match);
+          setMatchedCustomer(match);
+          return;
+        }
+        setMatchedCustomer(match);
         setForm((prev) => ({
           ...prev,
           customerName: match.name || prev.customerName,
           customerPhone: match.phone || prev.customerPhone,
+          customerEmail: match.email || prev.customerEmail,
         }));
         toast.success('Existing customer found');
       } else {
+        setMatchedCustomer(null);
         toast.message('New customer — will be created on booking');
       }
     } catch (error) {
@@ -224,6 +245,11 @@ const TokenBooking = () => {
       toast.error('Customer name and phone are required');
       return;
     }
+    const emailTrim = String(form.customerEmail || '').trim();
+    if (emailTrim && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) {
+      toast.error('Enter a valid email address');
+      return;
+    }
     if (!form.service) {
       toast.error('Select a service first');
       return;
@@ -235,12 +261,18 @@ const TokenBooking = () => {
       toast.error('No counter mapped for this service');
       return;
     }
+    if (matchedCustomer && isCustomerBlocked(matchedCustomer)) {
+      setBlockedCustomer(matchedCustomer);
+      return;
+    }
 
     setLoading(true);
     try {
       const res = await tokensAPI.create({
         customerName: form.customerName.trim(),
         customerPhone: form.customerPhone.trim(),
+        customerEmail: emailTrim,
+        email: emailTrim,
         counterName,
         service: form.service,
         serviceNote: form.serviceNote,
@@ -257,9 +289,23 @@ const TokenBooking = () => {
           },
         };
       }
-      const normalized = { ...token, tokenNo };
+      const normalized = {
+        ...token,
+        tokenNo,
+        customerEmail: token.customerEmail || form.customerEmail.trim(),
+      };
       setLastToken(normalized);
       toast.success(`Token ${tokenNo} → ${token.counterName || counterName}`);
+      const gasEmail = token?._notifications?.email;
+      if (gasEmail?.ok) toast.success(`Token email sent to ${normalized.customerEmail}`);
+      else if (gasEmail?.ok === false && gasEmail.reason !== 'missing_email') {
+        // Fallback: frontend email path
+        const notify = await notifyTokenEvent(normalized, { event: 'token_booked', openWhatsApp: false });
+        if (notify?.emailSent) toast.success(`Token email sent to ${normalized.customerEmail}`);
+        else if (notify?.emailError || gasEmail?.error) {
+          toast.error(notify?.emailError || gasEmail.error || 'Token email failed');
+        }
+      }
       setForm((prev) => ({
         ...emptyForm,
         service: prev.service,
@@ -289,6 +335,9 @@ const TokenBooking = () => {
     } catch (error) {
       console.error(error);
       const msg = error.response?.data?.message || error.message || 'Failed to book token';
+      if (/blocked/i.test(msg)) {
+        setBlockedCustomer(matchedCustomer || { name: form.customerName, blockReason: msg.replace(/^Customer is blocked:\s*/i, '') });
+      }
       toast.error(msg);
       setDbStatus(msg);
     } finally {
@@ -340,7 +389,7 @@ const TokenBooking = () => {
     <div className="space-y-6" data-testid="token-booking">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold" style={{ color: '#2E2E2E' }}>Token Booking</h1>
+          <h1 className="text-3xl font-bold" style={{ color: '#0747a3' }}>Token Booking</h1>
           <p className="text-sm text-gray-500 mt-1">Select service → counter auto-assigned · list · print · WhatsApp</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -372,7 +421,7 @@ const TokenBooking = () => {
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Ticket className="h-5 w-5" style={{ color: '#F26522' }} />
+              <Ticket className="h-5 w-5" style={{ color: '#ff6d00' }} />
               New Token
             </CardTitle>
           </CardHeader>
@@ -400,6 +449,16 @@ const TokenBooking = () => {
                     onChange={(e) => setForm({ ...form, customerName: e.target.value })}
                     placeholder="Customer name"
                     data-testid="token-customer-name"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <Label>Customer Email (optional)</Label>
+                  <Input
+                    type="email"
+                    value={form.customerEmail}
+                    onChange={(e) => setForm({ ...form, customerEmail: e.target.value })}
+                    placeholder="customer@email.com"
+                    data-testid="token-customer-email"
                   />
                 </div>
               </div>
@@ -459,7 +518,7 @@ const TokenBooking = () => {
                 type="submit"
                 disabled={loading}
                 className="text-white"
-                style={{ backgroundColor: '#F26522' }}
+                style={{ backgroundColor: '#ff6d00' }}
                 data-testid="token-book-submit"
               >
                 <Plus className="h-4 w-4 mr-2" />
@@ -480,7 +539,7 @@ const TokenBooking = () => {
               <>
                 <div className="rounded-xl p-4 text-center" style={{ backgroundColor: '#FFF4EE' }}>
                   <div className="text-xs uppercase tracking-wide text-gray-500">Token</div>
-                  <div className="text-4xl font-bold mt-1" style={{ color: '#F26522' }}>{lastToken.tokenNo}</div>
+                  <div className="text-4xl font-bold mt-1" style={{ color: '#ff6d00' }}>{lastToken.tokenNo}</div>
                   <div className="text-sm mt-2 text-gray-700">{lastToken.counterName}</div>
                   <div className="text-sm text-gray-600">{lastToken.customerName}</div>
                   <div className="text-sm text-gray-600">{lastToken.service}</div>
@@ -493,8 +552,8 @@ const TokenBooking = () => {
                     <Printer className="h-4 w-4 mr-2" />
                     Print Token (POS)
                   </Button>
-                  <Button variant="outline" onClick={() => sendWhatsApp(lastToken)} data-testid="token-whatsapp">
-                    <MessageCircle className="h-4 w-4 mr-2" />
+                  <Button variant="outline" className="text-green-700 border-green-200 hover:bg-green-50" onClick={() => sendWhatsApp(lastToken)} data-testid="token-whatsapp">
+                    <WhatsAppIcon className="h-4 w-4 mr-2" />
                     Send WhatsApp
                   </Button>
                   <Button variant="outline" onClick={() => markProgress(lastToken)} data-testid="token-booking-progress">
@@ -529,7 +588,7 @@ const TokenBooking = () => {
             <Button
               size="sm"
               variant={listFilter === 'today' ? 'default' : 'outline'}
-              style={listFilter === 'today' ? { backgroundColor: '#F26522' } : undefined}
+              style={listFilter === 'today' ? { backgroundColor: '#ff6d00' } : undefined}
               className={listFilter === 'today' ? 'text-white' : ''}
               onClick={() => setListFilter('today')}
             >
@@ -538,7 +597,7 @@ const TokenBooking = () => {
             <Button
               size="sm"
               variant={listFilter === 'all' ? 'default' : 'outline'}
-              style={listFilter === 'all' ? { backgroundColor: '#F26522' } : undefined}
+              style={listFilter === 'all' ? { backgroundColor: '#ff6d00' } : undefined}
               className={listFilter === 'all' ? 'text-white' : ''}
               onClick={() => setListFilter('all')}
             >
@@ -570,7 +629,7 @@ const TokenBooking = () => {
                 <tbody>
                   {tokens.map((t) => (
                     <tr key={t.id || t.tokenNo} className="border-b border-gray-100 hover:bg-orange-50/40">
-                      <td className="py-2.5 pr-3 font-bold" style={{ color: '#F26522' }}>{t.tokenNo}</td>
+                      <td className="py-2.5 pr-3 font-bold" style={{ color: '#ff6d00' }}>{t.tokenNo}</td>
                       <td className="py-2.5 pr-3">
                         <div className="font-medium">{t.customerName}</div>
                         <div className="text-xs text-gray-500">{t.customerPhone}</div>
@@ -591,8 +650,8 @@ const TokenBooking = () => {
                           <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => printToken(t)} title="Print">
                             <Printer className="h-3.5 w-3.5" />
                           </Button>
-                          <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => sendWhatsApp(t)} title="WhatsApp">
-                            <MessageCircle className="h-3.5 w-3.5" />
+                          <Button size="sm" variant="ghost" className="h-8 px-2 text-green-600" onClick={() => sendWhatsApp(t)} title="WhatsApp">
+                            <WhatsAppIcon className="h-3.5 w-3.5" />
                           </Button>
                           <Button
                             size="sm"
@@ -616,6 +675,18 @@ const TokenBooking = () => {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!blockedCustomer} onOpenChange={(open) => { if (!open) setBlockedCustomer(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-red-700">Customer Blocked</DialogTitle>
+            <DialogDescription>{blockedCustomer ? getBlockMessage(blockedCustomer) : ''}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" onClick={() => setBlockedCustomer(null)}>OK</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
