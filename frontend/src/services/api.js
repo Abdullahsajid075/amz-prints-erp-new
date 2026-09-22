@@ -172,6 +172,12 @@ export const notificationsAPI = {
 export const trackPublic = (id) =>
   gasRequest('GET', `/public/track/${encodeURIComponent(String(id || '').trim())}`);
 
+export const portalAPI = {
+  login: (data) => gasRequest('POST', '/public/customer/login', { data }),
+  register: (data) => gasRequest('POST', '/public/customer/register', { data }),
+  me: (token, customerId) => gasRequest('GET', '/public/customer/me', { params: { token, c: customerId || '' } }),
+};
+
 export const verifyEmployeePublic = (code) =>
   gasRequest('GET', `/public/employee/${encodeURIComponent(String(code || '').trim())}`);
 
@@ -203,4 +209,5 @@ export default {
   notificationsAPI,
   trackPublic,
   verifyEmployeePublic,
+  portalAPI,
 };

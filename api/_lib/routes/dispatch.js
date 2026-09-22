@@ -322,13 +322,73 @@ async function recordInvoicePayment(invoiceId, body = {}, user) {
 }
 
 async function nextOrderId(prefix = 'ORD') {
-  const { data } = await supabase.from('orders').select('order_id').order('created_at', { ascending: false }).limit(200);
-  let max = 0;
-  (data || []).forEach((r) => {
-    const m = String(r.order_id || '').match(/(\d+)\s*$/);
-    if (m) max = Math.max(max, Number(m[1]));
-  });
-  return `${prefix}-${String(max + 1).padStart(4, '0')}`;
+  return bumpDocumentSeq(`seq_${String(prefix).toLowerCase()}`, prefix, 4);
+}
+
+async function nextTrackingNumber() {
+  return bumpDocumentSeq('seq_trk', 'TRK', 5);
+}
+
+async function bumpDocumentSeq(seqId, prefix, pad) {
+  const { data: counter } = await supabase.from('counters').select('*').eq('id', seqId).maybeSingle();
+  let last = num(counter && counter.last_number);
+  if (!counter) {
+    const col = prefix === 'TRK' ? 'tracking_number' : 'order_id';
+    const { data: rows } = await supabase.from('orders').select(col).limit(2000);
+    (rows || []).forEach((r) => {
+      const m = String(r[col] || '').match(/(\d+)\s*$/);
+      if (m) last = Math.max(last, Number(m[1]));
+    });
+    await supabase.from('counters').upsert({
+      id: seqId,
+      counter_name: seqId,
+      prefix,
+      last_number: last,
+      status: 'Active',
+    });
+  }
+  const next = last + 1;
+  await supabase.from('counters').update({ last_number: next }).eq('id', seqId);
+  return `${prefix}-${String(next).padStart(pad, '0')}`;
+}
+
+async function applyCustomerAdvance({ customerId, amount, orderId, invoiceId, invoiceNo, method, notes, date }) {
+  const applied = num(amount);
+  if (!(applied > 0) || !customerId) return { applied: 0, creditAfter: 0 };
+  const cust = await loadCustomer(customerId);
+  if (!cust) return { applied: 0, creditAfter: 0 };
+  const available = num(cust.credit_balance);
+  const use = Math.min(applied, available);
+  if (!(use > 0)) return { applied: 0, creditAfter: available };
+  const creditAfter = Math.max(0, available - use);
+  await supabase.from('customers').update({ credit_balance: creditAfter }).eq('id', cust.id);
+  const ref = invoiceId || orderId || cust.id;
+  const { data: dup } = await supabase.from('payments')
+    .select('id')
+    .eq('ref_id', ref)
+    .eq('category', 'Advance Applied')
+    .eq('amount', use)
+    .limit(1);
+  if (dup && dup.length) {
+    return { applied: use, creditAfter, payment: null, duplicate: true };
+  }
+  const payRow = {
+    id: id('pay'),
+    date: date || today(),
+    type: 'adjustment',
+    category: 'Advance Applied',
+    ref_id: ref,
+    customer_name: cust.name,
+    customer_id: cust.id,
+    party_phone: cust.phone,
+    amount: use,
+    method: method || 'Advance',
+    notes: notes || `Advance applied${invoiceNo ? ` to ${invoiceNo}` : ''}${orderId ? ` / ${orderId}` : ''}`,
+    balance_due: 0,
+    total_amount: use,
+  };
+  await supabase.from('payments').insert(payRow);
+  return { applied: use, creditAfter, payment: mapPayment(payRow) };
 }
 
 async function upsertCustomerFromOrder(body) {
@@ -542,12 +602,42 @@ async function dispatch(req, res) {
         return send(res, { ok: true, token: issueCustomerToken(loginCust), customer: sanitizePortalCustomer(loginCust) });
       }
       if ((method === 'GET' || method === 'POST') && path === '/public/customer/me') {
-        const meTok = String(body.token || body.customerToken || req.query.token || '').trim();
+        const headerTok = String(req.headers?.authorization || '').replace(/^Bearer\s+/i, '').trim();
+        const meTok = String(body.token || body.customerToken || req.query.token || headerTok || '').trim();
         const payload = parseCustomerToken(meTok);
-        if (!payload) return sendError(res, 'Unauthorized', 401);
+        if (!payload) return sendError(res, 'Login required', 401);
         const me = await loadCustomer(payload.id);
         if (!me) return sendError(res, 'Unauthorized', 401);
-        return send(res, { ok: true, customer: sanitizePortalCustomer(me) });
+        const wantCid = String(req.query.c || req.query.cid || body.customerId || '').trim();
+        if (wantCid && wantCid !== String(me.id)) {
+          return sendError(res, 'This QR belongs to a different customer account. Please login with the matching account.', 403);
+        }
+        const [{ data: orders }, { data: invoices }, { data: payments }] = await Promise.all([
+          supabase.from('orders').select('*'),
+          supabase.from('invoices').select('*'),
+          supabase.from('payments').select('*'),
+        ]);
+        const led = computeCustomerLedger(me, orders || [], invoices || [], payments || []);
+        const relatedOrders = (orders || []).filter((o) =>
+          String(o.doc_type || 'Order').toLowerCase() !== 'quotation'
+          && (String(o.customer_id) === String(me.id) || (me.phone && String(o.customer_phone || '').replace(/\D/g, '').slice(-10) === String(me.phone).replace(/\D/g, '').slice(-10)))
+        );
+        const relatedInvoices = (invoices || []).filter((inv) => String(inv.customer_id) === String(me.id));
+        const relatedPayments = (payments || []).filter((p) => String(p.customer_id) === String(me.id));
+        return send(res, {
+          ok: true,
+          customer: {
+            ...sanitizePortalCustomer(me),
+            customerCode: me.customer_code || me.id,
+            outstanding: led.outstanding,
+            creditBalance: led.creditBalance,
+          },
+          ledger: led,
+          orders: relatedOrders.map(mapOrder),
+          invoices: relatedInvoices.map(mapInvoice),
+          payments: relatedPayments.map(mapPayment),
+          portalUrl: `/portal?c=${encodeURIComponent(me.id)}`,
+        });
       }
       if (method === 'POST' && (path === '/public/orders' || path === '/public/checkout')) {
         const orderTok = String(body.token || body.customerToken || req.query.token || '').trim();
@@ -600,7 +690,7 @@ async function dispatch(req, res) {
           status: 'Order Received',
         });
         row.order_id = await nextOrderId('WEB');
-        row.tracking_number = `TRK-${Math.floor(1000 + Math.random() * 9000)}`;
+        row.tracking_number = await nextTrackingNumber();
         row.status_history = [{ status: row.status, at: `${today()} ${nowTime()}`, note: 'Website order' }];
         await supabase.from('orders').insert(row);
         return send(res, { ok: true, order: mapOrder(row) });
@@ -1298,15 +1388,33 @@ async function dispatch(req, res) {
           const custRow = await loadCustomer(body.customerId);
           assertCustomerNotBlocked(custRow);
         }
-        if (!body.trackingNumber) body.trackingNumber = `TRK-${Math.floor(1000 + Math.random() * 9000)}`;
+        if (!body.trackingNumber) body.trackingNumber = await nextTrackingNumber();
         const row = orderFromBody(body);
         if (!row.order_id) row.order_id = await nextOrderId(docType === 'pos' ? 'POS' : 'ORD');
         if (!row.status_history || !row.status_history.length) {
           row.status_history = [{ status: row.status, at: `${today()} ${nowTime()}`, note: 'Created' }];
         }
+        const applyWanted = num(body.applyCredit != null ? body.applyCredit : body.creditApplied);
+        if (applyWanted > 0 && row.customer_id && docType !== 'pos') {
+          const due = Math.max(0, num(row.total_amount) - num(row.advance_payment));
+          const adv = await applyCustomerAdvance({
+            customerId: row.customer_id,
+            amount: Math.min(applyWanted, due),
+            orderId: row.order_id,
+            notes: `Advance applied to order ${row.order_id}`,
+            date: row.date,
+          });
+          if (adv.applied > 0) {
+            row.advance_payment = num(row.advance_payment) + adv.applied;
+            row.balance_amount = Math.max(0, num(row.total_amount) - num(row.advance_payment));
+            row.remarks = `${row.remarks || ''}${row.remarks ? ' | ' : ''}Advance applied ${adv.applied}`.trim();
+          }
+        }
         const { error } = await supabase.from('orders').insert(row);
         if (error) throw error;
-        return send(res, await withInvoiceMeta(mapOrder(row)));
+        const mapped = await withInvoiceMeta(mapOrder(row));
+        mapped.creditApplied = num(body.applyCredit);
+        return send(res, mapped);
       }
     }
 
@@ -1336,7 +1444,7 @@ async function dispatch(req, res) {
         const copy = orderFromBody({ ...mapOrder(existing), id: undefined, orderId: undefined }, {});
         copy.id = id('order');
         copy.order_id = await nextOrderId();
-        copy.tracking_number = `TRK-${Math.floor(1000 + Math.random() * 9000)}`;
+        copy.tracking_number = await nextTrackingNumber();
         await supabase.from('orders').insert(copy);
         return send(res, mapOrder(copy));
       }
@@ -1419,6 +1527,7 @@ async function dispatch(req, res) {
           return orderIds.some((oid) => ids.includes(oid));
         });
         if (clash) return sendError(res, `Order already on invoice ${clash.id}`, 400);
+        const cashPaid = num(body.paidAmount != null ? body.paidAmount : body.paid);
         const row = {
           id: id('inv'),
           invoice_no: body.invoiceNumber || body.invoiceNo || `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`,
@@ -1438,13 +1547,30 @@ async function dispatch(req, res) {
           discount: num(body.discount),
           previous_balance: num(body.previousBalance),
           total: num(body.totalAmount != null ? body.totalAmount : body.total),
-          paid: num(body.paidAmount != null ? body.paidAmount : body.paid),
+          paid: cashPaid,
           status: body.status || 'Unpaid',
           notes: body.notes || '',
           share_token: body.shareToken || `share_${Date.now().toString(36)}`,
           payment_history: [],
         };
         await supabase.from('invoices').insert(row);
+        const applyWanted = num(body.applyCredit != null ? body.applyCredit : body.creditApplied);
+        if (applyWanted > 0 && row.customer_id) {
+          const due = Math.max(0, num(row.total) + num(row.previous_balance) - num(row.paid));
+          const adv = await applyCustomerAdvance({
+            customerId: row.customer_id,
+            amount: Math.min(applyWanted, due),
+            orderId: row.order_id,
+            invoiceId: row.id,
+            invoiceNo: row.invoice_no,
+            date: row.date,
+          });
+          if (adv.applied > 0) {
+            row.paid = num(row.paid) + adv.applied;
+            row.status = invoiceStatusFromPaid(num(row.total) + num(row.previous_balance), row.paid);
+            await supabase.from('invoices').update({ paid: row.paid, status: row.status }).eq('id', row.id);
+          }
+        }
         return send(res, mapInvoice(row));
       }
       const iid = path.split('/')[2];
@@ -1492,15 +1618,8 @@ async function dispatch(req, res) {
       }
     }
 
-    // Designers from HR employees (role Designer)
-    if (path === '/designers' && method === 'GET') {
-      const { data } = await supabase.from('employees').select('*');
-      const designers = (data || []).filter((e) => {
-        const role = String(e.role || '').toLowerCase();
-        const status = String(e.status || 'Active').toLowerCase();
-        return status !== 'inactive' && role.includes('designer');
-      });
-      return send(res, designers.map((e) => {
+    if (path === '/designers' || path.startsWith('/designers/')) {
+      const asDesigner = (e) => {
         const emp = mapEmployee(e);
         return {
           id: emp.id,
@@ -1508,9 +1627,43 @@ async function dispatch(req, res) {
           email: emp.email || '',
           phone: emp.phone || '',
           role: emp.role || 'Designer',
+          designation: emp.designation || '',
           photo: emp.photo || '',
         };
-      }));
+      };
+      const isDesignerEmp = (e) => {
+        const status = String(e.status || 'Active').toLowerCase();
+        if (status === 'inactive') return false;
+        const blob = `${e.role || ''} ${e.designation || ''} ${e.department || ''}`.toLowerCase();
+        return /design/.test(blob);
+      };
+      if (path === '/designers' && method === 'GET') {
+        const { data } = await supabase.from('employees').select('*');
+        let designers = (data || []).filter(isDesignerEmp);
+        if (!designers.length) {
+          designers = (data || []).filter((e) => String(e.status || 'Active').toLowerCase() !== 'inactive');
+        }
+        return send(res, designers.map(asDesigner));
+      }
+      if (path === '/designers' && method === 'POST') {
+        const name = String(body.name || '').trim();
+        if (!name) return sendError(res, 'Designer name is required', 400);
+        const row = {
+          id: id('emp'),
+          employee_code: body.employeeCode || `DSG-${Date.now().toString().slice(-5)}`,
+          name,
+          phone: body.phone || '',
+          email: body.email || '',
+          role: 'Designer',
+          designation: body.designation || 'Designer',
+          department: body.department || 'Design',
+          join_date: body.joinDate || today(),
+          status: 'Active',
+          notes: body.notes || 'Added from order form',
+        };
+        await supabase.from('employees').insert(row);
+        return send(res, asDesigner(row));
+      }
     }
 
     // Counters

@@ -216,6 +216,12 @@ const Login = () => {
 
           <div className="mt-6 pt-5 border-t border-slate-200/80">
             <Link
+              to="/portal"
+              className="flex items-center justify-center gap-2 w-full h-11 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-ink hover:bg-slate-50 transition-colors mt-2"
+            >
+              Customer portal
+            </Link>
+            <Link
               to="/track"
               className="flex items-center justify-center gap-2 w-full h-11 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-ink hover:bg-slate-50 transition-colors"
               data-testid="login-track-order-link"

@@ -108,6 +108,7 @@ function sanitizePortalCustomer(c) {
   if (!c) return null;
   return {
     id: c.id,
+    customerCode: c.customer_code || c.id || '',
     name: c.name || '',
     phone: c.phone || '',
     email: c.email || '',

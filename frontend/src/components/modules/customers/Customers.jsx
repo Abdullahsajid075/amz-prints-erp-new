@@ -14,6 +14,7 @@ import { finishPaymentRecording } from '@/utils/paymentActions';
 import { useBrand } from '@/context/BrandContext';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 import { customerMatchesQuery } from '@/utils/customerSearch';
+import { customerPortalUrl, printCustomerCard } from '@/utils/customerDocuments';
 import {
   isCustomerBlocked, canUnblockCustomer, customerDisplayCode,
   openUrduBalanceWhatsApp, openCustomerWelcomeWhatsApp,
@@ -21,7 +22,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
-import { Plus, Search, Edit, Trash2, User, Phone, Mail, MapPin, TrendingUp, X, Save, BookOpen, Bell, Kanban, ShieldBan, ShieldCheck, Wallet } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, User, Phone, Mail, MapPin, TrendingUp, X, Save, BookOpen, Bell, Kanban, ShieldBan, ShieldCheck, Wallet, IdCard, QrCode } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
 
@@ -351,6 +352,33 @@ const Customers = () => {
                     <div className="flex gap-1 flex-wrap">
                       <Button size="sm" className="flex-1 text-white h-8 text-xs min-w-[40%]" style={{ backgroundColor: '#ff6d00' }} onClick={() => openLedger(c)} data-testid={`ledger-${c.id}`}>
                         <BookOpen className="h-3 w-3 mr-1" />Ledger
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs"
+                        onClick={() => printCustomerCard({
+                          customer: { ...c, customerCode: customerDisplayCode(c) },
+                          company,
+                          qrUrl: '',
+                          outstanding: formatCurrency(c.outstanding),
+                          creditBalance: formatCurrency(c.creditBalance),
+                        })}
+                      >
+                        <IdCard className="h-3 w-3 mr-1" />Card
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs"
+                        onClick={() => {
+                          const url = customerPortalUrl(c.id);
+                          navigator.clipboard?.writeText(url);
+                          window.open(url, '_blank', 'noopener');
+                          toast.message('Portal QR link copied — customer must login');
+                        }}
+                      >
+                        <QrCode className="h-3 w-3 mr-1" />QR
                       </Button>
                       {Number(c.outstanding) > 0 && c.phone && (
                         <Button

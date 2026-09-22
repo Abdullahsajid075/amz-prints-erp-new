@@ -14,8 +14,9 @@ import { ORDER_STATUS } from '@/utils/constants';
 import { formatCurrency } from '@/utils/helpers';
 import { catalogFieldsForOrderLine } from '@/utils/productImage';
 import { useBrand } from '@/context/BrandContext';
-import { Plus, Trash2, Save, ArrowLeft, ClipboardList, PackagePlus } from 'lucide-react';
+import { Plus, Trash2, Save, ArrowLeft, ClipboardList, PackagePlus, AlertTriangle, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
 const emptyProduct = () => ({
   _key: `p_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
@@ -69,6 +70,10 @@ const OrderForm = () => {
   const [originalStatus, setOriginalStatus] = useState('');
   const [originalAdvance, setOriginalAdvance] = useState(0);
   const [loaded, setLoaded] = useState(!isEdit);
+  const [applyCredit, setApplyCredit] = useState(0);
+  const [addDesignerOpen, setAddDesignerOpen] = useState(false);
+  const [newDesigner, setNewDesigner] = useState({ name: '', phone: '', email: '' });
+  const [createdInfo, setCreatedInfo] = useState(null);
 
   const fetchCustomers = useCallback(async () => {
     try {
@@ -213,13 +218,20 @@ const OrderForm = () => {
 
   const designerSelectValue = useMemo(() => {
     const v = formData.assignedDesigner;
-    if (!v) return undefined;
+    if (!v) return 'none';
     const byId = designers.find((d) => String(d.id) === String(v));
     if (byId) return String(byId.id);
     const byName = designers.find((d) => String(d.name).toLowerCase() === String(v).toLowerCase());
     if (byName) return String(byName.id);
     return String(v);
   }, [formData.assignedDesigner, designers]);
+
+  const selectedCustomer = useMemo(
+    () => customers.find((c) => String(c.id) === String(formData.customerId)) || null,
+    [customers, formData.customerId],
+  );
+  const customerOutstanding = Number(selectedCustomer?.outstanding || 0);
+  const customerCredit = Number(selectedCustomer?.creditBalance || 0);
 
   const catalogValueFor = (line) => {
     if (line.productId && catalog.some((p) => String(p.id) === String(line.productId))) {
@@ -285,7 +297,7 @@ const OrderForm = () => {
   };
 
   const calculateTotal = () => formData.products.reduce((t, p) => t + (Number(p.quantity) || 0) * (Number(p.rate) || 0), 0);
-  const calculateBalance = () => calculateTotal() - (Number(formData.advancePayment) || 0);
+  const calculateBalance = () => Math.max(0, calculateTotal() - (Number(formData.advancePayment) || 0) - (Number(applyCredit) || 0));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -350,6 +362,7 @@ const OrderForm = () => {
         totalAmount,
         balanceAmount: Math.max(0, totalAmount - advancePayment),
         docType: 'Order',
+        applyCredit: isEdit ? 0 : Math.max(0, Number(applyCredit) || 0),
       };
 
       const prevStatus = isEdit ? originalStatus : '';
@@ -406,6 +419,11 @@ const OrderForm = () => {
         const data = { ...orderData, ...(created.data || {}) };
         if (created.data?._invoiceError) toast.error(created.data._invoiceError);
         else if (created.data?.invoiceNumber) toast.message(`Invoice ${created.data.invoiceNumber} linked for this payment`);
+        setCreatedInfo({
+          orderId: data.orderId || created.data?.orderId || '',
+          trackingNumber: data.trackingNumber || created.data?.trackingNumber || '',
+          invoiceNumber: created.data?.invoiceNumber || '',
+        });
         await notifyOrderEvent({ event: 'created', order: data, sendEmail: false });
         toast.message('WhatsApp opened — tap Send to notify customer');
         const gasEmail = created.data?._notifications?.email;
@@ -414,6 +432,7 @@ const OrderForm = () => {
         } else if (gasEmail?.ok) {
           toast.success(`Order email sent to ${data.customerEmail}`);
         }
+        return;
       }
       navigate('/orders');
     } catch (error) {
@@ -482,8 +501,47 @@ const OrderForm = () => {
                 customerAddress={formData.customerAddress}
                 accent={accent}
                 onCustomersChange={(c) => setCustomers((prev) => [c, ...prev.filter((x) => x.id !== c.id)])}
-                onChange={(next) => setFormData((prev) => ({ ...prev, ...next }))}
+                onChange={(next) => {
+                  setApplyCredit(0);
+                  setFormData((prev) => ({ ...prev, ...next }));
+                }}
               />
+              {selectedCustomer && customerOutstanding > 0.009 && (
+                <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3" data-testid="customer-due-warning">
+                  <p className="text-sm font-bold text-amber-900 flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" />This customer has an outstanding balance.
+                  </p>
+                  <p className="text-sm text-amber-800 mt-1">Pending amount: <strong>{formatCurrency(customerOutstanding)}</strong></p>
+                </div>
+              )}
+              {selectedCustomer && customerCredit > 0.009 && (
+                <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3" data-testid="customer-advance-card">
+                  <p className="text-sm font-bold text-emerald-900 flex items-center gap-2">
+                    <Wallet className="h-4 w-4" />This customer has available advance balance.
+                  </p>
+                  <p className="text-sm text-emerald-800 mt-1">Advance: <strong>{formatCurrency(customerCredit)}</strong></p>
+                  <div className="mt-2">
+                    <Label className="text-xs">Adjust against this order</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      max={Math.min(customerCredit, Math.max(0, calculateTotal() - (Number(formData.advancePayment) || 0)))}
+                      value={applyCredit}
+                      onChange={(e) => {
+                        const due = Math.max(0, calculateTotal() - (Number(formData.advancePayment) || 0));
+                        const next = Math.min(customerCredit, due, Math.max(0, Number(e.target.value) || 0));
+                        setApplyCredit(next);
+                      }}
+                      data-testid="apply-credit-input"
+                    />
+                    <p className="text-[11px] text-emerald-700 mt-1">
+                      After adjustment: advance {formatCurrency(Math.max(0, customerCredit - (Number(applyCredit) || 0)))} ·
+                      order payable {formatCurrency(Math.max(0, calculateTotal() - (Number(formData.advancePayment) || 0) - (Number(applyCredit) || 0)))}
+                    </p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -496,6 +554,10 @@ const OrderForm = () => {
                   <Select
                     value={designerSelectValue}
                     onValueChange={(value) => {
+                      if (value === 'none') {
+                        setFormData((prev) => ({ ...prev, assignedDesigner: '' }));
+                        return;
+                      }
                       const d = designers.find((x) => String(x.id) === String(value));
                       setFormData((prev) => ({
                         ...prev,
@@ -505,13 +567,21 @@ const OrderForm = () => {
                   >
                     <SelectTrigger data-testid="designer-select"><SelectValue placeholder="Select designer" /></SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="none">Unassigned</SelectItem>
                       {designers.map((designer) => (
                         <SelectItem key={designer.id} value={String(designer.id)}>
                           {designer.name}
                         </SelectItem>
                       ))}
+                      {formData.assignedDesigner && designerSelectValue !== 'none'
+                        && !designers.some((d) => String(d.id) === designerSelectValue) && (
+                        <SelectItem value={designerSelectValue}>{formData.assignedDesigner}</SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
+                  <Button type="button" variant="link" className="h-auto p-0 text-xs mt-1" onClick={() => setAddDesignerOpen(true)}>
+                    + Add designer
+                  </Button>
                 </div>
                 <div>
                   <Label className="text-xs">Delivery Date *</Label>
@@ -754,6 +824,66 @@ const OrderForm = () => {
           </Button>
         </div>
       </form>
+
+      <Dialog open={addDesignerOpen} onOpenChange={setAddDesignerOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add designer</DialogTitle>
+            <DialogDescription>Saved in HR employees with role Designer, then assigned to this order.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div><Label>Name</Label><Input value={newDesigner.name} onChange={(e) => setNewDesigner((p) => ({ ...p, name: e.target.value }))} /></div>
+            <div><Label>Phone</Label><Input value={newDesigner.phone} onChange={(e) => setNewDesigner((p) => ({ ...p, phone: e.target.value }))} /></div>
+            <div><Label>Email</Label><Input value={newDesigner.email} onChange={(e) => setNewDesigner((p) => ({ ...p, email: e.target.value }))} /></div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setAddDesignerOpen(false)}>Cancel</Button>
+            <Button
+              type="button"
+              className="text-white"
+              style={{ backgroundColor: accent }}
+              onClick={async () => {
+                if (!newDesigner.name.trim()) {
+                  toast.error('Designer name required');
+                  return;
+                }
+                try {
+                  const res = await designersAPI.create(newDesigner);
+                  const d = res.data;
+                  setDesigners((prev) => [d, ...prev.filter((x) => x.id !== d.id)]);
+                  setFormData((prev) => ({ ...prev, assignedDesigner: d.name }));
+                  setAddDesignerOpen(false);
+                  setNewDesigner({ name: '', phone: '', email: '' });
+                  toast.success('Designer added');
+                } catch (err) {
+                  toast.error(err.response?.data?.message || 'Could not add designer');
+                }
+              }}
+            >
+              Save designer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!createdInfo} onOpenChange={(open) => { if (!open) { setCreatedInfo(null); navigate('/orders'); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Order created</DialogTitle>
+            <DialogDescription>Numbers are saved on the order. Refresh will not generate new ones.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 text-sm">
+            <p>Order number: <strong data-testid="created-order-id">{createdInfo?.orderId || '—'}</strong></p>
+            <p>Tracking number: <strong data-testid="created-tracking">{createdInfo?.trackingNumber || '—'}</strong></p>
+            {createdInfo?.invoiceNumber && <p>Invoice: <strong>{createdInfo.invoiceNumber}</strong></p>}
+          </div>
+          <DialogFooter>
+            <Button type="button" className="text-white" style={{ backgroundColor: accent }} onClick={() => { setCreatedInfo(null); navigate('/orders'); }}>
+              Go to orders
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

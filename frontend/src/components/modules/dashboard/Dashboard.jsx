@@ -253,14 +253,17 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="erp-page space-y-5" data-testid="dashboard">
+    <div className="erp-page space-y-5 relative" data-testid="dashboard">
+      {loading && (
+        <div className="absolute inset-0 z-10 bg-white/50 backdrop-blur-[1px] rounded-2xl pointer-events-none" />
+      )}
       {/* Command hero — ink + brand accent */}
       <div
         className="relative overflow-hidden rounded-2xl text-white shadow-[0_16px_40px_rgba(28,36,48,0.18)]"
         style={{
           background: `
-            radial-gradient(700px 280px at 0% 0%, ${brand}66, transparent 55%),
-            linear-gradient(145deg, #0747a3 0%, #05357c 55%, #042a63 100%)
+            radial-gradient(720px 300px at 8% -10%, ${brand}73, transparent 58%),
+            linear-gradient(148deg, #05357c 0%, #0747a3 42%, #042a63 100%)
           `,
         }}
       >
@@ -269,7 +272,7 @@ const Dashboard = () => {
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-white/65">
                 <Sparkles className="h-3.5 w-3.5" style={{ color: brand }} strokeWidth={2.25} />
-                {company?.name || 'AMZ Prints'} · Command
+                {company?.name || 'AMZ Prints'} · Operations dashboard
               </div>
               <h1 className="mt-2 font-display text-2xl sm:text-3xl lg:text-[2.1rem] font-bold leading-tight tracking-tight">
                 {greeting}, {displayName}
