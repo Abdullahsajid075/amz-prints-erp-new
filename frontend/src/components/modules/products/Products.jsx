@@ -252,7 +252,6 @@ const Products = () => {
         minQuantity: product.minQuantity,
         designer: product.designer || '',
         stock: next,
-        image: productImageSrc(product) || '',
         images: productImagesList(product),
         status: product.active === false ? 'Inactive' : (product.status || 'Active'),
         active: product.active !== false,
@@ -286,7 +285,6 @@ const Products = () => {
         .filter((v) => v.name);
       const salePrice = Number(formData.salePrice) > 0 ? Number(formData.salePrice) : 0;
       const images = fitImagesForSheets(formData.images || []);
-      const image = images[0] || '';
       const payload = service
         ? {
             name: formData.name,
@@ -303,7 +301,6 @@ const Products = () => {
             designer: '',
             minQuantity: 1,
             stock: 0,
-            image,
             images,
             active: formData.active !== false,
             status: formData.active === false ? 'Inactive' : 'Active',
@@ -326,7 +323,6 @@ const Products = () => {
             minQuantity: formData.minQuantity || 1,
             stock: Math.max(0, Math.floor(Number(formData.stock) || 0)),
             designer: formData.designer || '',
-            image,
             images,
             active: formData.active !== false,
             status: formData.active === false ? 'Inactive' : 'Active',
@@ -334,13 +330,18 @@ const Products = () => {
             showOnTop: !!formData.showOnTop,
             variations,
           };
-      if (editingProduct) {
-        await productsAPI.update(editingProduct.id, payload);
-        toast.success(service ? 'Service updated' : 'Product updated');
-      } else {
-        await productsAPI.create(payload);
-        toast.success(service ? 'Service created' : 'Product created');
+      const save = (body) => (editingProduct
+        ? productsAPI.update(editingProduct.id, body)
+        : productsAPI.create(body));
+      try {
+        await save(payload);
+      } catch (first) {
+        const httpImages = images.filter((u) => /^https?:\/\//i.test(String(u)));
+        await save({ ...payload, images: httpImages });
       }
+      toast.success(editingProduct
+        ? (service ? 'Service updated' : 'Product updated')
+        : (service ? 'Service created' : 'Product created'));
       clearGasCache();
       setDialogOpen(false);
       fetchProducts();

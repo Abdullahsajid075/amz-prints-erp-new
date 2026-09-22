@@ -25,7 +25,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
-import { Plus, Search, Edit, Trash2, User, Phone, Mail, MapPin, TrendingUp, X, Save, BookOpen, Bell, Kanban, ShieldBan, ShieldCheck, Wallet, IdCard, QrCode, ImagePlus } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, User, Phone, Mail, MapPin, TrendingUp, X, Save, BookOpen, Bell, Kanban, ShieldBan, ShieldCheck, Wallet, IdCard, QrCode, ImagePlus, Camera } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
 
@@ -69,6 +69,8 @@ const Customers = () => {
   const [qrCustomer, setQrCustomer] = useState(null);
   const [qrPng, setQrPng] = useState('');
   const qrCanvasWrap = React.useRef(null);
+  const photoFileRef = React.useRef(null);
+  const [photoTarget, setPhotoTarget] = useState(null);
 
   const withBalanceCount = useMemo(
     () => customers.filter((c) => Number(c.outstanding) > 0).length,
@@ -125,6 +127,33 @@ const Customers = () => {
       setLedger(res.data);
     } catch (err) { console.error(err); toast.error('Failed to load ledger'); }
     finally { setLedgerLoading(false); }
+  };
+
+  const savePhotoFor = async (c, file) => {
+    if (!c?.id || !file) return;
+    setImageBusy(true);
+    try {
+      const dataUrl = await compressPortraitFile(file);
+      await customersAPI.update(c.id, {
+        name: c.name,
+        phone: c.phone,
+        email: c.email,
+        address: c.address,
+        city: c.city,
+        notes: c.notes,
+        notifyWhatsApp: c.notifyWhatsApp,
+        notifyEmail: c.notifyEmail,
+        photo: dataUrl,
+      });
+      clearGasCache();
+      toast.success('Customer photo saved');
+      fetchCustomers();
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message || 'Photo save failed');
+    } finally {
+      setImageBusy(false);
+      setPhotoTarget(null);
+    }
   };
 
   const onPickPhoto = async (ev) => {
@@ -383,13 +412,22 @@ const Customers = () => {
                 {sorted.map(c => (
                   <div key={c.id} className={`bg-white border rounded-xl p-4 hover:shadow-md transition-all ${isCustomerBlocked(c) ? 'border-red-200 bg-red-50/30' : 'border-gray-100 hover:border-orange-200'}`} data-testid={`customer-card-${c.id}`}>
                     <div className="flex items-start gap-3 mb-3">
-                      <div className="w-11 h-11 rounded-lg overflow-hidden flex items-center justify-center shrink-0 border border-orange-100" style={{ backgroundColor: isCustomerBlocked(c) ? '#FEE2E2' : '#FFF4EB' }}>
+                      <button
+                        type="button"
+                        className="relative w-14 h-14 rounded-lg overflow-hidden flex items-center justify-center shrink-0 border border-orange-200"
+                        style={{ backgroundColor: isCustomerBlocked(c) ? '#FEE2E2' : '#FFF4EB' }}
+                        title="Upload customer photo"
+                        onClick={() => {
+                          setPhotoTarget(c);
+                          photoFileRef.current?.click();
+                        }}
+                      >
                         {c.photo ? (
                           <img src={c.photo} alt="" className="w-full h-full object-cover" />
                         ) : (
-                          <User className="h-5 w-5" style={{ color: isCustomerBlocked(c) ? '#DC2626' : '#ff6d00' }} />
+                          <Camera className="h-5 w-5" style={{ color: isCustomerBlocked(c) ? '#DC2626' : '#ff6d00' }} />
                         )}
-                      </div>
+                      </button>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="font-bold truncate" style={{ color: '#1F2937' }}>{c.name}</h3>
@@ -418,6 +456,18 @@ const Customers = () => {
                         onClick={() => printCardFor(c)}
                       >
                         <IdCard className="h-3 w-3 mr-1" />Card
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs"
+                        disabled={imageBusy}
+                        onClick={() => {
+                          setPhotoTarget(c);
+                          photoFileRef.current?.click();
+                        }}
+                      >
+                        <Camera className="h-3 w-3 mr-1" />Photo
                       </Button>
                       <Button
                         size="sm"
@@ -469,24 +519,37 @@ const Customers = () => {
         </CardContent>
       </Card>
 
+      <input
+        ref={photoFileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(ev) => {
+          const file = ev.target.files?.[0];
+          ev.target.value = '';
+          if (file && photoTarget) savePhotoFor(photoTarget, file);
+        }}
+      />
+
       {/* Create/Edit dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg" data-testid="customer-dialog">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" data-testid="customer-dialog">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold">{editing ? 'Edit Customer' : 'Add Customer'}</DialogTitle>
             <DialogDescription>Contact details are saved to the customer portal and reused across invoices.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSave} className="space-y-3 mt-3">
-            <div className="flex items-center gap-3">
-              <div className="w-16 h-16 rounded-lg border bg-gray-50 overflow-hidden flex items-center justify-center shrink-0">
+            <label className="flex items-center gap-3 rounded-xl border border-dashed border-orange-300 bg-orange-50/60 p-3 cursor-pointer">
+              <div className="w-20 h-20 rounded-lg border bg-white overflow-hidden flex items-center justify-center shrink-0">
                 {formData.photo ? (
                   <img src={formData.photo} alt="" className="w-full h-full object-cover" />
                 ) : (
-                  <ImagePlus className="h-5 w-5 text-gray-300" />
+                  <Camera className="h-7 w-7 text-orange-500" />
                 )}
               </div>
               <div className="space-y-1 flex-1">
-                <Label>Customer photo (DP)</Label>
+                <p className="text-sm font-bold">Customer photo (DP)</p>
+                <p className="text-xs text-slate-500">{imageBusy ? 'Processing…' : 'Click to upload a picture for the customer card'}</p>
                 <Input type="file" accept="image/*" onChange={onPickPhoto} disabled={imageBusy} className="text-xs" />
                 {formData.photo && (
                   <Button type="button" variant="ghost" size="sm" className="h-7 text-xs text-red-600 px-0" onClick={() => setFormData({ ...formData, photo: '' })}>
@@ -494,7 +557,7 @@ const Customers = () => {
                   </Button>
                 )}
               </div>
-            </div>
+            </label>
             <div><Label>Name *</Label><Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required data-testid="customer-name-input" /></div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Phone</Label><Input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} /></div>
