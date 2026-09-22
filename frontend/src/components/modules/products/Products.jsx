@@ -238,16 +238,27 @@ const Products = () => {
     setStockSaving(true);
     try {
       await productsAPI.update(product.id, {
-        ...product,
         name: product.name,
-        stock: next,
+        category: product.category,
+        productType: product.productType || 'Product',
+        description: product.description || '',
+        fullDescription: product.fullDescription || '',
         basePrice: product.basePrice ?? product.rate ?? 0,
         rate: product.basePrice ?? product.rate ?? 0,
-        productType: product.productType || 'Product',
+        salePrice: product.salePrice,
+        unit: product.unit || '',
+        material: product.material || '',
+        size: product.size || '',
+        minQuantity: product.minQuantity,
+        designer: product.designer || '',
+        stock: next,
         image: productImageSrc(product) || '',
         images: productImagesList(product),
         status: product.active === false ? 'Inactive' : (product.status || 'Active'),
         active: product.active !== false,
+        showOnWebsite: product.showOnWebsite !== false,
+        showOnTop: !!product.showOnTop,
+        variations: product.variations || [],
       });
       clearGasCache();
       toast.success(`Stock updated to ${next}`);

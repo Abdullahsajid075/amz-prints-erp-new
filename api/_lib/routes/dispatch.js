@@ -43,19 +43,74 @@ function missingSchemaColumn(err) {
   return m ? m[1] : '';
 }
 
+function dbErrorMessage(err) {
+  return String((err && (err.message || err.details || err.hint || err.code)) || err || '');
+}
+
 async function dbWrite(table, row, { mode = 'insert', id: rid } = {}) {
   const payload = { ...row };
-  for (let attempt = 0; attempt < 14; attempt += 1) {
+  for (let attempt = 0; attempt < 16; attempt += 1) {
     const q = mode === 'update'
-      ? supabase.from(table).update(payload).eq('id', rid)
-      : supabase.from(table).insert(payload);
-    const { error } = await q;
-    if (!error) return payload;
+      ? supabase.from(table).update(payload).eq('id', rid).select('id')
+      : supabase.from(table).insert(payload).select('id');
+    const { data, error } = await q;
+    if (!error) {
+      if (mode === 'update' && rid && (!data || !data.length)) {
+        throw new Error('Record not found — nothing was updated');
+      }
+      return payload;
+    }
     const col = missingSchemaColumn(error);
-    if (!col || !Object.prototype.hasOwnProperty.call(payload, col)) throw error;
-    delete payload[col];
+    if (col && Object.prototype.hasOwnProperty.call(payload, col)) {
+      delete payload[col];
+      continue;
+    }
+    const msg = dbErrorMessage(error);
+    if (/invalid input|malformed json|jsonb|not a valid json/i.test(msg)) {
+      let converted = false;
+      ['images', 'variations', 'products', 'items', 'permissions', 'status_history', 'payment_history', 'order_ids'].forEach((k) => {
+        if (payload[k] != null && typeof payload[k] !== 'string') {
+          payload[k] = JSON.stringify(payload[k]);
+          converted = true;
+        }
+      });
+      if (converted) continue;
+    }
+    throw new Error(msg || 'Could not save record');
   }
   throw new Error('Could not save record');
+}
+
+function slimProductImages(images) {
+  const list = (Array.isArray(images) ? images : []).map((s) => String(s || '').trim()).filter(Boolean);
+  const http = list.filter((u) => /^https?:\/\//i.test(u));
+  const rest = list.filter((u) => !/^https?:\/\//i.test(u));
+  const out = [...http];
+  rest.forEach((u) => {
+    if (JSON.stringify([...out, u]).length > 160000) return;
+    out.push(u);
+  });
+  return out.slice(0, 5);
+}
+
+async function saveProductRow(row, { mode, id: rid } = {}) {
+  const payload = { ...row, images: slimProductImages(row.images) };
+  try {
+    return await dbWrite('products', payload, { mode, id: rid });
+  } catch (err) {
+    const msg = dbErrorMessage(err);
+    if (!/images|payload|too large|timeout|bytes|statement/i.test(msg) && payload.images) {
+      throw err;
+    }
+    const httpOnly = { ...payload, images: (payload.images || []).filter((u) => /^https?:\/\//i.test(String(u))) };
+    try {
+      return await dbWrite('products', httpOnly, { mode, id: rid });
+    } catch (err2) {
+      const core = { ...httpOnly };
+      delete core.images;
+      return dbWrite('products', core, { mode, id: rid });
+    }
+  }
 }
 
 async function dbSelect(table, cols, extraFn) {
@@ -1235,12 +1290,36 @@ async function dispatch(req, res) {
     }
 
     if (path === '/products' || path.startsWith('/products/')) {
-      const done = await handleCollection('products', '/products', mapProduct, (b, rid) => {
-        const row = productFromBody(b, rid);
+      if (path === '/products' && method === 'GET') {
+        const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        return send(res, (data || []).map(mapProduct));
+      }
+      if (path === '/products' && method === 'POST') {
+        const row = productFromBody(body);
         if (!row.id) row.id = id('prod');
-        return row;
-      });
-      if (done !== null) return done;
+        await saveProductRow(row, { mode: 'insert' });
+        return send(res, mapProduct(row));
+      }
+      const rid = decodeURIComponent(String(path.split('/')[2] || '').trim());
+      if (!rid) return sendError(res, 'Product id required', 400);
+      if (method === 'GET') {
+        const { data } = await supabase.from('products').select('*').eq('id', rid).maybeSingle();
+        if (!data) return sendError(res, 'Not found', 404);
+        return send(res, mapProduct(data));
+      }
+      if (method === 'PUT' || method === 'PATCH') {
+        const row = productFromBody(body, rid);
+        delete row.id;
+        await saveProductRow(row, { mode: 'update', id: rid });
+        const { data } = await supabase.from('products').select('*').eq('id', rid).maybeSingle();
+        return send(res, mapProduct(data || row));
+      }
+      if (method === 'DELETE') {
+        await supabase.from('products').delete().eq('id', rid);
+        return send(res, { success: true });
+      }
+      return sendError(res, `Not found: ${path}`, 404);
     }
 
     if (path === '/vendors' || path.startsWith('/vendors/')) {

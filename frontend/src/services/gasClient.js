@@ -146,7 +146,9 @@ export async function gasRequest(method, path, options = {}) {
     || apiPath === '/counters'
     || apiPath.startsWith('/counters/')
     || apiPath === '/customers'
-    || apiPath.startsWith('/customers/');
+    || apiPath.startsWith('/customers/')
+    || apiPath === '/products'
+    || apiPath.startsWith('/products/');
 
   if (cacheKey && !bypassCache) {
     const cached = cacheGet(cacheKey);
