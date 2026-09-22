@@ -13,8 +13,21 @@ const origins = String(process.env.CORS_ORIGINS || '*')
   .map((s) => s.trim())
   .filter(Boolean);
 
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  if (origins.includes('*') || origins.includes(origin)) return true;
+  try {
+    const host = new URL(origin).hostname;
+    if (host === 'localhost' || host === '127.0.0.1') return true;
+    if (host.endsWith('.vercel.app')) return true;
+  } catch {
+    return false;
+  }
+  return false;
+}
+
 app.use(cors({
-  origin: origins.includes('*') ? true : origins,
+  origin: (origin, cb) => cb(null, isAllowedOrigin(origin) ? origin || true : false),
   credentials: true,
 }));
 

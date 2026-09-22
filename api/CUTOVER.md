@@ -11,7 +11,7 @@ Live ERP today: Google Sheets + Apps Script. After cutover: **same screens**, da
    - Env:
      - `SUPABASE_URL`
      - `SUPABASE_API_KEY` (service role, server only)
-     - `CORS_ORIGINS=https://erp.amzprints.com,https://amzprints.com,http://localhost:5173`
+     - `CORS_ORIGINS=https://erp.amzprints.com,https://amzprints.com,https://amz-prints-erp-new.vercel.app,http://localhost:5173`
    - Deploy → copy URL (example `https://amz-erp-api.vercel.app`)
    - Browser check: `https://YOUR-API.vercel.app` **or** `https://YOUR-API.vercel.app/health`  
      Should show JSON: `{"ok":true,"backend":"supabase",...}`  
