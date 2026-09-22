@@ -152,7 +152,11 @@ export async function gasRequest(method, path, options = {}) {
     || apiPath === '/dashboard/bootstrap'
     || apiPath === '/dashboard/stats'
     || apiPath === '/dashboard/charts'
-    || apiPath === '/dashboard/recent-orders';
+    || apiPath === '/orders'
+    || apiPath === '/invoices'
+    || apiPath === '/payments'
+    || apiPath === '/expenses'
+    || apiPath === '/purchases';
 
   if (cacheKey && !bypassCache) {
     const cached = cacheGet(cacheKey);

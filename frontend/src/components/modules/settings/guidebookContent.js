@@ -130,6 +130,7 @@ export const GUIDE_SECTIONS = [
     audience: 'Warehouse / sales',
     body: [
       'Products store rates, sale price, category, photos, and “show on website”. Keep names consistent with what appears on quotations and the public catalogue.',
+      'Website catalog rule: a product is published only when it has at least one HD photo and a description. Incomplete items are auto-hidden from amzprints.com until both are added.',
       'Inventory tracks on-hand quantity when stock tracking is enabled. Negative stock is allowed only if Settings permit it.',
       'Printing Cost Calculator is a planning tool for media, size, and quantity. Transfer the result into a quotation/order; the calculator itself does not post stock or AR.',
     ],
@@ -216,7 +217,7 @@ export const GUIDE_SECTIONS = [
     title: '20. Website, tracking & cutover notes',
     audience: 'Admin',
     body: [
-      'Public catalogue / order forms on the company website talk to the same API as this ERP. Product “show on website” controls visibility.',
+      'Public catalogue / order forms on the company website talk to the same API as this ERP. Only products with an HD photo and a description are listed; everything else is auto-hidden.',
       'Customers can track jobs with order/tracking numbers without staff login.',
       'Google Sheets is retained as backup only. New work must be done in this ERP so balances, stock, and invoices stay in one place.',
     ],

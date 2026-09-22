@@ -62,10 +62,19 @@ const emptyProduct = {
   image: '',
   images: [],
   active: true,
-  showOnWebsite: true,
+  showOnWebsite: false,
   showOnTop: false,
   variations: [],
 };
+
+function isCatalogReady(product) {
+  const imgs = productImagesList(product);
+  const desc = String(product?.description || product?.fullDescription || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return imgs.length > 0 && desc.length >= 3;
+}
 
 const Products = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -174,7 +183,7 @@ const Products = () => {
       stock: Number(product.stock ?? 0) || 0,
       images: productImagesList(product),
       image: productImageSrc(product),
-      showOnWebsite: product.showOnWebsite !== false,
+      showOnWebsite: isCatalogReady(product) && product.showOnWebsite !== false,
       showOnTop: !!product.showOnTop,
       variations,
     });
@@ -255,8 +264,8 @@ const Products = () => {
         images: productImagesList(product),
         status: product.active === false ? 'Inactive' : (product.status || 'Active'),
         active: product.active !== false,
-        showOnWebsite: product.showOnWebsite !== false,
-        showOnTop: !!product.showOnTop,
+        showOnWebsite: isCatalogReady(product) && product.showOnWebsite !== false,
+        showOnTop: isCatalogReady(product) && product.showOnWebsite !== false && !!product.showOnTop,
         variations: product.variations || [],
       });
       clearGasCache();
@@ -285,6 +294,10 @@ const Products = () => {
         .filter((v) => v.name);
       const salePrice = Number(formData.salePrice) > 0 ? Number(formData.salePrice) : 0;
       const images = fitImagesForSheets(formData.images || []);
+      const ready = isCatalogReady({ ...formData, images });
+      if (!ready && formData.showOnWebsite !== false) {
+        toast.message('Website se hide — HD photo aur description dono zaroori hain');
+      }
       const payload = service
         ? {
             name: formData.name,
@@ -304,8 +317,8 @@ const Products = () => {
             images,
             active: formData.active !== false,
             status: formData.active === false ? 'Inactive' : 'Active',
-            showOnWebsite: formData.showOnWebsite !== false,
-            showOnTop: !!formData.showOnTop,
+            showOnWebsite: ready && formData.showOnWebsite !== false,
+            showOnTop: ready && formData.showOnWebsite !== false && !!formData.showOnTop,
             variations,
           }
         : {
@@ -326,8 +339,8 @@ const Products = () => {
             images,
             active: formData.active !== false,
             status: formData.active === false ? 'Inactive' : 'Active',
-            showOnWebsite: formData.showOnWebsite !== false,
-            showOnTop: !!formData.showOnTop,
+            showOnWebsite: ready && formData.showOnWebsite !== false,
+            showOnTop: ready && formData.showOnWebsite !== false && !!formData.showOnTop,
             variations,
           };
       const save = (body) => (editingProduct
@@ -472,7 +485,7 @@ const Products = () => {
                       >
                         {service ? 'Service' : 'Product'}
                       </Badge>
-                      {product.showOnWebsite !== false ? (
+                      {isCatalogReady(product) && product.showOnWebsite !== false ? (
                         <Badge className="absolute top-1.5 right-1.5 text-[10px] px-1.5 py-0 h-5 bg-emerald-600 text-white border-0">
                           <Globe className="h-3 w-3 mr-0.5" />Web
                         </Badge>
@@ -662,12 +675,21 @@ const Products = () => {
             <div className="flex items-center justify-between gap-3 rounded-lg border border-orange-100 bg-[#FFF6ED] px-3 py-2.5">
               <div>
                 <Label htmlFor="show-on-website" className="text-sm font-semibold">Show on website</Label>
-                <p className="text-[11px] text-gray-500 mt-0.5">Off = hidden from storefront catalog &amp; checkout</p>
+                <p className="text-[11px] text-gray-500 mt-0.5">
+                  Sirf HD photo + description wale products website pe dikhte hain. Baaki auto-hide.
+                </p>
               </div>
               <Switch
                 id="show-on-website"
-                checked={formData.showOnWebsite !== false}
-                onCheckedChange={(v) => setFormData({ ...formData, showOnWebsite: !!v })}
+                checked={isCatalogReady(formData) && formData.showOnWebsite !== false}
+                onCheckedChange={(v) => {
+                  if (v && !isCatalogReady(formData)) {
+                    toast.error('Pehle HD image aur description add karein');
+                    setFormData({ ...formData, showOnWebsite: false, showOnTop: false });
+                    return;
+                  }
+                  setFormData({ ...formData, showOnWebsite: !!v, showOnTop: v ? formData.showOnTop : false });
+                }}
                 data-testid="product-show-website-switch"
               />
             </div>

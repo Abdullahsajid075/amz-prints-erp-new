@@ -1,6 +1,6 @@
 const { supabase } = require('../db');
 const { handleLogin, validateToken, sanitizeUser } = require('../lib/auth');
-const { id, today, nowTime, num, truthy, send, sendError } = require('../lib/util');
+const { id, today, nowTime, dateKey, num, truthy, send, sendError } = require('../lib/util');
 const {
   mapCustomer, mapOrder, mapProduct, mapInvoice, mapEmployee,
   mapVendor, mapPayment, mapExpense, mapPurchase, mapUser, mapToken,
@@ -9,7 +9,7 @@ const {
   isAdminRole, userLabel, collectOrderIds, invoiceStatusFromPaid,
   makePortalPassword, checkPortalPassword, issueCustomerToken, parseCustomerToken,
   sanitizePortalCustomer, isBlocked, productFromBody,
-  withCustomerPhoto, customerPhoto,
+  withCustomerPhoto, customerPhoto, isWebsiteCatalogReady,
 } = require('../lib/helpers');
 const {
   computeCustomerLedger,
@@ -115,16 +115,29 @@ async function saveProductRow(row, { mode, id: rid } = {}) {
 
 async function dbSelect(table, cols, extraFn) {
   let selectCols = cols;
+  let fn = extraFn;
   for (let attempt = 0; attempt < 16; attempt += 1) {
     let q = supabase.from(table).select(selectCols);
-    if (typeof extraFn === 'function') q = extraFn(q) || q;
+    if (typeof fn === 'function') q = fn(q) || q;
     const { data, error } = await q;
     if (!error) return data || [];
     const col = missingSchemaColumn(error);
-    if (!col) throw error;
-    const next = selectCols.split(',').map((s) => s.trim()).filter((c) => c && c !== col);
-    if (next.length === 0 || next.length === selectCols.split(',').length) throw error;
-    selectCols = next.join(',');
+    if (col) {
+      const next = String(selectCols).split(',').map((s) => s.trim()).filter((c) => c && c !== col);
+      if (next.length === 0 || next.join(',') === selectCols) {
+        selectCols = '*';
+        fn = undefined;
+        continue;
+      }
+      selectCols = next.join(',');
+      continue;
+    }
+    if (selectCols !== '*') {
+      selectCols = '*';
+      fn = undefined;
+      continue;
+    }
+    throw error;
   }
   return [];
 }
@@ -138,7 +151,21 @@ async function dbSelectSafe(table, cols, extraFn) {
   }
 }
 
-const LEAN_ORDER_COLS = 'id,order_id,date,customer_id,customer_phone,customer_name,status,doc_type,total_amount,balance_amount,delivery_date,tracking_number';
+function persistIncompleteWebsiteHides(rows) {
+  const ids = (rows || [])
+    .filter((row) => {
+      const api = mapProduct(row);
+      return api && api.id && !isWebsiteCatalogReady(api) && (row.show_on_website !== false);
+    })
+    .map((row) => row.id)
+    .slice(0, 80);
+  if (!ids.length) return;
+  Promise.all(ids.map((pid) => (
+    supabase.from('products').update({ show_on_website: false, show_on_top: false }).eq('id', pid)
+  ))).catch((err) => console.error('website hide', dbErrorMessage(err)));
+}
+
+const LEAN_ORDER_COLS = 'id,order_id,date,created_at,customer_id,customer_phone,customer_name,status,doc_type,total_amount,advance_payment,balance_amount,delivery_date,tracking_number';
 const LEAN_INVOICE_COLS = 'id,customer_id,customer_phone,order_id,total,paid,previous_balance,status,invoice_no,date';
 const LEAN_PAYMENT_COLS = 'id,date,type,amount,customer_id,customer_phone,party_phone,category,method,notes,ref_id';
 
@@ -165,14 +192,14 @@ function buildMonthlySales(orders, expenses) {
   const index = Object.fromEntries(months.map((m) => [m.key, m]));
   (orders || []).forEach((o) => {
     if (isQuotation(o) || isCancelledStatus(o.status)) return;
-    const key = String(o.date || '').slice(0, 7);
+    const key = dateKey(o.date).slice(0, 7);
     if (!index[key]) return;
     index[key].sales += num(o.total_amount);
     index[key].orders += 1;
   });
   (expenses || []).forEach((e) => {
     if (!expenseIsApproved(e)) return;
-    const key = String(e.date || '').slice(0, 7);
+    const key = dateKey(e.date).slice(0, 7);
     if (!index[key]) return;
     index[key].expenses += num(e.amount);
   });
@@ -607,7 +634,8 @@ async function dispatch(req, res) {
       }
       if (method === 'GET' && path === '/public/products') {
         const { data } = await supabase.from('products').select('*');
-        const products = (data || []).map(mapProduct).filter((p) => p && p.active && p.showOnWebsite);
+        persistIncompleteWebsiteHides(data || []);
+        const products = (data || []).map(mapProduct).filter((p) => p && p.active && p.showOnWebsite && isWebsiteCatalogReady(p));
         products.sort((a, b) => Number(!!b.showOnTop) - Number(!!a.showOnTop) || String(a.name).localeCompare(String(b.name)));
         return send(res, { products });
       }
@@ -616,7 +644,7 @@ async function dispatch(req, res) {
         const { data } = await supabase.from('products').select('*').eq('id', pid).maybeSingle();
         if (!data) return sendError(res, 'Product not found', 404);
         const pub = mapProduct(data);
-        if (!pub || !pub.active || !pub.showOnWebsite) return sendError(res, 'Product not available', 404);
+        if (!pub || !pub.active || !pub.showOnWebsite || !isWebsiteCatalogReady(pub)) return sendError(res, 'Product not available', 404);
         return send(res, pub);
       }
       if (method === 'POST' && path === '/public/lead') {
@@ -769,7 +797,7 @@ async function dispatch(req, res) {
           }
           if (!match) return sendError(res, `Product not found: ${line.name || pid || 'unknown'}`, 400);
           const api = mapProduct(match);
-          if (!api.active || !api.showOnWebsite) return sendError(res, `Product not available: ${api.name}`, 400);
+          if (!api.active || !api.showOnWebsite || !isWebsiteCatalogReady(api)) return sendError(res, `Product not available: ${api.name}`, 400);
           const rate = num(api.effectivePrice);
           subtotal += rate * qty;
           products.push({
@@ -852,8 +880,8 @@ async function dispatch(req, res) {
       const to = String(req.query?.to || '').slice(0, 10);
       const inRange = (raw) => {
         if (!from && !to) return true;
-        const dk = String(raw || '').trim().slice(0, 10);
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(dk)) return false;
+        const dk = dateKey(raw);
+        if (!dk) return true;
         if (from && dk < from) return false;
         if (to && dk > to) return false;
         return true;
@@ -1110,12 +1138,13 @@ async function dispatch(req, res) {
     // Customers + CRM
     if (path === '/customers' || path.startsWith('/customers/')) {
       if (path === '/customers' && method === 'GET') {
-        const [{ data }, { data: orders }, { data: invoices }] = await Promise.all([
+        const [{ data }, { data: orders }, { data: invoices }, { data: payments }] = await Promise.all([
           supabase.from('customers').select('*').order('created_at', { ascending: false }),
           supabase.from('orders').select(LEAN_ORDER_COLS),
           supabase.from('invoices').select(LEAN_INVOICE_COLS),
+          supabase.from('payments').select(LEAN_PAYMENT_COLS),
         ]);
-        return send(res, (data || []).map((c) => attachCustomerLedger(c, orders || [], invoices || [], [])));
+        return send(res, (data || []).map((c) => attachCustomerLedger(c, orders || [], invoices || [], payments || [])));
       }
       if (path === '/customers' && method === 'POST') {
         const nameNorm = String(body.name || '').toLowerCase().replace(/[\s_-]+/g, '');
@@ -1406,6 +1435,7 @@ async function dispatch(req, res) {
       if (path === '/products' && method === 'GET') {
         const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false });
         if (error) throw error;
+        persistIncompleteWebsiteHides(data || []);
         return send(res, (data || []).map(mapProduct));
       }
       if (path === '/products' && method === 'POST') {

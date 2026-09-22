@@ -6,6 +6,25 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function dateKey(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return '';
+  const iso = s.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
+  const dmy = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})/);
+  if (dmy) {
+    const a = Number(dmy[1]);
+    const b = Number(dmy[2]);
+    const y = dmy[3];
+    if (a > 12) return `${y}-${String(b).padStart(2, '0')}-${String(a).padStart(2, '0')}`;
+    if (b > 12) return `${y}-${String(a).padStart(2, '0')}-${String(b).padStart(2, '0')}`;
+    return `${y}-${String(b).padStart(2, '0')}-${String(a).padStart(2, '0')}`;
+  }
+  const d = new Date(s);
+  if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  return '';
+}
+
 function nowTime() {
   return new Date().toLocaleTimeString('en-GB', { hour12: false });
 }
@@ -48,4 +67,4 @@ function sendError(res, message, status = 500) {
   return res.status(200).json({ message, _status: status });
 }
 
-module.exports = { id, today, nowTime, num, truthy, send, sendError };
+module.exports = { id, today, nowTime, dateKey, num, truthy, send, sendError };

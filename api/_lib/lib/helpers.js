@@ -91,6 +91,17 @@ function parseImages(images, fallback = '') {
   return list.slice(0, 5);
 }
 
+/** Website catalog: at least one photo and a real description. */
+function isWebsiteCatalogReady(p) {
+  if (!p) return false;
+  const images = parseImages(p.images || p.gallery, p.image || p.photo || '');
+  const desc = String(p.description || p.fullDescription || p.full_description || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return images.length > 0 && desc.length >= 3;
+}
+
 function invoiceStatusFromPaid(total, paid) {
   const t = num(total);
   const p = num(paid);
@@ -173,7 +184,13 @@ function productFromBody(b = {}, rid) {
   while (images.length > 1 && JSON.stringify(images).length > 220000) {
     images = images.slice(0, -1);
   }
-  const showOnWebsite = b.showOnWebsite != null ? truthy(b.showOnWebsite, true) : (b.show_on_website != null ? truthy(b.show_on_website, true) : true);
+  const catalogReady = isWebsiteCatalogReady({
+    images,
+    description: b.description || '',
+    fullDescription: b.fullDescription || b.full_description || '',
+  });
+  const wantWebsite = b.showOnWebsite != null ? truthy(b.showOnWebsite, true) : (b.show_on_website != null ? truthy(b.show_on_website, true) : true);
+  const showOnWebsite = catalogReady && wantWebsite;
   return {
     id: rid || b.id || '',
     name: b.name || '',
@@ -191,7 +208,7 @@ function productFromBody(b = {}, rid) {
     min_quantity: isService ? 1 : num(b.minQuantity),
     images,
     sale_price: num(b.salePrice != null ? b.salePrice : b.sale_price),
-    show_on_top: !!(b.showOnTop || b.show_on_top),
+    show_on_top: showOnWebsite && !!(b.showOnTop || b.show_on_top),
     show_on_website: showOnWebsite,
     variations: Array.isArray(b.variations) ? b.variations : asArray(b.variations),
   };
@@ -204,6 +221,7 @@ module.exports = {
   uniqueStrings,
   collectOrderIds,
   parseImages,
+  isWebsiteCatalogReady,
   invoiceStatusFromPaid,
   hashPortalPassword,
   makePortalPassword,
