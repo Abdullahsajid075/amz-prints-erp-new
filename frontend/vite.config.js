@@ -24,7 +24,7 @@ module.exports = defineConfig(({ mode }) => {
   }
 
   return {
-    plugins: [react()],
+    plugins: [react({ include: /\.(jsx|js)$/ })],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, 'src'),

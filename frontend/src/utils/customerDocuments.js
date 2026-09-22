@@ -1,4 +1,4 @@
-import React from 'react';
+import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QRCodeCanvas } from 'qrcode.react';
 import { printHtml } from '@/utils/printHelpers';
@@ -55,16 +55,14 @@ export async function qrPngDataUrl(value, size = 180) {
   document.body.appendChild(host);
   const root = createRoot(host);
   try {
-    root.render(
-      <QRCodeCanvas
-        value={text}
-        size={size}
-        level="M"
-        includeMargin
-        bgColor="#ffffff"
-        fgColor="#0747a3"
-      />
-    );
+    root.render(createElement(QRCodeCanvas, {
+      value: text,
+      size,
+      level: 'M',
+      includeMargin: true,
+      bgColor: '#ffffff',
+      fgColor: '#0747a3',
+    }));
     await new Promise((resolve) => {
       requestAnimationFrame(() => requestAnimationFrame(resolve));
     });
