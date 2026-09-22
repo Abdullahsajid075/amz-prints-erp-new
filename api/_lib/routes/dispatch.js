@@ -1303,12 +1303,12 @@ async function dispatch(req, res) {
       if (parts[2] === 'ledger' && method === 'GET') {
         const { data: customer } = await supabase.from('customers').select('*').eq('id', cid).maybeSingle();
         if (!customer) return sendError(res, 'Customer not found', 404);
-        const phone = String(customer.phone || '');
-        const [{ data: orders }, { data: invoices }, { data: payments }] = await Promise.all([
-          supabase.from('orders').select(LEAN_ORDER_COLS),
-          supabase.from('invoices').select(LEAN_INVOICE_COLS),
-          supabase.from('payments').select(LEAN_PAYMENT_COLS),
+        const [orders, invoices, payments] = await Promise.all([
+          dbSelectSafe('orders', LEAN_ORDER_COLS),
+          dbSelectSafe('invoices', '*'),
+          dbSelectSafe('payments', LEAN_PAYMENT_COLS),
         ]);
+        const phone = String(customer.phone || '');
         const relatedOrders = (orders || []).filter((o) =>
           String(o.doc_type || 'Order').toLowerCase() !== 'quotation'
           && (String(o.customer_id) === String(cid) || (phone && String(o.customer_phone) === phone))

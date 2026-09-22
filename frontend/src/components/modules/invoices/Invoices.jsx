@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { invoicesAPI } from '@/services/api';
-import { notifyOrderEvent } from '@/services/notifications';
+import { notifyOrderEvent, openBlankWhatsAppTab } from '@/services/notifications';
 import { finishPaymentRecording } from '@/utils/paymentActions';
 import { useBrand } from '@/context/BrandContext';
 import { formatCurrency, formatDate, invoiceOrderIds, invoiceBalanceDue, invoicePendingScore } from '@/utils/helpers';
@@ -87,9 +87,14 @@ const Invoices = () => {
   };
 
   const shareOnWhatsApp = async (invoice) => {
+    if (!invoice.customerPhone) {
+      toast.error('Customer phone missing — WhatsApp not sent');
+      return;
+    }
+    const pendingWindow = openBlankWhatsAppTab();
     const bal = invoiceBalance(invoice);
     try {
-      await notifyOrderEvent({
+      const result = await notifyOrderEvent({
         event: 'invoice_generated',
         order: {
           customerName: invoice.customerName,
@@ -105,8 +110,10 @@ const Invoices = () => {
         },
         openWhatsApp: true,
         sendEmail: false,
+        pendingWindow,
       });
-      toast.message('WhatsApp opened — invoice link + pending payment');
+      if (result?.whatsappOpened) toast.message('WhatsApp opened — tap Send for invoice + pending payment');
+      else toast.error('WhatsApp did not open — allow popups and check the phone number');
     } catch (err) {
       console.error(err);
       toast.error('Failed to open WhatsApp');
@@ -123,8 +130,9 @@ const Invoices = () => {
       toast.error('Customer phone missing');
       return;
     }
+    const pendingWindow = openBlankWhatsAppTab();
     try {
-      await notifyOrderEvent({
+      const result = await notifyOrderEvent({
         event: 'payment_reminder',
         order: {
           customerName: invoice.customerName,
@@ -140,8 +148,10 @@ const Invoices = () => {
         },
         openWhatsApp: true,
         sendEmail: false,
+        pendingWindow,
       });
-      toast.success('Payment reminder WhatsApp opened');
+      if (result?.whatsappOpened) toast.success('Payment reminder WhatsApp opened — tap Send');
+      else toast.error('WhatsApp did not open — allow popups and check the phone number');
     } catch (err) {
       console.error(err);
       toast.error('Failed to send reminder');

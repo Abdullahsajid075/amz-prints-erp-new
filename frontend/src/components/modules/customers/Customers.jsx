@@ -20,7 +20,7 @@ import { compressPortraitFile } from '@/utils/productImage';
 import { QRCodeCanvas } from 'qrcode.react';
 import {
   isCustomerBlocked, canUnblockCustomer, customerDisplayCode,
-  openUrduBalanceWhatsApp, openCustomerWelcomeWhatsApp,
+  openUrduBalanceWhatsApp, openCustomerWelcomeWhatsApp, openLedgerWhatsApp,
 } from '@/utils/customerHelpers';
 import { useAuth } from '@/context/AuthContext';
 import { sortBy } from '@/utils/sortBy';
@@ -124,8 +124,20 @@ const Customers = () => {
     setLedger(null); setLedgerOpen(true); setLedgerLoading(true);
     try {
       const res = await customersAPI.getLedger(c.id);
-      setLedger(res.data);
-    } catch (err) { console.error(err); toast.error('Failed to load ledger'); }
+      const payload = res.data?.customer || res.data?.statement
+        ? res.data
+        : (res.data?.data || res.data);
+      if (!payload || (!payload.customer && !payload.statement)) {
+        toast.error('Ledger load nahi hua');
+        setLedger(null);
+      } else {
+        setLedger({
+          ...payload,
+          customer: payload.customer || c,
+          statement: Array.isArray(payload.statement) ? payload.statement : [],
+        });
+      }
+    } catch (err) { console.error(err); toast.error(err?.response?.data?.message || 'Failed to load ledger'); }
     finally { setLedgerLoading(false); }
   };
 
@@ -232,7 +244,8 @@ const Customers = () => {
       toast.error('No outstanding balance to request');
       return;
     }
-    if (!customer?.phone) {
+    const phone = customer?.phone || customer?.customerPhone;
+    if (!phone) {
       toast.error('Customer phone required for WhatsApp');
       return;
     }
@@ -240,7 +253,24 @@ const Customers = () => {
     try {
       const result = openUrduBalanceWhatsApp(customer, { outstanding: amount });
       if (result?.ok) toast.message('WhatsApp opened — tap Send (Urdu balance reminder)');
-      else toast.error('Could not open WhatsApp — check customer phone');
+      else toast.error('Could not open WhatsApp — check customer phone / allow popups');
+    } finally {
+      setBalanceSending(false);
+    }
+  };
+
+  const sendLedgerWhatsApp = () => {
+    const customer = ledger?.customer;
+    const phone = customer?.phone || customer?.customerPhone;
+    if (!phone) {
+      toast.error('Customer phone required for WhatsApp');
+      return;
+    }
+    setBalanceSending(true);
+    try {
+      const result = openLedgerWhatsApp(customer, ledger);
+      if (result?.ok) toast.message('WhatsApp opened — tap Send for khata / ledger');
+      else toast.error('Could not open WhatsApp — check customer phone / allow popups');
     } finally {
       setBalanceSending(false);
     }
@@ -630,6 +660,17 @@ const Customers = () => {
                   <Button type="button" className="text-white" style={{ backgroundColor: '#ff6d00' }} onClick={() => openCustomerPayment(ledger.customer)}>
                     <Wallet className="h-4 w-4 mr-2" />Record payment
                   </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="text-green-700 border-green-200"
+                    disabled={balanceSending}
+                    onClick={sendLedgerWhatsApp}
+                    data-testid="send-ledger-whatsapp"
+                  >
+                    <WhatsAppIcon className="h-4 w-4 mr-2" />
+                    {balanceSending ? 'Opening…' : 'Send ledger — WhatsApp'}
+                  </Button>
                   {ledger.outstanding > 0 && (
                     <>
                       <Button
@@ -643,7 +684,6 @@ const Customers = () => {
                         <WhatsAppIcon className="h-4 w-4 mr-2" />
                         {balanceSending ? 'Opening…' : 'باقی رقم — WhatsApp (Urdu)'}
                       </Button>
-                      <p className="text-xs text-gray-500 self-center">WhatsApp only — Urdu balance reminder</p>
                     </>
                   )}
                 </div>

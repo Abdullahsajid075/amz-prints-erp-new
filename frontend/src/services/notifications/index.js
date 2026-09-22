@@ -24,7 +24,7 @@ export {
   DEFAULT_WHATSAPP_TEMPLATES,
   DEFAULT_EMAIL_SUBJECTS,
 };
-export { openWhatsAppChat, buildWhatsAppAppUrl, normalizeWhatsAppPhone } from './whatsappChannel';
+export { openWhatsAppChat, buildWhatsAppAppUrl, normalizeWhatsAppPhone, openBlankWhatsAppTab } from './whatsappChannel';
 export { sendTestEmail } from './emailChannel';
 export { printPaymentSlip } from './paymentSlip';
 
@@ -192,15 +192,18 @@ export async function notifyOrderEvent({
   const payloadBase = { event, order, invoice, payment, company, customer, vars };
 
   let whatsappResult = null;
-  if (
-    openWhatsApp
+  const allowWhatsApp = openWhatsApp
     && notifications.whatsappEnabled
-    && notifications.autoOpenWhatsApp
     && customerAllows(customer, 'whatsapp')
-    && phone
-  ) {
-    const template = resolveWhatsAppTemplate(notifications.whatsappTemplates, event, status);
-    const text = String(template || '').trim() ? fillTemplate(template, vars) : '';
+    && phone;
+  if (allowWhatsApp) {
+    const template = resolveWhatsAppTemplate(notifications.whatsappTemplates, event, status)
+      || DEFAULT_WHATSAPP_TEMPLATES[event]
+      || DEFAULT_WHATSAPP_TEMPLATES.invoice_generated;
+    let text = String(template || '').trim() ? fillTemplate(template, vars) : '';
+    if (vars.invoice_url && text && !text.includes(String(vars.invoice_url))) {
+      text = `${text}\n\nInvoice link: ${vars.invoice_url}`;
+    }
     if (text) {
       whatsappResult = openWhatsAppChat(phone, text, { pendingWindow });
       channelIds.push('whatsapp');

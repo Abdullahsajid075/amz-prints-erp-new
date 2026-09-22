@@ -186,7 +186,7 @@ export const GUIDE_SECTIONS = [
       'Theme: primary / secondary / accent used across the ERP chrome.',
       'Modules: order prefix, customer codes, credit limit, CRM stages, product categories, payment methods, HR attendance.',
       'Users: create accounts, assign module permissions, password policy.',
-      'Notifications: WhatsApp / email templates and daily reminder hour. WhatsApp opens the official app with a filled message — staff must tap Send.',
+      'Notifications: WhatsApp / email templates and daily reminder hour. Invoice WhatsApp and customer ledger WhatsApp open the official app with a filled message — staff must tap Send. Allow popups if the chat does not open.',
       'System: currency (PKR), date format. Guide Book (this document) plus house rules you type below are stored with settings.',
     ],
   },

@@ -345,34 +345,30 @@ export function buildTemplateVars(order = {}, company = {}, extras = {}) {
 }
 
 export function resolveWhatsAppTemplate(templates, event, status) {
-  const t = templates || {};
-  if (event === 'quotation' && t.quotation) return t.quotation;
-  if (event === 'created') {
-    return t.created || t['Order Received'] || '';
-  }
-  if (event === 'invoice' || event === 'invoice_generated') {
-    return t.invoice_generated || t.invoice || '';
-  }
-  if (event === 'payment_reminder' || event === 'reminder') {
-    return t.payment_reminder || '';
-  }
-  if (event === 'balance_reminder') {
-    return t.balance_reminder || '';
-  }
-  if (event === 'payment_received') {
-    return t.payment_received || '';
-  }
-  if (event === 'payment_sent') {
-    return t.payment_sent || '';
-  }
-  if (event === 'token_booked') {
-    return t.token_booked || '';
-  }
-  if (event === 'token_called') {
-    return t.token_called || '';
-  }
-  if (status && t[status]) return t[status];
-  if (event && t[event]) return t[event];
-  if (t.status) return t.status;
-  return '';
+  const t = templates && typeof templates === 'object' ? templates : {};
+  const pick = (...keys) => {
+    for (const k of keys) {
+      const v = String(t[k] || '').trim();
+      if (v) return v;
+    }
+    return '';
+  };
+  let found = '';
+  if (event === 'quotation') found = pick('quotation');
+  else if (event === 'created') found = pick('created', 'Order Received');
+  else if (event === 'invoice' || event === 'invoice_generated') found = pick('invoice_generated', 'invoice');
+  else if (event === 'payment_reminder' || event === 'reminder') found = pick('payment_reminder', 'balance_reminder');
+  else if (event === 'balance_reminder') found = pick('balance_reminder', 'payment_reminder');
+  else if (event === 'payment_received') found = pick('payment_received');
+  else if (event === 'payment_sent') found = pick('payment_sent');
+  else if (event === 'token_booked') found = pick('token_booked');
+  else if (event === 'token_called') found = pick('token_called');
+  else if (status) found = pick(status);
+  if (!found && event) found = pick(event);
+  if (!found) found = pick('status');
+  const fallback = DEFAULT_WHATSAPP_TEMPLATES[event]
+    || DEFAULT_WHATSAPP_TEMPLATES[status]
+    || (event === 'invoice' || event === 'invoice_generated' ? DEFAULT_WHATSAPP_TEMPLATES.invoice_generated : '')
+    || '';
+  return found || fallback;
 }

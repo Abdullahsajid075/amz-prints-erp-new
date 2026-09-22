@@ -4,7 +4,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { invoicesAPI } from '@/services/api';
-import { notifyOrderEvent } from '@/services/notifications';
+import { notifyOrderEvent, openBlankWhatsAppTab } from '@/services/notifications';
 import { formatCurrency, formatDate, invoiceOrderIds, invoiceLineItems } from '@/utils/helpers';
 import { documentFileName, printIsolatedNode } from '@/utils/printHelpers';
 import { useBrand } from '@/context/BrandContext';
@@ -68,8 +68,13 @@ const InvoiceView = ({ isPublic = false }) => {
     Math.max(0, Number(invoice?.totalAmount || 0) + Number(invoice?.previousBalance || 0) - Number(invoice?.paidAmount || 0));
 
   const shareOnWhatsApp = async () => {
+    if (!invoice.customerPhone) {
+      toast.error('Customer phone missing — WhatsApp not sent');
+      return;
+    }
+    const pendingWindow = openBlankWhatsAppTab();
     const bal = pendingBalance();
-    await notifyOrderEvent({
+    const result = await notifyOrderEvent({
       event: 'invoice_generated',
       order: {
         customerName: invoice.customerName,
@@ -80,8 +85,10 @@ const InvoiceView = ({ isPublic = false }) => {
       },
       invoice: { ...invoice, balanceAmount: bal, paidAmount: invoice.paidAmount || 0 },
       openWhatsApp: true,
+      pendingWindow,
     });
-    toast.message('WhatsApp opened — invoice + pending payment');
+    if (result?.whatsappOpened) toast.message('WhatsApp opened — tap Send for invoice + pending payment');
+    else toast.error('WhatsApp did not open — allow popups and check the phone number');
   };
 
   const sendReminder = async () => {
@@ -94,7 +101,8 @@ const InvoiceView = ({ isPublic = false }) => {
       toast.error('Customer phone missing');
       return;
     }
-    await notifyOrderEvent({
+    const pendingWindow = openBlankWhatsAppTab();
+    const result = await notifyOrderEvent({
       event: 'payment_reminder',
       order: {
         customerName: invoice.customerName,
@@ -105,8 +113,10 @@ const InvoiceView = ({ isPublic = false }) => {
       },
       invoice: { ...invoice, balanceAmount: bal, paidAmount: invoice.paidAmount || 0 },
       openWhatsApp: true,
+      pendingWindow,
     });
-    toast.success('Payment reminder opened on WhatsApp');
+    if (result?.whatsappOpened) toast.success('Payment reminder opened on WhatsApp — tap Send');
+    else toast.error('WhatsApp did not open — allow popups and check the phone number');
   };
 
   if (loading) {

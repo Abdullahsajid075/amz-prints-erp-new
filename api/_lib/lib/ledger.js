@@ -141,6 +141,11 @@ function computeCustomerLedger(customer, orders, invoices, payments, opts = {}) 
     });
   });
   statement.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  let running = 0;
+  statement.forEach((line) => {
+    running += num(line.debit) - num(line.credit);
+    line.balance = running;
+  });
 
   return {
     totalBilled: invoiceBilled + orphanBilled,
