@@ -9,6 +9,7 @@ const {
   isAdminRole, userLabel, collectOrderIds, invoiceStatusFromPaid,
   makePortalPassword, checkPortalPassword, issueCustomerToken, parseCustomerToken,
   sanitizePortalCustomer, isBlocked, productFromBody,
+  withCustomerPhoto, customerPhoto,
 } = require('../lib/helpers');
 const {
   computeCustomerLedger,
@@ -963,19 +964,22 @@ async function dispatch(req, res) {
             email: body.email || existing.email,
             address: body.address || existing.address,
             city: body.city || existing.city,
-            notes: body.notes || existing.notes,
+            notes: body.notes != null ? body.notes : existing.notes,
           };
-          if (body.photo != null) updates.photo = body.photo;
           if (body.inCrm === true) {
             updates.in_crm = true;
             updates.stage = body.stage || existing.stage || 'lead';
             updates.stage_updated_at = new Date().toISOString();
           }
+          Object.assign(updates, withCustomerPhoto(
+            { notes: updates.notes },
+            body.photo != null ? body.photo : customerPhoto(existing),
+          ));
           await dbWrite('customers', updates, { mode: 'update', id: existing.id });
           const { data } = await supabase.from('customers').select('*').eq('id', existing.id).maybeSingle();
           return send(res, mapCustomer(data));
         }
-        const row = {
+        const row = withCustomerPhoto({
           id: id('cust'),
           name: body.name || '',
           phone: body.phone || '',
@@ -988,8 +992,7 @@ async function dispatch(req, res) {
           stage_updated_at: body.inCrm === true ? new Date().toISOString() : '',
           notify_whatsapp: truthy(body.notifyWhatsApp, true),
           notify_email: truthy(body.notifyEmail, true),
-        };
-        if (body.photo) row.photo = body.photo;
+        }, body.photo || body.image || '');
         await dbWrite('customers', row, { mode: 'insert' });
         return send(res, mapCustomer(row));
       }
@@ -1139,6 +1142,8 @@ async function dispatch(req, res) {
         return send(res, attachCustomerLedger(data, orders || [], invoices || [], payments || []));
       }
       if (method === 'PUT') {
+        const { data: prev } = await supabase.from('customers').select('*').eq('id', cid).maybeSingle();
+        if (!prev) return sendError(res, 'Customer not found', 404);
         const updates = {
           name: body.name,
           phone: body.phone,
@@ -1148,11 +1153,18 @@ async function dispatch(req, res) {
           notes: body.notes,
           notify_whatsapp: body.notifyWhatsApp,
           notify_email: body.notifyEmail,
-          photo: body.photo,
         };
         if (body.inCrm != null) updates.in_crm = !!body.inCrm;
         if (body.stage != null) updates.stage = body.stage;
         Object.keys(updates).forEach((k) => updates[k] === undefined && delete updates[k]);
+        const photoVal = body.photo != null ? body.photo : (body.image != null ? body.image : customerPhoto(prev));
+        const packed = withCustomerPhoto(
+          { notes: updates.notes != null ? updates.notes : prev.notes },
+          photoVal,
+        );
+        updates.notes = packed.notes;
+        updates.photo = packed.photo;
+        updates.image = packed.image;
         await dbWrite('customers', updates, { mode: 'update', id: cid });
         const { data } = await supabase.from('customers').select('*').eq('id', cid).maybeSingle();
         return send(res, mapCustomer(data));

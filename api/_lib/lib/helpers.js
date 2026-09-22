@@ -36,6 +36,43 @@ function uniqueStrings(list) {
   return out;
 }
 
+const DP_START = '[[AMZ_DP]]';
+const DP_END = '[[/AMZ_DP]]';
+
+function stripPhotoFromNotes(notes) {
+  return String(notes || '').replace(/\[\[AMZ_DP\]\][\s\S]*?\[\[\/AMZ_DP\]\]/g, '').trim();
+}
+
+function extractPhotoFromNotes(notes) {
+  const m = String(notes || '').match(/\[\[AMZ_DP\]\]([\s\S]*?)\[\[\/AMZ_DP\]\]/);
+  return m ? String(m[1] || '').trim() : '';
+}
+
+function embedPhotoInNotes(notes, photo) {
+  const clean = stripPhotoFromNotes(notes);
+  const src = String(photo || '').trim();
+  if (!src) return clean;
+  return `${clean}${clean ? '\n' : ''}${DP_START}${src}${DP_END}`;
+}
+
+function customerPhoto(row) {
+  if (!row) return '';
+  return String(row.photo || row.image || extractPhotoFromNotes(row.notes) || '').trim();
+}
+
+function withCustomerPhoto(row, photo) {
+  const src = photo == null ? customerPhoto(row) : String(photo || '').trim();
+  const next = { ...row, notes: embedPhotoInNotes(row.notes, src) };
+  if (src) {
+    next.photo = src;
+    next.image = src;
+  } else {
+    next.photo = '';
+    next.image = '';
+  }
+  return next;
+}
+
 function collectOrderIds(body = {}, existing = {}) {
   const ids = uniqueStrings([
     ...asArray(body.orderIds != null ? body.orderIds : body.orderids),
@@ -114,7 +151,7 @@ function sanitizePortalCustomer(c) {
     email: c.email || '',
     address: c.address || '',
     city: c.city || '',
-    photo: c.photo || '',
+    photo: customerPhoto(c),
     outstanding: num(c.outstanding),
     creditBalance: num(c.creditBalance != null ? c.creditBalance : c.credit_balance),
   };
@@ -176,4 +213,9 @@ module.exports = {
   sanitizePortalCustomer,
   isBlocked,
   productFromBody,
+  stripPhotoFromNotes,
+  extractPhotoFromNotes,
+  embedPhotoInNotes,
+  customerPhoto,
+  withCustomerPhoto,
 };

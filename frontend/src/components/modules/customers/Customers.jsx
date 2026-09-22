@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { customersAPI } from '@/services/api';
+import { clearGasCache } from '@/services/gasClient';
 import { finishPaymentRecording } from '@/utils/paymentActions';
 import { useBrand } from '@/context/BrandContext';
 import { formatCurrency, formatDate } from '@/utils/helpers';
@@ -171,16 +172,22 @@ const Customers = () => {
     e.preventDefault();
     setSaving(true);
     try {
-      if (editing) { await customersAPI.update(editing.id, formData); toast.success('Customer updated'); }
+      const payload = {
+        ...formData,
+        photo: formData.photo || '',
+        image: formData.photo || '',
+      };
+      if (editing) { await customersAPI.update(editing.id, payload); toast.success('Customer updated'); }
       else {
-        const res = await customersAPI.create(formData);
+        const res = await customersAPI.create(payload);
         toast.success('Customer added');
         const created = res.data || {};
         const welcome = openCustomerWelcomeWhatsApp(created);
         if (welcome.ok) toast.message('Welcome WhatsApp opened — tap Send with Customer ID');
       }
+      clearGasCache();
       setDialogOpen(false); fetchCustomers();
-    } catch (err) { console.error(err); toast.error('Failed to save'); }
+    } catch (err) { console.error(err); toast.error(err.response?.data?.message || 'Failed to save'); }
     finally { setSaving(false); }
   };
 
