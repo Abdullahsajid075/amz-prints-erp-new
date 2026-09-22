@@ -151,7 +151,7 @@ export const quotationsAPI = {
   delete: (id) => gasRequest('DELETE', `/quotations/${id}`, withToken()),
 };
 
-/** Users sheet CRUD — login still reads the same Users sheet. */
+/** Users CRUD — login reads the same users table. */
 export const usersAPI = {
   getAll: (params) => gasRequest('GET', '/users', withToken({ params })),
   getById: (id) => gasRequest('GET', `/users/${id}`, withToken()),

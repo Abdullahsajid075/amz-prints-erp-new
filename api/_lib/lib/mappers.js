@@ -22,6 +22,7 @@ function mapCustomer(row) {
     blockedAt: row.blocked_at || '',
     blockedBy: row.blocked_by || '',
     creditBalance: num(row.credit_balance),
+    outstanding: num(row.outstanding),
   };
 }
 
@@ -134,7 +135,7 @@ function mapInvoice(row) {
     total,
     paidAmount: paid,
     paid,
-    balanceAmount: Math.max(0, total - paid),
+    balanceAmount: Math.max(0, total + num(row.previous_balance) - paid),
     paymentHistory: history,
     status: row.status || invoiceStatusFromPaid(total, paid),
     notes: row.notes || '',
@@ -184,6 +185,7 @@ function mapVendor(row) {
     category: row.category || '',
     paymentTerms: row.payment_terms || '',
     taxId: row.tax_id || '',
+    outstandingBalance: num(row.outstanding_balance),
   };
 }
 

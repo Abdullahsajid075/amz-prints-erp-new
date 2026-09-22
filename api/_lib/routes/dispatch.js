@@ -10,6 +10,68 @@ const {
   makePortalPassword, checkPortalPassword, issueCustomerToken, parseCustomerToken,
   sanitizePortalCustomer, isBlocked, productFromBody,
 } = require('../lib/helpers');
+const {
+  computeCustomerLedger,
+  computeCompanyReceivables,
+  computeVendorOutstanding,
+  isQuotation,
+  isCancelledStatus,
+  purchaseOutstanding,
+} = require('../lib/ledger');
+
+function expenseIsApproved(row) {
+  if (!row) return false;
+  if (row.approved === false) return false;
+  const s = String(row.approved ?? row.status ?? '').trim().toLowerCase();
+  if (s === 'false' || s === '0' || s === 'no' || s === 'pending' || s === 'rejected') return false;
+  return true;
+}
+
+function attachCustomerLedger(row, orders, invoices, payments) {
+  const api = mapCustomer(row);
+  const led = computeCustomerLedger(row, orders || [], invoices || [], payments || []);
+  api.outstanding = led.outstanding;
+  api.creditBalance = led.creditBalance;
+  api.payable = led.payable;
+  return api;
+}
+
+function attachVendorPayables(row, purchases) {
+  const api = mapVendor(row);
+  api.outstandingBalance = computeVendorOutstanding(row, purchases || []);
+  return api;
+}
+
+function buildMonthlySales(orders, expenses) {
+  const months = [];
+  const now = new Date();
+  for (let i = 5; i >= 0; i -= 1) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    months.push({
+      key,
+      month: d.toLocaleString('en-US', { month: 'short' }),
+      sales: 0,
+      orders: 0,
+      expenses: 0,
+    });
+  }
+  const index = Object.fromEntries(months.map((m) => [m.key, m]));
+  (orders || []).forEach((o) => {
+    if (isQuotation(o) || isCancelledStatus(o.status)) return;
+    const key = String(o.date || '').slice(0, 7);
+    if (!index[key]) return;
+    index[key].sales += num(o.total_amount);
+    index[key].orders += 1;
+  });
+  (expenses || []).forEach((e) => {
+    if (!expenseIsApproved(e)) return;
+    const key = String(e.date || '').slice(0, 7);
+    if (!index[key]) return;
+    index[key].expenses += num(e.amount);
+  });
+  return months;
+}
 
 async function ensureWalkIn() {
   const { data } = await supabase.from('customers').select('*').eq('id', 'cust_walkin').maybeSingle();
@@ -600,57 +662,95 @@ async function dispatch(req, res) {
         if (to && dk > to) return false;
         return true;
       };
-      const [{ data: orders }, { data: customers }, { data: expenses }, { data: purchases }] = await Promise.all([
+      const [{ data: orders }, { data: customers }, { data: expenses }, { data: purchases }, { data: invoices }, { data: payments }] = await Promise.all([
         supabase.from('orders').select('*'),
-        supabase.from('customers').select('id'),
+        supabase.from('customers').select('*'),
         supabase.from('expenses').select('*'),
         supabase.from('purchases').select('*'),
+        supabase.from('invoices').select('*'),
+        supabase.from('payments').select('*'),
       ]);
-      const realOrders = (orders || []).filter((o) => (
-        String(o.doc_type || 'Order').toLowerCase() !== 'quotation' && inRange(o.date)
-      ));
-      const expenseRows = (expenses || []).filter((e) => inRange(e.date));
-      const purchaseRows = (purchases || []).filter((p) => inRange(p.date));
+      const quotations = (orders || []).filter((o) => isQuotation(o) && inRange(o.date));
+      const realOrders = (orders || []).filter((o) => !isQuotation(o) && inRange(o.date) && !isCancelledStatus(o.status));
+      const allDatedOrders = (orders || []).filter((o) => !isQuotation(o) && inRange(o.date));
+      const expenseRows = (expenses || []).filter((e) => inRange(e.date) && expenseIsApproved(e));
+      const purchaseRows = (purchases || []).filter((p) => inRange(p.date || p.purchase_date));
+      const invoiceRows = (invoices || []).filter((inv) => inRange(inv.date) && !isCancelledStatus(inv.status));
+      const paymentRows = (payments || []).filter((p) => inRange(p.date));
       const revenue = realOrders.reduce((s, o) => s + num(o.total_amount), 0);
       const expenseSum = expenseRows.reduce((s, e) => s + num(e.amount), 0);
-      const payables = purchaseRows.reduce((s, p) => {
-        const status = String(p.status || '').toLowerCase();
-        if (status.includes('cancel')) return s;
-        if (status.includes('fully paid') || status === 'paid') return s;
-        return s + Math.max(0, num(p.total) - num(p.paid_amount));
-      }, 0);
+      const payables = purchaseRows.reduce((s, p) => s + purchaseOutstanding(p), 0);
       const statusMap = {};
       realOrders.forEach((o) => {
         const key = o.status || 'Unknown';
         statusMap[key] = (statusMap[key] || 0) + 1;
       });
+      const designingOrders = realOrders.filter((o) => /design|proof/i.test(String(o.status || ''))).length;
+      const printingOrders = realOrders.filter((o) => /print|finish|pack/i.test(String(o.status || ''))).length;
+      const readyOrders = realOrders.filter((o) => /^ready$/i.test(String(o.status || ''))).length;
+      const completedOrders = realOrders.filter((o) => /deliver/i.test(String(o.status || ''))).length;
+      const pendingOrders = allDatedOrders.filter((o) => !/deliver/i.test(String(o.status || '')) && !isCancelledStatus(o.status)).length;
+      const cashIn = paymentRows.filter((p) => !/outflow|^out$/i.test(String(p.type || 'inflow'))).reduce((s, p) => s + num(p.amount), 0);
+      const cashOut = paymentRows.filter((p) => /outflow|^out$/i.test(String(p.type || ''))).reduce((s, p) => s + num(p.amount), 0);
+      const collected = cashIn;
+      const receivables = computeCompanyReceivables(orders || [], invoices || [], customers || [], payments || []);
+      const fulfillmentRate = realOrders.length ? Math.round((completedOrders / realOrders.length) * 100) : 0;
+      const collectionRate = revenue > 0 ? Math.round((Math.min(collected, revenue) / revenue) * 100) : 0;
       const stats = {
+        totalQuotations: quotations.length,
         totalOrders: realOrders.length,
-        pendingOrders: realOrders.filter((o) => !['Delivered', 'Cancelled'].includes(o.status)).length,
-        completedOrders: realOrders.filter((o) => o.status === 'Delivered').length,
+        totalInvoices: invoiceRows.length,
+        pendingOrders,
+        completedOrders,
+        readyOrders,
+        designingOrders,
+        printingOrders,
         revenue,
         expenses: expenseSum,
-        receivables: realOrders.reduce((s, o) => s + num(o.balance_amount), 0),
+        receivables,
+        collected,
         payables,
         vendorPayables: payables,
+        cashIn,
+        cashOut,
+        cashNet: cashIn - cashOut,
         activeCustomers: (customers || []).length,
+        fulfillmentRate,
+        collectionRate,
         from: from || '',
         to: to || '',
       };
+      const attention = realOrders
+        .filter((o) => {
+          const ready = /^ready$/i.test(String(o.status || ''));
+          const overdue = o.delivery_date && String(o.delivery_date).slice(0, 10) < today() && !/deliver/i.test(String(o.status || ''));
+          const unpaid = num(o.balance_amount) > 0.009;
+          return ready || overdue || unpaid;
+        })
+        .sort((a, b) => num(b.balance_amount) - num(a.balance_amount))
+        .slice(0, 12)
+        .map(mapOrder);
       if (path === '/dashboard/bootstrap') {
         return send(res, {
           stats,
           recentOrders: realOrders.slice(-8).reverse().map(mapOrder),
           charts: {
-            monthlySales: [],
+            monthlySales: buildMonthlySales(orders || [], expenses || []),
             orderStatus: Object.keys(statusMap).map((name) => ({ name, value: statusMap[name] })),
           },
-          attention: [],
+          attention,
         });
       }
       return send(res, stats);
     }
-    if (method === 'GET' && path === '/dashboard/charts') return send(res, { sales: [], expenses: [] });
+    if (method === 'GET' && path === '/dashboard/charts') {
+      const [{ data: orders }, { data: expenses }] = await Promise.all([
+        supabase.from('orders').select('*'),
+        supabase.from('expenses').select('*'),
+      ]);
+      const monthly = buildMonthlySales(orders || [], expenses || []);
+      return send(res, { sales: monthly, expenses: monthly, monthlySales: monthly });
+    }
     if (method === 'GET' && path === '/dashboard/recent-orders') {
       const { data } = await supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(20);
       return send(res, (data || []).filter((o) => String(o.doc_type || '').toLowerCase() !== 'quotation').map(mapOrder));
@@ -709,8 +809,13 @@ async function dispatch(req, res) {
     // Customers + CRM
     if (path === '/customers' || path.startsWith('/customers/')) {
       if (path === '/customers' && method === 'GET') {
-        const { data } = await supabase.from('customers').select('*').order('created_at', { ascending: false });
-        return send(res, (data || []).map(mapCustomer));
+        const [{ data }, { data: orders }, { data: invoices }, { data: payments }] = await Promise.all([
+          supabase.from('customers').select('*').order('created_at', { ascending: false }),
+          supabase.from('orders').select('*'),
+          supabase.from('invoices').select('*'),
+          supabase.from('payments').select('*'),
+        ]);
+        return send(res, (data || []).map((c) => attachCustomerLedger(c, orders || [], invoices || [], payments || [])));
       }
       if (path === '/customers' && method === 'POST') {
         const nameNorm = String(body.name || '').toLowerCase().replace(/[\s_-]+/g, '');
@@ -872,29 +977,33 @@ async function dispatch(req, res) {
           supabase.from('payments').select('*'),
         ]);
         const relatedOrders = (orders || []).filter((o) =>
-          String(o.customer_id) === String(cid) || (phone && String(o.customer_phone) === phone)
+          String(o.doc_type || 'Order').toLowerCase() !== 'quotation'
+          && (String(o.customer_id) === String(cid) || (phone && String(o.customer_phone) === phone))
         );
         const relatedInvoices = (invoices || []).filter((inv) =>
           String(inv.customer_id) === String(cid) || (phone && String(inv.customer_phone) === phone)
         );
         const relatedPayments = (payments || []).filter((p) =>
-          String(p.customer_id) === String(cid) || (phone && String(p.customer_phone) === phone)
+          String(p.customer_id) === String(cid) || (phone && String(p.party_phone || p.customer_phone) === phone)
         );
+        const led = computeCustomerLedger(customer, orders || [], invoices || [], payments || []);
         return send(res, {
-          customer: mapCustomer(customer),
+          customer: attachCustomerLedger(customer, orders || [], invoices || [], payments || []),
           invoices: relatedInvoices.map(mapInvoice),
           orders: relatedOrders.map(mapOrder),
           payments: relatedPayments.map(mapPayment),
-          totalBilled: relatedOrders.reduce((s, o) => s + num(o.total_amount), 0),
-          totalPaid: relatedOrders.reduce((s, o) => s + num(o.advance_payment), 0)
-            + relatedPayments.reduce((s, p) => s + num(p.amount), 0),
-          outstanding: relatedOrders.reduce((s, o) => s + num(o.balance_amount), 0),
+          ...led,
         });
       }
       if (method === 'GET') {
         const { data } = await supabase.from('customers').select('*').eq('id', cid).maybeSingle();
         if (!data) return sendError(res, 'Customer not found', 404);
-        return send(res, mapCustomer(data));
+        const [{ data: orders }, { data: invoices }, { data: payments }] = await Promise.all([
+          supabase.from('orders').select('*'),
+          supabase.from('invoices').select('*'),
+          supabase.from('payments').select('*'),
+        ]);
+        return send(res, attachCustomerLedger(data, orders || [], invoices || [], payments || []));
       }
       if (method === 'PUT') {
         const updates = {
@@ -912,7 +1021,12 @@ async function dispatch(req, res) {
         Object.keys(updates).forEach((k) => updates[k] === undefined && delete updates[k]);
         await supabase.from('customers').update(updates).eq('id', cid);
         const { data } = await supabase.from('customers').select('*').eq('id', cid).maybeSingle();
-        return send(res, mapCustomer(data));
+        const [{ data: orders }, { data: invoices }, { data: payments }] = await Promise.all([
+          supabase.from('orders').select('*'),
+          supabase.from('invoices').select('*'),
+          supabase.from('payments').select('*'),
+        ]);
+        return send(res, attachCustomerLedger(data, orders || [], invoices || [], payments || []));
       }
       if (method === 'DELETE') {
         await supabase.from('customers').delete().eq('id', cid);
@@ -990,6 +1104,22 @@ async function dispatch(req, res) {
     }
 
     if (path === '/vendors' || path.startsWith('/vendors/')) {
+      if (method === 'GET' && path === '/vendors') {
+        const [{ data }, { data: purchases }] = await Promise.all([
+          supabase.from('vendors').select('*').order('created_at', { ascending: false }),
+          supabase.from('purchases').select('*'),
+        ]);
+        return send(res, (data || []).map((v) => attachVendorPayables(v, purchases || [])));
+      }
+      if (method === 'GET' && /^\/vendors\/[^/]+$/.test(path)) {
+        const vid = path.split('/')[2];
+        const [{ data }, { data: purchases }] = await Promise.all([
+          supabase.from('vendors').select('*').eq('id', vid).maybeSingle(),
+          supabase.from('purchases').select('*'),
+        ]);
+        if (!data) return sendError(res, 'Not found', 404);
+        return send(res, attachVendorPayables(data, purchases || []));
+      }
       const done = await handleCollection('vendors', '/vendors', mapVendor, (b, rid) => ({
         id: rid || b.id || id('vend'),
         name: b.name || '',
@@ -1500,14 +1630,17 @@ async function dispatch(req, res) {
     }
 
     if (path === '/reports' && method === 'GET') {
-      const [{ data: orders }, { data: expenses }, { data: payments }] = await Promise.all([
+      const [{ data: orders }, { data: expenses }, { data: payments }, { data: invoices }, { data: customers }] = await Promise.all([
         supabase.from('orders').select('*'),
         supabase.from('expenses').select('*'),
         supabase.from('payments').select('*'),
+        supabase.from('invoices').select('*'),
+        supabase.from('customers').select('*'),
       ]);
-      const realOrders = (orders || []).filter((o) => String(o.doc_type || 'Order').toLowerCase() !== 'quotation');
+      const realOrders = (orders || []).filter((o) => !isQuotation(o) && !isCancelledStatus(o.status));
       const revenue = realOrders.reduce((s, o) => s + num(o.total_amount), 0);
-      const expenseSum = (expenses || []).reduce((s, e) => s + num(e.amount), 0);
+      const expenseSum = (expenses || []).filter(expenseIsApproved).reduce((s, e) => s + num(e.amount), 0);
+      const receivables = computeCompanyReceivables(orders || [], invoices || [], customers || [], payments || []);
       return send(res, {
         period: req.query.period || 'month',
         summary: {
@@ -1515,7 +1648,7 @@ async function dispatch(req, res) {
           revenue,
           expenses: expenseSum,
           payments: (payments || []).reduce((s, p) => s + num(p.amount), 0),
-          receivables: realOrders.reduce((s, o) => s + num(o.balance_amount), 0),
+          receivables,
           profit: revenue - expenseSum,
         },
       });
@@ -1524,8 +1657,9 @@ async function dispatch(req, res) {
     if (path.startsWith('/notifications/')) {
       return send(res, {
         ok: true,
-        queued: true,
-        message: 'Email/WhatsApp from Node is not wired; configure SMTP later. GAS reminders stay on the old backend until cutover.',
+        queued: false,
+        sent: false,
+        message: 'Open WhatsApp from the ERP buttons. SMTP email can be added later in environment settings.',
       });
     }
 

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { invoicesAPI } from '@/services/api';
+import { invoicesAPI, customersAPI } from '@/services/api';
 import { notifyOrderEvent } from '@/services/notifications';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
@@ -11,45 +11,56 @@ const invoiceBalance = (invoice) =>
   Math.max(0, Number(invoice.totalAmount || 0) + Number(invoice.previousBalance || 0) - Number(invoice.paidAmount || 0));
 
 export default function ReceivablesDialog({ open, onOpenChange }) {
-  const [rows, setRows] = useState([]);
+  const [invoices, setInvoices] = useState([]);
+  const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [remindingId, setRemindingId] = useState('');
+  const [tab, setTab] = useState('customers');
 
   useEffect(() => {
     if (!open) return undefined;
     let cancelled = false;
     setLoading(true);
-    invoicesAPI.getAll()
-      .then((res) => {
+    Promise.all([
+      invoicesAPI.getAll().catch(() => ({ data: [] })),
+      customersAPI.getAll().catch(() => ({ data: [] })),
+    ])
+      .then(([invRes, custRes]) => {
         if (cancelled) return;
-        const list = (Array.isArray(res.data) ? res.data : []).filter((inv) => invoiceBalance(inv) > 0);
+        const list = (Array.isArray(invRes.data) ? invRes.data : []).filter((inv) => invoiceBalance(inv) > 0.009);
         list.sort((a, b) => invoiceBalance(b) - invoiceBalance(a));
-        setRows(list);
+        setInvoices(list);
+        const cust = (Array.isArray(custRes.data) ? custRes.data : [])
+          .filter((c) => Number(c.outstanding) > 0.009)
+          .sort((a, b) => Number(b.outstanding) - Number(a.outstanding));
+        setCustomers(cust);
       })
       .catch(() => toast.error('Failed to load receivables'))
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [open]);
 
-  const total = useMemo(() => rows.reduce((s, inv) => s + invoiceBalance(inv), 0), [rows]);
+  const invoiceTotal = useMemo(() => invoices.reduce((s, inv) => s + invoiceBalance(inv), 0), [invoices]);
+  const customerTotal = useMemo(() => customers.reduce((s, c) => s + Number(c.outstanding || 0), 0), [customers]);
 
-  const sendReminder = async (invoice) => {
-    if (!invoice.customerPhone) {
+  const sendReminder = async (party, amount, extra = {}) => {
+    if (!party.customerPhone && !party.phone) {
       toast.error('Customer phone missing');
       return;
     }
-    setRemindingId(invoice.id);
+    const id = party.id;
+    setRemindingId(id);
     try {
       await notifyOrderEvent({
         event: 'payment_reminder',
         order: {
-          customerName: invoice.customerName,
-          customerPhone: invoice.customerPhone,
-          orderId: invoice.orderId,
-          totalAmount: invoice.totalAmount,
-          balanceAmount: invoiceBalance(invoice),
+          customerName: party.customerName || party.name,
+          customerPhone: party.customerPhone || party.phone,
+          orderId: extra.orderId || '',
+          totalAmount: amount,
+          balanceAmount: amount,
         },
-        invoice: { ...invoice, balanceAmount: invoiceBalance(invoice) },
+        invoice: { ...party, balanceAmount: amount },
         openWhatsApp: true,
         sendEmail: false,
       });
@@ -68,12 +79,56 @@ export default function ReceivablesDialog({ open, onOpenChange }) {
         <DialogHeader>
           <DialogTitle>Receivables</DialogTitle>
           <DialogDescription>
-            Unpaid invoices · {formatCurrency(total)} pending
+            Customer outstanding {formatCurrency(customerTotal)} · Open invoices {formatCurrency(invoiceTotal)}
           </DialogDescription>
         </DialogHeader>
+        <div className="flex gap-2 mb-3">
+          <Button type="button" size="sm" variant={tab === 'customers' ? 'default' : 'outline'} onClick={() => setTab('customers')}>
+            Customers ({customers.length})
+          </Button>
+          <Button type="button" size="sm" variant={tab === 'invoices' ? 'default' : 'outline'} onClick={() => setTab('invoices')}>
+            Invoices ({invoices.length})
+          </Button>
+        </div>
         {loading ? (
           <p className="text-sm text-gray-500 py-8 text-center">Loading…</p>
-        ) : rows.length === 0 ? (
+        ) : tab === 'customers' ? (
+          customers.length === 0 ? (
+            <p className="text-sm text-gray-500 py-8 text-center">No outstanding customer balances.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-[10px] uppercase tracking-wider text-gray-500">
+                  <th className="text-left py-2">Customer</th>
+                  <th className="text-right py-2">Outstanding</th>
+                  <th className="text-right py-2"> </th>
+                </tr>
+              </thead>
+              <tbody>
+                {customers.map((c) => (
+                  <tr key={c.id} className="border-b last:border-0">
+                    <td className="py-2.5 pr-2">
+                      <p className="font-semibold truncate max-w-[220px]">{c.name}</p>
+                      <p className="text-[11px] text-gray-500">{c.phone || '—'}</p>
+                    </td>
+                    <td className="py-2.5 text-right font-bold text-rose-600">{formatCurrency(c.outstanding)}</td>
+                    <td className="py-2.5 pl-2 text-right">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[11px] text-green-700 border-green-200"
+                        disabled={remindingId === c.id}
+                        onClick={() => sendReminder(c, Number(c.outstanding))}
+                      >
+                        <WhatsAppIcon className="h-3 w-3 mr-1" />Remind
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )
+        ) : invoices.length === 0 ? (
           <p className="text-sm text-gray-500 py-8 text-center">No outstanding invoices.</p>
         ) : (
           <table className="w-full text-sm">
@@ -86,7 +141,7 @@ export default function ReceivablesDialog({ open, onOpenChange }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((inv) => (
+              {invoices.map((inv) => (
                 <tr key={inv.id} className="border-b last:border-0">
                   <td className="py-2.5 pr-2">
                     <p className="font-semibold" style={{ color: '#ff6d00' }}>{inv.invoiceNumber}</p>
@@ -103,7 +158,7 @@ export default function ReceivablesDialog({ open, onOpenChange }) {
                       variant="outline"
                       className="h-7 text-[11px] text-green-700 border-green-200"
                       disabled={remindingId === inv.id}
-                      onClick={() => sendReminder(inv)}
+                      onClick={() => sendReminder(inv, invoiceBalance(inv), { orderId: inv.orderId })}
                     >
                       <WhatsAppIcon className="h-3 w-3 mr-1" />Remind
                     </Button>

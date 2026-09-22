@@ -17,12 +17,13 @@ import {
   sendTestEmail,
   openWhatsAppChat,
 } from '@/services/notifications';
-import { Save, Building2, FileText, Palette, Users, ShoppingCart, Package, UserCog, CreditCard, Bell, Shield, Database, Trash2, Plus, X, Edit, Mail, Kanban, KeyRound } from 'lucide-react';
+import { Save, Building2, FileText, Palette, Users, ShoppingCart, Package, UserCog, CreditCard, Bell, Shield, Database, Trash2, Plus, X, Edit, Mail, Kanban, KeyRound, BookOpen } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
 import { DEFAULT_CRM_STAGES } from '@/utils/crmStages';
 import { migrateThemeColors } from '@/utils/brandColors';
 import { getAssignableModules, hasFullAccess, normalizePermissions } from '@/utils/permissions';
+import GuideBook from '@/components/modules/settings/GuideBook';
 
 const defaultSettings = {
   company: { name: 'Amazon Printing Services', tagline: 'Professional Printing & Advertising Services', address: 'King Road, Mandi Bahauddin', phone: '', email: 'amazonprinting@gmail.com', website: 'amzprints.com', taxId: '', authorizedSignatory: 'Authorized Person', logo: '', stamp: '', signature: '' },
@@ -39,7 +40,7 @@ const defaultSettings = {
     roles: ['Super Admin', 'Admin', 'Manager', 'Sales', 'Designer', 'Production', 'Accounts', 'Cashier'],
     passwordPolicy: 'strong',
     sessionTimeout: 60,
-    /** Optional local mirror — login still uses Users sheet via usersAPI */
+    /** Optional local mirror — login uses the Users API */
     accounts: [],
   },
   notifications: {
@@ -60,7 +61,8 @@ const defaultSettings = {
     whatsappTemplates: {},
     emailSubjects: {},
   },
-  system: { currency: 'PKR', dateFormat: 'DD MMM YYYY', backupEnabled: true, backupFrequency: 'daily' }
+  system: { currency: 'PKR', dateFormat: 'DD MMM YYYY', backupEnabled: true, backupFrequency: 'daily' },
+  guidebook: { openingHours: '', escalation: '', houseRules: '', supportNotes: '' },
 };
 
 const emptyUser = { username: '', password: '', name: '', role: 'Sales', status: 'Active', permissions: [], employeeId: '' };
@@ -157,6 +159,7 @@ function mergeSettingsFromApi(data) {
     users: section('users'),
     notifications: section('notifications'),
     system: section('system'),
+    guidebook: section('guidebook'),
   };
 }
 
@@ -219,7 +222,7 @@ const Settings = () => {
       setHrEmployees(Array.isArray(empRes.data) ? empRes.data : []);
     } catch (err) {
       console.error(err);
-      toast.error('Failed to load users from Users sheet');
+      toast.error('Failed to load users');
     } finally {
       setUsersLoading(false);
     }
@@ -253,7 +256,7 @@ const Settings = () => {
       if (Array.isArray(res.data?._warnings) && res.data._warnings.length) {
         toast.message(`Saved with warnings: ${res.data._warnings.join(', ')}`);
       } else {
-        toast.success('Settings saved permanently to Google Sheets');
+        toast.success('Settings saved');
       }
       // Re-fetch to confirm persistence
       await loadSettings();
@@ -266,7 +269,7 @@ const Settings = () => {
   };
 
   const update = (section, field, value) =>
-    setSettings({ ...settings, [section]: { ...settings[section], [field]: value } });
+    setSettings({ ...settings, [section]: { ...(settings[section] || {}), [field]: value } });
 
   const onImagePick = async (field, file) => {
     if (!file) return;
@@ -301,14 +304,14 @@ const Settings = () => {
       };
       if (editingUserId) {
         await usersAPI.update(editingUserId, payload);
-        toast.success('User updated (Users sheet)');
+        toast.success('User updated');
       } else {
         if (!payload.password) {
           toast.error('Password required for new user');
           return;
         }
         await usersAPI.create(payload);
-        toast.success('User created (Users sheet — used for login)');
+        toast.success('User created — this account is used for login');
       }
       setUserForm(emptyUser);
       setEditingUserId(null);
@@ -402,7 +405,7 @@ const Settings = () => {
       </div>
 
       <Tabs defaultValue="company" onValueChange={(v) => { if (v === 'users') loadUsers(); }}>
-        <TabsList className="grid w-full grid-cols-3 lg:grid-cols-7 h-auto">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 h-auto">
           <TabsTrigger value="company"><Building2 className="h-4 w-4 mr-1" />Company</TabsTrigger>
           <TabsTrigger value="invoice"><FileText className="h-4 w-4 mr-1" />Invoice</TabsTrigger>
           <TabsTrigger value="theme"><Palette className="h-4 w-4 mr-1" />Theme</TabsTrigger>
@@ -410,6 +413,7 @@ const Settings = () => {
           <TabsTrigger value="users"><Users className="h-4 w-4 mr-1" />Users</TabsTrigger>
           <TabsTrigger value="notifications"><Bell className="h-4 w-4 mr-1" />Notifications</TabsTrigger>
           <TabsTrigger value="system"><Database className="h-4 w-4 mr-1" />System</TabsTrigger>
+          <TabsTrigger value="guidebook" data-testid="settings-tab-guidebook"><BookOpen className="h-4 w-4 mr-1" />Guide Book</TabsTrigger>
         </TabsList>
 
         <TabsContent value="company">
@@ -426,7 +430,7 @@ const Settings = () => {
               <div>
                 <Label>Logo (PNG preferred — transparent background kept)</Label>
                 <Input type="file" accept="image/png,image/webp,image/gif,image/*" onChange={(e) => onImagePick('logo', e.target.files?.[0])} data-testid="logo-file-input" />
-                <p className="text-xs text-gray-500 mt-1">Re-upload your PNG after this fix if the old logo still shows a black background.</p>
+                <p className="text-xs text-gray-500 mt-1">PNG keeps a transparent background. Click Save All Settings after upload.</p>
                 {settings.company.logo && (
                   <div className="mt-2 flex items-center gap-3">
                     <img
@@ -764,12 +768,11 @@ const Settings = () => {
 
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5" />User Access (Users sheet)</CardTitle>
+                <CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5" />User Access</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-sm text-gray-600">
-                  These accounts live on the Google Sheet <strong>Users</strong> and are used for login.
-                  Prefer granting access from the HR employees list above.
+                  These accounts are used for ERP login. Prefer granting access from the HR employees list above.
                 </p>
                 {userForm.employeeId && (
                   <p className="text-xs text-orange-700 bg-orange-50 border border-orange-100 rounded px-2 py-1">
@@ -1164,6 +1167,10 @@ const Settings = () => {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="guidebook">
+          <GuideBook settings={settings} onChange={update} primary={primary} />
         </TabsContent>
       </Tabs>
     </div>
