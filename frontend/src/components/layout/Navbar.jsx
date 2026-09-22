@@ -26,6 +26,8 @@ const TITLE_MAP = [
   { match: '/warehouse/products', title: 'Products' },
   { match: '/warehouse/inventory', title: 'Inventory' },
   { match: '/warehouse', title: 'Warehouse' },
+  { match: '/accounts/pos-statement', title: 'POS Statement' },
+  { match: '/pos/counter', title: 'POS Counter' },
   { match: '/pos/statement', title: 'POS Statement' },
   { match: '/pos', title: 'POS Counter' },
   { match: '/hr', title: 'HR' },

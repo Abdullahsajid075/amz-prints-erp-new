@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { dashboardAPI } from '@/services/api';
+import { openPosCounterWindow } from '@/utils/posWindow';
 import { useAuth, getUserDisplayName } from '@/context/AuthContext';
 import { useBrand } from '@/context/BrandContext';
 import ReceivablesDialog from '@/components/shared/ReceivablesDialog';
@@ -379,7 +380,7 @@ const Dashboard = () => {
                 <button
                   key={a.path}
                   type="button"
-                  onClick={() => navigate(a.path)}
+                  onClick={() => (a.path === '/pos' ? (openPosCounterWindow() || navigate('/pos')) : navigate(a.path))}
                   className="group inline-flex items-center gap-2.5 shrink-0 rounded-xl border border-black/[0.06] bg-white px-3 py-2.5 text-left hover:shadow-md hover:border-orange-200/80 transition-all"
                 >
                   <div

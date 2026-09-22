@@ -624,7 +624,7 @@ const Reports = () => {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>POS detail ({sortedPosOrders.length})</CardTitle>
-              <Button variant="outline" size="sm" onClick={() => window.location.assign('/pos/statement')}>Open full statement</Button>
+              <Button variant="outline" size="sm" onClick={() => window.location.assign('/accounts/pos-statement')}>Open full statement</Button>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">

@@ -950,6 +950,100 @@ async function dispatch(req, res) {
       if (method === 'PUT' || method === 'POST') return send(res, await saveSettingsObject(body));
     }
 
+    if (path === '/pos/register' || path.startsWith('/pos/register/')) {
+      const settings = await getSettingsObject();
+      const store = (settings.posRegister && typeof settings.posRegister === 'object')
+        ? settings.posRegister
+        : { current: null, history: [] };
+      if (!Array.isArray(store.history)) store.history = [];
+
+      const shiftTotals = async (openedAt) => {
+        const since = String(openedAt || '').slice(0, 19);
+        const { data: orders } = await supabase.from('orders').select('id,order_id,date,created_at,doc_type,total_amount,advance_payment,payment_method,remarks,status');
+        const rows = (orders || []).filter((o) => {
+          const dt = String(o.doc_type || '').toLowerCase();
+          const pos = dt === 'pos' || /pos\s*sale/i.test(String(o.remarks || ''));
+          if (!pos || isCancelledStatus(o.status)) return false;
+          const stamp = String(o.created_at || o.date || '');
+          if (since && stamp < since.slice(0, 10)) return false;
+          return true;
+        });
+        const byMethod = {};
+        let sales = 0;
+        let cashSales = 0;
+        rows.forEach((o) => {
+          const amt = num(o.total_amount);
+          sales += amt;
+          const method = String(o.payment_method || '').trim() || (/card/i.test(String(o.remarks || '')) ? 'Card' : 'Cash');
+          byMethod[method] = (byMethod[method] || 0) + amt;
+          if (/^cash$/i.test(method)) cashSales += amt;
+        });
+        return { count: rows.length, sales, cashSales, byMethod, tickets: rows.map((o) => o.order_id || o.id) };
+      };
+
+      if (method === 'GET' && path === '/pos/register') {
+        const totals = store.current ? await shiftTotals(store.current.openedAt) : { count: 0, sales: 0, cashSales: 0, byMethod: {} };
+        return send(res, { ...store, totals });
+      }
+      if (method === 'GET' && path === '/pos/register/x-report') {
+        if (!store.current) return sendError(res, 'No open register — X-report requires an open shift', 400);
+        const totals = await shiftTotals(store.current.openedAt);
+        const openingFloat = num(store.current.openingFloat);
+        return send(res, {
+          type: 'X',
+          generatedAt: new Date().toISOString(),
+          register: store.current,
+          totals,
+          expectedCash: openingFloat + totals.cashSales,
+          note: 'X-report is a mid-shift snapshot. The drawer stays open (IAS 2 / retail cash control).',
+        });
+      }
+      if (method === 'POST' && path === '/pos/register/open') {
+        if (store.current && store.current.status === 'open') {
+          return sendError(res, 'Register already open. Close the current shift first.', 400);
+        }
+        const openingFloat = num(body.openingFloat);
+        if (openingFloat < 0) return sendError(res, 'Opening float cannot be negative', 400);
+        store.current = {
+          id: id('posreg'),
+          status: 'open',
+          openedAt: new Date().toISOString(),
+          openedBy: body.openedBy || userLabel(user),
+          openingFloat,
+          note: body.note || '',
+        };
+        await saveSettingsObject({ posRegister: store });
+        return send(res, { ok: true, current: store.current, history: store.history });
+      }
+      if (method === 'POST' && path === '/pos/register/close') {
+        if (!store.current || store.current.status !== 'open') {
+          return sendError(res, 'No open register to close', 400);
+        }
+        const totals = await shiftTotals(store.current.openedAt);
+        const countedCash = num(body.countedCash);
+        const openingFloat = num(store.current.openingFloat);
+        const expectedCash = openingFloat + totals.cashSales;
+        const variance = Math.round((countedCash - expectedCash) * 100) / 100;
+        const closed = {
+          ...store.current,
+          status: 'closed',
+          closedAt: new Date().toISOString(),
+          closedBy: body.closedBy || userLabel(user),
+          countedCash,
+          expectedCash,
+          variance,
+          totals,
+          closeNote: body.note || '',
+          confirmed: body.confirmed === true,
+        };
+        store.history = [closed, ...store.history].slice(0, 80);
+        store.current = null;
+        await saveSettingsObject({ posRegister: store });
+        return send(res, { ok: true, closed, history: store.history, current: null });
+      }
+      return sendError(res, `Not found: ${path}`, 404);
+    }
+
     // Users
     if (path === '/users' || path.startsWith('/users/')) {
       if (path === '/users' && method === 'GET') {

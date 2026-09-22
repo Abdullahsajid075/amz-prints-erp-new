@@ -53,7 +53,7 @@ export const GUIDE_SECTIONS = [
     body: [
       'POS is for same-day / over-the-counter sales. Select products, quantities, and a payment method. Walk-in is the default customer when no phone is entered.',
       'A POS ticket posts an order (doc type POS) and typically a paid invoice. Cash must match the Payments module (inflow).',
-      'Use POS Statement for a shift audit: sales, methods, and voids. Do not delete a POS sale to “fix” a mistake — reverse with a documented adjustment or Admin guidance.',
+      'POS is for same-day / over-the-counter sales. Menu → POS opens a dedicated till window. Open the cash register (opening float) before the first sale; close with a Z-report (counted cash vs expected). Statement and Z-reports live under Accounts.',
     ],
   },
   {
