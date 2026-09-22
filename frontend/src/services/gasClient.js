@@ -148,7 +148,15 @@ export async function gasRequest(method, path, options = {}) {
     || apiPath === '/customers'
     || apiPath.startsWith('/customers/')
     || apiPath === '/products'
-    || apiPath.startsWith('/products/');
+    || apiPath.startsWith('/products/')
+    || apiPath === '/dashboard/bootstrap'
+    || apiPath === '/dashboard/stats'
+    || apiPath === '/dashboard/charts'
+    || apiPath === '/orders'
+    || apiPath === '/invoices'
+    || apiPath === '/payments'
+    || apiPath === '/expenses'
+    || apiPath === '/purchases';
 
   if (cacheKey && !bypassCache) {
     const cached = cacheGet(cacheKey);

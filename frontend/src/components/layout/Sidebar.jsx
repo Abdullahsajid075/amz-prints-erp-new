@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useBrand } from '@/context/BrandContext';
+import { openPosCounterWindow } from '@/utils/posWindow';
 import { useAuth } from '@/context/AuthContext';
 import { ordersAPI } from '@/services/api';
 import { isOpenOrder } from '@/utils/constants';
@@ -38,8 +38,8 @@ const menuGroups = [
         module: 'pos',
         testId: 'nav-pos',
         children: [
-          { label: 'Counter', path: '/pos', module: 'pos' },
-          { label: 'POS Statement', path: '/pos/statement', module: 'pos' },
+          { label: 'Open counter', path: '/pos', module: 'pos', openWindow: true },
+          { label: 'POS statement', path: '/accounts/pos-statement', module: 'accounts' },
         ],
       },
     ],
@@ -86,6 +86,7 @@ const menuGroups = [
         children: [
           { label: 'Payments', path: '/accounts/payments', module: 'accounts' },
           { label: 'Expenses', path: '/accounts/expenses', module: 'accounts' },
+          { label: 'POS statement', path: '/accounts/pos-statement', module: 'accounts' },
           { label: 'Vendors', path: '/accounts/vendors', module: 'vendors' },
         ],
       },
@@ -288,7 +289,10 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
                           <button
                             type="button"
                             data-testid={item.testId}
-                            onClick={() => toggleGroup(item.path)}
+                            onClick={() => {
+                              if (item.openWindow || item.path === '/pos') openPosCounterWindow();
+                              toggleGroup(item.path);
+                            }}
                             className={cn(
                               'erp-nav-link w-full text-left',
                               groupActive
@@ -316,9 +320,16 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
                               {item.children.map((child) => (
                                 <NavLink
                                   key={child.path}
-                                  to={child.path}
+                                  to={child.openWindow ? '/pos' : child.path}
                                   end={child.path === item.path}
-                                  onClick={closeSidebar}
+                                  onClick={(e) => {
+                                    if (child.openWindow) {
+                                      e.preventDefault();
+                                      const w = openPosCounterWindow();
+                                      if (!w) window.location.assign('/pos');
+                                    }
+                                    closeSidebar();
+                                  }}
                                   className={({ isActive }) => cn(
                                     'block text-[12.5px] py-1.5 px-2.5 rounded-md transition-colors',
                                     isActive

@@ -96,6 +96,13 @@ export const settingsAPI = {
   update: (data) => gasRequest('PUT', '/settings', withToken({ data })),
 };
 
+export const posRegisterAPI = {
+  get: () => gasRequest('GET', '/pos/register', withToken()),
+  open: (data) => gasRequest('POST', '/pos/register/open', withToken({ data })),
+  close: (data) => gasRequest('POST', '/pos/register/close', withToken({ data })),
+  xReport: () => gasRequest('GET', '/pos/register/x-report', withToken()),
+};
+
 export const vendorsAPI = {
   getAll: (params) => gasRequest('GET', '/vendors', withToken({ params })),
   getById: (id) => gasRequest('GET', `/vendors/${id}`, withToken()),
@@ -206,6 +213,7 @@ export default {
   tokensAPI,
   quotationsAPI,
   usersAPI,
+  posRegisterAPI,
   notificationsAPI,
   trackPublic,
   verifyEmployeePublic,

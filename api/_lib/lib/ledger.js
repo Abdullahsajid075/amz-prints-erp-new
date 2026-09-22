@@ -37,7 +37,7 @@ function invoiceOrderRefs(inv) {
   return collectOrderIds({}, inv);
 }
 
-function computeCustomerLedger(customer, orders, invoices, payments) {
+function computeCustomerLedger(customer, orders, invoices, payments, opts = {}) {
   const realOrders = (orders || []).filter((o) =>
     !isQuotation(o) && !isCancelledStatus(o.status) && belongsToCustomer(o, customer)
   );
@@ -74,6 +74,19 @@ function computeCustomerLedger(customer, orders, invoices, payments) {
   // never hides the old Sheets outstanding when invoices were marked paid early.
   const composed = invoiceOutstanding + orphanOutstanding;
   const outstanding = Math.max(0, Math.max(composed, orderBalanceSum) - credit);
+
+  if (opts && opts.statement === false) {
+    return {
+      totalBilled: invoiceBilled + orphanBilled,
+      totalPaid: Math.max(0, paymentPaid),
+      orderOutstanding: Math.max(orphanOutstanding, orderBalanceSum),
+      invoiceOutstanding,
+      outstanding,
+      creditBalance: credit,
+      payable: outstanding,
+      statement: [],
+    };
+  }
 
   const statement = [];
   invs.forEach((inv) => {
@@ -142,8 +155,9 @@ function computeCustomerLedger(customer, orders, invoices, payments) {
 }
 
 function computeCompanyReceivables(orders, invoices, customers, payments) {
+  const pay = payments || [];
   return (customers || []).reduce(
-    (sum, c) => sum + computeCustomerLedger(c, orders, invoices, payments || []).outstanding,
+    (sum, c) => sum + computeCustomerLedger(c, orders, invoices, pay, { statement: false }).outstanding,
     0
   );
 }

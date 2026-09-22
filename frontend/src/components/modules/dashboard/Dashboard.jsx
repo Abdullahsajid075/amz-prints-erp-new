@@ -3,7 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { dashboardAPI } from '@/services/api';
+import { dashboardAPI, ordersAPI, invoicesAPI, expensesAPI, paymentsAPI, customersAPI, purchasesAPI } from '@/services/api';
+import { openPosCounterWindow } from '@/utils/posWindow';
+import { toast } from 'sonner';
+import { asApiList, buildDashboardFromLists, dashboardLooksEmpty } from '@/utils/dashboardFromLists';
 import { useAuth, getUserDisplayName } from '@/context/AuthContext';
 import { useBrand } from '@/context/BrandContext';
 import ReceivablesDialog from '@/components/shared/ReceivablesDialog';
@@ -137,26 +140,83 @@ const Dashboard = () => {
   const [recentExpenses, setRecentExpenses] = useState([]);
   const [chartData, setChartData] = useState({ monthlySales: [], orderStatus: [] });
   const [receivablesOpen, setReceivablesOpen] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
   const fetchDashboardDataWith = useCallback(async (range) => {
     const from = range?.from || '';
     const to = range?.to || '';
     setLoading(true);
-    try {
-      const params = {};
-      if (from) params.from = from;
-      if (to) params.to = to;
+    setLoadError('');
+    const params = {};
+    if (from) params.from = from;
+    if (to) params.to = to;
 
+    const applyBundle = (bundle) => {
+      if (!bundle?.stats) return false;
+      setStats((prev) => ({ ...prev, ...bundle.stats }));
+      if (bundle.charts) setChartData(bundle.charts);
+      setRecentOrders(Array.isArray(bundle.recentOrders) ? bundle.recentOrders : []);
+      setAttention(Array.isArray(bundle.attention) ? bundle.attention : []);
+      setRecentExpenses(Array.isArray(bundle.recentExpenses) ? bundle.recentExpenses : []);
+      return true;
+    };
+
+    let bootErr = null;
+    let bootBundle = null;
+    try {
       const boot = await dashboardAPI.bootstrap(params);
-      const data = boot.data || {};
-      setStats((prev) => ({ ...prev, ...(data.stats || {}) }));
-      setChartData(data.charts || { monthlySales: [], orderStatus: [] });
-      setRecentOrders(Array.isArray(data.recentOrders) ? data.recentOrders : []);
-      setAttention(Array.isArray(data.attention) ? data.attention : []);
-      setRecentExpenses(Array.isArray(data.recentExpenses) ? data.recentExpenses : []);
-      setLoading(false);
+      const data = boot.data?.stats ? boot.data : (boot.data?.data || boot.data || {});
+      if (data?.stats) bootBundle = data;
+      else if (data && data.totalOrders != null) bootBundle = { stats: data, charts: data.charts, recentOrders: data.recentOrders, attention: data.attention, recentExpenses: data.recentExpenses };
     } catch (error) {
-      console.error('Dashboard load failed', error);
+      bootErr = error;
+      console.error('Dashboard bootstrap failed', error);
+    }
+
+    try {
+      const [ordersRes, invRes, expRes, payRes, custRes, purchRes] = await Promise.all([
+        ordersAPI.getAll().catch(() => null),
+        invoicesAPI.getAll().catch(() => null),
+        expensesAPI.getAll().catch(() => null),
+        paymentsAPI.getAll().catch(() => null),
+        customersAPI.getAll().catch(() => null),
+        purchasesAPI.getAll().catch(() => null),
+      ]);
+      const live = buildDashboardFromLists({
+        orders: asApiList(ordersRes),
+        invoices: asApiList(invRes),
+        expenses: asApiList(expRes),
+        payments: asApiList(payRes),
+        customers: asApiList(custRes),
+        purchases: asApiList(purchRes),
+        from,
+        to,
+      });
+      const liveHasData = !dashboardLooksEmpty(live.stats, live.recentOrders);
+      const bootEmpty = dashboardLooksEmpty(bootBundle?.stats, bootBundle?.recentOrders);
+      if (liveHasData || !bootBundle) {
+        applyBundle(live);
+        if (!liveHasData && bootBundle) applyBundle(bootBundle);
+      } else {
+        applyBundle(bootEmpty ? live : bootBundle);
+      }
+      if (dashboardLooksEmpty(live.stats, live.recentOrders) && bootEmpty) {
+        const msg = bootErr?.response?.data?.message
+          || bootErr?.message
+          || 'Dashboard loaded but no orders/invoices were returned.';
+        setLoadError(msg);
+      }
+    } catch (fallbackErr) {
+      if (bootBundle) applyBundle(bootBundle);
+      else {
+        const msg = fallbackErr?.response?.data?.message
+          || fallbackErr?.message
+          || bootErr?.response?.data?.message
+          || 'Dashboard could not load. Try Refresh.';
+        setLoadError(msg);
+        toast.error(msg);
+      }
+    } finally {
       setLoading(false);
     }
   }, []);
@@ -226,6 +286,17 @@ const Dashboard = () => {
     <div className="erp-page space-y-5 relative" data-testid="dashboard">
       {loading && (
         <div className="absolute inset-0 z-10 bg-white/50 backdrop-blur-[1px] rounded-2xl pointer-events-none" />
+      )}
+      {loadError && (
+        <div
+          className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex flex-wrap items-center justify-between gap-3"
+          data-testid="dashboard-load-error"
+        >
+          <p className="text-sm text-amber-900">{loadError}</p>
+          <Button type="button" size="sm" onClick={fetchDashboardData} disabled={loading}>
+            Retry
+          </Button>
+        </div>
       )}
       {/* Command hero — ink + brand accent */}
       <div
@@ -379,7 +450,7 @@ const Dashboard = () => {
                 <button
                   key={a.path}
                   type="button"
-                  onClick={() => navigate(a.path)}
+                  onClick={() => (a.path === '/pos' ? (openPosCounterWindow() || navigate('/pos')) : navigate(a.path))}
                   className="group inline-flex items-center gap-2.5 shrink-0 rounded-xl border border-black/[0.06] bg-white px-3 py-2.5 text-left hover:shadow-md hover:border-orange-200/80 transition-all"
                 >
                   <div

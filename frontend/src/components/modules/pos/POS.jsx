@@ -3,18 +3,22 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { productsAPI, ordersAPI, invoicesAPI, customersAPI } from '@/services/api';
+import { productsAPI, ordersAPI, invoicesAPI, customersAPI, posRegisterAPI } from '@/services/api';
 import { applyServerNotificationHint, openWhatsAppChat } from '@/services/notifications';
 import { formatCurrency } from '@/utils/helpers';
 import { customerMatchesQuery } from '@/utils/customerSearch';
 import { productMatchesQuery } from '@/utils/productSearch';
 import { barcodeBlock, openPrintWindow, printOnLoadScript, POS_MAJOR_SERVICES, documentFileName } from '@/utils/printHelpers';
 import { useBrand } from '@/context/BrandContext';
-import { Search, Plus, Minus, Trash2, Printer, ShoppingCart, FileSpreadsheet, PackagePlus, UserPlus, Package, Wrench } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, Printer, ShoppingCart, FileSpreadsheet, PackagePlus, UserPlus, Package, Wrench, Store, Expand, Lock, Unlock, BookOpen } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
-import PageHeader from '@/components/shared/PageHeader';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import { useAuth, getUserDisplayName } from '@/context/AuthContext';
+import { openPosCounterWindow } from '@/utils/posWindow';
+import POSCalculator from '@/components/modules/pos/POSCalculator';
+import { productImageSrc } from '@/utils/productImage';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
 const isServiceItem = (p) => {
   const type = String(p?.productType || '').toLowerCase();
@@ -25,8 +29,10 @@ const isServiceItem = (p) => {
 
 const WALK_IN = { id: 'cust_walkin', name: 'Walk-in', phone: '' };
 
-const POS = () => {
+const POS = ({ kiosk = false }) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isKiosk = kiosk || (typeof window !== 'undefined' && window.location.pathname.startsWith('/pos/counter'));
   const { company, primary } = useBrand();
   const [products, setProducts] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -43,6 +49,14 @@ const POS = () => {
   const [waPhone, setWaPhone] = useState('');
   const [checkingOut, setCheckingOut] = useState(false);
   const [lastSale, setLastSale] = useState(null);
+  const [register, setRegister] = useState({ current: null, history: [], totals: {} });
+  const [openDlg, setOpenDlg] = useState(false);
+  const [closeDlg, setCloseDlg] = useState(false);
+  const [openingFloat, setOpeningFloat] = useState('0');
+  const [countedCash, setCountedCash] = useState('');
+  const [regNote, setRegNote] = useState('');
+  const [regBusy, setRegBusy] = useState(false);
+  const [confirmedClose, setConfirmedClose] = useState(false);
 
   const loadProducts = useCallback(async () => {
     try {
@@ -69,6 +83,17 @@ const POS = () => {
     loadProducts();
     loadCustomers();
   }, [loadProducts, loadCustomers]);
+
+  const loadRegister = useCallback(async () => {
+    try {
+      const res = await posRegisterAPI.get();
+      setRegister(res.data || { current: null, history: [], totals: {} });
+    } catch {
+      setRegister({ current: null, history: [], totals: {} });
+    }
+  }, []);
+
+  useEffect(() => { loadRegister(); }, [loadRegister]);
 
   const selectedCustomer = useMemo(() => {
     if (!customerId || customerId === WALK_IN.id) {
@@ -127,6 +152,9 @@ const POS = () => {
             {service ? 'Service' : 'Product'}
           </span>
         </div>
+        {productImageSrc(p) ? (
+          <img src={productImageSrc(p)} alt="" className="w-full h-16 object-cover rounded-md mb-2 bg-slate-100" />
+        ) : null}
         <div className="text-sm font-semibold leading-snug line-clamp-2 min-h-[2.5rem]" style={{ color: '#0747a3' }}>
           {p.name}
         </div>
@@ -322,6 +350,11 @@ const POS = () => {
       toast.error('Cart is empty');
       return;
     }
+    if (!register.current) {
+      toast.error('Open the cash register first — opening float is required');
+      setOpenDlg(true);
+      return;
+    }
     setCheckingOut(true);
     try {
       const productsPayload = cart.map(({ name, quantity, rate, size, material }) => ({
@@ -386,23 +419,224 @@ const POS = () => {
     }
   };
 
+  const cashier = getUserDisplayName(user) || 'Cashier';
+
+  const openShift = async () => {
+    setRegBusy(true);
+    try {
+      await posRegisterAPI.open({
+        openingFloat: Number(openingFloat) || 0,
+        note: regNote,
+        openedBy: cashier,
+      });
+      toast.success('Cash register opened');
+      setOpenDlg(false);
+      setRegNote('');
+      loadRegister();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not open register');
+    } finally {
+      setRegBusy(false);
+    }
+  };
+
+  const closeShift = async () => {
+    if (!confirmedClose) {
+      toast.error('Tick the confirmation box — counted cash vs expected cash (Z-report)');
+      return;
+    }
+    setRegBusy(true);
+    try {
+      const res = await posRegisterAPI.close({
+        countedCash: Number(countedCash) || 0,
+        note: regNote,
+        closedBy: cashier,
+        confirmed: true,
+      });
+      const v = Number(res.data?.closed?.variance || 0);
+      toast.success(`Z-report posted · variance ${formatCurrency(v)}`);
+      setCloseDlg(false);
+      setConfirmedClose(false);
+      setRegNote('');
+      loadRegister();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not close register');
+    } finally {
+      setRegBusy(false);
+    }
+  };
+
+  const registerDialogs = (
+    <>
+      <Dialog open={openDlg} onOpenChange={setOpenDlg}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Open cash register</DialogTitle>
+            <DialogDescription>
+              International cash control: declare opening float before the first sale. Drawer cash is then reconcilable at close (Z-report).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Opening float (cash in drawer)</Label>
+              <Input type="number" min="0" value={openingFloat} onChange={(e) => setOpeningFloat(e.target.value)} />
+            </div>
+            <div>
+              <Label>Note (optional)</Label>
+              <Input value={regNote} onChange={(e) => setRegNote(e.target.value)} placeholder="Till 1 · morning shift" />
+            </div>
+            <p className="text-xs text-slate-500">Cashier: {cashier}</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpenDlg(false)}>Cancel</Button>
+            <Button className="text-white" style={{ backgroundColor: primary || '#ff6d00' }} disabled={regBusy} onClick={openShift}>
+              <Unlock className="h-4 w-4 mr-1" />{regBusy ? 'Opening…' : 'Open register'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={closeDlg} onOpenChange={setCloseDlg}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Close register — Z-report</DialogTitle>
+            <DialogDescription>
+              Count drawer cash. Expected = opening float + cash sales this shift. Variance must be recorded (cannot be hidden).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p>Opening float: <strong>{formatCurrency(register.current?.openingFloat)}</strong></p>
+            <p>Cash sales: <strong>{formatCurrency(register.totals?.cashSales)}</strong></p>
+            <p>Expected cash: <strong>{formatCurrency(Number(register.current?.openingFloat || 0) + Number(register.totals?.cashSales || 0))}</strong></p>
+            <div>
+              <Label>Counted cash in drawer</Label>
+              <Input type="number" min="0" value={countedCash} onChange={(e) => setCountedCash(e.target.value)} />
+            </div>
+            <div>
+              <Label>Close note</Label>
+              <Input value={regNote} onChange={(e) => setRegNote(e.target.value)} />
+            </div>
+            <label className="flex items-start gap-2 text-xs">
+              <input type="checkbox" checked={confirmedClose} onChange={(e) => setConfirmedClose(e.target.checked)} />
+              I confirm the counted cash is accurate and I accept any variance on this Z-report.
+            </label>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCloseDlg(false)}>Cancel</Button>
+            <Button className="text-white bg-slate-900" disabled={regBusy} onClick={closeShift}>
+              <Lock className="h-4 w-4 mr-1" />{regBusy ? 'Closing…' : 'Post Z-report & close'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+
+  if (!isKiosk) {
+    return (
+      <div className="erp-page space-y-5" data-testid="pos-page">
+        <div
+          className="relative overflow-hidden rounded-3xl text-white shadow-lg min-h-[280px] flex flex-col justify-end"
+          style={{
+            background: `
+              radial-gradient(900px 280px at 90% 10%, #ff6d0077, transparent 55%),
+              linear-gradient(135deg, #042a63 0%, #0747a3 48%, #0b3d2e 100%)
+            `,
+          }}
+        >
+          <svg className="absolute right-6 bottom-0 w-64 h-48 opacity-80" viewBox="0 0 200 140" fill="none" aria-hidden>
+            <rect x="30" y="40" width="110" height="70" rx="8" fill="#fff" opacity="0.95" />
+            <rect x="40" y="50" width="90" height="12" rx="3" fill="#0747a3" />
+            <rect x="40" y="70" width="50" height="8" rx="2" fill="#e2e8f0" />
+            <rect x="40" y="84" width="70" height="8" rx="2" fill="#e2e8f0" />
+            <rect x="145" y="55" width="28" height="50" rx="4" fill="#ff6d00" />
+            <circle cx="80" cy="28" r="14" fill="#10B981" />
+            <text x="80" y="33" textAnchor="middle" fontSize="12" fill="#fff" fontFamily="sans-serif">POS</text>
+          </svg>
+          <div className="relative p-6 sm:p-8 space-y-3 max-w-xl">
+            <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-white/70">Point of sale</p>
+            <h1 className="text-3xl sm:text-4xl font-bold leading-tight">POS Counter</h1>
+            <p className="text-white/80 text-sm">Opens as a dedicated till window: products, calculator, pay, opening &amp; closing register (Z-report).</p>
+            <div className="flex flex-wrap gap-2 pt-2">
+              <Button className="text-white" style={{ backgroundColor: '#ff6d00' }} onClick={() => {
+                const w = openPosCounterWindow();
+                if (!w) toast.error('Allow popups to open the POS window');
+              }}>
+                <Expand className="h-4 w-4 mr-2" />Open POS window
+              </Button>
+              <Button variant="secondary" onClick={() => navigate('/accounts/pos-statement')}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" />POS statement (Accounts)
+              </Button>
+            </div>
+          </div>
+        </div>
+        <div className="grid sm:grid-cols-3 gap-3">
+          <div className="rounded-2xl border p-4 bg-white">
+            <p className="text-xs text-slate-500">Register</p>
+            <p className="font-bold mt-1">{register.current ? 'OPEN' : 'CLOSED'}</p>
+            <p className="text-xs text-slate-500 mt-1">{register.current ? `Float ${formatCurrency(register.current.openingFloat)}` : 'Open the till in the POS window'}</p>
+          </div>
+          <div className="rounded-2xl border p-4 bg-white">
+            <p className="text-xs text-slate-500">This shift</p>
+            <p className="font-bold mt-1">{register.totals?.count || 0} sales</p>
+            <p className="text-xs text-slate-500 mt-1">{formatCurrency(register.totals?.sales)}</p>
+          </div>
+          <div className="rounded-2xl border p-4 bg-white">
+            <p className="text-xs text-slate-500">Audit</p>
+            <p className="font-bold mt-1">Z-report</p>
+            <p className="text-xs text-slate-500 mt-1">Close register from the POS window at end of day</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="erp-page space-y-4" data-testid="pos-page">
-      <PageHeader
-        eyebrow="Sales"
-        title="POS Counter"
-        subtitle="Quick sale · cash / card · print receipt"
-        actions={(
+    <div className="min-h-screen bg-[#071428]" data-testid="pos-kiosk">
+      <div
+        className="relative px-5 pt-5 pb-4 text-white overflow-hidden"
+        style={{
+          background: 'radial-gradient(800px 240px at 88% -10%, #ff6d0066, transparent 50%), linear-gradient(120deg,#042a63,#0747a3 55%,#0a3d32)',
+        }}
+      >
+        <svg className="absolute right-8 bottom-0 w-52 h-36 opacity-70" viewBox="0 0 200 140" fill="none" aria-hidden>
+          <rect x="30" y="40" width="110" height="70" rx="8" fill="#fff" opacity="0.95" />
+          <rect x="40" y="50" width="90" height="12" rx="3" fill="#0747a3" />
+          <rect x="145" y="55" width="28" height="50" rx="4" fill="#ff6d00" />
+        </svg>
+        <div className="flex flex-wrap items-end justify-between gap-4 relative z-10">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.18em] font-bold text-white/65">AMZ Prints · Till</p>
+            <h1 className="text-2xl font-bold mt-1 flex items-center gap-2"><Store className="h-6 w-6" />POS Counter</h1>
+            <p className="text-sm text-white/75 mt-1">
+              {register.current
+                ? `OPEN · ${register.current.openedBy} · float ${formatCurrency(register.current.openingFloat)} · ${register.totals?.count || 0} sales`
+                : 'Register closed — open float before taking cash'}
+            </p>
+          </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" className="rounded-xl" onClick={() => navigate('/pos/statement')} data-testid="pos-statement-link">
-              <FileSpreadsheet className="h-4 w-4 mr-2" />POS Statement
+            {register.current ? (
+              <Button variant="secondary" onClick={() => { setCountedCash(''); setCloseDlg(true); }}>
+                <Lock className="h-4 w-4 mr-1" />Close register (Z)
+              </Button>
+            ) : (
+              <Button className="text-white" style={{ backgroundColor: '#ff6d00' }} onClick={() => setOpenDlg(true)}>
+                <Unlock className="h-4 w-4 mr-1" />Open register
+              </Button>
+            )}
+            <Button variant="outline" className="text-white border-white/30" onClick={() => window.open(`${window.location.origin}/accounts/pos-statement`, '_blank')}>
+              <BookOpen className="h-4 w-4 mr-1" />Statement
             </Button>
-            <Button variant="outline" className="rounded-xl" onClick={() => navigate('/warehouse/products?new=1')} data-testid="pos-add-product">
-              <PackagePlus className="h-4 w-4 mr-2" />Add New Product
+            <Button variant="outline" className="text-white border-white/30" onClick={() => window.open(`${window.location.origin}/warehouse/products?new=1`, '_blank')} data-testid="pos-add-product">
+              <PackagePlus className="h-4 w-4 mr-1" />Product
             </Button>
-            {lastSale && (
-              <>
-                <Button variant="outline" className="rounded-xl" onClick={() => printReceipt(lastSale)} data-testid="pos-reprint">
+          </div>
+        </div>
+      </div>
+
+      <div className="p-4 space-y-4">
+      {lastSale ? (
+        <div className="flex flex-wrap gap-2">
+                <Button variant="outline" className="rounded-xl bg-white" onClick={() => printReceipt(lastSale)} data-testid="pos-reprint">
                   <Printer className="h-4 w-4 mr-2" />Reprint POS slip
                 </Button>
                 <Button
@@ -450,14 +684,12 @@ const POS = () => {
                 >
                   <FileSpreadsheet className="h-4 w-4 mr-2" />Convert to Invoice
                 </Button>
-              </>
-            )}
+        </div>
+            ) : null}
           </div>
-        )}
-      />
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        <div className="lg:col-span-3 space-y-3">
+        <div className="lg:col-span-3 space-y-3 bg-white rounded-2xl p-4">
           <div className="flex flex-wrap gap-2 items-center">
             <div className="relative flex-1 min-w-[180px]">
               <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
@@ -508,6 +740,13 @@ const POS = () => {
               </div>
             )}
           </div>
+          <POSCalculator
+            accent={primary || '#ff6d00'}
+            onAdd={(line) => {
+              setCart((prev) => [...prev, line]);
+              toast.success('Added from calculator');
+            }}
+          />
         </div>
 
         <Card className="lg:col-span-2">
@@ -744,7 +983,7 @@ const POS = () => {
               onClick={checkout}
               data-testid="pos-checkout"
             >
-              {checkingOut ? 'Processing…' : 'Checkout & Print'}
+              {checkingOut ? 'Processing…' : 'Pay & print'}
             </Button>
             <Button
               type="button"
@@ -762,6 +1001,8 @@ const POS = () => {
           </CardContent>
         </Card>
       </div>
+      </div>
+      {registerDialogs}
     </div>
   );
 };

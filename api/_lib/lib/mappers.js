@@ -1,5 +1,5 @@
 const { num, truthy } = require('./util');
-const { asArray, uniqueStrings, parseImages, isBlocked, invoiceStatusFromPaid, customerPhoto, stripPhotoFromNotes } = require('./helpers');
+const { asArray, uniqueStrings, parseImages, isBlocked, invoiceStatusFromPaid, customerPhoto, stripPhotoFromNotes, isWebsiteCatalogReady } = require('./helpers');
 
 function mapCustomer(row) {
   if (!row) return null;
@@ -71,7 +71,8 @@ function mapProduct(row) {
   const salePrice = num(row.sale_price);
   const images = parseImages(row.images, row.image || '');
   const img = images[0] || row.image || '';
-  const showOnWebsite = row.show_on_website == null ? true : truthy(row.show_on_website, true);
+  const catalogReady = isWebsiteCatalogReady({ images, description: row.description, fullDescription: row.full_description, image: img });
+  const showOnWebsite = catalogReady && (row.show_on_website == null ? true : truthy(row.show_on_website, true));
   return {
     id: row.id,
     name: row.name || '',
@@ -96,7 +97,8 @@ function mapProduct(row) {
     variations: Array.isArray(row.variations) ? row.variations : asArray(row.variations),
     active: String(row.status || 'Active').toLowerCase() !== 'inactive',
     showOnWebsite,
-    showOnTop: !!row.show_on_top,
+    showOnTop: showOnWebsite && !!row.show_on_top,
+    catalogReady,
   };
 }
 

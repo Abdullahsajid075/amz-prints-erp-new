@@ -1,6 +1,6 @@
 const { supabase } = require('../db');
 const { handleLogin, validateToken, sanitizeUser } = require('../lib/auth');
-const { id, today, nowTime, num, truthy, send, sendError } = require('../lib/util');
+const { id, today, nowTime, dateKey, num, truthy, send, sendError } = require('../lib/util');
 const {
   mapCustomer, mapOrder, mapProduct, mapInvoice, mapEmployee,
   mapVendor, mapPayment, mapExpense, mapPurchase, mapUser, mapToken,
@@ -9,7 +9,7 @@ const {
   isAdminRole, userLabel, collectOrderIds, invoiceStatusFromPaid,
   makePortalPassword, checkPortalPassword, issueCustomerToken, parseCustomerToken,
   sanitizePortalCustomer, isBlocked, productFromBody,
-  withCustomerPhoto, customerPhoto,
+  withCustomerPhoto, customerPhoto, isWebsiteCatalogReady,
 } = require('../lib/helpers');
 const {
   computeCustomerLedger,
@@ -115,21 +115,57 @@ async function saveProductRow(row, { mode, id: rid } = {}) {
 
 async function dbSelect(table, cols, extraFn) {
   let selectCols = cols;
+  let fn = extraFn;
   for (let attempt = 0; attempt < 16; attempt += 1) {
     let q = supabase.from(table).select(selectCols);
-    if (typeof extraFn === 'function') q = extraFn(q) || q;
+    if (typeof fn === 'function') q = fn(q) || q;
     const { data, error } = await q;
     if (!error) return data || [];
     const col = missingSchemaColumn(error);
-    if (!col) throw error;
-    const next = selectCols.split(',').map((s) => s.trim()).filter((c) => c && c !== col);
-    if (next.length === 0 || next.length === selectCols.split(',').length) throw error;
-    selectCols = next.join(',');
+    if (col) {
+      const next = String(selectCols).split(',').map((s) => s.trim()).filter((c) => c && c !== col);
+      if (next.length === 0 || next.join(',') === selectCols) {
+        selectCols = '*';
+        fn = undefined;
+        continue;
+      }
+      selectCols = next.join(',');
+      continue;
+    }
+    if (selectCols !== '*') {
+      selectCols = '*';
+      fn = undefined;
+      continue;
+    }
+    throw error;
   }
   return [];
 }
 
-const LEAN_ORDER_COLS = 'id,order_id,date,customer_id,customer_phone,customer_name,status,doc_type,total_amount,balance_amount,delivery_date,tracking_number';
+async function dbSelectSafe(table, cols, extraFn) {
+  try {
+    return await dbSelect(table, cols, extraFn);
+  } catch (err) {
+    console.error('dbSelectSafe', table, dbErrorMessage(err));
+    return [];
+  }
+}
+
+function persistIncompleteWebsiteHides(rows) {
+  const ids = (rows || [])
+    .filter((row) => {
+      const api = mapProduct(row);
+      return api && api.id && !isWebsiteCatalogReady(api) && (row.show_on_website !== false);
+    })
+    .map((row) => row.id)
+    .slice(0, 80);
+  if (!ids.length) return;
+  Promise.all(ids.map((pid) => (
+    supabase.from('products').update({ show_on_website: false, show_on_top: false }).eq('id', pid)
+  ))).catch((err) => console.error('website hide', dbErrorMessage(err)));
+}
+
+const LEAN_ORDER_COLS = 'id,order_id,date,created_at,customer_id,customer_phone,customer_name,status,doc_type,total_amount,advance_payment,balance_amount,delivery_date,tracking_number';
 const LEAN_INVOICE_COLS = 'id,customer_id,customer_phone,order_id,total,paid,previous_balance,status,invoice_no,date';
 const LEAN_PAYMENT_COLS = 'id,date,type,amount,customer_id,customer_phone,party_phone,category,method,notes,ref_id';
 
@@ -156,14 +192,14 @@ function buildMonthlySales(orders, expenses) {
   const index = Object.fromEntries(months.map((m) => [m.key, m]));
   (orders || []).forEach((o) => {
     if (isQuotation(o) || isCancelledStatus(o.status)) return;
-    const key = String(o.date || '').slice(0, 7);
+    const key = dateKey(o.date).slice(0, 7);
     if (!index[key]) return;
     index[key].sales += num(o.total_amount);
     index[key].orders += 1;
   });
   (expenses || []).forEach((e) => {
     if (!expenseIsApproved(e)) return;
-    const key = String(e.date || '').slice(0, 7);
+    const key = dateKey(e.date).slice(0, 7);
     if (!index[key]) return;
     index[key].expenses += num(e.amount);
   });
@@ -598,7 +634,8 @@ async function dispatch(req, res) {
       }
       if (method === 'GET' && path === '/public/products') {
         const { data } = await supabase.from('products').select('*');
-        const products = (data || []).map(mapProduct).filter((p) => p && p.active && p.showOnWebsite);
+        persistIncompleteWebsiteHides(data || []);
+        const products = (data || []).map(mapProduct).filter((p) => p && p.active && p.showOnWebsite && isWebsiteCatalogReady(p));
         products.sort((a, b) => Number(!!b.showOnTop) - Number(!!a.showOnTop) || String(a.name).localeCompare(String(b.name)));
         return send(res, { products });
       }
@@ -607,7 +644,7 @@ async function dispatch(req, res) {
         const { data } = await supabase.from('products').select('*').eq('id', pid).maybeSingle();
         if (!data) return sendError(res, 'Product not found', 404);
         const pub = mapProduct(data);
-        if (!pub || !pub.active || !pub.showOnWebsite) return sendError(res, 'Product not available', 404);
+        if (!pub || !pub.active || !pub.showOnWebsite || !isWebsiteCatalogReady(pub)) return sendError(res, 'Product not available', 404);
         return send(res, pub);
       }
       if (method === 'POST' && path === '/public/lead') {
@@ -760,7 +797,7 @@ async function dispatch(req, res) {
           }
           if (!match) return sendError(res, `Product not found: ${line.name || pid || 'unknown'}`, 400);
           const api = mapProduct(match);
-          if (!api.active || !api.showOnWebsite) return sendError(res, `Product not available: ${api.name}`, 400);
+          if (!api.active || !api.showOnWebsite || !isWebsiteCatalogReady(api)) return sendError(res, `Product not available: ${api.name}`, 400);
           const rate = num(api.effectivePrice);
           subtotal += rate * qty;
           products.push({
@@ -843,19 +880,19 @@ async function dispatch(req, res) {
       const to = String(req.query?.to || '').slice(0, 10);
       const inRange = (raw) => {
         if (!from && !to) return true;
-        const dk = String(raw || '').trim().slice(0, 10);
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(dk)) return false;
+        const dk = dateKey(raw);
+        if (!dk) return true;
         if (from && dk < from) return false;
         if (to && dk > to) return false;
         return true;
       };
       const [orders, customers, expenses, purchases, invoices, payments] = await Promise.all([
-        dbSelect('orders', LEAN_ORDER_COLS),
-        dbSelect('customers', 'id,phone,name,credit_balance'),
-        dbSelect('expenses', 'id,date,amount,approved,status,description,category'),
-        dbSelect('purchases', 'id,date,purchase_date,vendor_id,vendor_name,total,paid_amount,status'),
-        dbSelect('invoices', LEAN_INVOICE_COLS),
-        dbSelect('payments', 'id,date,type,amount'),
+        dbSelectSafe('orders', LEAN_ORDER_COLS),
+        dbSelectSafe('customers', 'id,phone,name,credit_balance'),
+        dbSelectSafe('expenses', 'id,date,amount,approved,status,description,category'),
+        dbSelectSafe('purchases', 'id,date,purchase_date,vendor_id,vendor_name,total,paid_amount,status'),
+        dbSelectSafe('invoices', LEAN_INVOICE_COLS),
+        dbSelectSafe('payments', LEAN_PAYMENT_COLS),
       ]);
       const quotations = (orders || []).filter((o) => isQuotation(o) && inRange(o.date));
       const realOrders = (orders || []).filter((o) => !isQuotation(o) && inRange(o.date) && !isCancelledStatus(o.status));
@@ -880,7 +917,14 @@ async function dispatch(req, res) {
       const cashIn = paymentRows.filter((p) => !/outflow|^out$/i.test(String(p.type || 'inflow'))).reduce((s, p) => s + num(p.amount), 0);
       const cashOut = paymentRows.filter((p) => /outflow|^out$/i.test(String(p.type || ''))).reduce((s, p) => s + num(p.amount), 0);
       const collected = cashIn;
-      const receivables = computeCompanyReceivables(orders || [], invoices || [], customers || [], payments || []);
+      let receivables = 0;
+      try {
+        receivables = computeCompanyReceivables(orders || [], invoices || [], customers || [], payments || []);
+      } catch (err) {
+        console.error('dashboard receivables', dbErrorMessage(err));
+        receivables = (customers || []).reduce((s, c) => s + Math.max(0, num(c.credit_balance) * -1), 0);
+        receivables += realOrders.reduce((s, o) => s + num(o.balance_amount), 0);
+      }
       const fulfillmentRate = realOrders.length ? Math.round((completedOrders / realOrders.length) * 100) : 0;
       const collectionRate = revenue > 0 ? Math.round((Math.min(collected, revenue) / revenue) * 100) : 0;
       const stats = {
@@ -916,12 +960,13 @@ async function dispatch(req, res) {
         })
         .sort((a, b) => num(b.balance_amount) - num(a.balance_amount))
         .slice(0, 12)
-        .map(mapOrder);
+        .map(mapOrder)
+        .filter(Boolean);
       if (path === '/dashboard/bootstrap') {
         return send(res, {
           stats,
-          recentOrders: realOrders.slice(-8).reverse().map(mapOrder),
-          recentExpenses: expenseRows.slice(-6).reverse().map(mapExpense),
+          recentOrders: realOrders.slice(-8).reverse().map(mapOrder).filter(Boolean),
+          recentExpenses: expenseRows.slice(-6).reverse().map(mapExpense).filter(Boolean),
           charts: {
             monthlySales: buildMonthlySales(orders || [], expenses || []),
             orderStatus: Object.keys(statusMap).map((name) => ({ name, value: statusMap[name] })),
@@ -932,22 +977,118 @@ async function dispatch(req, res) {
       return send(res, stats);
     }
     if (method === 'GET' && path === '/dashboard/charts') {
-      const [{ data: orders }, { data: expenses }] = await Promise.all([
-        supabase.from('orders').select('date,doc_type,status,total_amount'),
-        supabase.from('expenses').select('date,amount,approved,status'),
+      const [orders, expenses] = await Promise.all([
+        dbSelectSafe('orders', 'date,doc_type,status,total_amount'),
+        dbSelectSafe('expenses', 'date,amount,approved,status'),
       ]);
       const monthly = buildMonthlySales(orders || [], expenses || []);
       return send(res, { sales: monthly, expenses: monthly, monthlySales: monthly });
     }
     if (method === 'GET' && path === '/dashboard/recent-orders') {
-      const { data } = await supabase.from('orders').select(LEAN_ORDER_COLS).order('created_at', { ascending: false }).limit(20);
-      return send(res, (data || []).filter((o) => String(o.doc_type || '').toLowerCase() !== 'quotation').map(mapOrder));
+      const rows = await dbSelectSafe('orders', LEAN_ORDER_COLS, (q) => {
+        try { return q.order('date', { ascending: false }).limit(20); } catch { return q.limit(20); }
+      });
+      return send(res, (rows || []).filter((o) => String(o.doc_type || '').toLowerCase() !== 'quotation').map(mapOrder));
     }
 
     // Settings
     if (path === '/settings') {
       if (method === 'GET') return send(res, await getSettingsObject());
       if (method === 'PUT' || method === 'POST') return send(res, await saveSettingsObject(body));
+    }
+
+    if (path === '/pos/register' || path.startsWith('/pos/register/')) {
+      const settings = await getSettingsObject();
+      const store = (settings.posRegister && typeof settings.posRegister === 'object')
+        ? settings.posRegister
+        : { current: null, history: [] };
+      if (!Array.isArray(store.history)) store.history = [];
+
+      const shiftTotals = async (openedAt) => {
+        const since = String(openedAt || '').slice(0, 19);
+        const { data: orders } = await supabase.from('orders').select('id,order_id,date,created_at,doc_type,total_amount,advance_payment,payment_method,remarks,status');
+        const rows = (orders || []).filter((o) => {
+          const dt = String(o.doc_type || '').toLowerCase();
+          const pos = dt === 'pos' || /pos\s*sale/i.test(String(o.remarks || ''));
+          if (!pos || isCancelledStatus(o.status)) return false;
+          const stamp = String(o.created_at || o.date || '');
+          if (since && stamp < since.slice(0, 10)) return false;
+          return true;
+        });
+        const byMethod = {};
+        let sales = 0;
+        let cashSales = 0;
+        rows.forEach((o) => {
+          const amt = num(o.total_amount);
+          sales += amt;
+          const method = String(o.payment_method || '').trim() || (/card/i.test(String(o.remarks || '')) ? 'Card' : 'Cash');
+          byMethod[method] = (byMethod[method] || 0) + amt;
+          if (/^cash$/i.test(method)) cashSales += amt;
+        });
+        return { count: rows.length, sales, cashSales, byMethod, tickets: rows.map((o) => o.order_id || o.id) };
+      };
+
+      if (method === 'GET' && path === '/pos/register') {
+        const totals = store.current ? await shiftTotals(store.current.openedAt) : { count: 0, sales: 0, cashSales: 0, byMethod: {} };
+        return send(res, { ...store, totals });
+      }
+      if (method === 'GET' && path === '/pos/register/x-report') {
+        if (!store.current) return sendError(res, 'No open register — X-report requires an open shift', 400);
+        const totals = await shiftTotals(store.current.openedAt);
+        const openingFloat = num(store.current.openingFloat);
+        return send(res, {
+          type: 'X',
+          generatedAt: new Date().toISOString(),
+          register: store.current,
+          totals,
+          expectedCash: openingFloat + totals.cashSales,
+          note: 'X-report is a mid-shift snapshot. The drawer stays open (IAS 2 / retail cash control).',
+        });
+      }
+      if (method === 'POST' && path === '/pos/register/open') {
+        if (store.current && store.current.status === 'open') {
+          return sendError(res, 'Register already open. Close the current shift first.', 400);
+        }
+        const openingFloat = num(body.openingFloat);
+        if (openingFloat < 0) return sendError(res, 'Opening float cannot be negative', 400);
+        store.current = {
+          id: id('posreg'),
+          status: 'open',
+          openedAt: new Date().toISOString(),
+          openedBy: body.openedBy || userLabel(user),
+          openingFloat,
+          note: body.note || '',
+        };
+        await saveSettingsObject({ posRegister: store });
+        return send(res, { ok: true, current: store.current, history: store.history });
+      }
+      if (method === 'POST' && path === '/pos/register/close') {
+        if (!store.current || store.current.status !== 'open') {
+          return sendError(res, 'No open register to close', 400);
+        }
+        const totals = await shiftTotals(store.current.openedAt);
+        const countedCash = num(body.countedCash);
+        const openingFloat = num(store.current.openingFloat);
+        const expectedCash = openingFloat + totals.cashSales;
+        const variance = Math.round((countedCash - expectedCash) * 100) / 100;
+        const closed = {
+          ...store.current,
+          status: 'closed',
+          closedAt: new Date().toISOString(),
+          closedBy: body.closedBy || userLabel(user),
+          countedCash,
+          expectedCash,
+          variance,
+          totals,
+          closeNote: body.note || '',
+          confirmed: body.confirmed === true,
+        };
+        store.history = [closed, ...store.history].slice(0, 80);
+        store.current = null;
+        await saveSettingsObject({ posRegister: store });
+        return send(res, { ok: true, closed, history: store.history, current: null });
+      }
+      return sendError(res, `Not found: ${path}`, 404);
     }
 
     // Users
@@ -997,12 +1138,13 @@ async function dispatch(req, res) {
     // Customers + CRM
     if (path === '/customers' || path.startsWith('/customers/')) {
       if (path === '/customers' && method === 'GET') {
-        const [{ data }, { data: orders }, { data: invoices }] = await Promise.all([
+        const [{ data }, { data: orders }, { data: invoices }, { data: payments }] = await Promise.all([
           supabase.from('customers').select('*').order('created_at', { ascending: false }),
           supabase.from('orders').select(LEAN_ORDER_COLS),
           supabase.from('invoices').select(LEAN_INVOICE_COLS),
+          supabase.from('payments').select(LEAN_PAYMENT_COLS),
         ]);
-        return send(res, (data || []).map((c) => attachCustomerLedger(c, orders || [], invoices || [], [])));
+        return send(res, (data || []).map((c) => attachCustomerLedger(c, orders || [], invoices || [], payments || [])));
       }
       if (path === '/customers' && method === 'POST') {
         const nameNorm = String(body.name || '').toLowerCase().replace(/[\s_-]+/g, '');
@@ -1293,6 +1435,7 @@ async function dispatch(req, res) {
       if (path === '/products' && method === 'GET') {
         const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false });
         if (error) throw error;
+        persistIncompleteWebsiteHides(data || []);
         return send(res, (data || []).map(mapProduct));
       }
       if (path === '/products' && method === 'POST') {

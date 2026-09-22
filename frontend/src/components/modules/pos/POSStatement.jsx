@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { ordersAPI } from '@/services/api';
+import { ordersAPI, posRegisterAPI } from '@/services/api';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 import { useBrand } from '@/context/BrandContext';
 import { ArrowLeft, Printer, Store, DollarSign, ShoppingBag, FileSpreadsheet } from 'lucide-react';
@@ -30,12 +30,19 @@ const POSStatement = () => {
   const [loading, setLoading] = useState(true);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [zReports, setZReports] = useState([]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const res = await ordersAPI.getAll();
       setOrders((res.data || []).filter(isPosOrder));
+      try {
+        const reg = await posRegisterAPI.get();
+        setZReports(Array.isArray(reg.data?.history) ? reg.data.history : []);
+      } catch {
+        setZReports([]);
+      }
     } catch (err) {
       console.error(err);
       toast.error('Failed to load POS statement');
@@ -127,12 +134,12 @@ const POSStatement = () => {
     <div className="space-y-5" data-testid="pos-statement-page">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
         <div className="flex items-start gap-3">
-          <Button variant="outline" size="sm" onClick={() => navigate('/pos')}>
-            <ArrowLeft className="h-4 w-4 mr-1" />POS
+          <Button variant="outline" size="sm" onClick={() => navigate('/accounts')}>
+            <ArrowLeft className="h-4 w-4 mr-1" />Accounts
           </Button>
           <div>
             <h1 className="text-3xl font-bold" style={{ color: '#1F2937' }}>POS Statement</h1>
-            <p className="text-gray-600 mt-1">Separate sales register for counter / POS orders only</p>
+            <p className="text-gray-600 mt-1">Counter sales register · opening/closing (Z-report) under Accounts</p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -190,6 +197,38 @@ const POSStatement = () => {
           </CardContent>
         </Card>
       </div>
+
+      {zReports.length > 0 && (
+        <Card>
+          <CardContent className="p-0 overflow-x-auto">
+            <div className="px-4 pt-4 pb-2 font-semibold text-sm">Closed registers (Z-reports)</div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">
+                  <th className="p-3">Closed</th>
+                  <th className="p-3">Cashier</th>
+                  <th className="p-3 text-right">Float</th>
+                  <th className="p-3 text-right">Expected</th>
+                  <th className="p-3 text-right">Counted</th>
+                  <th className="p-3 text-right">Variance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {zReports.map((z) => (
+                  <tr key={z.id} className="border-b last:border-0">
+                    <td className="p-3">{z.closedAt ? new Date(z.closedAt).toLocaleString() : '—'}</td>
+                    <td className="p-3">{z.closedBy || z.openedBy || '—'}</td>
+                    <td className="p-3 text-right">{formatCurrency(z.openingFloat)}</td>
+                    <td className="p-3 text-right">{formatCurrency(z.expectedCash)}</td>
+                    <td className="p-3 text-right">{formatCurrency(z.countedCash)}</td>
+                    <td className={`p-3 text-right font-bold ${Number(z.variance) === 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{formatCurrency(z.variance)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      )}
 
       {loading ? (
         <div className="py-12 text-center text-gray-500">Loading POS statement…</div>
