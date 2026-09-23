@@ -54,6 +54,7 @@ const POS = ({ kiosk = false }) => {
   const [posCfg, setPosCfg] = useState(mergePosSettings({}));
   const [invCfg, setInvCfg] = useState(mergeInventorySettings({}));
   const [clock, setClock] = useState(() => new Date());
+  const [registerReady, setRegisterReady] = useState(false);
 
   const loadProducts = useCallback(async () => {
     try {
@@ -93,6 +94,8 @@ const POS = ({ kiosk = false }) => {
       setRegister(res.data || { current: null, history: [], totals: {} });
     } catch {
       setRegister({ current: null, history: [], totals: {} });
+    } finally {
+      setRegisterReady(true);
     }
   }, []);
 
@@ -408,10 +411,14 @@ const POS = ({ kiosk = false }) => {
   const registerOpen = !!register.current;
 
   useEffect(() => {
-    if (!isKiosk || registerOpen) return undefined;
+    if (!isKiosk || !registerReady) return undefined;
+    if (registerOpen) {
+      setOpenDlg(false);
+      return undefined;
+    }
     setOpenDlg(true);
     return undefined;
-  }, [isKiosk, registerOpen]);
+  }, [isKiosk, registerReady, registerOpen]);
 
   const openShift = async () => {
     setRegBusy(true);
