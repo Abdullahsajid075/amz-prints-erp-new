@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
-import { productsAPI, designersAPI } from '@/services/api';
+import { productsAPI, designersAPI, settingsAPI } from '@/services/api';
 import { formatCurrency } from '@/utils/helpers';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
@@ -20,6 +20,7 @@ import {
   Plus, Search, Edit, Trash2, Package, X, Save, Wrench, ImagePlus, Boxes, Globe,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { DEFAULT_PRODUCT_CATEGORIES, DEFAULT_PRODUCT_MATERIALS, mergeInventorySettings } from '@/utils/moduleSettings';
 
 const PRODUCT_SORT_OPTS = [
   { value: 'name', label: 'Name' },
@@ -28,15 +29,8 @@ const PRODUCT_SORT_OPTS = [
   { value: 'category', label: 'Category' },
 ];
 
-const PRODUCT_CATEGORIES = [
-  'Business Cards', 'Flyers & Brochures', 'Posters', 'Banners', 'Stickers & Labels',
-  'Books & Magazines', 'Packaging', 'Signage', 'Apparel Printing', 'Photo Prints', 'Services', 'Other',
-];
-
-const MATERIALS = [
-  'Premium Card Stock', 'Matte Paper', 'Glossy Paper', 'Vinyl', 'Canvas',
-  'PVC', 'Fabric', 'Metal', 'Acrylic', 'Corrugated',
-];
+const PRODUCT_CATEGORIES = DEFAULT_PRODUCT_CATEGORIES;
+const MATERIALS = DEFAULT_PRODUCT_MATERIALS;
 
 const emptyVariation = () => ({
   id: `var_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -92,6 +86,10 @@ const Products = () => {
   const [imageBusy, setImageBusy] = useState(false);
   const [stockDialog, setStockDialog] = useState({ open: false, product: null, value: '' });
   const [stockSaving, setStockSaving] = useState(false);
+  const [catalogOptions, setCatalogOptions] = useState({
+    categories: PRODUCT_CATEGORIES,
+    materials: MATERIALS,
+  });
 
   const isService = String(formData.productType || '').toLowerCase() === 'service';
 
@@ -114,6 +112,16 @@ const Products = () => {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    settingsAPI.get().then((res) => {
+      const inv = mergeInventorySettings(res.data || {});
+      setCatalogOptions({
+        categories: inv.categories.length ? inv.categories : PRODUCT_CATEGORIES,
+        materials: inv.materials.length ? inv.materials : MATERIALS,
+      });
+    }).catch(() => {});
   }, []);
 
   const fetchDesigners = useCallback(async () => {
@@ -384,10 +392,15 @@ const Products = () => {
         title="Products"
         subtitle="Catalog with photos · manual stock edit"
         actions={(
-          <Button onClick={openCreateDialog} style={{ backgroundColor: '#ff6d00' }} className="text-white h-9 rounded-xl" data-testid="add-product-button">
-            <Plus className="h-4 w-4 mr-1.5" />
-            Add
-          </Button>
+          <div className="flex gap-2">
+            <Button asChild variant="outline" className="h-9 rounded-xl">
+              <Link to="/warehouse/inventory/settings">Categories & materials</Link>
+            </Button>
+            <Button onClick={openCreateDialog} style={{ backgroundColor: '#ff6d00' }} className="text-white h-9 rounded-xl" data-testid="add-product-button">
+              <Plus className="h-4 w-4 mr-1.5" />
+              Add
+            </Button>
+          </div>
         )}
       />
 
@@ -428,7 +441,7 @@ const Products = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All categories</SelectItem>
-                {PRODUCT_CATEGORIES.map((cat) => (
+                {catalogOptions.categories.map((cat) => (
                   <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                 ))}
               </SelectContent>
@@ -485,12 +498,20 @@ const Products = () => {
                       >
                         {service ? 'Service' : 'Product'}
                       </Badge>
+                      {!service && (
+                        <span
+                          className="absolute top-1.5 right-1.5 min-w-[2rem] h-8 px-2 rounded-lg bg-white/95 border-2 border-orange-500 text-orange-600 text-lg font-black leading-none flex items-center justify-center shadow-sm"
+                          title="On-hand quantity"
+                        >
+                          {Number(product.stock ?? 0) || 0}
+                        </span>
+                      )}
                       {isCatalogReady(product) && product.showOnWebsite !== false ? (
-                        <Badge className="absolute top-1.5 right-1.5 text-[10px] px-1.5 py-0 h-5 bg-emerald-600 text-white border-0">
+                        <Badge className="absolute bottom-1.5 right-1.5 text-[10px] px-1.5 py-0 h-5 bg-emerald-600 text-white border-0">
                           <Globe className="h-3 w-3 mr-0.5" />Web
                         </Badge>
                       ) : (
-                        <Badge variant="outline" className="absolute top-1.5 right-1.5 text-[10px] px-1.5 py-0 h-5 bg-white/90 text-gray-500">
+                        <Badge variant="outline" className="absolute bottom-1.5 right-1.5 text-[10px] px-1.5 py-0 h-5 bg-white/90 text-gray-500">
                           Hidden
                         </Badge>
                       )}
@@ -778,7 +799,7 @@ const Products = () => {
                   <Select value={formData.category || undefined} onValueChange={(v) => setFormData({ ...formData, category: v })}>
                     <SelectTrigger data-testid="product-category-select"><SelectValue placeholder="Category" /></SelectTrigger>
                     <SelectContent>
-                      {PRODUCT_CATEGORIES.map((cat) => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
+                      {catalogOptions.categories.map((cat) => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -799,7 +820,7 @@ const Products = () => {
                   <Select value={formData.material || undefined} onValueChange={(v) => setFormData({ ...formData, material: v })}>
                     <SelectTrigger><SelectValue placeholder="Material" /></SelectTrigger>
                     <SelectContent>
-                      {MATERIALS.map((mat) => <SelectItem key={mat} value={mat}>{mat}</SelectItem>)}
+                      {catalogOptions.materials.map((mat) => <SelectItem key={mat} value={mat}>{mat}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>

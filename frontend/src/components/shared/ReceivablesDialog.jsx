@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { invoicesAPI, customersAPI } from '@/services/api';
-import { notifyOrderEvent } from '@/services/notifications';
+import { notifyOrderEvent, openBlankWhatsAppTab } from '@/services/notifications';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
@@ -50,8 +50,9 @@ export default function ReceivablesDialog({ open, onOpenChange }) {
     }
     const id = party.id;
     setRemindingId(id);
+    const pendingWindow = openBlankWhatsAppTab();
     try {
-      await notifyOrderEvent({
+      const result = await notifyOrderEvent({
         event: 'payment_reminder',
         order: {
           customerName: party.customerName || party.name,
@@ -63,8 +64,10 @@ export default function ReceivablesDialog({ open, onOpenChange }) {
         invoice: { ...party, balanceAmount: amount },
         openWhatsApp: true,
         sendEmail: false,
+        pendingWindow,
       });
-      toast.message('Reminder opened — tap Send on WhatsApp');
+      if (result?.whatsappOpened) toast.message('Reminder opened — tap Send on WhatsApp');
+      else toast.error('WhatsApp did not open — allow popups and check the phone number');
     } catch (err) {
       console.error(err);
       toast.error('Failed to open reminder');

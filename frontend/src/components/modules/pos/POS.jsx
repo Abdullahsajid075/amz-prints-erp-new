@@ -3,14 +3,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { productsAPI, ordersAPI, invoicesAPI, customersAPI, posRegisterAPI } from '@/services/api';
+import { productsAPI, ordersAPI, invoicesAPI, customersAPI, posRegisterAPI, settingsAPI } from '@/services/api';
 import { applyServerNotificationHint, openWhatsAppChat } from '@/services/notifications';
 import { formatCurrency } from '@/utils/helpers';
 import { customerMatchesQuery } from '@/utils/customerSearch';
 import { productMatchesQuery } from '@/utils/productSearch';
 import { barcodeBlock, openPrintWindow, printOnLoadScript, POS_MAJOR_SERVICES, documentFileName } from '@/utils/printHelpers';
+import { qrPngDataUrl } from '@/utils/customerDocuments';
+import { mergePosSettings, mergeInventorySettings } from '@/utils/moduleSettings';
 import { useBrand } from '@/context/BrandContext';
-import { Search, Plus, Minus, Trash2, Printer, ShoppingCart, FileSpreadsheet, PackagePlus, UserPlus, Package, Wrench, Store, Expand, Lock, Unlock, BookOpen } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, Printer, ShoppingCart, FileSpreadsheet, PackagePlus, UserPlus, Package, Wrench, Store, Expand, Lock, Unlock, BookOpen, Settings } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -57,6 +59,8 @@ const POS = ({ kiosk = false }) => {
   const [regNote, setRegNote] = useState('');
   const [regBusy, setRegBusy] = useState(false);
   const [confirmedClose, setConfirmedClose] = useState(false);
+  const [posCfg, setPosCfg] = useState(mergePosSettings({}));
+  const [invCfg, setInvCfg] = useState(mergeInventorySettings({}));
 
   const loadProducts = useCallback(async () => {
     try {
@@ -94,6 +98,16 @@ const POS = ({ kiosk = false }) => {
   }, []);
 
   useEffect(() => { loadRegister(); }, [loadRegister]);
+
+  useEffect(() => {
+    settingsAPI.get().then((res) => {
+      const data = res.data || {};
+      const nextPos = mergePosSettings(data);
+      setPosCfg(nextPos);
+      setInvCfg(mergeInventorySettings(data));
+      if (nextPos.defaultPayment) setPaymentMethod(nextPos.defaultPayment);
+    }).catch(() => {});
+  }, []);
 
   const selectedCustomer = useMemo(() => {
     if (!customerId || customerId === WALK_IN.id) {
@@ -146,11 +160,16 @@ const POS = ({ kiosk = false }) => {
         className="text-left rounded-xl border-2 border-gray-700 bg-white p-4 hover:border-orange-500 hover:shadow-md transition-all"
         data-testid={`pos-product-${p.id}`}
       >
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex items-center gap-2 mb-2 relative">
           {service ? <Wrench className="h-4 w-4 text-gray-600" /> : <Package className="h-4 w-4 text-gray-600" />}
           <span className="text-[10px] px-1.5 py-0.5 rounded border border-gray-600 text-gray-700">
             {service ? 'Service' : 'Product'}
           </span>
+          {!service && (
+            <span className="ml-auto text-lg font-black text-orange-600 leading-none" title="On-hand quantity">
+              {Number(p.stock ?? 0) || 0}
+            </span>
+          )}
         </div>
         {productImageSrc(p) ? (
           <img src={productImageSrc(p)} alt="" className="w-full h-16 object-cover rounded-md mb-2 bg-slate-100" />
@@ -192,17 +211,25 @@ const POS = ({ kiosk = false }) => {
 
   const addToCart = (product) => {
     const rate = Number(product.rate || product.basePrice || 0);
+    const service = isServiceItem(product);
+    const stock = Number(product.stock ?? 0) || 0;
     setCart((prev) => {
       const idx = prev.findIndex((c) => c.productId === product.id);
+      const nextQty = idx >= 0 ? prev[idx].quantity + 1 : 1;
+      if (!service && invCfg.trackStock && !invCfg.allowNegativeStock && nextQty > stock) {
+        toast.error(`Inventory block: only ${stock} of ${product.name} in stock`);
+        return prev;
+      }
       if (idx >= 0) {
         const next = [...prev];
-        next[idx] = { ...next[idx], quantity: next[idx].quantity + 1 };
+        next[idx] = { ...next[idx], quantity: nextQty };
         return next;
       }
       return [
         ...prev,
         {
           productId: product.id,
+          productType: product.productType,
           name: product.name,
           rate,
           quantity: 1,
@@ -216,7 +243,18 @@ const POS = ({ kiosk = false }) => {
   const updateQty = (productId, delta) => {
     setCart((prev) =>
       prev
-        .map((c) => (c.productId === productId ? { ...c, quantity: c.quantity + delta } : c))
+        .map((c) => {
+          if (c.productId !== productId) return c;
+          const nextQty = c.quantity + delta;
+          const catalog = products.find((p) => p.id === productId);
+          const service = catalog ? isServiceItem(catalog) : false;
+          const stock = Number(catalog?.stock ?? 0) || 0;
+          if (delta > 0 && !service && invCfg.trackStock && !invCfg.allowNegativeStock && catalog && nextQty > stock) {
+            toast.error(`Inventory block: only ${stock} of ${c.name} in stock`);
+            return c;
+          }
+          return { ...c, quantity: nextQty };
+        })
         .filter((c) => c.quantity > 0)
     );
   };
@@ -240,12 +278,15 @@ const POS = ({ kiosk = false }) => {
     toast.message('Cart cleared');
   };
 
-  const printReceipt = (sale) => {
-    const website = company.website || 'https://amzprints.com';
+  const printReceipt = async (sale) => {
+    const rawWeb = company.website || 'https://amzprints.com';
+    const website = /^https?:\/\//i.test(rawWeb) ? rawWeb : `https://${rawWeb}`;
     const logoHtml = company.logo
-      ? `<img src="${company.logo}" alt="logo" style="max-height:42px;max-width:140px;display:block;margin:0 auto 4px;filter:grayscale(1);" />`
+      ? `<img src="${company.logo}" alt="logo" style="height:58px;max-width:160px;display:block;margin:0 auto 2px;object-fit:contain;" />`
       : '';
     const code = sale.orderId || sale.id || `POS-${Date.now().toString().slice(-6)}`;
+    const invoiceUrl = sale.invoiceUrl
+      || (sale.shareToken ? `${window.location.origin}/invoice/${sale.shareToken}` : `${window.location.origin}/track/${encodeURIComponent(code)}`);
     const printTitle = documentFileName({
       docType: 'POS',
       customerName: sale.customerName,
@@ -257,12 +298,20 @@ const POS = ({ kiosk = false }) => {
           `<tr><td>${p.name}</td><td class="r">${p.quantity}</td><td class="r">${formatCurrency(p.rate)}</td><td class="r">${formatCurrency(p.quantity * p.rate)}</td></tr>`
       )
       .join('');
-    const services = POS_MAJOR_SERVICES.map((s) => `<li>${s}</li>`).join('');
+    const services = (posCfg.slipServices || POS_MAJOR_SERVICES)
+      .map((s) => `<div class="svc-card">${s}</div>`)
+      .join('');
+    let webQr = '';
+    let invQr = '';
+    try {
+      if (posCfg.showWebsiteQr) webQr = await qrPngDataUrl(website, 110);
+      if (posCfg.showInvoiceQr) invQr = await qrPngDataUrl(invoiceUrl, 110);
+    } catch { /* slip still prints */ }
     const html = `<!DOCTYPE html><html><head><title>${printTitle}</title>
       <style>
         @page { size: 80mm auto; margin: 3mm; }
         body { font-family: Arial, Helvetica, sans-serif; width: 72mm; margin: 0; color: #000; font-size: 11px; }
-        h1 { font-size: 14px; margin: 0; text-align: center; font-weight: 800; }
+        h1 { font-size: 12px; margin: 0; text-align: center; font-weight: 700; letter-spacing:0.01em; }
         .tag { text-align: center; font-size: 9px; margin-top: 2px; }
         .center { text-align: center; }
         .title { text-align:center; font-weight:800; letter-spacing:0.12em; font-size:11px;
@@ -273,8 +322,13 @@ const POS = ({ kiosk = false }) => {
         .r { text-align: right; }
         hr { border: none; border-top: 1px dashed #000; margin: 6px 0; }
         .total { font-size: 13px; font-weight: 800; display:flex; justify-content:space-between; }
-        .services { font-size: 9px; margin: 6px 0 0; padding-left: 14px; }
-        .services li { margin: 1px 0; }
+        .qr-row { display:flex; justify-content:space-between; gap:6px; margin-top:8px; }
+        .qr-box { flex:1; text-align:center; }
+        .qr-box img { width:52px; height:52px; display:block; margin:0 auto 2px; }
+        .qr-box span { font-size:8px; font-weight:700; display:block; }
+        .svc-grid { display:flex; flex-wrap:wrap; gap:3px; margin-top:6px; }
+        .svc-card { border:1px solid #000; border-radius:4px; padding:3px 4px; font-size:8px; font-weight:700; width:calc(50% - 3px); box-sizing:border-box; }
+        .powered { text-align:center; font-size:8px; font-weight:800; letter-spacing:0.04em; margin-top:8px; }
         .barcode-wrap { text-align:center; margin-top:6px; }
       </style></head><body>
       ${logoHtml}
@@ -300,14 +354,19 @@ const POS = ({ kiosk = false }) => {
       <div class="total"><span>TOTAL</span><span>${formatCurrency(sale.totalAmount)}</span></div>
       <div class="total" style="font-size:11px;margin-top:2px"><span>RECEIVED</span><span>${formatCurrency(sale.receivedAmount != null ? sale.receivedAmount : sale.totalAmount)}</span></div>
       <div class="total" style="font-size:11px;margin-top:2px"><span>CHANGE</span><span>${formatCurrency(sale.changeBack != null ? sale.changeBack : 0)}</span></div>
+      ${(webQr || invQr) ? `<div class="qr-row">
+        ${webQr ? `<div class="qr-box"><img src="${webQr}" alt="Website QR" /><span>Website</span></div>` : ''}
+        ${invQr ? `<div class="qr-box"><img src="${invQr}" alt="Invoice QR" /><span>Digital invoice</span></div>` : ''}
+      </div>` : ''}
       <hr />
-      <div style="font-size:9px;font-weight:800;letter-spacing:0.06em">OUR MAJOR SERVICES</div>
-      <ol class="services">${services}</ol>
+      <div style="font-size:9px;font-weight:800;letter-spacing:0.06em">OUR SERVICES</div>
+      <div class="svc-grid">${services}</div>
       ${barcodeBlock(code, { height: 30 })}
       <div class="center" style="margin-top:6px;font-size:10px">Thank you for your business!</div>
+      <div class="powered">${posCfg.poweredBy || 'Powered By Amazon ERP'}</div>
       ${printOnLoadScript(500)}
       </body></html>`;
-    const res = openPrintWindow(html, { width: 360, height: 740 });
+    const res = openPrintWindow(html, { width: 360, height: 820 });
     if (!res.ok) toast.error('Allow popups to print receipt');
   };
 
@@ -350,14 +409,16 @@ const POS = ({ kiosk = false }) => {
       toast.error('Cart is empty');
       return;
     }
-    if (!register.current) {
+    if (posCfg.requireRegister && !register.current) {
       toast.error('Open the cash register first — opening float is required');
       setOpenDlg(true);
       return;
     }
     setCheckingOut(true);
     try {
-      const productsPayload = cart.map(({ name, quantity, rate, size, material }) => ({
+      const productsPayload = cart.map(({ productId, productType, name, quantity, rate, size, material }) => ({
+        productId,
+        productType,
         name,
         quantity,
         rate,
@@ -397,6 +458,10 @@ const POS = ({ kiosk = false }) => {
         discountValue: Number(discountValue) || 0,
         receivedAmount: cashReceived,
         changeBack,
+        shareToken: created.data?.shareToken || '',
+        invoiceUrl: created.data?.invoiceId
+          ? `${window.location.origin}/invoices/${created.data.invoiceId}`
+          : '',
       };
       setLastSale(sale);
       toast.success(`Sale ${sale.orderId} completed`);
@@ -411,6 +476,8 @@ const POS = ({ kiosk = false }) => {
       setDiscountType('amount');
       setReceivedAmount('');
       printReceipt(sale);
+      loadProducts();
+      loadRegister();
     } catch (err) {
       console.error(err);
       toast.error(err.response?.data?.message || err.message || 'Checkout failed');
@@ -566,6 +633,9 @@ const POS = ({ kiosk = false }) => {
               <Button variant="secondary" onClick={() => navigate('/accounts/pos-statement')}>
                 <FileSpreadsheet className="h-4 w-4 mr-2" />POS statement (Accounts)
               </Button>
+              <Button variant="outline" className="bg-white/10 text-white border-white/30" onClick={() => navigate('/pos/settings')}>
+                <Settings className="h-4 w-4 mr-2" />POS settings
+              </Button>
             </div>
           </div>
         </div>
@@ -625,6 +695,9 @@ const POS = ({ kiosk = false }) => {
             )}
             <Button variant="outline" className="text-white border-white/30" onClick={() => window.open(`${window.location.origin}/accounts/pos-statement`, '_blank')}>
               <BookOpen className="h-4 w-4 mr-1" />Statement
+            </Button>
+            <Button variant="outline" className="text-white border-white/30" onClick={() => window.open(`${window.location.origin}/pos/settings`, '_blank')}>
+              <Settings className="h-4 w-4 mr-1" />Settings
             </Button>
             <Button variant="outline" className="text-white border-white/30" onClick={() => window.open(`${window.location.origin}/warehouse/products?new=1`, '_blank')} data-testid="pos-add-product">
               <PackagePlus className="h-4 w-4 mr-1" />Product
@@ -740,13 +813,15 @@ const POS = ({ kiosk = false }) => {
               </div>
             )}
           </div>
-          <POSCalculator
-            accent={primary || '#ff6d00'}
-            onAdd={(line) => {
-              setCart((prev) => [...prev, line]);
-              toast.success('Added from calculator');
-            }}
-          />
+          {posCfg.showCalculator !== false && (
+            <POSCalculator
+              accent={primary || '#ff6d00'}
+              onAdd={(line) => {
+                setCart((prev) => [...prev, line]);
+                toast.success('Added from calculator');
+              }}
+            />
+          )}
         </div>
 
         <Card className="lg:col-span-2">

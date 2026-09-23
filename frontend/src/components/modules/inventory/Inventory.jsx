@@ -2,8 +2,11 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { productsAPI, purchasesAPI, ordersAPI } from '@/services/api';
-import { Warehouse, Search, Package } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { productsAPI, purchasesAPI, ordersAPI, settingsAPI } from '@/services/api';
+import { Warehouse, Search, Package, Settings } from 'lucide-react';
+import { mergeInventorySettings } from '@/utils/moduleSettings';
 import { toast } from 'sonner';
 
 const UPCOMING_STATUSES = new Set(['Ordered', 'Partial Paid']);
@@ -26,6 +29,7 @@ const Inventory = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const [lowDefault, setLowDefault] = useState(5);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -48,6 +52,12 @@ const Inventory = () => {
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    settingsAPI.get().then((res) => {
+      setLowDefault(mergeInventorySettings(res.data || {}).defaultLowStock);
+    }).catch(() => {});
+  }, []);
+
   const upcomingByProduct = useMemo(() => {
     const map = {};
     purchases.forEach((po) => {
@@ -66,10 +76,12 @@ const Inventory = () => {
     orders.forEach((order) => {
       const st = String(order.status || '').toLowerCase();
       if (!OPEN_ORDER_STATUSES.has(st)) return;
-      (order.items || order.lineItems || []).forEach((item) => {
-        const key = item.productId || item.id;
-        if (!key) return;
-        map[key] = (map[key] || 0) + (Number(item.quantity) || 0);
+      (order.products || order.items || order.lineItems || []).forEach((item) => {
+        const qty = Number(item.quantity) || 0;
+        [item.productId, item.id, item.name].forEach((key) => {
+          if (!key) return;
+          map[key] = (map[key] || 0) + qty;
+        });
       });
     });
     return map;
@@ -79,7 +91,7 @@ const Inventory = () => {
     return products
       .map((p) => {
         const stock = Number(p.stock) || 0;
-        const lowAt = Number(p.lowStockAlert ?? p.reorderLevel ?? 5) || 5;
+        const lowAt = Number(p.lowStockAlert ?? p.reorderLevel ?? lowDefault) || lowDefault;
         const upcoming = upcomingByProduct[p.id] || upcomingByProduct[p.name] || 0;
         const reserved = reservedByProduct[p.id] || 0;
         const badge = stockBadge(stock, upcoming, lowAt);
@@ -90,7 +102,7 @@ const Inventory = () => {
         const q = search.toLowerCase();
         return p.name?.toLowerCase().includes(q) || p.sku?.toLowerCase().includes(q) || p.category?.toLowerCase().includes(q);
       });
-  }, [products, upcomingByProduct, reservedByProduct, search]);
+  }, [products, upcomingByProduct, reservedByProduct, search, lowDefault]);
 
   const stats = {
     total: rows.length,
@@ -102,8 +114,15 @@ const Inventory = () => {
   return (
     <div className="space-y-6" data-testid="inventory-page">
       <div>
-        <h1 className="text-3xl font-bold" style={{ color: '#0747a3' }}>Inventory</h1>
-        <p className="text-gray-600 mt-1">Stock levels, reserved qty & upcoming purchases</p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-3xl font-bold" style={{ color: '#0747a3' }}>Inventory</h1>
+            <p className="text-gray-600 mt-1">Stock levels drop when POS / orders sell an item. Reserved uses open order qty.</p>
+          </div>
+          <Button asChild variant="outline">
+            <Link to="/warehouse/inventory/settings"><Settings className="h-4 w-4 mr-1" />Inventory settings</Link>
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

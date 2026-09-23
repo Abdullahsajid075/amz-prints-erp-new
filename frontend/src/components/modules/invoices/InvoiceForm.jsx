@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { invoicesAPI, customersAPI, productsAPI, settingsAPI, ordersAPI } from '@/services/api';
-import { notifyOrderEvent, printPaymentSlip, openWhatsAppChat, buildWhatsAppAppUrl, fillTemplate, resolveWhatsAppTemplate, buildTemplateVars } from '@/services/notifications';
+import { notifyOrderEvent, printPaymentSlip, openWhatsAppChat, buildWhatsAppAppUrl, fillTemplate, resolveWhatsAppTemplate, buildTemplateVars, DEFAULT_WHATSAPP_TEMPLATES, openBlankWhatsAppTab } from '@/services/notifications';
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import { formatCurrency } from '@/utils/helpers';
 import { catalogFieldsForOrderLine } from '@/utils/productImage';
@@ -485,17 +485,21 @@ const InvoiceForm = () => {
       const settingsRes = await settingsAPI.get();
       templates = settingsRes.data?.notifications?.whatsappTemplates || null;
     } catch { /* defaults */ }
-    const template = resolveWhatsAppTemplate(templates, 'invoice_generated');
+    const template = resolveWhatsAppTemplate(templates, 'invoice_generated')
+      || DEFAULT_WHATSAPP_TEMPLATES.invoice_generated;
     let text = fillTemplate(template, vars);
+    if (!text) text = fillTemplate(DEFAULT_WHATSAPP_TEMPLATES.invoice_generated, vars);
     if (invoiceUrl && !text.includes(invoiceUrl)) {
       text = `${text}\n\nInvoice link: ${invoiceUrl}`;
     }
     const result = openWhatsAppChat(phone, text, { pendingWindow });
     if (!result?.ok) {
-      toast.error('Allow popups / WhatsApp app to send invoice message');
+      toast.error(result?.reason === 'missing_phone'
+        ? 'Customer phone missing — WhatsApp not sent'
+        : 'Allow popups / WhatsApp app, then tap Send. Message is also copied.');
       return result;
     }
-    toast.message('WhatsApp opened — send invoice link + pending payment');
+    toast.message('WhatsApp opened — tap Send for invoice + pending payment');
     return result;
   };
 
@@ -530,8 +534,8 @@ const InvoiceForm = () => {
     let waWindow = null;
     try {
       // Open blank tab during click gesture so WhatsApp isn't blocked after API await
-      if (!isEdit && formData.customerPhone && buildWhatsAppAppUrl(formData.customerPhone, ' ')) {
-        waWindow = window.open('about:blank', '_blank');
+      if (formData.customerPhone && buildWhatsAppAppUrl(formData.customerPhone, ' ')) {
+        waWindow = openBlankWhatsAppTab();
       }
       const payload = {
         invoiceNumber: formData.invoiceNumber,
@@ -625,7 +629,9 @@ const InvoiceForm = () => {
                 balanceDue: balance,
               },
               sendEmail: true,
+              pendingWindow: waWindow,
             });
+            waWindow = null;
             toast.message('Payment receipt printed + WhatsApp');
           } catch (postErr) {
             console.error(postErr);
@@ -637,7 +643,6 @@ const InvoiceForm = () => {
         toast.success(`Invoice ${payload.invoiceNumber || res.data?.invoiceNumber || ''} created`);
         const data = { ...payload, ...(res.data || {}) };
         try {
-          // Single WhatsApp open (Settings invoice template) — skip GAS hint to avoid duplicate
           await sendInvoiceWhatsApp(data, grandTotal, balance, Number(payload.paidAmount) || 0, waWindow);
           waWindow = null;
           const paidNow = Number(payload.paidAmount) || 0;
@@ -664,6 +669,11 @@ const InvoiceForm = () => {
           console.error(postErr);
           toast.message('Invoice saved — WhatsApp / receipt skipped');
         }
+      }
+      if (waWindow) {
+        const data = { ...payload, ...(res?.data || {}) };
+        await sendInvoiceWhatsApp(data, grandTotal, balance, Number(payload.paidAmount) || 0, waWindow);
+        waWindow = null;
       }
       const id = res.data?.id || invoiceId;
       // Short delay so WhatsApp tab keeps focus before navigate

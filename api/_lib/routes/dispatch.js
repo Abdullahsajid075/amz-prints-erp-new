@@ -289,6 +289,89 @@ async function loadCustomer(cid) {
   return data || null;
 }
 
+function isStockTrackedLine(p) {
+  if (!p) return false;
+  const type = String(p.productType || p.product_type || '').toLowerCase();
+  if (type === 'service') return false;
+  if (/service/i.test(String(p.category || ''))) return false;
+  return true;
+}
+
+function collectLineQtys(lines) {
+  const list = [];
+  (Array.isArray(lines) ? lines : []).forEach((p) => {
+    if (!isStockTrackedLine(p)) return;
+    const qty = num(p.quantity);
+    if (!(qty > 0)) return;
+    list.push({
+      id: String(p.productId || p.product_id || '').trim(),
+      name: String(p.name || '').trim().toLowerCase(),
+      qty,
+    });
+  });
+  return list;
+}
+
+async function loadInventoryPolicy() {
+  try {
+    const s = await getSettingsObject();
+    const inv = s.inventory && typeof s.inventory === 'object' ? s.inventory : {};
+    const prod = s.products && typeof s.products === 'object' ? s.products : {};
+    return {
+      track: inv.trackStock != null ? !!inv.trackStock : prod.trackStock !== false,
+      allowNeg: !!(inv.allowNegativeStock ?? prod.allowNegativeStock),
+    };
+  } catch {
+    return { track: true, allowNeg: false };
+  }
+}
+
+/** Apply stock change: selling more (new > old) decreases on-hand. */
+async function syncProductStock(oldLines, newLines) {
+  const policy = await loadInventoryPolicy();
+  if (!policy.track) return;
+  const { data: catalog } = await supabase.from('products').select('id,name,stock,product_type,category');
+  const rows = catalog || [];
+  const findRow = (line) => {
+    if (line.id) {
+      const byId = rows.find((r) => String(r.id) === line.id);
+      if (byId) return byId;
+    }
+    if (line.name) {
+      return rows.find((r) => String(r.name || '').trim().toLowerCase() === line.name);
+    }
+    return null;
+  };
+  const oldMap = new Map();
+  collectLineQtys(oldLines).forEach((line) => {
+    const row = findRow(line);
+    if (!row) return;
+    oldMap.set(row.id, (oldMap.get(row.id) || 0) + line.qty);
+  });
+  const newMap = new Map();
+  collectLineQtys(newLines).forEach((line) => {
+    const row = findRow(line);
+    if (!row) return;
+    newMap.set(row.id, (newMap.get(row.id) || 0) + line.qty);
+  });
+  const ids = new Set([...oldMap.keys(), ...newMap.keys()]);
+  for (const pid of ids) {
+    const delta = (newMap.get(pid) || 0) - (oldMap.get(pid) || 0);
+    if (!delta) continue;
+    const row = rows.find((r) => r.id === pid);
+    if (!row || String(row.product_type || '').toLowerCase() === 'service') continue;
+    const have = num(row.stock);
+    const next = have - delta;
+    if (delta > 0 && next < -0.0001 && !policy.allowNeg) {
+      throw new Error(`Insufficient stock for ${row.name || 'item'}: available ${have}, required ${delta}`);
+    }
+    const stored = policy.allowNeg ? next : Math.max(0, next);
+    const { error } = await supabase.from('products').update({ stock: stored }).eq('id', pid);
+    if (error) throw error;
+    row.stock = stored;
+  }
+}
+
 async function withInvoiceMeta(apiOrder) {
   if (!apiOrder) return apiOrder;
   const { data: invoices } = await supabase.from('invoices').select('*');
@@ -802,6 +885,7 @@ async function dispatch(req, res) {
           subtotal += rate * qty;
           products.push({
             productId: api.id,
+            productType: api.productType,
             name: api.name,
             quantity: qty,
             rate,
@@ -826,7 +910,12 @@ async function dispatch(req, res) {
         row.order_id = await nextOrderId('WEB');
         row.tracking_number = await nextTrackingNumber();
         row.status_history = [{ status: row.status, at: `${today()} ${nowTime()}`, note: 'Website order' }];
-        await supabase.from('orders').insert(row);
+        await syncProductStock([], row.products);
+        const { error: webOrdErr } = await supabase.from('orders').insert(row);
+        if (webOrdErr) {
+          try { await syncProductStock(row.products, []); } catch { /* ignore */ }
+          throw webOrdErr;
+        }
         return send(res, { ok: true, order: mapOrder(row) });
       }
       if (method === 'GET' && path.startsWith('/public/employee/')) {
@@ -1303,12 +1392,12 @@ async function dispatch(req, res) {
       if (parts[2] === 'ledger' && method === 'GET') {
         const { data: customer } = await supabase.from('customers').select('*').eq('id', cid).maybeSingle();
         if (!customer) return sendError(res, 'Customer not found', 404);
-        const phone = String(customer.phone || '');
-        const [{ data: orders }, { data: invoices }, { data: payments }] = await Promise.all([
-          supabase.from('orders').select(LEAN_ORDER_COLS),
-          supabase.from('invoices').select(LEAN_INVOICE_COLS),
-          supabase.from('payments').select(LEAN_PAYMENT_COLS),
+        const [orders, invoices, payments] = await Promise.all([
+          dbSelectSafe('orders', LEAN_ORDER_COLS),
+          dbSelectSafe('invoices', '*'),
+          dbSelectSafe('payments', LEAN_PAYMENT_COLS),
         ]);
+        const phone = String(customer.phone || '');
         const relatedOrders = (orders || []).filter((o) =>
           String(o.doc_type || 'Order').toLowerCase() !== 'quotation'
           && (String(o.customer_id) === String(cid) || (phone && String(o.customer_phone) === phone))
@@ -1682,8 +1771,12 @@ async function dispatch(req, res) {
             row.remarks = `${row.remarks || ''}${row.remarks ? ' | ' : ''}Advance applied ${adv.applied}`.trim();
           }
         }
+        await syncProductStock([], row.products);
         const { error } = await supabase.from('orders').insert(row);
-        if (error) throw error;
+        if (error) {
+          try { await syncProductStock(row.products, []); } catch { /* keep original insert error */ }
+          throw error;
+        }
         const mapped = await withInvoiceMeta(mapOrder(row));
         mapped.creditApplied = num(body.applyCredit);
         return send(res, mapped);
@@ -1708,6 +1801,10 @@ async function dispatch(req, res) {
         const status = body.status || existing.status;
         const hist = Array.isArray(existing.status_history) ? [...existing.status_history] : [];
         hist.push({ status, at: `${today()} ${nowTime()}`, note: 'Status update' });
+        const wasCancelled = isCancelledStatus(existing.status);
+        const nowCancelled = isCancelledStatus(status);
+        if (!wasCancelled && nowCancelled) await syncProductStock(existing.products, []);
+        if (wasCancelled && !nowCancelled) await syncProductStock([], existing.products);
         await supabase.from('orders').update({ status, status_history: hist }).eq('id', existing.id);
         const { data } = await supabase.from('orders').select('*').eq('id', existing.id).maybeSingle();
         return send(res, mapOrder(data));
@@ -1736,10 +1833,16 @@ async function dispatch(req, res) {
         const row = orderFromBody(body, existing);
         row.id = existing.id;
         if (!row.order_id) row.order_id = existing.order_id;
+        if (!isCancelledStatus(existing.status) && String(existing.doc_type || '').toLowerCase() !== 'quotation') {
+          await syncProductStock(existing.products, isCancelledStatus(row.status) ? [] : row.products);
+        }
         await supabase.from('orders').update(row).eq('id', existing.id);
         return send(res, mapOrder(row));
       }
       if (method === 'DELETE') {
+        if (!isCancelledStatus(existing.status) && String(existing.doc_type || '').toLowerCase() !== 'quotation') {
+          await syncProductStock(existing.products, []);
+        }
         await supabase.from('orders').delete().eq('id', existing.id);
         return send(res, { success: true });
       }

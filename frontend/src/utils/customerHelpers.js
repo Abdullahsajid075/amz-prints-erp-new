@@ -1,5 +1,5 @@
 import { formatCurrency } from '@/utils/helpers';
-import { openWhatsAppChat } from '@/services/notifications/whatsappChannel';
+import { openWhatsAppChat, openBlankWhatsAppTab } from '@/services/notifications/whatsappChannel';
 import { canAccessModule } from '@/utils/permissions';
 
 export function isCustomerBlocked(customer) {
@@ -51,7 +51,7 @@ export function buildUrduBalanceMessage({ customerName, customerCode, outstandin
   );
 }
 
-export function openUrduBalanceWhatsApp(customer, { outstanding, orderId, invoiceNumber } = {}) {
+export function openUrduBalanceWhatsApp(customer, { outstanding, orderId, invoiceNumber, pendingWindow } = {}) {
   const phone = customer?.phone || customer?.customerPhone;
   if (!phone) return { ok: false, reason: 'no_phone' };
   const text = buildUrduBalanceMessage({
@@ -61,7 +61,41 @@ export function openUrduBalanceWhatsApp(customer, { outstanding, orderId, invoic
     orderId,
     invoiceNumber,
   });
-  return openWhatsAppChat(phone, text);
+  return openWhatsAppChat(phone, text, { pendingWindow });
+}
+
+export function buildLedgerWhatsAppMessage(customer, ledger) {
+  const name = customer?.name || ledger?.customer?.name || 'Customer';
+  const code = customerDisplayCode(customer || ledger?.customer);
+  const billed = formatCurrency(ledger?.totalBilled || 0);
+  const paid = formatCurrency(ledger?.totalPaid || 0);
+  const outstanding = formatCurrency(ledger?.outstanding || 0);
+  const credit = formatCurrency(ledger?.creditBalance || ledger?.customer?.creditBalance || 0);
+  const rows = Array.isArray(ledger?.statement) ? ledger.statement : [];
+  const slice = rows.slice(-18);
+  const lines = slice.map((line) => {
+    const dt = line.date || '';
+    const part = String(line.particular || '').replace(/\s+/g, ' ').trim();
+    const dr = Number(line.debit) > 0 ? `Dr ${formatCurrency(line.debit)}` : '';
+    const cr = Number(line.credit) > 0 ? `Cr ${formatCurrency(line.credit)}` : '';
+    const bal = line.balance != null ? ` = ${formatCurrency(line.balance)}` : '';
+    return `• ${dt} ${part} ${dr}${cr}${bal}`.replace(/\s+/g, ' ').trim();
+  });
+  return (
+    `Assalam-o-Alaikum ${name},\n\n`
+    + `Amazon Printing Services — *Khata / Ledger*\n`
+    + (code ? `Customer ID: ${code}\n` : '')
+    + `\nTotal billed: *${billed}*\nPaid: *${paid}*\nCredit: ${credit}\n*Baqi balance: ${outstanding}*\n\n`
+    + (lines.length ? `Statement:\n${lines.join('\n')}\n\n` : 'Abhi statement lines nahi hain.\n\n')
+    + `Shukriya!\n📍 King Road, Mandi Bahauddin\n🌐 amzprints.com`
+  );
+}
+
+export function openLedgerWhatsApp(customer, ledger, opts = {}) {
+  const phone = customer?.phone || customer?.customerPhone || ledger?.customer?.phone;
+  if (!phone) return { ok: false, reason: 'no_phone' };
+  const pendingWindow = opts.pendingWindow !== undefined ? opts.pendingWindow : openBlankWhatsAppTab();
+  return openWhatsAppChat(phone, buildLedgerWhatsAppMessage(customer, ledger), { pendingWindow });
 }
 
 export function buildWelcomeMessage(customer) {

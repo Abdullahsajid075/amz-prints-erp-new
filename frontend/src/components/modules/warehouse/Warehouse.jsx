@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { useBrand } from '@/context/BrandContext';
-import { Package, Boxes } from 'lucide-react';
+import { Package, Boxes, Settings } from 'lucide-react';
 
 const links = [
   {
@@ -19,6 +19,13 @@ const links = [
     icon: Boxes,
     testId: 'warehouse-inventory',
   },
+  {
+    title: 'Inventory settings',
+    description: 'Categories, materials, and stock rules',
+    path: '/warehouse/inventory/settings',
+    icon: Settings,
+    testId: 'warehouse-inventory-settings',
+  },
 ];
 
 const Warehouse = () => {
@@ -30,7 +37,7 @@ const Warehouse = () => {
         <h1 className="text-3xl font-bold" style={{ color: '#0747a3' }}>Warehouse</h1>
         <p className="text-gray-600 mt-1">Products and inventory (Purchases is on the main menu)</p>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {links.map((item) => (
           <Link key={item.path} to={item.path} data-testid={item.testId} className="block group">
             <Card className="h-full transition-all hover:shadow-md hover:-translate-y-0.5 border-gray-100">
