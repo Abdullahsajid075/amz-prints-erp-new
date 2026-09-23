@@ -11,7 +11,7 @@ export function normalizeSlipPayment(payment, extras = {}) {
     category: p.category || extras.category || 'Invoice Payment',
     party: p.customerName || p.customername || p.party || extras.customerName || '',
     customerName: p.customerName || p.customername || p.party || extras.customerName || '',
-    partyPhone: p.partyPhone || p.partyphone || p.customerPhone || extras.customerPhone || '',
+    partyPhone: p.partyPhone || p.partyphone || p.phone || p.customerPhone || extras.customerPhone || extras.phone || '',
     partyEmail: p.partyEmail || p.partyemail || p.customerEmail || extras.customerEmail || '',
     reference: p.refId || p.refid || p.reference || extras.reference || '',
     amount: Number(p.amount || 0),
@@ -33,7 +33,7 @@ export async function finishPaymentRecording(payment, { company, extras = {}, no
   }
   if (notify && slip.partyPhone) {
     try {
-      await notifyPaymentEvent(slip, { openWhatsApp: true, sendEmail });
+      await notifyPaymentEvent(slip, { openWhatsApp: true, forceWhatsApp: true, sendEmail });
     } catch (err) {
       console.error(err);
     }

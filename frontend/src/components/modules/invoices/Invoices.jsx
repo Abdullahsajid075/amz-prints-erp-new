@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { invoicesAPI } from '@/services/api';
 import { notifyOrderEvent, openBlankWhatsAppTab } from '@/services/notifications';
+import { lookupCustomerPhone, firstPhone } from '@/utils/notifyPhone';
 import { finishPaymentRecording } from '@/utils/paymentActions';
 import { useBrand } from '@/context/BrandContext';
 import { formatCurrency, formatDate, invoiceOrderIds, invoiceBalanceDue, invoicePendingScore } from '@/utils/helpers';
@@ -87,28 +88,38 @@ const Invoices = () => {
   };
 
   const shareOnWhatsApp = async (invoice) => {
-    if (!invoice.customerPhone) {
-      toast.error('Customer phone missing — WhatsApp not sent');
-      return;
-    }
     const pendingWindow = openBlankWhatsAppTab();
     const bal = invoiceBalance(invoice);
     try {
+      const phone = await lookupCustomerPhone({
+        phone: firstPhone(invoice.customerPhone, invoice.phone),
+        customerId: invoice.customerId,
+        customerName: invoice.customerName,
+      });
+      if (!phone) {
+        if (pendingWindow && !pendingWindow.closed) {
+          try { pendingWindow.close(); } catch { /* ignore */ }
+        }
+        toast.error('Customer phone missing — WhatsApp not sent');
+        return;
+      }
       const result = await notifyOrderEvent({
         event: 'invoice_generated',
         order: {
           customerName: invoice.customerName,
-          customerPhone: invoice.customerPhone,
+          customerPhone: phone,
           orderId: invoice.orderId,
           totalAmount: invoice.totalAmount,
           balanceAmount: bal,
         },
         invoice: {
           ...invoice,
+          customerPhone: phone,
           balanceAmount: bal,
           paidAmount: invoice.paidAmount || 0,
         },
         openWhatsApp: true,
+        forceWhatsApp: true,
         sendEmail: false,
         pendingWindow,
       });
@@ -126,27 +137,37 @@ const Invoices = () => {
       toast.error('No pending balance on this invoice');
       return;
     }
-    if (!invoice.customerPhone) {
-      toast.error('Customer phone missing');
-      return;
-    }
     const pendingWindow = openBlankWhatsAppTab();
     try {
+      const phone = await lookupCustomerPhone({
+        phone: firstPhone(invoice.customerPhone, invoice.phone),
+        customerId: invoice.customerId,
+        customerName: invoice.customerName,
+      });
+      if (!phone) {
+        if (pendingWindow && !pendingWindow.closed) {
+          try { pendingWindow.close(); } catch { /* ignore */ }
+        }
+        toast.error('Customer phone missing');
+        return;
+      }
       const result = await notifyOrderEvent({
         event: 'payment_reminder',
         order: {
           customerName: invoice.customerName,
-          customerPhone: invoice.customerPhone,
+          customerPhone: phone,
           orderId: invoice.orderId,
           totalAmount: invoice.totalAmount,
           balanceAmount: bal,
         },
         invoice: {
           ...invoice,
+          customerPhone: phone,
           balanceAmount: bal,
           paidAmount: invoice.paidAmount || 0,
         },
         openWhatsApp: true,
+        forceWhatsApp: true,
         sendEmail: false,
         pendingWindow,
       });

@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { invoicesAPI, customersAPI, productsAPI, settingsAPI, ordersAPI } from '@/services/api';
 import { notifyOrderEvent, printPaymentSlip, openWhatsAppChat, buildWhatsAppAppUrl, fillTemplate, resolveWhatsAppTemplate, buildTemplateVars, DEFAULT_WHATSAPP_TEMPLATES, openBlankWhatsAppTab } from '@/services/notifications';
+import { lookupCustomerPhone, firstPhone } from '@/utils/notifyPhone';
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import { formatCurrency } from '@/utils/helpers';
 import { catalogFieldsForOrderLine } from '@/utils/productImage';
@@ -448,7 +449,11 @@ const InvoiceForm = () => {
   const goAddProduct = () => navigate('/warehouse/products?new=1');
 
   const sendInvoiceWhatsApp = async (data, grand, bal, paid, pendingWindow = null) => {
-    const phone = data.customerPhone || '';
+    const phone = await lookupCustomerPhone({
+      phone: firstPhone(data.customerPhone, data.phone),
+      customerId: data.customerId,
+      customerName: data.customerName,
+    });
     if (!phone) {
       if (pendingWindow && !pendingWindow.closed) {
         try { pendingWindow.close(); } catch { /* ignore */ }
@@ -629,6 +634,7 @@ const InvoiceForm = () => {
                 balanceDue: balance,
               },
               sendEmail: true,
+              forceWhatsApp: true,
               pendingWindow: waWindow,
             });
             waWindow = null;

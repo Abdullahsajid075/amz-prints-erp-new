@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { invoicesAPI } from '@/services/api';
 import { notifyOrderEvent, openBlankWhatsAppTab } from '@/services/notifications';
+import { lookupCustomerPhone, firstPhone } from '@/utils/notifyPhone';
 import { formatCurrency, formatDate, invoiceOrderIds, invoiceLineItems } from '@/utils/helpers';
 import { documentFileName, printIsolatedNode } from '@/utils/printHelpers';
 import { useBrand } from '@/context/BrandContext';
@@ -68,23 +69,32 @@ const InvoiceView = ({ isPublic = false }) => {
     Math.max(0, Number(invoice?.totalAmount || 0) + Number(invoice?.previousBalance || 0) - Number(invoice?.paidAmount || 0));
 
   const shareOnWhatsApp = async () => {
-    if (!invoice.customerPhone) {
+    const pendingWindow = openBlankWhatsAppTab();
+    const bal = pendingBalance();
+    const phone = await lookupCustomerPhone({
+      phone: firstPhone(invoice.customerPhone, invoice.phone),
+      customerId: invoice.customerId,
+      customerName: invoice.customerName,
+    });
+    if (!phone) {
+      if (pendingWindow && !pendingWindow.closed) {
+        try { pendingWindow.close(); } catch { /* ignore */ }
+      }
       toast.error('Customer phone missing — WhatsApp not sent');
       return;
     }
-    const pendingWindow = openBlankWhatsAppTab();
-    const bal = pendingBalance();
     const result = await notifyOrderEvent({
       event: 'invoice_generated',
       order: {
         customerName: invoice.customerName,
-        customerPhone: invoice.customerPhone,
+        customerPhone: phone,
         orderId: invoice.orderId,
         totalAmount: invoice.totalAmount,
         balanceAmount: bal,
       },
-      invoice: { ...invoice, balanceAmount: bal, paidAmount: invoice.paidAmount || 0 },
+      invoice: { ...invoice, customerPhone: phone, balanceAmount: bal, paidAmount: invoice.paidAmount || 0 },
       openWhatsApp: true,
+      forceWhatsApp: true,
       pendingWindow,
     });
     if (result?.whatsappOpened) toast.message('WhatsApp opened — tap Send for invoice + pending payment');
@@ -97,22 +107,31 @@ const InvoiceView = ({ isPublic = false }) => {
       toast.error('No pending balance');
       return;
     }
-    if (!invoice.customerPhone) {
+    const pendingWindow = openBlankWhatsAppTab();
+    const phone = await lookupCustomerPhone({
+      phone: firstPhone(invoice.customerPhone, invoice.phone),
+      customerId: invoice.customerId,
+      customerName: invoice.customerName,
+    });
+    if (!phone) {
+      if (pendingWindow && !pendingWindow.closed) {
+        try { pendingWindow.close(); } catch { /* ignore */ }
+      }
       toast.error('Customer phone missing');
       return;
     }
-    const pendingWindow = openBlankWhatsAppTab();
     const result = await notifyOrderEvent({
       event: 'payment_reminder',
       order: {
         customerName: invoice.customerName,
-        customerPhone: invoice.customerPhone,
+        customerPhone: phone,
         orderId: invoice.orderId,
         totalAmount: invoice.totalAmount,
         balanceAmount: bal,
       },
-      invoice: { ...invoice, balanceAmount: bal, paidAmount: invoice.paidAmount || 0 },
+      invoice: { ...invoice, customerPhone: phone, balanceAmount: bal, paidAmount: invoice.paidAmount || 0 },
       openWhatsApp: true,
+      forceWhatsApp: true,
       pendingWindow,
     });
     if (result?.whatsappOpened) toast.success('Payment reminder opened on WhatsApp — tap Send');

@@ -24,6 +24,7 @@ import { DEFAULT_CRM_STAGES } from '@/utils/crmStages';
 import { migrateThemeColors } from '@/utils/brandColors';
 import { getAssignableModules, hasFullAccess, normalizePermissions } from '@/utils/permissions';
 import GuideBook from '@/components/modules/settings/GuideBook';
+import ReceivablesDialog from '@/components/shared/ReceivablesDialog';
 
 const defaultSettings = {
   company: { name: 'Amazon Printing Services', tagline: 'Professional Printing & Advertising Services', address: 'King Road, Mandi Bahauddin', phone: '', email: 'amazonprinting@gmail.com', website: 'amzprints.com', taxId: '', authorizedSignatory: 'Authorized Person', logo: '', stamp: '', signature: '' },
@@ -187,6 +188,7 @@ const Settings = () => {
   const [usersLoading, setUsersLoading] = useState(false);
   const [reminderStatus, setReminderStatus] = useState(null);
   const [reminderBusy, setReminderBusy] = useState(false);
+  const [waRemindersOpen, setWaRemindersOpen] = useState(false);
 
   const loadReminderStatus = useCallback(async () => {
     try {
@@ -979,7 +981,7 @@ const Settings = () => {
             <CardContent className="space-y-4">
               <p className="text-xs text-gray-600">
                 Every morning (Pakistan time), the system emails customers about unpaid invoices and active order updates.
-                WhatsApp cannot be sent fully automatically — use the customer ledger button for manual WhatsApp balance requests.
+                WhatsApp reminders need a tap so the chat can open — use the button below, or Invoices → Reminder / Receivables.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md">
                 <div>
@@ -1043,9 +1045,18 @@ const Settings = () => {
                 >
                   Run reminders now
                 </Button>
+                <Button
+                  type="button"
+                  className="text-white bg-green-600 hover:bg-green-700"
+                  onClick={() => setWaRemindersOpen(true)}
+                >
+                  <WhatsAppIcon className="h-4 w-4 mr-1" />
+                  WhatsApp reminders
+                </Button>
               </div>
             </CardContent>
           </Card>
+          <ReceivablesDialog open={waRemindersOpen} onOpenChange={setWaRemindersOpen} />
 
           <Card>
             <CardHeader>
@@ -1053,7 +1064,7 @@ const Settings = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-xs text-gray-500">
-                Write your own messages below — no footer is added automatically. Empty = message not sent until you fill it in.
+                Write your own messages below — no footer is added automatically. Empty uses the default AMZ template (invoice, reminder, cash in/out still send).
                 Placeholders: {'{Customer Name}'}, {'{Order Number}'}, {'{Tracking Number}'}, {'{Status}'}, {'{Company Name}'}, {'{Invoice Link}'}, {'{payment_amount}'}, {'{balance_due}'}
               </p>
               {['quotation', 'created', 'Order Received', 'Designing', 'Proof Approval', 'Printing', 'Finishing', 'Packing', 'Ready', 'Delivered', 'Cancelled', 'status', 'invoice_generated', 'payment_reminder', 'balance_reminder', 'payment_received', 'payment_sent'].map((key) => {
