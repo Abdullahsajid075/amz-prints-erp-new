@@ -39,6 +39,7 @@ const menuGroups = [
         testId: 'nav-pos',
         children: [
           { label: 'Open counter', path: '/pos', module: 'pos', openWindow: true },
+          { label: 'POS settings', path: '/pos/settings', module: 'pos' },
           { label: 'POS statement', path: '/accounts/pos-statement', module: 'accounts' },
         ],
       },
@@ -58,6 +59,7 @@ const menuGroups = [
         children: [
           { label: 'Products', path: '/warehouse/products', module: 'warehouse' },
           { label: 'Inventory', path: '/warehouse/inventory', module: 'warehouse' },
+          { label: 'Inventory settings', path: '/warehouse/inventory/settings', module: 'warehouse' },
         ],
       },
       {

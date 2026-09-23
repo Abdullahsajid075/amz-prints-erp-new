@@ -32,7 +32,9 @@ const defaultSettings = {
   orders: { autoNumber: true, orderPrefix: 'ORD-', defaultStatus: 'Order Received', requireDeliveryDate: true },
   customers: { autoCode: true, codePrefix: 'CUST-', creditLimit: 50000, requirePhone: true },
   crm: { stages: DEFAULT_CRM_STAGES },
-  products: { defaultUnit: 'per piece', trackStock: true, allowNegativeStock: false, categories: ['Business Cards', 'Flyers', 'Banners'] },
+  products: { defaultUnit: 'per piece', trackStock: true, allowNegativeStock: false, categories: ['Business Cards', 'Flyers', 'Banners'], materials: ['Premium Card Stock', 'Vinyl'] },
+  inventory: { trackStock: true, allowNegativeStock: false, deductOnSale: true, defaultLowStock: 5, categories: [], materials: [] },
+  pos: { requireRegister: true, showCalculator: true, showWebsiteQr: true, showInvoiceQr: true, poweredBy: 'Powered By Amazon ERP', slipServices: [], defaultPayment: 'Cash' },
   designers: { assignAuto: false, trackHours: true, showWorkload: true },
   employees: { attendanceEnabled: true, salaryPeriod: 'monthly' },
   payments: { methods: [{ name: 'Cash', enabled: true }, { name: 'Bank Transfer', enabled: true }, { name: 'UPI', enabled: true }, { name: 'Card', enabled: true }, { name: 'Cheque', enabled: true }] },
@@ -153,6 +155,8 @@ function mergeSettingsFromApi(data) {
       return base;
     })(),
     products: section('products'),
+    inventory: section('inventory'),
+    pos: section('pos'),
     designers: section('designers'),
     employees: section('employees'),
     payments: section('payments'),
@@ -649,6 +653,12 @@ const Settings = () => {
                 <div><Label>Default Unit</Label><Input value={settings.products.defaultUnit} onChange={(e) => update('products', 'defaultUnit', e.target.value)} /></div>
                 <div className="flex items-center justify-between"><Label>Track stock</Label><Switch checked={settings.products.trackStock} onCheckedChange={(v) => update('products', 'trackStock', v)} /></div>
                 <div className="flex items-center justify-between"><Label>Allow negative stock</Label><Switch checked={settings.products.allowNegativeStock} onCheckedChange={(v) => update('products', 'allowNegativeStock', v)} /></div>
+                <p className="text-xs text-slate-500">
+                  Full category / material lists live in{' '}
+                  <a className="underline" href="/warehouse/inventory/settings">Inventory settings</a>
+                  . POS receipt and register live in{' '}
+                  <a className="underline" href="/pos/settings">POS settings</a>.
+                </p>
                 <div>
                   <Label>Categories</Label>
                   <div className="flex flex-wrap gap-2 mt-2">

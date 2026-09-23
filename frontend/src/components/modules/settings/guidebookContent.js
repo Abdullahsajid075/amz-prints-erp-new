@@ -131,7 +131,8 @@ export const GUIDE_SECTIONS = [
     body: [
       'Products store rates, sale price, category, photos, and “show on website”. Keep names consistent with what appears on quotations and the public catalogue.',
       'Website catalog rule: a product is published only when it has at least one HD photo and a description. Incomplete items are auto-hidden from amzprints.com until both are added.',
-      'Inventory tracks on-hand quantity when stock tracking is enabled. Negative stock is allowed only if Settings permit it.',
+      'Inventory tracks on-hand quantity when stock tracking is enabled. POS and orders minus stock on sale; sales are blocked when qty is short unless Inventory settings allow negative stock. Categories and materials are edited in Inventory settings.',
+      'POS has its own settings (register, slip QRs, service cards). Statement stays under Accounts. The counter opens in a separate window.',
       'Printing Cost Calculator is a planning tool for media, size, and quantity. Transfer the result into a quotation/order; the calculator itself does not post stock or AR.',
     ],
   },

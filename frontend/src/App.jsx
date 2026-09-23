@@ -16,6 +16,7 @@ import CustomerCRM from '@/components/modules/crm/CustomerCRM';
 import Products from '@/components/modules/products/Products';
 import Employees from '@/components/modules/employees/Employees';
 import Inventory from '@/components/modules/inventory/Inventory';
+import InventorySettings from '@/components/modules/inventory/InventorySettings';
 import POSStatement from '@/components/modules/pos/POSStatement';
 import Invoices from '@/components/modules/invoices/Invoices';
 import InvoiceView from '@/components/modules/invoices/InvoiceView';
@@ -33,6 +34,7 @@ import QuotationForm from '@/components/modules/quotations/QuotationForm';
 import Warehouse from '@/components/modules/warehouse/Warehouse';
 import Accounts from '@/components/modules/accounts/Accounts';
 import POS from '@/components/modules/pos/POS';
+import POSSettings from '@/components/modules/pos/POSSettings';
 import PrintingCostCalculator from '@/components/modules/calculator/PrintingCostCalculator';
 import PublicOrderTracking from '@/components/modules/tracking/PublicOrderTracking';
 import PublicEmployeeVerify from '@/components/modules/employees/PublicEmployeeVerify';
@@ -150,6 +152,7 @@ function App() {
           <Route path="warehouse/products" element={<Products />} />
           <Route path="warehouse/purchases" element={<Navigate to="/purchases" replace />} />
           <Route path="warehouse/inventory" element={<Inventory />} />
+          <Route path="warehouse/inventory/settings" element={<InventorySettings />} />
 
           <Route path="products" element={<Navigate to="/warehouse/products" replace />} />
           <Route path="purchases" element={<Purchases />} />
@@ -161,6 +164,7 @@ function App() {
           <Route path="employees" element={<Navigate to="/hr/employees" replace />} />
 
           <Route path="pos" element={<POS />} />
+          <Route path="pos/settings" element={<POSSettings />} />
           <Route path="pos/statement" element={<Navigate to="/accounts/pos-statement" replace />} />
 
           <Route path="calculator" element={<PrintingCostCalculator />} />
