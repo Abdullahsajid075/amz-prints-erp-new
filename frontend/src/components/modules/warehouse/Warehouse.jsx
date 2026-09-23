@@ -7,14 +7,14 @@ import { Package, Boxes, Settings } from 'lucide-react';
 const links = [
   {
     title: 'Products',
-    description: 'Manage products, services, rates and stock',
+    description: 'Products, services, and per-item track inventory',
     path: '/warehouse/products',
     icon: Package,
     testId: 'warehouse-products',
   },
   {
     title: 'Inventory',
-    description: 'Stock levels and adjustments',
+    description: 'Stocked products only — services stay out',
     path: '/warehouse/inventory',
     icon: Boxes,
     testId: 'warehouse-inventory',

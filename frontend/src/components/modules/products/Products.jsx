@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DEFAULT_PRODUCT_CATEGORIES, DEFAULT_PRODUCT_MATERIALS, mergeInventorySettings } from '@/utils/moduleSettings';
+import { isServiceItem, tracksInventory } from '@/utils/inventoryTrack';
 
 const PRODUCT_SORT_OPTS = [
   { value: 'name', label: 'Name' },
@@ -52,6 +53,7 @@ const emptyProduct = {
   size: '',
   minQuantity: 1,
   stock: 0,
+  trackInventory: true,
   designer: '',
   image: '',
   images: [],
@@ -104,6 +106,7 @@ const Products = () => {
         images: productImagesList(p),
         image: productImageSrc(p),
         stock: Number(p.stock ?? 0) || 0,
+        trackInventory: tracksInventory(p),
       }));
       setProducts(list);
     } catch (error) {
@@ -189,6 +192,7 @@ const Products = () => {
       fullDescription: product.fullDescription || '',
       designer: product.designer || '',
       stock: Number(product.stock ?? 0) || 0,
+      trackInventory: tracksInventory(product),
       images: productImagesList(product),
       image: productImageSrc(product),
       showOnWebsite: isCatalogReady(product) && product.showOnWebsite !== false,
@@ -322,6 +326,7 @@ const Products = () => {
             designer: '',
             minQuantity: 1,
             stock: 0,
+            trackInventory: false,
             images,
             active: formData.active !== false,
             status: formData.active === false ? 'Inactive' : 'Active',
@@ -343,6 +348,7 @@ const Products = () => {
             size: formData.size || '',
             minQuantity: formData.minQuantity || 1,
             stock: Math.max(0, Math.floor(Number(formData.stock) || 0)),
+            trackInventory: formData.trackInventory !== false,
             designer: formData.designer || '',
             images,
             active: formData.active !== false,
@@ -470,7 +476,8 @@ const Products = () => {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {sorted.map((product) => {
-                const service = String(product.productType || '').toLowerCase() === 'service';
+                const service = isServiceItem(product);
+                const tracking = tracksInventory(product);
                 const imgs = productImagesList(product);
                 const img = imgs[0] || '';
                 return (
@@ -498,7 +505,7 @@ const Products = () => {
                       >
                         {service ? 'Service' : 'Product'}
                       </Badge>
-                      {!service && (
+                      {tracking && (
                         <span
                           className="absolute top-1.5 right-1.5 min-w-[2rem] h-8 px-2 rounded-lg bg-white/95 border-2 border-orange-500 text-orange-600 text-lg font-black leading-none flex items-center justify-center shadow-sm"
                           title="On-hand quantity"
@@ -537,7 +544,7 @@ const Products = () => {
                           {formatCurrency(product.basePrice ?? product.rate ?? 0)}
                         </p>
                       )}
-                      {!service && (
+                      {tracking ? (
                         <button
                           type="button"
                           onClick={() => openStockEdit(product)}
@@ -548,6 +555,10 @@ const Products = () => {
                           Stock: <span className="font-bold">{Number(product.stock ?? 0) || 0}</span>
                           <span className="text-orange-600 underline ml-0.5">Edit</span>
                         </button>
+                      ) : !service ? (
+                        <p className="text-[11px] text-slate-500">Stock not tracked</p>
+                      ) : (
+                        <p className="text-[11px] text-slate-500">Service — no quantity</p>
                       )}
                       <div className="flex gap-1.5 pt-1">
                         <Button size="sm" variant="outline" className="h-8 flex-1 text-xs border-gray-600" onClick={() => openEditDialog(product)}>
@@ -629,8 +640,8 @@ const Products = () => {
             </DialogTitle>
             <DialogDescription>
               {isService
-                ? 'Service: description + charges. Optional photo for catalog.'
-                : 'Product photo + stock for warehouse catalog (orders/invoices keep no photo).'}
+                ? 'Service: description + charges. No inventory quantity.'
+                : 'Product photo + optional stock tracking for warehouse catalog.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -683,6 +694,8 @@ const Products = () => {
                   productType: v,
                   category: v === 'Service' ? (formData.category || 'Services') : formData.category,
                   unit: v === 'Service' ? 'service' : (formData.unit || 'per piece'),
+                  trackInventory: v === 'Service' ? false : (formData.trackInventory !== false),
+                  stock: v === 'Service' ? 0 : formData.stock,
                 })}
               >
                 <SelectTrigger data-testid="product-type-select"><SelectValue /></SelectTrigger>
@@ -738,6 +751,23 @@ const Products = () => {
                 data-testid="product-name-input"
               />
             </div>
+
+            {!isService && (
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+                <div>
+                  <Label htmlFor="track-inventory" className="text-sm font-semibold">Track inventory</Label>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    On = minus stock on sale. Off = sell without stock (no quantity block).
+                  </p>
+                </div>
+                <Switch
+                  id="track-inventory"
+                  checked={formData.trackInventory !== false}
+                  onCheckedChange={(v) => setFormData({ ...formData, trackInventory: !!v })}
+                  data-testid="product-track-inventory-switch"
+                />
+              </div>
+            )}
 
             {isService ? (
               <>
@@ -866,17 +896,23 @@ const Products = () => {
                   <Label>Size</Label>
                   <Input value={formData.size} onChange={(e) => setFormData({ ...formData, size: e.target.value })} placeholder="e.g. A4" />
                 </div>
-                <div>
-                  <Label>Stock (manual)</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={formData.stock}
-                    onChange={(e) => setFormData({ ...formData, stock: Math.max(0, parseInt(e.target.value, 10) || 0) })}
-                    data-testid="product-stock-input"
-                  />
-                </div>
+                {formData.trackInventory !== false ? (
+                  <div>
+                    <Label>Stock (manual)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={formData.stock}
+                      onChange={(e) => setFormData({ ...formData, stock: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                      data-testid="product-stock-input"
+                    />
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-2 text-[11px] text-slate-500">
+                    Inventory off — this product sells without a stock quantity.
+                  </div>
+                )}
                 <div>
                   <Label>Min quantity</Label>
                   <Input

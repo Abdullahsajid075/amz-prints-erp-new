@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { settingsAPI } from '@/services/api';
 import { clearGasCache } from '@/services/gasClient';
 import { mergePosSettings } from '@/utils/moduleSettings';
-import { openPosCounterWindow } from '@/utils/posWindow';
+import { openPosCounterOrFallback } from '@/utils/posWindow';
 import { ArrowLeft, Plus, Save, Store, X } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -54,7 +54,7 @@ const POSSettings = () => {
           <p className="text-sm text-slate-500">Counter window, register, and receipt layout — separate from Accounts statement.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => { const w = openPosCounterWindow(); if (!w) toast.error('Allow popups'); }}>
+          <Button variant="outline" onClick={() => { const w = openPosCounterOrFallback(); if (!w) toast.error('Allow popups'); }}>
             <Store className="h-4 w-4 mr-1" />Open counter
           </Button>
           <Button className="text-white" style={{ backgroundColor: '#ff6d00' }} onClick={save} disabled={saving}>

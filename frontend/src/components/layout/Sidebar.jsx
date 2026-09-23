@@ -328,7 +328,7 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
                                     if (child.openWindow) {
                                       e.preventDefault();
                                       const w = openPosCounterWindow();
-                                      if (!w) window.location.assign('/pos');
+                                      if (!w) window.location.assign('/pos/counter');
                                     }
                                     closeSidebar();
                                   }}

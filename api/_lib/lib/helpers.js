@@ -175,9 +175,31 @@ function isBlocked(row) {
   return s === '1' || s === 'true' || s === 'yes' || s === 'blocked';
 }
 
+function isServiceProduct(p) {
+  if (!p) return false;
+  const type = String(p.productType || p.product_type || '').toLowerCase();
+  if (type === 'service') return true;
+  if (type === 'product') return false;
+  return /service/i.test(String(p.category || ''));
+}
+
+/** Services never track. Products default ON unless trackInventory is explicitly off. */
+function productTracksInventory(p) {
+  if (!p || isServiceProduct(p)) return false;
+  if (p.trackInventory === false || p.track_inventory === false) return false;
+  if (p.trackInventory === true || p.track_inventory === true) return true;
+  const raw = p.trackInventory != null ? p.trackInventory : p.track_inventory;
+  return truthy(raw, true);
+}
+
 function productFromBody(b = {}, rid) {
   const productType = b.productType || b.product_type || 'Product';
   const isService = String(productType).toLowerCase() === 'service';
+  const trackInventory = isService
+    ? false
+    : (b.trackInventory != null
+      ? truthy(b.trackInventory, true)
+      : (b.track_inventory != null ? truthy(b.track_inventory, true) : true));
   let images = parseImages(b.images || b.gallery, b.image || b.photo || '');
   // Live products table often has no `image` column — cover lives in `images` jsonb.
   // Cap payload so Vercel/PostgREST does not time out on huge data-URLs.
@@ -202,7 +224,8 @@ function productFromBody(b = {}, rid) {
     status: b.active === false ? 'Inactive' : (b.status || 'Active'),
     product_type: productType,
     designer: isService ? '' : (b.designer || ''),
-    stock: num(b.stock),
+    stock: isService ? 0 : num(b.stock),
+    track_inventory: trackInventory,
     material: isService ? '' : (b.material || ''),
     size: isService ? '' : (b.size || ''),
     min_quantity: isService ? 1 : num(b.minQuantity),
@@ -222,6 +245,8 @@ module.exports = {
   collectOrderIds,
   parseImages,
   isWebsiteCatalogReady,
+  isServiceProduct,
+  productTracksInventory,
   invoiceStatusFromPaid,
   hashPortalPassword,
   makePortalPassword,

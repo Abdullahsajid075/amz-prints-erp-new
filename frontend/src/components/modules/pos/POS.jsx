@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,22 +11,16 @@ import { barcodeBlock, openPrintWindow, printOnLoadScript, POS_MAJOR_SERVICES, d
 import { qrPngDataUrl } from '@/utils/customerDocuments';
 import { mergePosSettings, mergeInventorySettings } from '@/utils/moduleSettings';
 import { useBrand } from '@/context/BrandContext';
-import { Search, Plus, Minus, Trash2, Printer, ShoppingCart, FileSpreadsheet, PackagePlus, UserPlus, Package, Wrench, Store, Expand, Lock, Unlock, BookOpen, Settings } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, Printer, ShoppingCart, FileSpreadsheet, PackagePlus, UserPlus, Package, Wrench, Store, Expand, Lock, Unlock, BookOpen, Settings, Clock } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, getUserDisplayName } from '@/context/AuthContext';
-import { openPosCounterWindow } from '@/utils/posWindow';
+import { openPosCounterWindow, openPosCounterOrFallback } from '@/utils/posWindow';
 import POSCalculator from '@/components/modules/pos/POSCalculator';
 import { productImageSrc } from '@/utils/productImage';
+import { isServiceItem, tracksInventory } from '@/utils/inventoryTrack';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-
-const isServiceItem = (p) => {
-  const type = String(p?.productType || '').toLowerCase();
-  if (type === 'service') return true;
-  if (type === 'product') return false;
-  return /service/i.test(String(p?.category || ''));
-};
 
 const WALK_IN = { id: 'cust_walkin', name: 'Walk-in', phone: '' };
 
@@ -61,6 +54,7 @@ const POS = ({ kiosk = false }) => {
   const [confirmedClose, setConfirmedClose] = useState(false);
   const [posCfg, setPosCfg] = useState(mergePosSettings({}));
   const [invCfg, setInvCfg] = useState(mergeInventorySettings({}));
+  const [clock, setClock] = useState(() => new Date());
 
   const loadProducts = useCallback(async () => {
     try {
@@ -87,6 +81,21 @@ const POS = ({ kiosk = false }) => {
     loadProducts();
     loadCustomers();
   }, [loadProducts, loadCustomers]);
+
+  useEffect(() => {
+    if (!isKiosk) return undefined;
+    const t = setInterval(() => setClock(new Date()), 1000);
+    return () => clearInterval(t);
+  }, [isKiosk]);
+
+  useEffect(() => {
+    if (isKiosk) return undefined;
+    const timer = setTimeout(() => {
+      const w = openPosCounterWindow();
+      if (!w) toast.error('Allow popups — POS opens as a separate window');
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [isKiosk]);
 
   const loadRegister = useCallback(async () => {
     try {
@@ -152,33 +161,40 @@ const POS = ({ kiosk = false }) => {
 
   const renderPosCard = (p) => {
     const service = isServiceItem(p);
+    const tracking = tracksInventory(p);
+    const img = productImageSrc(p);
     return (
       <button
         key={p.id}
         type="button"
         onClick={() => addToCart(p)}
-        className="text-left rounded-xl border-2 border-gray-700 bg-white p-4 hover:border-orange-500 hover:shadow-md transition-all"
+        className="text-left rounded-2xl border border-white/10 bg-[#121c2f] overflow-hidden hover:border-orange-500 hover:shadow-[0_0_0_1px_#ff6d00] transition-all group"
         data-testid={`pos-product-${p.id}`}
       >
-        <div className="flex items-center gap-2 mb-2 relative">
-          {service ? <Wrench className="h-4 w-4 text-gray-600" /> : <Package className="h-4 w-4 text-gray-600" />}
-          <span className="text-[10px] px-1.5 py-0.5 rounded border border-gray-600 text-gray-700">
+        <div className="relative h-20 bg-[#0b1424]">
+          {img ? (
+            <img src={img} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-white/25">
+              {service ? <Wrench className="h-7 w-7" /> : <Package className="h-7 w-7" />}
+            </div>
+          )}
+          <span className={`absolute top-1.5 left-1.5 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${service ? 'bg-sky-500 text-white' : 'bg-white/90 text-slate-800'}`}>
             {service ? 'Service' : 'Product'}
           </span>
-          {!service && (
-            <span className="ml-auto text-lg font-black text-orange-600 leading-none" title="On-hand quantity">
+          {tracking ? (
+            <span className="absolute top-1.5 right-1.5 min-w-[1.75rem] h-7 px-1.5 rounded-md bg-orange-500 text-white text-sm font-black leading-none flex items-center justify-center" title="On-hand quantity">
               {Number(p.stock ?? 0) || 0}
             </span>
-          )}
+          ) : null}
         </div>
-        {productImageSrc(p) ? (
-          <img src={productImageSrc(p)} alt="" className="w-full h-16 object-cover rounded-md mb-2 bg-slate-100" />
-        ) : null}
-        <div className="text-sm font-semibold leading-snug line-clamp-2 min-h-[2.5rem]" style={{ color: '#0747a3' }}>
-          {p.name}
-        </div>
-        <div className="text-base font-bold mt-2" style={{ color: primary || '#ff6d00' }}>
-          {formatCurrency(p.rate || p.basePrice)}
+        <div className="p-2.5">
+          <div className="text-[13px] font-semibold leading-snug line-clamp-2 min-h-[2.4rem] text-white">
+            {p.name}
+          </div>
+          <div className="text-sm font-bold mt-1" style={{ color: primary || '#ff6d00' }}>
+            {formatCurrency(p.rate || p.basePrice)}
+          </div>
         </div>
       </button>
     );
@@ -209,17 +225,23 @@ const POS = ({ kiosk = false }) => {
     setWaPhone(String(selectedCustomer?.phone || ''));
   }, [selectedCustomer?.id, selectedCustomer?.phone]);
 
+  const stockGuard = (product, nextQty) => {
+    if (!product || !invCfg.trackStock || invCfg.allowNegativeStock) return true;
+    if (!tracksInventory(product)) return true;
+    const stock = Number(product.stock ?? 0) || 0;
+    if (nextQty > stock) {
+      toast.error(`Inventory block: only ${stock} of ${product.name} in stock`);
+      return false;
+    }
+    return true;
+  };
+
   const addToCart = (product) => {
     const rate = Number(product.rate || product.basePrice || 0);
-    const service = isServiceItem(product);
-    const stock = Number(product.stock ?? 0) || 0;
     setCart((prev) => {
       const idx = prev.findIndex((c) => c.productId === product.id);
       const nextQty = idx >= 0 ? prev[idx].quantity + 1 : 1;
-      if (!service && invCfg.trackStock && !invCfg.allowNegativeStock && nextQty > stock) {
-        toast.error(`Inventory block: only ${stock} of ${product.name} in stock`);
-        return prev;
-      }
+      if (!stockGuard(product, nextQty)) return prev;
       if (idx >= 0) {
         const next = [...prev];
         next[idx] = { ...next[idx], quantity: nextQty };
@@ -230,6 +252,7 @@ const POS = ({ kiosk = false }) => {
         {
           productId: product.id,
           productType: product.productType,
+          trackInventory: tracksInventory(product),
           name: product.name,
           rate,
           quantity: 1,
@@ -247,12 +270,7 @@ const POS = ({ kiosk = false }) => {
           if (c.productId !== productId) return c;
           const nextQty = c.quantity + delta;
           const catalog = products.find((p) => p.id === productId);
-          const service = catalog ? isServiceItem(catalog) : false;
-          const stock = Number(catalog?.stock ?? 0) || 0;
-          if (delta > 0 && !service && invCfg.trackStock && !invCfg.allowNegativeStock && catalog && nextQty > stock) {
-            toast.error(`Inventory block: only ${stock} of ${c.name} in stock`);
-            return c;
-          }
+          if (delta > 0 && catalog && !stockGuard(catalog, nextQty)) return c;
           return { ...c, quantity: nextQty };
         })
         .filter((c) => c.quantity > 0)
@@ -264,7 +282,12 @@ const POS = ({ kiosk = false }) => {
     if (!Number.isFinite(n)) return;
     setCart((prev) =>
       prev
-        .map((c) => (c.productId === productId ? { ...c, quantity: n } : c))
+        .map((c) => {
+          if (c.productId !== productId) return c;
+          const catalog = products.find((p) => p.id === productId);
+          if (catalog && n > c.quantity && !stockGuard(catalog, n)) return c;
+          return { ...c, quantity: n };
+        })
         .filter((c) => c.quantity > 0)
     );
   };
@@ -416,9 +439,10 @@ const POS = ({ kiosk = false }) => {
     }
     setCheckingOut(true);
     try {
-      const productsPayload = cart.map(({ productId, productType, name, quantity, rate, size, material }) => ({
+      const productsPayload = cart.map(({ productId, productType, trackInventory, name, quantity, rate, size, material }) => ({
         productId,
         productType,
+        trackInventory: trackInventory !== false && !String(productId || '').startsWith('calc_'),
         name,
         quantity,
         rate,
@@ -625,7 +649,7 @@ const POS = ({ kiosk = false }) => {
             <p className="text-white/80 text-sm">Opens as a dedicated till window: products, calculator, pay, opening &amp; closing register (Z-report).</p>
             <div className="flex flex-wrap gap-2 pt-2">
               <Button className="text-white" style={{ backgroundColor: '#ff6d00' }} onClick={() => {
-                const w = openPosCounterWindow();
+                const w = openPosCounterOrFallback();
                 if (!w) toast.error('Allow popups to open the POS window');
               }}>
                 <Expand className="h-4 w-4 mr-2" />Open POS window
@@ -660,113 +684,125 @@ const POS = ({ kiosk = false }) => {
     );
   }
 
+
+  const clockLabel = clock.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const dateLabel = clock.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
+
   return (
-    <div className="min-h-screen bg-[#071428]" data-testid="pos-kiosk">
-      <div
-        className="relative px-5 pt-5 pb-4 text-white overflow-hidden"
-        style={{
-          background: 'radial-gradient(800px 240px at 88% -10%, #ff6d0066, transparent 50%), linear-gradient(120deg,#042a63,#0747a3 55%,#0a3d32)',
-        }}
-      >
-        <svg className="absolute right-8 bottom-0 w-52 h-36 opacity-70" viewBox="0 0 200 140" fill="none" aria-hidden>
-          <rect x="30" y="40" width="110" height="70" rx="8" fill="#fff" opacity="0.95" />
-          <rect x="40" y="50" width="90" height="12" rx="3" fill="#0747a3" />
-          <rect x="145" y="55" width="28" height="50" rx="4" fill="#ff6d00" />
-        </svg>
-        <div className="flex flex-wrap items-end justify-between gap-4 relative z-10">
+    <div className="h-screen overflow-hidden flex flex-col bg-[#070d18] text-white" data-testid="pos-kiosk">
+      <header className="shrink-0 px-4 py-2.5 flex flex-wrap items-center gap-3 border-b border-white/10 bg-[#0b1526]">
+        <div className="flex items-center gap-2 min-w-0">
+          {company.logo ? (
+            <img src={company.logo} alt="" className="h-9 w-9 rounded-lg object-contain bg-white/10" />
+          ) : (
+            <Store className="h-7 w-7 text-orange-500" />
+          )}
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-[0.18em] font-bold text-white/50">Till window</p>
+            <h1 className="text-lg font-bold leading-tight truncate">{company.name || 'AMZ Prints'} POS</h1>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 rounded-xl bg-white/5 px-3 py-1.5">
+          <Clock className="h-4 w-4 text-orange-400" />
           <div>
-            <p className="text-[10px] uppercase tracking-[0.18em] font-bold text-white/65">AMZ Prints · Till</p>
-            <h1 className="text-2xl font-bold mt-1 flex items-center gap-2"><Store className="h-6 w-6" />POS Counter</h1>
-            <p className="text-sm text-white/75 mt-1">
-              {register.current
-                ? `OPEN · ${register.current.openedBy} · float ${formatCurrency(register.current.openingFloat)} · ${register.totals?.count || 0} sales`
-                : 'Register closed — open float before taking cash'}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {register.current ? (
-              <Button variant="secondary" onClick={() => { setCountedCash(''); setCloseDlg(true); }}>
-                <Lock className="h-4 w-4 mr-1" />Close register (Z)
-              </Button>
-            ) : (
-              <Button className="text-white" style={{ backgroundColor: '#ff6d00' }} onClick={() => setOpenDlg(true)}>
-                <Unlock className="h-4 w-4 mr-1" />Open register
-              </Button>
-            )}
-            <Button variant="outline" className="text-white border-white/30" onClick={() => window.open(`${window.location.origin}/accounts/pos-statement`, '_blank')}>
-              <BookOpen className="h-4 w-4 mr-1" />Statement
-            </Button>
-            <Button variant="outline" className="text-white border-white/30" onClick={() => window.open(`${window.location.origin}/pos/settings`, '_blank')}>
-              <Settings className="h-4 w-4 mr-1" />Settings
-            </Button>
-            <Button variant="outline" className="text-white border-white/30" onClick={() => window.open(`${window.location.origin}/warehouse/products?new=1`, '_blank')} data-testid="pos-add-product">
-              <PackagePlus className="h-4 w-4 mr-1" />Product
-            </Button>
+            <p className="text-sm font-bold leading-none tabular-nums">{clockLabel}</p>
+            <p className="text-[10px] text-white/50">{dateLabel} · {cashier}</p>
           </div>
         </div>
-      </div>
+        <div className={`rounded-xl px-3 py-1.5 text-xs font-bold ${register.current ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'}`}>
+          {register.current
+            ? `OPEN · float ${formatCurrency(register.current.openingFloat)} · ${register.totals?.count || 0} sales`
+            : 'REGISTER CLOSED'}
+        </div>
+        <div className="ml-auto flex flex-wrap gap-1.5">
+          {register.current ? (
+            <Button size="sm" variant="secondary" className="h-8" onClick={() => { setCountedCash(''); setCloseDlg(true); }}>
+              <Lock className="h-3.5 w-3.5 mr-1" />Close (Z)
+            </Button>
+          ) : (
+            <Button size="sm" className="h-8 text-white" style={{ backgroundColor: '#ff6d00' }} onClick={() => setOpenDlg(true)}>
+              <Unlock className="h-3.5 w-3.5 mr-1" />Open register
+            </Button>
+          )}
+          <Button size="sm" variant="outline" className="h-8 text-white border-white/20" onClick={() => window.open(`${window.location.origin}/accounts/pos-statement`, '_blank')}>
+            <BookOpen className="h-3.5 w-3.5 mr-1" />Statement
+          </Button>
+          <Button size="sm" variant="outline" className="h-8 text-white border-white/20" onClick={() => window.open(`${window.location.origin}/pos/settings`, '_blank')}>
+            <Settings className="h-3.5 w-3.5 mr-1" />Settings
+          </Button>
+          <Button size="sm" variant="outline" className="h-8 text-white border-white/20" onClick={() => window.open(`${window.location.origin}/warehouse/products?new=1`, '_blank')} data-testid="pos-add-product">
+            <PackagePlus className="h-3.5 w-3.5 mr-1" />Product
+          </Button>
+        </div>
+      </header>
 
-      <div className="p-4 space-y-4">
       {lastSale ? (
-        <div className="flex flex-wrap gap-2">
-                <Button variant="outline" className="rounded-xl bg-white" onClick={() => printReceipt(lastSale)} data-testid="pos-reprint">
-                  <Printer className="h-4 w-4 mr-2" />Reprint POS slip
-                </Button>
-                <Button
-                  variant="outline"
-                  className="rounded-xl text-green-700 border-green-200 hover:bg-green-50"
-                  onClick={() => sendPosWhatsApp(lastSale, waPhone || lastSale.customerPhone)}
-                  data-testid="pos-whatsapp-last"
-                >
-                  <WhatsAppIcon className="h-4 w-4 mr-2" />Send WhatsApp
-                </Button>
-                <Button
-                  variant="outline"
-                  className="rounded-xl"
-                  onClick={async () => {
-                    try {
-                      const inv = {
-                        invoiceNumber: `INV-POS-${Date.now().toString().slice(-6)}`,
-                        orderId: lastSale.orderId || '',
-                        customerName: lastSale.customerName || 'Walk-in',
-                        customerPhone: lastSale.customerPhone || '',
-                        items: (lastSale.products || []).map((p) => ({
-                          name: p.name,
-                          quantity: p.quantity,
-                          rate: p.rate,
-                          size: p.size || '',
-                          material: p.material || '',
-                        })),
-                        paidAmount: lastSale.totalAmount || 0,
-                        taxRate: 0,
-                        discount: Number(lastSale.discount) || 0,
-                        previousBalance: 0,
-                        notes: Number(lastSale.discount) > 0
-                          ? `Converted from POS sale · Discount Rs ${lastSale.discount}`
-                          : 'Converted from POS sale',
-                        date: new Date().toISOString().slice(0, 10),
-                      };
-                      const created = await invoicesAPI.create(inv);
-                      toast.success('POS sale converted to invoice');
-                      navigate(`/invoices/${created.data?.id || ''}`);
-                    } catch (err) {
-                      console.error(err);
-                      toast.error('Failed to convert to invoice');
-                    }
-                  }}
-                >
-                  <FileSpreadsheet className="h-4 w-4 mr-2" />Convert to Invoice
-                </Button>
+        <div className="shrink-0 px-4 py-2 flex flex-wrap gap-2 bg-[#102033] border-b border-white/10">
+          <span className="text-xs text-white/70 self-center">Last sale <strong className="text-white">{lastSale.orderId}</strong></span>
+          <Button size="sm" variant="outline" className="h-8 rounded-lg bg-white text-slate-800" onClick={() => printReceipt(lastSale)} data-testid="pos-reprint">
+            <Printer className="h-3.5 w-3.5 mr-1" />Reprint
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 rounded-lg text-green-300 border-green-700 hover:bg-green-900/40"
+            onClick={() => sendPosWhatsApp(lastSale, waPhone || lastSale.customerPhone)}
+            data-testid="pos-whatsapp-last"
+          >
+            <WhatsAppIcon className="h-3.5 w-3.5 mr-1" />WhatsApp
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 rounded-lg text-white border-white/20"
+            onClick={async () => {
+              try {
+                const inv = {
+                  invoiceNumber: `INV-POS-${Date.now().toString().slice(-6)}`,
+                  orderId: lastSale.orderId || '',
+                  customerName: lastSale.customerName || 'Walk-in',
+                  customerPhone: lastSale.customerPhone || '',
+                  items: (lastSale.products || []).map((p) => ({
+                    name: p.name,
+                    quantity: p.quantity,
+                    rate: p.rate,
+                    size: p.size || '',
+                    material: p.material || '',
+                  })),
+                  paidAmount: lastSale.totalAmount || 0,
+                  taxRate: 0,
+                  discount: Number(lastSale.discount) || 0,
+                  previousBalance: 0,
+                  notes: Number(lastSale.discount) > 0
+                    ? `Converted from POS sale · Discount Rs ${lastSale.discount}`
+                    : 'Converted from POS sale',
+                  date: new Date().toISOString().slice(0, 10),
+                };
+                const created = await invoicesAPI.create(inv);
+                toast.success('POS sale converted to invoice');
+                window.open(`${window.location.origin}/invoices/${created.data?.id || ''}`, '_blank');
+              } catch (err) {
+                console.error(err);
+                toast.error('Failed to convert to invoice');
+              }
+            }}
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5 mr-1" />Invoice
+          </Button>
         </div>
-            ) : null}
-          </div>
+      ) : null}
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        <div className="lg:col-span-3 space-y-3 bg-white rounded-2xl p-4">
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px]">
+        <section className="min-h-0 flex flex-col p-3 gap-3 border-r border-white/10">
           <div className="flex flex-wrap gap-2 items-center">
             <div className="relative flex-1 min-w-[180px]">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-              <Input className="pl-10" placeholder="Search products..." value={search} onChange={(e) => setSearch(e.target.value)} />
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-white/40" />
+              <Input
+                className="pl-10 h-10 bg-[#121c2f] border-white/10 text-white placeholder:text-white/35"
+                placeholder="Search products or services…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
             </div>
             {['all', 'product', 'service'].map((f) => (
               <Button
@@ -774,29 +810,30 @@ const POS = ({ kiosk = false }) => {
                 size="sm"
                 variant={filter === f ? 'default' : 'outline'}
                 style={filter === f ? { backgroundColor: primary || '#ff6d00' } : undefined}
-                className={filter === f ? 'text-white' : ''}
+                className={filter === f ? 'text-white h-10' : 'h-10 text-white border-white/20 bg-transparent'}
                 onClick={() => setFilter(f)}
               >
                 {f === 'all' ? 'All' : f === 'product' ? 'Products' : 'Services'}
               </Button>
             ))}
           </div>
-          <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+
+          <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-4">
             {!filtered.length && (
-              <div className="text-center text-gray-500 py-8 space-y-3 border border-dashed rounded-xl">
+              <div className="text-center text-white/50 py-10 space-y-3 border border-dashed border-white/15 rounded-2xl">
                 <p>No items in catalog</p>
-                <Button size="sm" style={{ backgroundColor: primary || '#ff6d00' }} className="text-white" onClick={() => navigate('/warehouse/products?new=1')}>
-                  <PackagePlus className="h-4 w-4 mr-2" />Add New Product
+                <Button size="sm" style={{ backgroundColor: primary || '#ff6d00' }} className="text-white" onClick={() => window.open(`${window.location.origin}/warehouse/products?new=1`, '_blank')}>
+                  <PackagePlus className="h-4 w-4 mr-2" />Add product
                 </Button>
               </div>
             )}
 
             {(filter === 'all' || filter === 'product') && productItems.length > 0 && (
               <div className="space-y-2">
-                <div className="flex items-center justify-between sticky top-0 bg-[#fafafa]/z-10 py-1">
-                  <h3 className="text-xs font-bold uppercase tracking-wide text-gray-600">Products ({productItems.length})</h3>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                <h3 className="text-[11px] font-bold uppercase tracking-wide text-white/50 sticky top-0 bg-[#070d18]/90 py-1">
+                  Products ({productItems.length})
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2.5">
                   {productItems.map(renderPosCard)}
                 </div>
               </div>
@@ -804,111 +841,116 @@ const POS = ({ kiosk = false }) => {
 
             {(filter === 'all' || filter === 'service') && serviceItems.length > 0 && (
               <div className="space-y-2">
-                <div className="flex items-center justify-between sticky top-0 bg-[#fafafa] z-10 py-1 border-t border-gray-100 pt-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wide text-gray-600">Services ({serviceItems.length})</h3>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                <h3 className="text-[11px] font-bold uppercase tracking-wide text-sky-300/80 sticky top-0 bg-[#070d18]/90 py-1 border-t border-white/10 pt-3">
+                  Services — no stock quantity ({serviceItems.length})
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2.5">
                   {serviceItems.map(renderPosCard)}
                 </div>
               </div>
             )}
           </div>
-          {posCfg.showCalculator !== false && (
-            <POSCalculator
-              accent={primary || '#ff6d00'}
-              onAdd={(line) => {
-                setCart((prev) => [...prev, line]);
-                toast.success('Added from calculator');
-              }}
-            />
-          )}
-        </div>
 
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+          {posCfg.showCalculator !== false && (
+            <div className="shrink-0">
+              <POSCalculator
+                accent={primary || '#ff6d00'}
+                onAdd={(line) => {
+                  setCart((prev) => [...prev, { ...line, trackInventory: false, productType: 'Service' }]);
+                  toast.success('Added from calculator');
+                }}
+              />
+            </div>
+          )}
+        </section>
+
+        <aside className="min-h-0 flex flex-col bg-[#f7f4ee] text-slate-900">
+          <div className="px-4 py-3 border-b flex items-center justify-between">
+            <div className="flex items-center gap-2">
               <ShoppingCart className="h-5 w-5" style={{ color: primary || '#ff6d00' }} />
-              Cart
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <Label>Customer</Label>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 px-2 text-xs"
-                  onClick={() => navigate('/customers?new=1')}
-                >
-                  <UserPlus className="h-3.5 w-3.5 mr-1" />Add in Customers
-                </Button>
+              <h2 className="font-bold">Ticket</h2>
+              <span className="text-xs text-slate-500">{cart.length} lines</span>
+            </div>
+            {!!cart.length && (
+              <Button type="button" size="sm" variant="outline" className="h-7 text-xs text-red-600 border-red-200" onClick={clearCart} data-testid="pos-clear-cart">
+                Clear
+              </Button>
+            )}
+          </div>
+
+          <div className="px-4 py-3 space-y-2 border-b">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-slate-700">Customer</Label>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs"
+                onClick={() => window.open(`${window.location.origin}/customers?new=1`, '_blank')}
+              >
+                <UserPlus className="h-3.5 w-3.5 mr-1" />Add
+              </Button>
+            </div>
+            <div className="relative">
+              <div className="rounded-md border bg-white px-3 py-2 text-sm mb-1">
+                <span className="font-medium">{selectedCustomer?.name || 'Walk-in'}</span>
+                {selectedCustomer?.phone ? (
+                  <span className="text-slate-500 text-xs"> · {selectedCustomer.phone}</span>
+                ) : null}
               </div>
               <div className="relative">
-                <div className="rounded-md border bg-white px-3 py-2 text-sm mb-1">
-                  <span className="font-medium">{selectedCustomer?.name || 'Walk-in'}</span>
-                  {selectedCustomer?.phone ? (
-                    <span className="text-gray-500 text-xs"> · {selectedCustomer.phone}</span>
-                  ) : null}
-                </div>
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
-                  <Input
-                    className="pl-8 h-9 text-sm"
-                    placeholder="Search customer name or phone…"
-                    value={customerQuery}
-                    data-testid="pos-customer-select"
-                    onFocus={() => setCustomerListOpen(true)}
-                    onChange={(e) => {
-                      setCustomerQuery(e.target.value);
-                      setCustomerListOpen(true);
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                <Input
+                  className="pl-8 h-9 text-sm bg-white"
+                  placeholder="Search customer name or phone…"
+                  value={customerQuery}
+                  data-testid="pos-customer-select"
+                  onFocus={() => setCustomerListOpen(true)}
+                  onChange={(e) => {
+                    setCustomerQuery(e.target.value);
+                    setCustomerListOpen(true);
+                  }}
+                  onBlur={() => setTimeout(() => setCustomerListOpen(false), 150)}
+                />
+              </div>
+              {customerListOpen && (
+                <div className="absolute z-40 mt-1 w-full rounded-lg border bg-white shadow-lg max-h-48 overflow-y-auto">
+                  <button
+                    type="button"
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-orange-50 border-b font-medium"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setCustomerId(WALK_IN.id);
+                      setCustomerQuery('');
+                      setCustomerListOpen(false);
                     }}
-                    onBlur={() => setTimeout(() => setCustomerListOpen(false), 150)}
-                  />
-                </div>
-                {customerListOpen && (
-                  <div className="absolute z-40 mt-1 w-full rounded-lg border bg-white shadow-lg max-h-48 overflow-y-auto">
+                  >
+                    Walk-in
+                  </button>
+                  {filteredCustomers.map((c) => (
                     <button
+                      key={c.id}
                       type="button"
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-orange-50 border-b font-medium"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-orange-50 border-b last:border-0"
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => {
-                        setCustomerId(WALK_IN.id);
+                        setCustomerId(c.id);
                         setCustomerQuery('');
                         setCustomerListOpen(false);
                       }}
                     >
-                      Walk-in
+                      <span className="font-medium">{c.name || 'Customer'}</span>
+                      {c.phone ? <span className="text-slate-500"> · {c.phone}</span> : null}
                     </button>
-                    {filteredCustomers.map((c) => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-orange-50 border-b last:border-0"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => {
-                          setCustomerId(c.id);
-                          setCustomerQuery('');
-                          setCustomerListOpen(false);
-                        }}
-                      >
-                        <span className="font-medium">{c.name || 'Customer'}</span>
-                        {c.phone ? <span className="text-gray-500"> · {c.phone}</span> : null}
-                      </button>
-                    ))}
-                    {!filteredCustomers.length && (
-                      <p className="px-3 py-2 text-xs text-gray-500">No match — add customer in Customers page</p>
-                    )}
-                  </div>
-                )}
-              </div>
-              <p className="text-[11px] text-gray-500">
-                Default is Walk-in. Type name/phone to find saved customers.
-              </p>
+                  ))}
+                  {!filteredCustomers.length && (
+                    <p className="px-3 py-2 text-xs text-slate-500">No match — add customer in Customers</p>
+                  )}
+                </div>
+              )}
             </div>
             <div>
-              <Label>Payment</Label>
+              <Label className="text-slate-700">Payment</Label>
               <div className="flex gap-2 mt-1">
                 {['Cash', 'Card'].map((m) => (
                   <Button
@@ -925,22 +967,20 @@ const POS = ({ kiosk = false }) => {
                 ))}
               </div>
             </div>
+          </div>
 
-            <div className="flex items-center justify-between gap-2">
-              <Label className="mb-0">Cart ({cart.length})</Label>
-              {!!cart.length && (
-                <Button type="button" size="sm" variant="outline" className="h-7 text-xs text-red-600 border-red-200" onClick={clearCart} data-testid="pos-clear-cart">
-                  Clear
-                </Button>
-              )}
-            </div>
-            <div className="space-y-2 max-h-[36vh] overflow-y-auto">
-              {!cart.length && <p className="text-sm text-gray-500 text-center py-6">Tap products to add</p>}
-              {cart.map((item) => (
-                <div key={item.productId} className="flex items-center gap-2 border rounded-lg p-2">
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-2">
+            {!cart.length && <p className="text-sm text-slate-500 text-center py-8">Tap a product or service to add</p>}
+            {cart.map((item) => {
+              const serviceLine = isServiceItem(item) || String(item.productId || '').startsWith('calc_');
+              return (
+                <div key={item.productId} className="flex items-center gap-2 border rounded-lg p-2 bg-white">
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium truncate">{item.name}</div>
-                    <div className="text-xs text-gray-500">{formatCurrency(item.rate)} each</div>
+                    <div className="text-xs text-slate-500">
+                      {formatCurrency(item.rate)} each
+                      {serviceLine ? ' · Service' : item.trackInventory === false ? ' · No stock' : ''}
+                    </div>
                   </div>
                   <div className="flex items-center gap-1">
                     <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQty(item.productId, -1)}>
@@ -952,7 +992,7 @@ const POS = ({ kiosk = false }) => {
                       step="1"
                       value={item.quantity}
                       onChange={(e) => setQtyManual(item.productId, e.target.value)}
-                      className="h-7 w-14 text-center text-sm font-semibold px-1"
+                      className="h-7 w-14 text-center text-sm font-semibold px-1 bg-white"
                       data-testid={`pos-qty-${item.productId}`}
                     />
                     <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQty(item.productId, 1)}>
@@ -964,95 +1004,92 @@ const POS = ({ kiosk = false }) => {
                     <Trash2 className="h-3.5 w-3.5 text-red-600" />
                   </Button>
                 </div>
-              ))}
-            </div>
+              );
+            })}
+          </div>
 
-            <div className="border-t pt-3 space-y-2">
-              <div>
-                <Label>Discount</Label>
-                <div className="flex gap-2 mt-1">
-                  <div className="flex gap-1">
-                    {[
-                      { key: 'amount', label: 'Rs' },
-                      { key: 'percent', label: '%' },
-                    ].map((m) => (
-                      <Button
-                        key={m.key}
-                        type="button"
-                        size="sm"
-                        variant={discountType === m.key ? 'default' : 'outline'}
-                        style={discountType === m.key ? { backgroundColor: primary || '#ff6d00' } : undefined}
-                        className={`h-9 ${discountType === m.key ? 'text-white' : ''}`}
-                        onClick={() => setDiscountType(m.key)}
-                      >
-                        {m.label}
-                      </Button>
-                    ))}
-                  </div>
-                  <Input
-                    type="number"
-                    min="0"
-                    step={discountType === 'percent' ? '1' : '1'}
-                    placeholder={discountType === 'percent' ? '0%' : '0'}
-                    value={discountValue}
-                    onChange={(e) => setDiscountValue(e.target.value)}
-                    className="h-9"
-                    data-testid="pos-discount-input"
-                  />
+          <div className="shrink-0 border-t bg-white px-4 py-3 space-y-2">
+            <div>
+              <Label>Discount</Label>
+              <div className="flex gap-2 mt-1">
+                <div className="flex gap-1">
+                  {[
+                    { key: 'amount', label: 'Rs' },
+                    { key: 'percent', label: '%' },
+                  ].map((m) => (
+                    <Button
+                      key={m.key}
+                      type="button"
+                      size="sm"
+                      variant={discountType === m.key ? 'default' : 'outline'}
+                      style={discountType === m.key ? { backgroundColor: primary || '#ff6d00' } : undefined}
+                      className={`h-9 ${discountType === m.key ? 'text-white' : ''}`}
+                      onClick={() => setDiscountType(m.key)}
+                    >
+                      {m.label}
+                    </Button>
+                  ))}
                 </div>
-              </div>
-              <div className="flex items-center justify-between text-sm text-gray-600">
-                <span>Subtotal</span>
-                <span>{formatCurrency(subtotal)}</span>
-              </div>
-              {discountAmount > 0 && (
-                <div className="flex items-center justify-between text-sm text-emerald-700">
-                  <span>Discount{discountType === 'percent' ? ` (${Number(discountValue) || 0}%)` : ''}</span>
-                  <span>-{formatCurrency(discountAmount)}</span>
-                </div>
-              )}
-              <div className="flex items-center justify-between">
-                <span className="font-semibold">Total due</span>
-                <span className="text-2xl font-bold" style={{ color: primary || '#ff6d00' }}>{formatCurrency(payable)}</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <div>
-                  <Label className="text-xs">Received amount</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="1"
-                    placeholder={String(payable || 0)}
-                    value={receivedAmount}
-                    onChange={(e) => setReceivedAmount(e.target.value)}
-                    className="h-9"
-                    data-testid="pos-received-amount"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs">Change back</Label>
-                  <Input
-                    className="h-9 bg-emerald-50 font-semibold text-emerald-800"
-                    value={formatCurrency(changeBack)}
-                    disabled
-                    data-testid="pos-change-back"
-                  />
-                </div>
-              </div>
-              <div>
-                <Label className="text-xs">WhatsApp number</Label>
                 <Input
-                  className="h-9"
-                  placeholder="03XXXXXXXXX"
-                  value={waPhone}
-                  onChange={(e) => setWaPhone(e.target.value)}
-                  data-testid="pos-wa-phone"
+                  type="number"
+                  min="0"
+                  placeholder={discountType === 'percent' ? '0%' : '0'}
+                  value={discountValue}
+                  onChange={(e) => setDiscountValue(e.target.value)}
+                  className="h-9 bg-white"
+                  data-testid="pos-discount-input"
                 />
-                <p className="text-[11px] text-gray-500 mt-1">Edit manually if needed, then send receipt.</p>
               </div>
+            </div>
+            <div className="flex items-center justify-between text-sm text-slate-600">
+              <span>Subtotal</span>
+              <span>{formatCurrency(subtotal)}</span>
+            </div>
+            {discountAmount > 0 && (
+              <div className="flex items-center justify-between text-sm text-emerald-700">
+                <span>Discount{discountType === 'percent' ? ` (${Number(discountValue) || 0}%)` : ''}</span>
+                <span>-{formatCurrency(discountAmount)}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between">
+              <span className="font-semibold">Total due</span>
+              <span className="text-2xl font-black" style={{ color: primary || '#ff6d00' }}>{formatCurrency(payable)}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs">Received</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder={String(payable || 0)}
+                  value={receivedAmount}
+                  onChange={(e) => setReceivedAmount(e.target.value)}
+                  className="h-9 bg-white"
+                  data-testid="pos-received-amount"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Change</Label>
+                <Input
+                  className="h-9 bg-emerald-50 font-semibold text-emerald-800"
+                  value={formatCurrency(changeBack)}
+                  disabled
+                  data-testid="pos-change-back"
+                />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">WhatsApp number</Label>
+              <Input
+                className="h-9 bg-white"
+                placeholder="03XXXXXXXXX"
+                value={waPhone}
+                onChange={(e) => setWaPhone(e.target.value)}
+                data-testid="pos-wa-phone"
+              />
             </div>
             <Button
-              className="w-full text-white"
+              className="w-full h-12 text-white text-base font-bold"
               style={{ backgroundColor: primary || '#ff6d00' }}
               disabled={checkingOut || !cart.length}
               onClick={checkout}
@@ -1073,9 +1110,8 @@ const POS = ({ kiosk = false }) => {
               <WhatsAppIcon className="h-4 w-4 mr-2" />
               Send WhatsApp receipt
             </Button>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </aside>
       </div>
       {registerDialogs}
     </div>

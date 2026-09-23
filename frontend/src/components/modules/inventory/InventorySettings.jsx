@@ -84,7 +84,7 @@ const InventorySettings = () => {
         <div className="flex items-center justify-between">
           <div>
             <Label>Track stock</Label>
-            <p className="text-xs text-slate-500">POS and orders minus quantity when an item is sold.</p>
+            <p className="text-xs text-slate-500">Master switch. Each product also has its own Track inventory option. Services never use stock.</p>
           </div>
           <Switch checked={form.trackStock} onCheckedChange={(v) => setForm((p) => ({ ...p, trackStock: !!v }))} />
         </div>
