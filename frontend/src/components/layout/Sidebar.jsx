@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { openPosCounterWindow } from '@/utils/posWindow';
 import { useAuth } from '@/context/AuthContext';
+import { useBrand } from '@/context/BrandContext';
 import { ordersAPI } from '@/services/api';
 import { isOpenOrder } from '@/utils/constants';
 
