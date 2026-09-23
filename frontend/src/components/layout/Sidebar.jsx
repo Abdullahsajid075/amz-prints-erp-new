@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, ShoppingCart, Users, Warehouse, FileText,
@@ -8,7 +8,6 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { openPosCounterWindow } from '@/utils/posWindow';
 import { useAuth } from '@/context/AuthContext';
 import { useBrand } from '@/context/BrandContext';
 import { ordersAPI } from '@/services/api';
@@ -39,7 +38,7 @@ const menuGroups = [
         module: 'pos',
         testId: 'nav-pos',
         children: [
-          { label: 'POS Counter', path: '/pos/counter', module: 'pos', openWindow: true },
+          { label: 'POS Counter', path: '/pos', module: 'pos' },
           { label: 'POS settings', path: '/pos/settings', module: 'pos' },
           { label: 'POS statement', path: '/accounts/pos-statement', module: 'accounts' },
         ],
@@ -115,6 +114,7 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
   const { company, primary } = useBrand();
   const { canAccessModule } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [openGroup, setOpenGroup] = useState('');
   const [openOrderCount, setOpenOrderCount] = useState(0);
   const accent = primary || '#ff6d00';
@@ -294,6 +294,7 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
                             data-testid={item.testId}
                             onClick={() => {
                               toggleGroup(item.path);
+                              if (item.path === '/pos') navigate('/pos');
                             }}
                             className={cn(
                               'erp-nav-link w-full text-left',
@@ -324,12 +325,7 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
                                   key={child.path}
                                   to={child.path}
                                   end
-                                  onClick={(e) => {
-                                    if (child.openWindow) {
-                                      e.preventDefault();
-                                      const w = openPosCounterWindow();
-                                      if (!w) window.location.assign('/pos/counter');
-                                    }
+                                  onClick={() => {
                                     closeSidebar();
                                   }}
                                   className={({ isActive }) => cn(

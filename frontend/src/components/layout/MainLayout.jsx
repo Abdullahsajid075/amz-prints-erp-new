@@ -57,13 +57,23 @@ const MainLayout = () => {
       <Sidebar isOpen={sidebarOpen} closeSidebar={closeSidebar} />
 
       <main className="pt-14 lg:pl-[260px] min-h-screen" data-testid="main-content">
-        <div className="px-4 sm:px-6 py-5 sm:py-6 max-w-[1600px] mx-auto">
-          <ModuleGuard>
-            <PageErrorBoundary resetKey={location.pathname}>
-              <Outlet />
-            </PageErrorBoundary>
-          </ModuleGuard>
-        </div>
+        {location.pathname === '/pos' || location.pathname.startsWith('/pos/counter') ? (
+          <div className="h-[calc(100vh-3.5rem)] overflow-hidden">
+            <ModuleGuard>
+              <PageErrorBoundary resetKey={location.pathname}>
+                <Outlet />
+              </PageErrorBoundary>
+            </ModuleGuard>
+          </div>
+        ) : (
+          <div className="px-4 sm:px-6 py-5 sm:py-6 max-w-[1600px] mx-auto">
+            <ModuleGuard>
+              <PageErrorBoundary resetKey={location.pathname}>
+                <Outlet />
+              </PageErrorBoundary>
+            </ModuleGuard>
+          </div>
+        )}
       </main>
     </div>
   );

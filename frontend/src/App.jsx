@@ -112,20 +112,6 @@ function App() {
           )}
         />
 
-        <Route
-          path="/pos/counter"
-          element={(
-            <BrandProvider>
-              <AuthProvider>
-                <ProtectedRoute module="pos" path="/pos">
-                  <POS kiosk />
-                </ProtectedRoute>
-                <Toaster position="top-right" richColors closeButton />
-              </AuthProvider>
-            </BrandProvider>
-          )}
-        />
-
         {/* Protected app */}
         <Route path="/" element={<AuthenticatedApp />}>
           <Route index element={<Navigate to="/dashboard" replace />} />
@@ -164,6 +150,7 @@ function App() {
           <Route path="employees" element={<Navigate to="/hr/employees" replace />} />
 
           <Route path="pos" element={<POS />} />
+          <Route path="pos/counter" element={<Navigate to="/pos" replace />} />
           <Route path="pos/settings" element={<POSSettings />} />
           <Route path="pos/statement" element={<Navigate to="/accounts/pos-statement" replace />} />
 
