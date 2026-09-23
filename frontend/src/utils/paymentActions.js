@@ -14,6 +14,9 @@ export function normalizeSlipPayment(payment, extras = {}) {
     partyPhone: p.partyPhone || p.partyphone || p.phone || p.customerPhone || extras.customerPhone || extras.phone || '',
     partyEmail: p.partyEmail || p.partyemail || p.customerEmail || extras.customerEmail || '',
     reference: p.refId || p.refid || p.reference || extras.reference || '',
+    orderId: p.orderId || p.order_id || extras.orderId || '',
+    shareToken: p.shareToken || extras.shareToken || '',
+    trackingNumber: p.trackingNumber || extras.trackingNumber || '',
     amount: Number(p.amount || 0),
     method: p.method || 'Cash',
     notes: p.notes || extras.notes || '',
@@ -25,11 +28,11 @@ export function normalizeSlipPayment(payment, extras = {}) {
 /** Print receipt + optional WhatsApp/email notification after recording payment. */
 export async function finishPaymentRecording(payment, { company, extras = {}, notify = true, sendEmail = false } = {}) {
   const slip = normalizeSlipPayment(payment, extras);
-  const printed = printPaymentSlip(slip, company || {});
-  if (!printed.ok) {
+  const printed = await printPaymentSlip(slip, company || {});
+  if (!printed?.ok) {
     toast.error('Could not print payment receipt');
   } else {
-    toast.message('Payment receipt opened — print or save');
+    toast.message('Payment receipt sent to default printer');
   }
   if (notify && slip.partyPhone) {
     try {

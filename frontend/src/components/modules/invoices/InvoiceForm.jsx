@@ -592,7 +592,7 @@ const InvoiceForm = () => {
         const receivedDelta = Math.max(0, nextPaid - prevPaid);
         if (receivedDelta > 0) {
           try {
-            printPaymentSlip({
+            await printPaymentSlip({
               type: 'inflow',
               party: payload.customerName,
               partyPhone: payload.customerPhone,
@@ -604,6 +604,8 @@ const InvoiceForm = () => {
               reference: payload.invoiceNumber,
               date: payload.date,
               notes: `Invoice ${payload.invoiceNumber}`,
+              shareToken: data.shareToken || payload.shareToken,
+              orderId: payload.orderId,
             }, company || {});
             await notifyOrderEvent({
               event: 'payment_received',
@@ -653,7 +655,7 @@ const InvoiceForm = () => {
           waWindow = null;
           const paidNow = Number(payload.paidAmount) || 0;
           if (paidNow > 0) {
-            printPaymentSlip({
+            await printPaymentSlip({
               type: 'inflow',
               party: payload.customerName,
               partyPhone: payload.customerPhone,
@@ -665,6 +667,8 @@ const InvoiceForm = () => {
               reference: payload.invoiceNumber,
               date: payload.date,
               notes: `Invoice ${payload.invoiceNumber}`,
+              shareToken: data.shareToken || payload.shareToken,
+              orderId: payload.orderId,
             }, company || {});
           }
         } catch (postErr) {

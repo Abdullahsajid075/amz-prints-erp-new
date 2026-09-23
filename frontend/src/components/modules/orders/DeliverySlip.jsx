@@ -5,7 +5,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ordersAPI } from '@/services/api';
 import { formatCurrency, formatDate } from '@/utils/helpers';
-import { barcodeBlock, openPrintWindow, printOnLoadScript, moneyPKR, documentFileName } from '@/utils/printHelpers';
+import { barcodeBlock, printHtml, printOnLoadScript, moneyPKR, documentFileName, SLIP_QR_CSS } from '@/utils/printHelpers';
+import { buildSlipQrs, verifyUrlForSlip } from '@/utils/slipQr';
 import { useBrand } from '@/context/BrandContext';
 import { ArrowLeft, Printer, Save } from 'lucide-react';
 import { toast } from 'sonner';
@@ -53,7 +54,7 @@ const DeliverySlip = () => {
     }
   };
 
-  const printBlackSlip = () => {
+  const printBlackSlip = async () => {
     if (!order) return;
     const companyName = company.name || 'Amazon Printing Services';
     const code = order.trackingNumber || order.orderId || order.id || 'AMZ';
@@ -73,6 +74,13 @@ const DeliverySlip = () => {
       customerName: order.customerName,
       orderNumber: order.orderId,
     });
+    const verifyUrl = verifyUrlForSlip({
+      shareToken: order.shareToken,
+      orderId: order.orderId,
+      trackingNumber: order.trackingNumber || code,
+      code,
+    });
+    const qrs = await buildSlipQrs({ company, verifyUrl });
 
     const html = `<!DOCTYPE html>
 <html>
@@ -80,7 +88,7 @@ const DeliverySlip = () => {
   <title>${printTitle}</title>
   <style>
     @page { size: A5; margin: 10mm; }
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; color: #000 !important; }
     body { font-family: Arial, Helvetica, sans-serif; color: #000; margin: 0; }
     .sheet { border: 2px solid #000; padding: 14px; }
     .top { display: flex; justify-content: space-between; gap: 12px; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 12px; }
@@ -100,7 +108,8 @@ const DeliverySlip = () => {
     .signs { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 28px; }
     .sign { text-align: center; border-top: 1px solid #000; padding-top: 6px; font-size: 11px; text-transform: uppercase; }
     .barcode-wrap { text-align: center; margin-top: 10px; }
-    .foot { text-align: center; font-size: 10px; margin-top: 8px; }
+    .foot { text-align: center; font-size: 11px; margin-top: 8px; font-weight: 700; }
+    ${SLIP_QR_CSS}
   </style>
 </head>
 <body>
@@ -138,19 +147,20 @@ const DeliverySlip = () => {
       <thead><tr><th>#</th><th>Item</th><th class="r">Qty</th></tr></thead>
       <tbody>${items || '<tr><td colspan="3">No items</td></tr>'}</tbody>
     </table>
+    ${qrs.html}
     ${barcodeBlock(code, { height: 42 })}
     <div class="signs">
       <div class="sign">Received By</div>
       <div class="sign">Authorized</div>
     </div>
-    <div class="foot">Amazon Printing Services · Professional Delivery Document</div>
+    <div class="foot">Scan QR to verify this delivery · ${companyName}</div>
   </div>
-  ${printOnLoadScript(400)}
+  ${printOnLoadScript(700)}
 </body>
 </html>`;
 
-    const res = openPrintWindow(html, { width: 520, height: 720 });
-    if (!res.ok) toast.error('Allow popups to print delivery slip');
+    const res = printHtml(html, { width: 520, height: 780, fallbackPopup: true });
+    if (!res.ok) toast.error('Print dialog blocked — allow printing for delivery slip');
   };
 
   if (loading) return <div className="py-16 text-center text-gray-500">Loading delivery slip...</div>;

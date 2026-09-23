@@ -25,6 +25,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 
 const WALK_IN = { id: 'cust_walkin', name: 'Walk-in', phone: '' };
 const HOLD_KEY = 'amz_pos_held_sale';
+const LAST_SALE_KEY = 'amz_pos_last_sale';
 
 const POS = () => {
   const navigate = useNavigate();
@@ -48,7 +49,14 @@ const POS = () => {
   const [receivedAmount, setReceivedAmount] = useState('');
   const [waPhone, setWaPhone] = useState('');
   const [checkingOut, setCheckingOut] = useState(false);
-  const [lastSale, setLastSale] = useState(null);
+  const [lastSale, setLastSale] = useState(() => {
+    try {
+      const raw = sessionStorage.getItem(LAST_SALE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  });
   const [register, setRegister] = useState({ current: null, history: [], totals: {} });
   const [openDlg, setOpenDlg] = useState(false);
   const [closeDlg, setCloseDlg] = useState(false);
@@ -307,12 +315,22 @@ const POS = () => {
     : payable;
   const changeBack = Math.max(0, cashReceived - payable);
 
+  const rememberSale = (sale) => {
+    setLastSale(sale);
+    try { sessionStorage.setItem(LAST_SALE_KEY, JSON.stringify(sale)); } catch { /* ignore */ }
+  };
+
   const printReceipt = async (sale) => {
+    if (!sale) {
+      toast.error('Koi recent sale nahi — pehle complete sale karein');
+      return;
+    }
     const res = await printPosSlip({
       ...sale,
       paymentMethod: sale.paymentMethod || paymentMethod,
     }, { company, posCfg });
-    if (!res.ok) toast.error('Allow popups to print receipt');
+    if (!res.ok) toast.error('Print dialog blocked — allow printing for POS slip');
+    else toast.message('Receipt sent to default printer');
   };
 
   const sendPosWhatsApp = (sale, phoneOverride) => {
@@ -386,12 +404,13 @@ const POS = () => {
         tax: taxAmount,
         receivedAmount: cashReceived,
         changeBack,
-        shareToken: created.data?.shareToken || '',
-        invoiceUrl: created.data?.invoiceId
-          ? `${window.location.origin}/invoices/${created.data.invoiceId}`
+        shareToken: created.data?.shareToken || created.data?.invoiceShareToken || '',
+        trackingNumber: created.data?.trackingNumber || '',
+        invoiceUrl: created.data?.shareToken
+          ? `${window.location.origin}/invoice/${created.data.shareToken}`
           : '',
       };
-      setLastSale(sale);
+      rememberSale(sale);
       toast.success(`Sale ${sale.orderId} completed`);
       if (created.data?._invoiceError) toast.error(created.data._invoiceError);
       else if (created.data?.invoiceNumber) toast.message(`Invoice ${created.data.invoiceNumber} created`);
@@ -500,6 +519,15 @@ const POS = () => {
             data-testid="pos-search"
           />
         </div>
+        <Button
+          variant="outline"
+          className="h-10 rounded-xl font-semibold"
+          disabled={!lastSale}
+          onClick={() => printReceipt(lastSale)}
+          data-testid="pos-reprint-header"
+        >
+          <Printer className="h-4 w-4 mr-1" />Reprint receipt
+        </Button>
         <Button variant="outline" className="h-10 rounded-xl" onClick={newSale}>
           <Plus className="h-4 w-4 mr-1" />New sale
         </Button>
@@ -772,13 +800,22 @@ const POS = () => {
               <Printer className="h-4 w-4 mr-2" />
               {checkingOut ? 'Processing…' : 'Complete sale'}
             </Button>
+            <Button
+              variant="outline"
+              className="w-full h-10 rounded-xl font-semibold"
+              disabled={!lastSale}
+              onClick={() => printReceipt(lastSale)}
+              data-testid="pos-reprint-cart"
+            >
+              <RotateCcw className="h-4 w-4 mr-2" />Reprint receipt
+            </Button>
           </div>
         </aside>
       </div>
 
       <footer className="shrink-0 bg-white border-t px-3 py-2 flex flex-wrap items-center gap-2 text-sm">
-        <Button variant="ghost" size="sm" className="h-8" disabled={!lastSale} onClick={() => lastSale && printReceipt(lastSale)}>
-          <RotateCcw className="h-3.5 w-3.5 mr-1" />Recent sale
+        <Button variant="ghost" size="sm" className="h-8 font-semibold" disabled={!lastSale} onClick={() => printReceipt(lastSale)} data-testid="pos-reprint-footer">
+          <Printer className="h-3.5 w-3.5 mr-1" />Reprint receipt
         </Button>
         <Button variant="ghost" size="sm" className="h-8" disabled={!lastSale} onClick={convertLastToInvoice}>
           <Quote className="h-3.5 w-3.5 mr-1" />Invoice

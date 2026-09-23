@@ -37,6 +37,7 @@ import POS from '@/components/modules/pos/POS';
 import POSSettings from '@/components/modules/pos/POSSettings';
 import PrintingCostCalculator from '@/components/modules/calculator/PrintingCostCalculator';
 import PublicOrderTracking from '@/components/modules/tracking/PublicOrderTracking';
+import PublicSlipVerify from '@/components/modules/tracking/PublicSlipVerify';
 import PublicEmployeeVerify from '@/components/modules/employees/PublicEmployeeVerify';
 import CustomerPortal from '@/components/modules/portal/CustomerPortal';
 
@@ -107,6 +108,24 @@ function App() {
           element={(
             <BrandProvider>
               <PublicEmployeeVerify />
+              <Toaster position="top-right" richColors closeButton />
+            </BrandProvider>
+          )}
+        />
+        <Route
+          path="/verify"
+          element={(
+            <BrandProvider>
+              <PublicSlipVerify />
+              <Toaster position="top-right" richColors closeButton />
+            </BrandProvider>
+          )}
+        />
+        <Route
+          path="/verify/:code"
+          element={(
+            <BrandProvider>
+              <PublicSlipVerify />
               <Toaster position="top-right" richColors closeButton />
             </BrandProvider>
           )}

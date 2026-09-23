@@ -1,6 +1,6 @@
 import { formatCurrency } from '@/utils/helpers';
-import { barcodeBlock, openPrintWindow, printOnLoadScript, POS_MAJOR_SERVICES, documentFileName } from '@/utils/printHelpers';
-import { qrPngDataUrl } from '@/utils/customerDocuments';
+import { barcodeBlock, printHtml, printOnLoadScript, POS_MAJOR_SERVICES, documentFileName, SLIP_QR_CSS } from '@/utils/printHelpers';
+import { buildSlipQrs, slipWebsiteUrl, verifyUrlForSlip } from '@/utils/slipQr';
 import { mergePosSettings } from '@/utils/moduleSettings';
 
 function escapeHtml(value) {
@@ -59,19 +59,27 @@ export function buildPosWhatsAppReceipt(sale, company = {}) {
 }
 
 /**
- * 80mm POS thermal slip — same layout as the till reprint.
+ * 80mm POS thermal slip — all black, ~1-inch website + verify QRs,
+ * sent to the default printer via hidden iframe + window.print().
  */
 export async function printPosSlip(sale, { company = {}, posCfg } = {}) {
   const cfg = posCfg || mergePosSettings({});
-  const rawWeb = company.website || 'https://amzprints.com';
-  const website = /^https?:\/\//i.test(rawWeb) ? rawWeb : `https://${rawWeb}`;
+  const website = slipWebsiteUrl(company);
   const logoHtml = company.logo
-    ? `<img src="${company.logo}" alt="logo" style="height:58px;max-width:160px;display:block;margin:0 auto 2px;object-fit:contain;" />`
+    ? `<img src="${company.logo}" alt="logo" class="logo" />`
     : '';
   const code = sale.orderId || sale.id || `POS-${Date.now().toString().slice(-6)}`;
-  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://erp.amzprints.com';
-  const invoiceUrl = sale.invoiceUrl
-    || (sale.shareToken ? `${origin}/invoice/${sale.shareToken}` : `${origin}/track/${encodeURIComponent(code)}`);
+  const publicInvoice = String(sale.invoiceUrl || '').includes('/invoice/')
+    ? sale.invoiceUrl
+    : '';
+  const invoiceUrl = sale.shareToken
+    ? verifyUrlForSlip({ shareToken: sale.shareToken })
+    : (publicInvoice || verifyUrlForSlip({
+      orderId: code,
+      trackingNumber: sale.trackingNumber,
+      reference: sale.reference,
+      code,
+    }));
   const printTitle = documentFileName({
     docType: 'POS',
     customerName: sale.customerName,
@@ -86,46 +94,41 @@ export async function printPosSlip(sale, { company = {}, posCfg } = {}) {
   const services = (cfg.slipServices || POS_MAJOR_SERVICES)
     .map((s) => `<div class="svc-card">${escapeHtml(s)}</div>`)
     .join('');
-  let webQr = '';
-  let invQr = '';
-  try {
-    if (cfg.showWebsiteQr) webQr = await qrPngDataUrl(website, 110);
-    if (cfg.showInvoiceQr) invQr = await qrPngDataUrl(invoiceUrl, 110);
-  } catch { /* slip still prints */ }
+  const qrs = await buildSlipQrs({ company, verifyUrl: invoiceUrl });
   const html = `<!DOCTYPE html><html><head><title>${escapeHtml(printTitle)}</title>
       <style>
         @page { size: 80mm auto; margin: 3mm; }
-        body { font-family: Arial, Helvetica, sans-serif; width: 72mm; margin: 0; color: #000; font-size: 11px; }
-        h1 { font-size: 12px; margin: 0; text-align: center; font-weight: 700; letter-spacing:0.01em; }
-        .tag { text-align: center; font-size: 9px; margin-top: 2px; }
+        * { box-sizing: border-box; color: #000 !important; }
+        body { font-family: Arial, Helvetica, sans-serif; width: 72mm; margin: 0; color: #000; font-size: 13px; }
+        .logo { height:64px; max-width:180px; display:block; margin:0 auto 4px; object-fit:contain; filter: grayscale(1) contrast(1.15); }
+        h1 { font-size: 16px; margin: 0; text-align: center; font-weight: 800; letter-spacing:0.01em; }
+        .tag { text-align: center; font-size: 11px; margin-top: 3px; font-weight: 600; }
         .center { text-align: center; }
-        .title { text-align:center; font-weight:800; letter-spacing:0.12em; font-size:11px;
-          border-top:2px solid #000; border-bottom:2px solid #000; padding:4px 0; margin:6px 0; }
-        table { width: 100%; border-collapse: collapse; margin-top: 6px; }
-        td, th { padding: 2px 0; font-size: 10px; }
-        th { border-bottom: 1px solid #000; text-align:left; }
+        .title { text-align:center; font-weight:800; letter-spacing:0.14em; font-size:14px;
+          border-top:2px solid #000; border-bottom:2px solid #000; padding:6px 0; margin:8px 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+        td, th { padding: 3px 0; font-size: 12px; }
+        th { border-bottom: 2px solid #000; text-align:left; font-size: 12px; }
         .r { text-align: right; }
-        hr { border: none; border-top: 1px dashed #000; margin: 6px 0; }
-        .total { font-size: 13px; font-weight: 800; display:flex; justify-content:space-between; }
-        .qr-row { display:flex; justify-content:space-between; gap:6px; margin-top:8px; }
-        .qr-box { flex:1; text-align:center; }
-        .qr-box img { width:52px; height:52px; display:block; margin:0 auto 2px; }
-        .qr-box span { font-size:8px; font-weight:700; display:block; }
-        .svc-grid { display:flex; flex-wrap:wrap; gap:3px; margin-top:6px; }
-        .svc-card { border:1px solid #000; border-radius:4px; padding:3px 4px; font-size:8px; font-weight:700; width:calc(50% - 3px); box-sizing:border-box; }
-        .powered { text-align:center; font-size:8px; font-weight:800; letter-spacing:0.04em; margin-top:8px; }
-        .barcode-wrap { text-align:center; margin-top:6px; }
+        hr { border: none; border-top: 1.5px dashed #000; margin: 8px 0; }
+        .total { font-size: 16px; font-weight: 800; display:flex; justify-content:space-between; }
+        .meta { font-size: 12px; font-weight: 600; margin: 2px 0; }
+        ${SLIP_QR_CSS}
+        .svc-grid { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+        .svc-card { border:1.5px solid #000; border-radius:4px; padding:4px 5px; font-size:10px; font-weight:800; width:calc(50% - 3px); box-sizing:border-box; }
+        .powered { text-align:center; font-size:10px; font-weight:800; letter-spacing:0.04em; margin-top:10px; }
+        .barcode-wrap { text-align:center; margin-top:8px; }
       </style></head><body>
       ${logoHtml}
       <h1>${escapeHtml(company.name || 'Amazon Printing Services')}</h1>
       <div class="tag">${escapeHtml(company.address || 'King Road, Mandi Bahauddin')}</div>
-      <div class="center" style="font-size:9px;margin-top:2px">${escapeHtml(company.phone || '')} · ${escapeHtml(website.replace(/^https?:\/\//, ''))}</div>
+      <div class="center" style="font-size:11px;margin-top:3px;font-weight:700">${escapeHtml(company.phone || '')} · ${escapeHtml(website.replace(/^https?:\/\//, ''))}</div>
       <div class="title">POS RECEIPT</div>
-      <div>Sale: <strong>${escapeHtml(code)}</strong></div>
-      <div>Customer: ${escapeHtml(sale.customerName || 'Walk-in')}</div>
-      <div>Phone: ${escapeHtml(sale.customerPhone || '—')}</div>
-      <div>Pay: ${escapeHtml(sale.paymentMethod || 'Cash')}</div>
-      <div>Date: ${escapeHtml(sale.date || new Date().toLocaleString())}</div>
+      <div class="meta">Sale: <strong>${escapeHtml(code)}</strong></div>
+      <div class="meta">Customer: ${escapeHtml(sale.customerName || 'Walk-in')}</div>
+      <div class="meta">Phone: ${escapeHtml(sale.customerPhone || '—')}</div>
+      <div class="meta">Pay: ${escapeHtml(sale.paymentMethod || 'Cash')}</div>
+      <div class="meta">Date: ${escapeHtml(sale.date || new Date().toLocaleString())}</div>
       <hr />
       <table>
         <thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Amt</th></tr></thead>
@@ -133,23 +136,21 @@ export async function printPosSlip(sale, { company = {}, posCfg } = {}) {
       </table>
       <hr />
       ${Number(sale.subtotal) > 0 && Number(sale.discount) > 0
-        ? `<div class="total" style="font-size:11px;font-weight:600"><span>SUBTOTAL</span><span>${formatCurrency(sale.subtotal)}</span></div>
-           <div class="total" style="font-size:11px;font-weight:600"><span>DISCOUNT</span><span>-${formatCurrency(sale.discount)}</span></div>`
+        ? `<div class="total" style="font-size:13px;font-weight:700"><span>SUBTOTAL</span><span>${formatCurrency(sale.subtotal)}</span></div>
+           <div class="total" style="font-size:13px;font-weight:700"><span>DISCOUNT</span><span>-${formatCurrency(sale.discount)}</span></div>`
         : ''}
       <div class="total"><span>TOTAL</span><span>${formatCurrency(sale.totalAmount)}</span></div>
-      <div class="total" style="font-size:11px;margin-top:2px"><span>RECEIVED</span><span>${formatCurrency(sale.receivedAmount != null ? sale.receivedAmount : sale.totalAmount)}</span></div>
-      <div class="total" style="font-size:11px;margin-top:2px"><span>CHANGE</span><span>${formatCurrency(sale.changeBack != null ? sale.changeBack : 0)}</span></div>
-      ${(webQr || invQr) ? `<div class="qr-row">
-        ${webQr ? `<div class="qr-box"><img src="${webQr}" alt="Website QR" /><span>Website</span></div>` : ''}
-        ${invQr ? `<div class="qr-box"><img src="${invQr}" alt="Invoice QR" /><span>Digital invoice</span></div>` : ''}
-      </div>` : ''}
+      <div class="total" style="font-size:13px;margin-top:3px"><span>RECEIVED</span><span>${formatCurrency(sale.receivedAmount != null ? sale.receivedAmount : sale.totalAmount)}</span></div>
+      <div class="total" style="font-size:13px;margin-top:3px"><span>CHANGE</span><span>${formatCurrency(sale.changeBack != null ? sale.changeBack : 0)}</span></div>
+      ${qrs.html}
       <hr />
-      <div style="font-size:9px;font-weight:800;letter-spacing:0.06em">OUR SERVICES</div>
+      <div style="font-size:11px;font-weight:800;letter-spacing:0.06em">OUR SERVICES</div>
       <div class="svc-grid">${services}</div>
-      ${barcodeBlock(code, { height: 30 })}
-      <div class="center" style="margin-top:6px;font-size:10px">Thank you for your business!</div>
+      ${barcodeBlock(code, { height: 36 })}
+      <div class="center" style="margin-top:8px;font-size:12px;font-weight:700">Thank you for your business!</div>
+      <div class="center" style="font-size:10px;font-weight:700;margin-top:4px">Scan QR to verify this receipt</div>
       <div class="powered">${escapeHtml(cfg.poweredBy || 'Powered By Amazon ERP')}</div>
-      ${printOnLoadScript(500)}
+      ${printOnLoadScript(700)}
       </body></html>`;
-  return openPrintWindow(html, { width: 360, height: 820 });
+  return printHtml(html, { width: 360, height: 900, fallbackPopup: true });
 }

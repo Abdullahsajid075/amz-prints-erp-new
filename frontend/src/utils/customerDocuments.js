@@ -47,7 +47,7 @@ export function canvasPngDataUrl(canvas) {
 }
 
 /** Render a PNG QR off-screen so print/download always have a real bitmap. */
-export async function qrPngDataUrl(value, size = 180) {
+export async function qrPngDataUrl(value, size = 180, { fgColor = '#0747a3' } = {}) {
   const text = String(value || '').trim();
   if (!text || typeof document === 'undefined') return '';
   const host = document.createElement('div');
@@ -61,7 +61,7 @@ export async function qrPngDataUrl(value, size = 180) {
       level: 'M',
       includeMargin: true,
       bgColor: '#ffffff',
-      fgColor: '#0747a3',
+      fgColor,
     }));
     await new Promise((resolve) => {
       requestAnimationFrame(() => requestAnimationFrame(resolve));

@@ -79,15 +79,10 @@ const POSSettings = () => {
         </div>
         <div className="flex items-center justify-between">
           <div>
-            <Label>Website QR on slip</Label>
+            <Label>Website + verify QR on slip</Label>
+            <p className="text-xs text-slate-500">Always printed — 1-inch black QRs. Scan verify QR to confirm the receipt.</p>
           </div>
-          <Switch checked={form.showWebsiteQr} onCheckedChange={(v) => setForm((p) => ({ ...p, showWebsiteQr: !!v }))} />
-        </div>
-        <div className="flex items-center justify-between">
-          <div>
-            <Label>Digital invoice QR on slip</Label>
-          </div>
-          <Switch checked={form.showInvoiceQr} onCheckedChange={(v) => setForm((p) => ({ ...p, showInvoiceQr: !!v }))} />
+          <Switch checked disabled />
         </div>
         <div>
           <Label>Default payment</Label>
