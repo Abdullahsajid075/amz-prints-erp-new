@@ -39,7 +39,7 @@ const menuGroups = [
         module: 'pos',
         testId: 'nav-pos',
         children: [
-          { label: 'Open counter', path: '/pos', module: 'pos', openWindow: true },
+          { label: 'POS Counter', path: '/pos/counter', module: 'pos', openWindow: true },
           { label: 'POS settings', path: '/pos/settings', module: 'pos' },
           { label: 'POS statement', path: '/accounts/pos-statement', module: 'accounts' },
         ],
@@ -293,7 +293,6 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
                             type="button"
                             data-testid={item.testId}
                             onClick={() => {
-                              if (item.openWindow || item.path === '/pos') openPosCounterWindow();
                               toggleGroup(item.path);
                             }}
                             className={cn(
@@ -323,8 +322,8 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
                               {item.children.map((child) => (
                                 <NavLink
                                   key={child.path}
-                                  to={child.openWindow ? '/pos' : child.path}
-                                  end={child.path === item.path}
+                                  to={child.path}
+                                  end
                                   onClick={(e) => {
                                     if (child.openWindow) {
                                       e.preventDefault();

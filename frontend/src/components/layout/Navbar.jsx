@@ -31,7 +31,7 @@ const TITLE_MAP = [
   { match: '/accounts/pos-statement', title: 'POS Statement' },
   { match: '/pos/counter', title: 'POS Counter' },
   { match: '/pos/statement', title: 'POS Statement' },
-  { match: '/pos', title: 'POS Counter' },
+  { match: '/pos', title: 'POS' },
   { match: '/hr', title: 'HR' },
   { match: '/calculator', title: 'Cost Calculator' },
   { match: '/accounts/payments', title: 'Payments' },

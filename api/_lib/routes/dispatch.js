@@ -1755,6 +1755,12 @@ async function dispatch(req, res) {
         }
         if (!body.trackingNumber) body.trackingNumber = await nextTrackingNumber();
         const row = orderFromBody(body);
+        if (docType === 'pos') {
+          const soldBy = String(body.soldBy || body.cashier || '').trim();
+          if (soldBy && !/\bBy\s+/i.test(String(row.remarks || ''))) {
+            row.remarks = `${row.remarks || 'POS Sale'} · By ${soldBy}`;
+          }
+        }
         if (!row.order_id) row.order_id = await nextOrderId(docType === 'pos' ? 'POS' : 'ORD');
         if (!row.status_history || !row.status_history.length) {
           row.status_history = [{ status: row.status, at: `${today()} ${nowTime()}`, note: 'Created' }];
