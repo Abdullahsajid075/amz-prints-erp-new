@@ -8,7 +8,6 @@ import { Badge } from '@/components/ui/badge';
 import { settingsAPI } from '@/services/api';
 import { clearGasCache } from '@/services/gasClient';
 import { mergePosSettings } from '@/utils/moduleSettings';
-import { openPosCounterOrFallback } from '@/utils/posWindow';
 import { ArrowLeft, Plus, Save, Store, X } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -51,11 +50,11 @@ const POSSettings = () => {
             <ArrowLeft className="h-4 w-4 mr-1" />POS
           </Button>
           <h1 className="text-2xl font-bold mt-3" style={{ color: '#0747a3' }}>POS settings</h1>
-          <p className="text-sm text-slate-500">Counter window, register, and receipt layout — separate from Accounts statement.</p>
+          <p className="text-sm text-slate-500">Register and receipt layout — POS stays inside the ERP.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => { const w = openPosCounterOrFallback(); if (!w) toast.error('Allow popups'); }}>
-            <Store className="h-4 w-4 mr-1" />POS Counter
+          <Button variant="outline" onClick={() => navigate('/pos')}>
+            <Store className="h-4 w-4 mr-1" />Open POS
           </Button>
           <Button className="text-white" style={{ backgroundColor: '#ff6d00' }} onClick={save} disabled={saving}>
             <Save className="h-4 w-4 mr-1" />{saving ? 'Saving…' : 'Save'}
