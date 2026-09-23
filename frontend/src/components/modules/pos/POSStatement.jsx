@@ -139,8 +139,8 @@ const POSStatement = () => {
     setReprintingId(key);
     try {
       const res = await printPosSlip(saleFromPosOrder(order), { company, posCfg });
-      if (!res.ok) toast.error('Allow popups to reprint the POS slip');
-      else toast.message('POS slip opened — print or save');
+      if (!res.ok) toast.error('Print dialog blocked — allow printing for POS slip');
+      else toast.message('POS slip sent to default printer');
     } catch (err) {
       console.error(err);
       toast.error('Could not reprint POS slip');

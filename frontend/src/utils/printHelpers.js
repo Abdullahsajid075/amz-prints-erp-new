@@ -97,6 +97,25 @@ export function barcodeBlock(code, { id = 'barcode', height = 36 } = {}) {
   `;
 }
 
+/** ~1 inch printed QR on thermal / A5 / A4 slips. */
+export const SLIP_QR_CSS = `
+  .qr-row { display:flex; justify-content:space-between; align-items:flex-start; gap:3mm; margin:8px 0 4px; }
+  .qr-box { flex:1; text-align:center; color:#000; }
+  .qr-box img { width:25.4mm; height:25.4mm; display:block; margin:0 auto 3px; }
+  .qr-box span { font-size:10px; font-weight:800; display:block; letter-spacing:0.04em; text-transform:uppercase; color:#000; }
+`;
+
+export function slipQrRowHtml(webQr, verifyQr, {
+  webLabel = 'Website',
+  verifyLabel = 'Scan to verify',
+} = {}) {
+  if (!webQr && !verifyQr) return '';
+  return `<div class="qr-row">
+    ${webQr ? `<div class="qr-box"><img src="${webQr}" alt="Website QR" /><span>${webLabel}</span></div>` : ''}
+    ${verifyQr ? `<div class="qr-box"><img src="${verifyQr}" alt="Verify QR" /><span>${verifyLabel}</span></div>` : ''}
+  </div>`;
+}
+
 export function printOnLoadScript(delay = 450) {
   return `
     <script>

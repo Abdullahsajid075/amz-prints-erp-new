@@ -289,9 +289,9 @@ const Payments = () => {
 
   const afterSaveActions = async (payment, { pendingWindow = null } = {}) => {
     // Slip via hidden iframe (no popup permission)
-    const slip = printPaymentSlip(payment, company || {});
-    if (!slip.ok) toast.error('Could not open print dialog for payment slip');
-    else toast.message('Payment slip ready — use Print / Save as PDF');
+    const slip = await printPaymentSlip(payment, company || {});
+    if (!slip?.ok) toast.error('Could not open print dialog for payment slip');
+    else toast.message('Payment slip sent to default printer');
 
     // Cash Out must also land in Expenses for daily audit / reports
     const isOut = String(payment.type || '').toLowerCase() === 'outflow';
@@ -431,9 +431,10 @@ const Payments = () => {
     }
   };
 
-  const reprint = (p) => {
-    const slip = printPaymentSlip(p, company || {});
-    if (!slip.ok) toast.error('Could not print slip');
+  const reprint = async (p) => {
+    const slip = await printPaymentSlip(p, company || {});
+    if (!slip?.ok) toast.error('Could not print slip');
+    else toast.message('Payment slip sent to default printer');
   };
 
   const resendWhatsApp = async (p) => {

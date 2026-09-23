@@ -147,6 +147,10 @@ const InvoiceView = ({ isPublic = false }) => {
   }
 
   const verifyUrl = `${window.location.origin}/invoice/${invoice.shareToken}`;
+  const websiteUrl = (() => {
+    const raw = String(company?.website || 'https://amzprints.com').trim() || 'https://amzprints.com';
+    return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  })();
   const balance = pendingBalance();
   const items = invoiceLineItems(invoice);
   const linkedOrders = invoiceOrderIds(invoice);
@@ -439,20 +443,29 @@ const InvoiceView = ({ isPublic = false }) => {
 
         {showQR && (
           <div className={`px-8 pb-5 inv-section inv-verify-block border-t ${template === 'minimal' ? 'border-gray-300' : 'border-orange-100'} pt-4 text-center`}>
-            <p className="text-xs uppercase tracking-wider font-bold mb-3" style={{ color: accent }}>
-              Invoice Verification
+            <p className="text-xs uppercase tracking-wider font-bold mb-3 text-black">
+              Scan to verify
             </p>
-            <div className="inline-flex flex-col items-center gap-2">
-              <div className={`bg-white p-2.5 rounded-lg border-2 ${template === 'minimal' ? 'border-gray-300' : 'border-orange-200'}`}>
-                <QRCodeSVG value={verifyUrl} size={108} level="M" fgColor="#0747a3" />
+            <div className="flex flex-wrap items-start justify-center gap-8">
+              <div className="inline-flex flex-col items-center gap-2">
+                <div className="bg-white p-1.5 border-2 border-black">
+                  <QRCodeSVG value={websiteUrl} size={132} level="M" fgColor="#000000" includeMargin />
+                </div>
+                <p className="text-[11px] font-extrabold uppercase tracking-wider text-black">Website</p>
               </div>
-              <p className="inv-verify-code text-xl font-extrabold tracking-[0.14em]" style={{ color: '#0747a3' }}>
-                {invoice.shareToken}
-              </p>
-              <p className="text-xs text-gray-600 max-w-sm">
-                Scan the QR code or use the verification code above to confirm this invoice online.
-              </p>
+              <div className="inline-flex flex-col items-center gap-2">
+                <div className="bg-white p-1.5 border-2 border-black">
+                  <QRCodeSVG value={verifyUrl} size={132} level="M" fgColor="#000000" includeMargin />
+                </div>
+                <p className="text-[11px] font-extrabold uppercase tracking-wider text-black">Scan to verify</p>
+                <p className="inv-verify-code text-lg font-extrabold tracking-[0.12em] text-black">
+                  {invoice.shareToken}
+                </p>
+              </div>
             </div>
+            <p className="text-xs text-black max-w-sm mx-auto mt-3 font-semibold">
+              Scan the verify QR to confirm this invoice online.
+            </p>
           </div>
         )}
 

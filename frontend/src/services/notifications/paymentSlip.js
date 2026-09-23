@@ -1,16 +1,18 @@
 /**
- * Pocket-size payment receipt (Cash In / Cash Out) — black, short, with barcode.
+ * Pocket-size payment receipt (Cash In / Cash Out) — black, 1-inch website + verify QRs.
  */
-import { barcodeBlock, moneyPKR, printHtml, printOnLoadScript, documentFileName } from '@/utils/printHelpers';
+import { barcodeBlock, moneyPKR, printHtml, printOnLoadScript, documentFileName, SLIP_QR_CSS } from '@/utils/printHelpers';
+import { buildSlipQrs, slipWebsiteUrl, verifyUrlForSlip } from '@/utils/slipQr';
 
-export function printPaymentSlip(payment = {}, company = {}) {
+export async function printPaymentSlip(payment = {}, company = {}) {
   const rawType = String(payment.type || payment.recordtype || '').toLowerCase();
   const isIn = rawType !== 'outflow' && rawType !== 'out';
   const title = isIn ? 'PAYMENT RECEIPT' : 'PAYMENT VOUCHER';
   const companyName = company.name || 'Amazon Printing Services';
   const companyAddress = company.address || 'King Road, Mandi Bahauddin';
   const companyPhone = company.phone || '';
-  const companyWeb = company.website || 'amzprints.com';
+  const website = slipWebsiteUrl(company);
+  const companyWeb = website.replace(/^https?:\/\//, '');
   const amount = moneyPKR(payment.amount);
   const total = moneyPKR(payment.totalAmount || payment.total || 0);
   const balance = moneyPKR(payment.balanceDue || 0);
@@ -22,6 +24,16 @@ export function printPaymentSlip(payment = {}, company = {}) {
     customerName: payment.party || payment.customerName,
     orderNumber: payment.orderId || payment.reference || txn,
   });
+  const verifyUrl = verifyUrlForSlip({
+    shareToken: payment.shareToken,
+    invoiceUrl: payment.invoiceUrl,
+    orderId: payment.orderId,
+    trackingNumber: payment.trackingNumber,
+    reference: txn,
+    paymentId: payment.id,
+    code: txn,
+  });
+  const qrs = await buildSlipQrs({ company, verifyUrl });
 
   const html = `<!DOCTYPE html>
 <html>
@@ -29,37 +41,38 @@ export function printPaymentSlip(payment = {}, company = {}) {
   <title>${printTitle}</title>
   <style>
     @page { size: 80mm auto; margin: 2.5mm; }
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; color: #000 !important; }
     body {
       font-family: Arial, Helvetica, sans-serif;
       width: 72mm;
       margin: 0 auto;
       color: #000;
       padding: 1mm;
-      font-size: 11px;
+      font-size: 13px;
     }
     .brand { text-align: center; }
-    .brand h1 { font-size: 14px; margin: 0; font-weight: 800; letter-spacing: 0.02em; }
-    .brand p { font-size: 9px; margin: 1px 0; }
+    .brand h1 { font-size: 16px; margin: 0; font-weight: 800; letter-spacing: 0.02em; }
+    .brand p { font-size: 11px; margin: 2px 0; font-weight: 600; }
     .title {
       text-align: center;
-      font-size: 12px;
+      font-size: 14px;
       font-weight: 800;
       letter-spacing: 0.08em;
-      margin: 6px 0 2px;
+      margin: 8px 0 4px;
       border-top: 2px solid #000;
       border-bottom: 2px solid #000;
-      padding: 4px 0;
+      padding: 6px 0;
     }
-    .kind { text-align: center; font-size: 10px; font-weight: 700; margin: 4px 0; }
-    .amount { text-align: center; font-size: 20px; font-weight: 800; margin: 4px 0 2px; }
-    hr { border: none; border-top: 1px dashed #000; margin: 5px 0; }
-    .row { display: flex; justify-content: space-between; gap: 4px; margin: 2px 0; }
-    .label { color: #000; }
-    .val { font-weight: 700; text-align: right; word-break: break-word; }
-    .barcode-wrap { text-align: center; margin: 6px 0 2px; }
+    .kind { text-align: center; font-size: 12px; font-weight: 800; margin: 6px 0; }
+    .amount { text-align: center; font-size: 24px; font-weight: 800; margin: 6px 0 4px; }
+    hr { border: none; border-top: 1.5px dashed #000; margin: 6px 0; }
+    .row { display: flex; justify-content: space-between; gap: 4px; margin: 3px 0; font-size: 12px; }
+    .label { color: #000; font-weight: 600; }
+    .val { font-weight: 800; text-align: right; word-break: break-word; }
+    .barcode-wrap { text-align: center; margin: 8px 0 2px; }
     .barcode-wrap svg { max-width: 100%; }
-    .footer { text-align: center; font-size: 9px; margin-top: 6px; }
+    .footer { text-align: center; font-size: 11px; margin-top: 8px; font-weight: 700; }
+    ${SLIP_QR_CSS}
   </style>
 </head>
 <body>
@@ -83,13 +96,13 @@ export function printPaymentSlip(payment = {}, company = {}) {
   ${(payment.balanceDue != null && payment.balanceDue !== '') ? `<div class="row"><span class="label">Balance</span><span class="val">Rs ${balance}</span></div>` : ''}
   <div class="row"><span class="label">Txn</span><span class="val">${txn}</span></div>
   ${payment.notes ? `<div class="row"><span class="label">Notes</span><span class="val">${payment.notes}</span></div>` : ''}
+  ${qrs.html}
   <hr />
-  ${barcodeBlock(txn, { height: 32 })}
-  <div class="footer">Keep this slip · ${isIn ? 'Payment Received' : 'Payment Issued'}</div>
-  ${printOnLoadScript(500)}
+  ${barcodeBlock(txn, { height: 36 })}
+  <div class="footer">Scan QR to verify · ${isIn ? 'Payment Received' : 'Payment Issued'}</div>
+  ${printOnLoadScript(700)}
 </body>
 </html>`;
 
-  // Iframe print — no popup permission needed after async save
-  return printHtml(html, { width: 340, height: 560, fallbackPopup: true });
+  return printHtml(html, { width: 340, height: 720, fallbackPopup: true });
 }

@@ -179,6 +179,9 @@ export const notificationsAPI = {
 export const trackPublic = (id) =>
   gasRequest('GET', `/public/track/${encodeURIComponent(String(id || '').trim())}`);
 
+export const verifyPublic = (id) =>
+  gasRequest('GET', `/public/verify/${encodeURIComponent(String(id || '').trim())}`);
+
 export const portalAPI = {
   login: (data) => gasRequest('POST', '/public/customer/login', { data }),
   register: (data) => gasRequest('POST', '/public/customer/register', { data }),

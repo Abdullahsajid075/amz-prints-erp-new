@@ -613,7 +613,7 @@ const Purchases = () => {
         balanceDue: Number(result?.payment?.balanceDue ?? Math.max(0, outstanding - amount)) || 0,
         ...(result?.payment || {}),
       };
-      try { printPaymentSlip(savedPayment, company || {}); } catch { /* optional */ }
+      try { await printPaymentSlip(savedPayment, company || {}); } catch { /* optional */ }
       if (savedPayment.partyPhone) {
         try {
           await notifyPaymentEvent(savedPayment, { openWhatsApp: true });

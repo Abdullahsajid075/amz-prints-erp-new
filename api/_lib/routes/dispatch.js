@@ -387,9 +387,11 @@ async function withInvoiceMeta(apiOrder) {
   if (inv) {
     apiOrder.invoiceId = inv.id || '';
     apiOrder.invoiceNumber = inv.invoice_no || '';
+    apiOrder.shareToken = inv.share_token || '';
   } else {
     apiOrder.invoiceId = '';
     apiOrder.invoiceNumber = '';
+    apiOrder.shareToken = '';
   }
   return apiOrder;
 }
@@ -718,6 +720,75 @@ async function dispatch(req, res) {
           trackCode: api.trackingNumber || api.orderId || api.id,
           companyNote: 'For questions, contact Amazon Printing Services with your Order ID.',
         });
+      }
+      if (method === 'GET' && path.startsWith('/public/verify/')) {
+        const rawCode = decodeURIComponent(path.replace('/public/verify/', '')).trim();
+        const key = rawCode.toLowerCase();
+        if (!key) return sendError(res, 'Missing verification code', 400);
+
+        const matches = (values) => values
+          .map((v) => String(v || '').trim().toLowerCase())
+          .filter(Boolean)
+          .includes(key);
+
+        const { data: invoices } = await supabase.from('invoices').select('*');
+        const invoiceRow = (invoices || []).find((inv) => matches([inv.share_token, inv.invoice_number, inv.invoice_no, inv.id]));
+        if (invoiceRow) {
+          const inv = mapInvoice(invoiceRow);
+          return send(res, {
+            kind: 'invoice',
+            verified: true,
+            code: rawCode,
+            invoiceNumber: inv.invoiceNumber || '',
+            date: inv.date || '',
+            customerName: inv.customerName || '',
+            totalAmount: inv.totalAmount,
+            paidAmount: inv.paidAmount,
+            status: inv.status || '',
+            shareToken: inv.shareToken || '',
+          });
+        }
+
+        const { data: orders } = await supabase.from('orders').select('*');
+        const orderRow = (orders || []).find((o) => {
+          if (String(o.doc_type || 'Order').toLowerCase() === 'quotation') return false;
+          return matches([o.tracking_number, o.order_id, o.id, o.token_no]);
+        });
+        if (orderRow) {
+          const api = mapOrder(orderRow);
+          return send(res, {
+            kind: String(api.docType || '').toUpperCase() === 'POS' ? 'pos' : 'order',
+            verified: true,
+            code: rawCode,
+            orderId: api.orderId || '',
+            trackingNumber: api.trackingNumber || api.orderId || '',
+            date: api.date || '',
+            customerName: api.customerName || '',
+            status: api.status || '',
+            totalAmount: api.totalAmount,
+            items: (api.products || []).map((p) => p.name).filter(Boolean),
+          });
+        }
+
+        const { data: payments } = await supabase.from('payments').select('*');
+        const paymentRow = (payments || []).find((p) => matches([p.id, p.ref_id]));
+        if (paymentRow) {
+          const pay = mapPayment(paymentRow);
+          return send(res, {
+            kind: 'payment',
+            verified: true,
+            code: rawCode,
+            date: pay.date || '',
+            type: pay.type || '',
+            category: pay.category || '',
+            party: pay.party || pay.customerName || '',
+            amount: pay.amount,
+            method: pay.method || '',
+            reference: pay.refId || pay.id || rawCode,
+          });
+        }
+
+        return sendError(res, `Document not found for: ${rawCode}`, 404);
       }
       if (method === 'GET' && path === '/public/products') {
         const { data } = await supabase.from('products').select('*');
