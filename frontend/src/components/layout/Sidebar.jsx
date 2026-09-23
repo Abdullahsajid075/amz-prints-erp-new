@@ -198,7 +198,7 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
                 <img
                   src={company.logo}
                   alt={company.name}
-                  className="h-8 w-auto max-w-[110px] object-contain brightness-0 invert opacity-95"
+                  className="h-9 w-auto max-w-[120px] object-contain rounded-md bg-white p-0.5"
                 />
               ) : (
                 <div
