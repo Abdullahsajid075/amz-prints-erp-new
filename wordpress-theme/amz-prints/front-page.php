@@ -69,50 +69,56 @@ if ( count( $featured ) < 4 ) {
 $track_url = function_exists( 'amz_prints_customer_is_logged_in' ) && amz_prints_customer_is_logged_in()
 	? home_url( '/my-account/#track' )
 	: home_url( '/customer-login/?redirect=' . rawurlencode( home_url( '/my-account/#track' ) ) );
+
+$banners = function_exists( 'amz_prints_home_banners' ) ? amz_prints_home_banners() : array();
+$a4      = function_exists( 'amz_prints_home_a4_slides' ) ? amz_prints_home_a4_slides() : array();
+$strip   = function_exists( 'amz_prints_running_strip_items' ) ? amz_prints_running_strip_items() : array( $company );
+$a4_loop = $a4 ? array_merge( $a4, $a4 ) : array();
+$strip_loop = array_merge( $strip, $strip );
 ?>
 
-<section class="land-hero">
-	<div class="land-hero__photo" style="background-image:url('<?php echo esc_url( $hero_bg ); ?>')" aria-hidden="true"></div>
-	<div class="land-hero__wash" aria-hidden="true"></div>
-	<div class="container land-hero__inner">
-		<div class="land-hero__copy reveal" data-reveal>
-			<p class="land-hero__brand"><?php echo esc_html( $company ); ?></p>
-			<p class="land-hero__legal"><?php echo esc_html( $legal ); ?></p>
-			<h1><?php echo esc_html( $headline ); ?></h1>
-			<p class="land-hero__sub"><?php echo esc_html( $sub ); ?></p>
-			<div class="land-hero__actions">
-				<a class="btn btn--primary btn--lg btn--magnetic" href="<?php echo esc_url( home_url( '/products/' ) ); ?>"><?php esc_html_e( 'Shop products', 'amz-prints' ); ?></a>
-				<a class="btn btn--ghost btn--lg btn--magnetic" href="<?php echo esc_url( home_url( '/services/' ) ); ?>"><?php esc_html_e( 'View services', 'amz-prints' ); ?></a>
+<section class="amz-stage" aria-label="<?php echo esc_attr( $headline ); ?>">
+	<div class="amz-stage__copy">
+		<p class="amz-stage__brand"><?php echo esc_html( $company ); ?></p>
+		<h1><?php echo esc_html( $headline ); ?></h1>
+		<p><?php echo esc_html( $sub ); ?></p>
+	</div>
+	<div class="amz-banners" data-banner-slider data-hero-interval="4500">
+		<?php foreach ( $banners as $i => $banner ) : ?>
+			<?php
+			$tag   = ! empty( $banner['link'] ) ? 'a' : 'div';
+			$attrs = ! empty( $banner['link'] ) ? ' href="' . esc_url( $banner['link'] ) . '"' : '';
+			?>
+			<<?php echo $tag; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?> class="amz-banners__slide<?php echo 0 === $i ? ' is-active' : ''; ?>"<?php echo $attrs; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?> style="background-image:url('<?php echo esc_url( $banner['url'] ); ?>')"></<?php echo $tag; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
+		<?php endforeach; ?>
+		<?php if ( count( $banners ) > 1 ) : ?>
+			<div class="amz-banners__dots">
+				<?php foreach ( $banners as $i => $banner ) : ?>
+					<button type="button" class="amz-banners__dot<?php echo 0 === $i ? ' is-active' : ''; ?>" data-banner-dot="<?php echo esc_attr( (string) $i ); ?>" aria-label="<?php echo esc_attr( sprintf( __( 'Banner %d', 'amz-prints' ), $i + 1 ) ); ?>"></button>
+				<?php endforeach; ?>
+			</div>
+		<?php endif; ?>
+	</div>
+	<?php if ( $a4_loop ) : ?>
+		<div class="amz-a4" aria-label="<?php esc_attr_e( 'A4 catalog', 'amz-prints' ); ?>">
+			<div class="amz-a4__track">
+				<?php foreach ( $a4_loop as $src ) : ?>
+					<figure class="amz-a4__page">
+						<img src="<?php echo esc_url( $src ); ?>" alt="<?php esc_attr_e( 'Catalog page', 'amz-prints' ); ?>" loading="lazy">
+					</figure>
+				<?php endforeach; ?>
 			</div>
 		</div>
-		<div class="land-hero__tiles reveal" data-reveal>
-			<?php foreach ( $featured as $tile ) : ?>
-				<?php
-				$src = function_exists( 'amz_prints_product_img_src' )
-					? amz_prints_product_img_src( $tile['url'] )
-					: esc_url( $tile['url'] );
-				$pid = (string) ( $tile['id'] ?? '' );
-				?>
-				<figure
-					class="land-tile"
-					<?php if ( $pid ) : ?>
-						data-open-product="<?php echo esc_attr( $pid ); ?>"
-						data-product-name="<?php echo esc_attr( $tile['name'] ); ?>"
-						role="button"
-						tabindex="0"
-					<?php else : ?>
-						onclick="window.location.href='<?php echo esc_url( home_url( '/products/' ) ); ?>'"
-						role="link"
-						tabindex="0"
-					<?php endif; ?>
-				>
-					<img src="<?php echo $src; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>" alt="<?php echo esc_attr( $tile['name'] ); ?>">
-					<figcaption><?php echo esc_html( $tile['name'] ); ?></figcaption>
-				</figure>
-			<?php endforeach; ?>
-		</div>
-	</div>
+	<?php endif; ?>
 </section>
+
+<div class="amz-marquee amz-marquee--ink" aria-hidden="true">
+	<div class="amz-marquee__track">
+		<?php foreach ( $strip_loop as $item ) : ?>
+			<span class="amz-marquee__item"><?php echo esc_html( $item ); ?><em></em></span>
+		<?php endforeach; ?>
+	</div>
+</div>
 
 <section class="land-quick">
 	<div class="container land-quick__grid">
@@ -146,7 +152,7 @@ $track_url = function_exists( 'amz_prints_customer_is_logged_in' ) && amz_prints
 				<?php if ( function_exists( 'amz_prints_customer_is_logged_in' ) && amz_prints_customer_is_logged_in() ) : ?>
 					<a class="btn btn--ghost" href="<?php echo esc_url( home_url( '/my-account/' ) ); ?>"><?php esc_html_e( 'My account', 'amz-prints' ); ?></a>
 				<?php else : ?>
-					<a class="btn btn--ghost" href="<?php echo esc_url( home_url( '/customer-login/?tab=register' ) ); ?>"><?php esc_html_e( 'Create account', 'amz-prints' ); ?></a>
+					<a class="btn btn--ghost" href="<?php echo esc_url( home_url( '/customer-login/' ) ); ?>"><?php esc_html_e( 'Create account', 'amz-prints' ); ?></a>
 				<?php endif; ?>
 			</div>
 		</div>

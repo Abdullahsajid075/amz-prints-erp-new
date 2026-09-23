@@ -580,6 +580,17 @@ async function dispatch(req, res) {
         };
 
         try {
+          if (method === 'POST' && path === '/public/customer/lookup') {
+            const email = String(body.email || '').trim().toLowerCase();
+            if (!email || !email.includes('@')) return sendError(res, 'Valid email is required', 400);
+            const { data: rows } = await supabase.from('customers').select('id,email,portal_password').ilike('email', email).limit(5);
+            const found = (rows || []).find((c) => String(c.email || '').trim().toLowerCase() === email);
+            return send(res, {
+              exists: !!found,
+              hasPassword: !!(found && String(found.portal_password || '').trim()),
+            });
+          }
+
           if (method === 'POST' && path === '/public/customer/register') {
             const name = String(body.name || '').trim();
             const email = String(body.email || '').trim().toLowerCase();

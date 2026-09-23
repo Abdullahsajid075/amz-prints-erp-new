@@ -161,6 +161,31 @@ function amz_prints_customer_fetch_session() {
 }
 
 /**
+ * AJAX: does this email already have a customer account?
+ */
+function amz_prints_ajax_customer_lookup() {
+	check_ajax_referer( 'amz_prints_customer', 'nonce' );
+	$email = isset( $_POST['email'] ) ? sanitize_email( wp_unslash( $_POST['email'] ) ) : '';
+	if ( ! $email || ! is_email( $email ) ) {
+		wp_send_json_error( array( 'message' => __( 'Enter a valid email address.', 'amz-prints' ) ), 400 );
+	}
+	$result = amz_prints_customer_api( '/public/customer/lookup', array( 'email' => $email ) );
+	if ( is_wp_error( $result ) ) {
+		$err = $result->get_error_message();
+		if ( 'Not found' === $err || false !== stripos( $err, 'not found' ) ) {
+			$err = __( 'Account check is not on the ERP yet. Redeploy latest Code.gs (New version), then try again.', 'amz-prints' );
+		}
+		wp_send_json_error( array( 'message' => $err ), 400 );
+	}
+	wp_send_json_success( array(
+		'exists'      => ! empty( $result['exists'] ),
+		'hasPassword' => ! empty( $result['hasPassword'] ),
+	) );
+}
+add_action( 'wp_ajax_amz_prints_customer_lookup', 'amz_prints_ajax_customer_lookup' );
+add_action( 'wp_ajax_nopriv_amz_prints_customer_lookup', 'amz_prints_ajax_customer_lookup' );
+
+/**
  * AJAX: create new customer account
  */
 function amz_prints_ajax_customer_register() {

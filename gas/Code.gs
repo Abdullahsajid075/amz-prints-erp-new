@@ -3179,6 +3179,16 @@ function handlePublicCustomer_(path, method, body) {
   body = body || {};
   var token = String((body && body.token) || '').trim();
 
+  if (method === 'POST' && path === '/public/customer/lookup') {
+    var lookEmail = String(body.email || '').trim().toLowerCase();
+    if (!lookEmail || lookEmail.indexOf('@') < 0) throw new Error('Valid email is required');
+    var look = findCustomerByEmail_(lookEmail);
+    return {
+      exists: !!look,
+      hasPassword: !!(look && String(look.portalpassword || '').trim()),
+    };
+  }
+
   if (method === 'POST' && path === '/public/customer/register') {
     return createPublicCustomerAccount_(body);
   }

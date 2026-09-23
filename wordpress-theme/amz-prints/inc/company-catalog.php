@@ -417,3 +417,84 @@ function amz_prints_home_service_pillars() {
 function amz_prints_catalog_download_script( $filename = 'AMZ-Prints-Company-Profile.pdf' ) {
 	// Intentionally empty — PDF logic lives in catalog-pdf.js.
 }
+
+/**
+ * Homepage animated banners (1250×250). Customizer images, else stock slides.
+ *
+ * @return array<int,array{url:string,link:string}>
+ */
+function amz_prints_home_banners() {
+	$out = array();
+	for ( $i = 1; $i <= 6; $i++ ) {
+		$id  = absint( amz_prints_mod( 'amz_banner_' . $i, 0 ) );
+		$url = $id ? wp_get_attachment_image_url( $id, 'full' ) : '';
+		if ( ! $url ) {
+			continue;
+		}
+		$out[] = array(
+			'url'  => $url,
+			'link' => (string) amz_prints_mod( 'amz_banner_' . $i . '_url', '' ),
+		);
+	}
+	if ( $out ) {
+		return $out;
+	}
+	$stock = array(
+		'https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=1250&h=250&q=80',
+		'https://images.unsplash.com/photo-1562564055-71e051d33c19?auto=format&fit=crop&w=1250&h=250&q=80',
+		'https://images.unsplash.com/photo-1586075010923-2dd4570fb338?auto=format&fit=crop&w=1250&h=250&q=80',
+	);
+	foreach ( $stock as $url ) {
+		$out[] = array( 'url' => $url, 'link' => home_url( '/products/' ) );
+	}
+	return $out;
+}
+
+/**
+ * A4 pages under the hero. Customizer uploads, else print catalog pages.
+ *
+ * @return string[]
+ */
+function amz_prints_home_a4_slides() {
+	$out = array();
+	for ( $i = 1; $i <= 8; $i++ ) {
+		$id  = absint( amz_prints_mod( 'amz_a4_slide_' . $i, 0 ) );
+		$url = $id ? wp_get_attachment_image_url( $id, 'large' ) : '';
+		if ( $url ) {
+			$out[] = $url;
+		}
+	}
+	if ( $out ) {
+		return $out;
+	}
+	if ( function_exists( 'amz_prints_catalog_page_images' ) ) {
+		$pages = amz_prints_catalog_page_images( 'print' );
+		if ( $pages ) {
+			return array_slice( $pages, 0, 10 );
+		}
+	}
+	return array(
+		'https://images.unsplash.com/photo-1586281380349-632531db7ed4?auto=format&fit=crop&w=420&h=594&q=80',
+		'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=420&h=594&q=80',
+		'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=420&h=594&q=80',
+		'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=420&h=594&q=80',
+	);
+}
+
+/**
+ * Running strip phrases.
+ *
+ * @return string[]
+ */
+function amz_prints_running_strip_items() {
+	$raw = (string) amz_prints_mod(
+		'amz_running_strip',
+		'Offset Printing | Digital Printing | Large Format | Packaging | Branding | NADRA e-Services | Free CV | Order Tracking | Shop Online'
+	);
+	$parts = preg_split( '/\s*\|\s*|\r\n|\n/', $raw );
+	$parts = array_values( array_filter( array_map( 'trim', $parts ? $parts : array() ) ) );
+	if ( ! $parts ) {
+		$parts = array( 'AMZ Prints' );
+	}
+	return $parts;
+}

@@ -193,6 +193,36 @@
     buildDots();
   })();
 
+  /* Homepage banners — 1250×250 crossfade */
+  var bannerSlider = document.querySelector('[data-banner-slider]');
+  if (bannerSlider) {
+    var bSlides = Array.prototype.slice.call(bannerSlider.querySelectorAll('.amz-banners__slide'));
+    var bDots = Array.prototype.slice.call(bannerSlider.querySelectorAll('[data-banner-dot]'));
+    var bInterval = parseInt(bannerSlider.getAttribute('data-hero-interval'), 10) || 4500;
+    var bIndex = 0;
+    var bTimer = null;
+    function bannerGo(next) {
+      if (bSlides.length < 2) return;
+      bSlides[bIndex].classList.remove('is-active');
+      bIndex = (next + bSlides.length) % bSlides.length;
+      bSlides[bIndex].classList.add('is-active');
+      bDots.forEach(function (dot, i) { dot.classList.toggle('is-active', i === bIndex); });
+    }
+    function bannerStart() {
+      if (bTimer) window.clearInterval(bTimer);
+      if (bSlides.length > 1) bTimer = window.setInterval(function () { bannerGo(bIndex + 1); }, bInterval);
+    }
+    bDots.forEach(function (dot) {
+      dot.addEventListener('click', function () {
+        var t = parseInt(dot.getAttribute('data-banner-dot'), 10);
+        if (!isNaN(t)) { bannerGo(t); bannerStart(); }
+      });
+    });
+    bannerSlider.addEventListener('mouseenter', function () { if (bTimer) window.clearInterval(bTimer); });
+    bannerSlider.addEventListener('mouseleave', bannerStart);
+    bannerStart();
+  }
+
   /* Hero slider (legacy) */
   var heroSlider = document.querySelector('[data-hero-slider]');
   if (heroSlider) {

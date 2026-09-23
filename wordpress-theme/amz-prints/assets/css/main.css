@@ -3193,6 +3193,44 @@ body.nav-open .nav-toggle__bar:nth-child(3) { transform: translateY(-8px) rotate
   border-color: var(--amz-accent);
 }
 
+.auth-screen {
+  min-height: calc(100vh - var(--header-h));
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(320px, 1.1fr);
+  background: #fff;
+}
+
+.auth-screen__visual {
+  background:
+    linear-gradient(160deg, rgba(7, 71, 163, 0.92), rgba(255, 109, 0, 0.88)),
+    #0747a3;
+  color: #fff;
+  padding: calc(var(--header-h) + 2rem) 2rem 2rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+.auth-screen__visual p { margin: 0; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 800; font-size: 0.78rem; }
+.auth-screen__visual strong { font-size: clamp(1.8rem, 3vw, 2.6rem); line-height: 1.05; max-width: 12ch; }
+.auth-screen__visual span { max-width: 36ch; opacity: 0.92; }
+
+.auth-screen__panel {
+  padding: calc(var(--header-h) + 1.4rem) 1.4rem 2rem;
+  display: grid;
+  align-items: start;
+}
+
+.auth-screen h1 { margin: 0.15rem 0 0.6rem; font-size: 1.7rem; }
+.auth-screen .customer-auth-card { box-shadow: none; border: 0; padding: 0; background: transparent; }
+.auth-screen .form-note .linkish + .linkish { margin-left: 0.8rem; }
+
+@media (max-width: 800px) {
+  .auth-screen { grid-template-columns: 1fr; }
+  .auth-screen__visual { min-height: 180px; padding-top: calc(var(--header-h) + 1rem); }
+}
+
 .customer-auth-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr);

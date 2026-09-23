@@ -398,6 +398,49 @@
 .cv-tpl-executive .cv-main .cv-identity { display: none; }
 .cv-tpl-executive .cv-sec h2 { border-bottom-width: 2.5px; }
 
+.cv-theme-live {
+  margin: 0 0 0.4rem;
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--amz-primary);
+}
+
+.cv-tpl-minimal {
+  display: block;
+  font-family: "Manrope", "Segoe UI", sans-serif;
+  padding: 14mm 16mm;
+}
+.cv-tpl-minimal .cv-rail { border-bottom: 2px solid var(--cv-accent); padding-bottom: 5mm; margin-bottom: 6mm; }
+.cv-tpl-minimal .cv-rail .cv-sec { display: none; }
+.cv-tpl-minimal .cv-photo { width: 22mm; height: 22mm; border-radius: 50%; float: right; margin-left: 6mm; }
+.cv-tpl-minimal .cv-name { font-size: 22pt; color: #111; }
+.cv-tpl-minimal .cv-role { color: var(--cv-accent); font-size: 10pt; }
+.cv-tpl-minimal .cv-main .cv-identity { display: none; }
+.cv-tpl-minimal .cv-sec h2 { border: 0; padding: 0; letter-spacing: 0.16em; }
+
+.cv-tpl-creative {
+  display: grid;
+  grid-template-columns: 62mm 1fr;
+  font-family: "Manrope", "Segoe UI", sans-serif;
+}
+.cv-tpl-creative .cv-rail {
+  background: #111;
+  color: #fff;
+  padding: 12mm 7mm;
+}
+.cv-tpl-creative .cv-photo { border-radius: 18px; border: 3px solid var(--cv-accent); margin-bottom: 5mm; }
+.cv-tpl-creative .cv-name { font-size: 16pt; color: #fff; }
+.cv-tpl-creative .cv-role { color: var(--cv-accent); }
+.cv-tpl-creative .cv-rail .cv-sec h2,
+.cv-tpl-creative .cv-rail .cv-chip,
+.cv-tpl-creative .cv-rail .cv-contact-line { color: #fff; border-color: var(--cv-accent); }
+.cv-tpl-creative .cv-main { padding: 12mm 10mm; background: linear-gradient(180deg, rgba(255,109,0,0.08), #fff 42mm); }
+.cv-tpl-creative .cv-main .cv-identity { display: none; }
+.cv-tpl-creative .cv-sec h2 { background: transparent; color: var(--cv-accent); }
+
 .cv-muted { color: #6b7280; font-size: 9pt; }
 
 .cv-lightbox {
@@ -458,7 +501,7 @@
   @page { size: A4; margin: 0; }
   html, body { background: #fff !important; }
   .skip-link, .amz-progress, .site-header, .mega-menu, .site-footer, .amz-dock,
-  .float-stack, .amz-popup, .product-modal, .cv-portal__bar, .cv-portal__editor,
+  .float-stack, .amz-popup, .product-modal, .cv-portal__bar, .cv-portal__editor, .cv-theme-live,
   .cv-lightbox, .nav-toggle { display: none !important; }
   .cv-portal, .cv-portal__layout, .cv-portal__preview, .cv-preview-scroll, .cv-preview-scale, .cv-pages {
     display: block !important;

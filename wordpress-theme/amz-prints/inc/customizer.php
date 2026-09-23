@@ -204,6 +204,69 @@ function amz_prints_customize_register( $wp_customize ) {
 		'description' => __( 'Used only when Hero layout = Full-bleed slider.', 'amz-prints' ),
 	) ) );
 
+	for ( $bi = 1; $bi <= 6; $bi++ ) {
+		$wp_customize->add_setting( 'amz_banner_' . $bi, array(
+			'default'           => 0,
+			'sanitize_callback' => 'absint',
+		) );
+		$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'amz_banner_' . $bi, array(
+			'label'       => sprintf( __( 'Animated banner %d (1250×250)', 'amz-prints' ), $bi ),
+			'section'     => 'amz_hero',
+			'mime_type'   => 'image',
+			'description' => __( 'Full-width homepage slide. Upload 1250×250 px.', 'amz-prints' ),
+		) ) );
+		$wp_customize->add_setting( 'amz_banner_' . $bi . '_url', array(
+			'default'           => '',
+			'sanitize_callback' => 'esc_url_raw',
+		) );
+		$wp_customize->add_control( 'amz_banner_' . $bi . '_url', array(
+			'label'   => sprintf( __( 'Banner %d link (optional)', 'amz-prints' ), $bi ),
+			'section' => 'amz_hero',
+			'type'    => 'url',
+		) );
+	}
+
+	for ( $ai = 1; $ai <= 8; $ai++ ) {
+		$wp_customize->add_setting( 'amz_a4_slide_' . $ai, array(
+			'default'           => 0,
+			'sanitize_callback' => 'absint',
+		) );
+		$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'amz_a4_slide_' . $ai, array(
+			'label'     => sprintf( __( 'A4 slider page %d', 'amz-prints' ), $ai ),
+			'section'   => 'amz_hero',
+			'mime_type' => 'image',
+		) ) );
+	}
+
+	$wp_customize->add_setting( 'amz_running_strip', array(
+		'default'           => 'Offset Printing | Digital Printing | Large Format | Packaging | Branding | NADRA e-Services | Free CV | Order Tracking | Shop Online',
+		'sanitize_callback' => 'sanitize_textarea_field',
+	) );
+	$wp_customize->add_control( 'amz_running_strip', array(
+		'label'       => __( 'Running strip', 'amz-prints' ),
+		'description' => __( 'Separate phrases with | . This is the moving ticker under the hero.', 'amz-prints' ),
+		'section'     => 'amz_hero',
+		'type'        => 'textarea',
+	) );
+
+	if ( function_exists( 'amz_prints_services_catalog' ) ) {
+		foreach ( amz_prints_services_catalog() as $svc_row ) {
+			$sid = isset( $svc_row['slug'] ) ? (string) $svc_row['slug'] : '';
+			if ( ! $sid ) {
+				continue;
+			}
+			$wp_customize->add_setting( 'amz_svc_img_' . $sid, array(
+				'default'           => 0,
+				'sanitize_callback' => 'absint',
+			) );
+			$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'amz_svc_img_' . $sid, array(
+				'label'     => sprintf( __( 'Service image — %s', 'amz-prints' ), $svc_row['en'] ?? $sid ),
+				'section'   => 'amz_hero',
+				'mime_type' => 'image',
+			) ) );
+		}
+	}
+
 	$wp_customize->add_setting( 'amz_hero_image_3', array(
 		'default'           => '',
 		'sanitize_callback' => 'absint',

@@ -10,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 function amz_prints_services_catalog() {
-	return array(
+	$rows = array(
 		array(
 			'slug'  => 'printing-services',
 			'en'    => 'Printing Services',
@@ -188,6 +188,21 @@ function amz_prints_services_catalog() {
 			),
 		),
 	);
+	foreach ( $rows as &$row ) {
+		$slug = isset( $row['slug'] ) ? (string) $row['slug'] : '';
+		if ( ! $slug || ! function_exists( 'amz_prints_mod' ) ) {
+			continue;
+		}
+		$img_id = absint( amz_prints_mod( 'amz_svc_img_' . $slug, 0 ) );
+		if ( $img_id ) {
+			$url = wp_get_attachment_image_url( $img_id, 'large' );
+			if ( $url ) {
+				$row['image'] = $url;
+			}
+		}
+	}
+	unset( $row );
+	return $rows;
 }
 
 function amz_prints_svc_label( $row ) {

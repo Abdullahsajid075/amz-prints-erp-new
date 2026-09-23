@@ -27,46 +27,24 @@
   }
 
   function setTab(tab) {
-    currentTab = tab === 'register' || tab === 'forgot' ? tab : 'login';
+    currentTab = (tab === 'register' || tab === 'forgot' || tab === 'email') ? tab : 'login';
     var root = document.querySelector('[data-auth-root]');
-    var tabs = document.querySelector('[data-auth-tabs]');
     var googleBox = document.querySelector('[data-auth-google]');
     if (root) root.setAttribute('data-auth-tab', currentTab);
 
     document.querySelectorAll('[data-auth-panel]').forEach(function (panel) {
       panel.hidden = panel.getAttribute('data-auth-panel') !== currentTab;
     });
-    if (tabs) {
-      tabs.hidden = currentTab === 'forgot';
-      tabs.querySelectorAll('[data-auth-tab]').forEach(function (b) {
-        b.classList.toggle('is-active', b.getAttribute('data-auth-tab') === currentTab);
-      });
-    }
-    if (googleBox) googleBox.hidden = currentTab === 'forgot';
+    if (googleBox) googleBox.hidden = currentTab === 'forgot' || currentTab === 'email';
     document.querySelectorAll('[data-google-login-copy]').forEach(function (el) {
       el.hidden = currentTab !== 'login';
     });
     document.querySelectorAll('[data-google-register-copy]').forEach(function (el) {
       el.hidden = currentTab !== 'register';
     });
-    var title = document.querySelector('.page-hero h1');
-    if (title) {
-      title.textContent = currentTab === 'register' ? 'Sign up' : (currentTab === 'forgot' ? 'Reset password' : 'Customer login');
+    if (currentTab === 'login' || currentTab === 'register') {
+      window.setTimeout(function () { if (typeof initGoogle === 'function') initGoogle(); }, 40);
     }
-    var lead = document.querySelector('.page-hero__lead');
-    if (lead) {
-      lead.textContent = currentTab === 'register'
-        ? 'Create an account with your name, email and phone. Matching CRM records open your card, QR, ledger and payments automatically.'
-        : (currentTab === 'forgot'
-          ? 'We will send a verification code to your email so you can set a new password.'
-          : 'Log in with your email and password, or continue with Google if you already have an account.');
-    }
-    try {
-      var url = new URL(window.location.href);
-      if (currentTab === 'login') url.searchParams.delete('tab');
-      else url.searchParams.set('tab', currentTab);
-      window.history.replaceState({}, '', url.pathname + url.search);
-    } catch (err) { /* ignore */ }
   }
 
   var root = document.querySelector('[data-auth-root]');
@@ -78,6 +56,40 @@
       setTab(btn.getAttribute('data-auth-tab'));
     });
   });
+
+  var emailForm = document.getElementById('amz-customer-email-form');
+  if (emailForm) {
+    emailForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var fd = new FormData(emailForm);
+      var email = String(fd.get('email') || '').trim();
+      var out = document.getElementById('amz-customer-email-msg');
+      var btn = emailForm.querySelector('[type="submit"]');
+      if (btn) btn.disabled = true;
+      msg(out, 'Checking this email…', false);
+      post('amz_prints_customer_lookup', { email: email }).then(function (res) {
+        if (btn) btn.disabled = false;
+        if (!res || !res.success) {
+          msg(out, (res && res.data && res.data.message) || 'Could not check this email', true);
+          return;
+        }
+        var exists = !!(res.data && res.data.exists);
+        var target = exists ? 'login' : 'register';
+        ['#amz-customer-login-form [name="email"]', '#amz-customer-register-form [name="email"]', '#amz-customer-forgot-form [name="email"]'].forEach(function (sel) {
+          var input = document.querySelector(sel);
+          if (input) input.value = email;
+        });
+        setTab(target);
+        var note = document.getElementById(exists ? 'amz-customer-login-msg' : 'amz-customer-register-msg');
+        msg(note, exists
+          ? 'This email already has an account. Log in — we will not create a second one.'
+          : 'No account for this email. Create one below. A matching name, email, and phone opens your existing customer record.', false);
+      }).catch(function () {
+        if (btn) btn.disabled = false;
+        msg(out, 'Network error. Try again.', true);
+      });
+    });
+  }
 
   var loginForm = document.getElementById('amz-customer-login-form');
   var registerForm = document.getElementById('amz-customer-register-form');
@@ -250,7 +262,8 @@
   function initGoogle() {
     if (!cfg.googleClientId || !window.google || !google.accounts || !google.accounts.id) return;
     var host = document.getElementById('amz-google-btn');
-    if (!host) return;
+    if (!host || host.getAttribute('data-ready') || host.offsetWidth < 40) return;
+    host.setAttribute('data-ready', '1');
     google.accounts.id.initialize({
       client_id: cfg.googleClientId,
       callback: handleGoogleCredential,

@@ -13,13 +13,17 @@
     { id: 'classic', name: 'Classic', blurb: 'Sidebar layout' },
     { id: 'modern', name: 'Modern', blurb: 'Bold header' },
     { id: 'elegant', name: 'Elegant', blurb: 'Centered serif' },
-    { id: 'executive', name: 'Executive', blurb: 'Accent bar' }
+    { id: 'executive', name: 'Executive', blurb: 'Accent bar' },
+    { id: 'minimal', name: 'Minimal', blurb: 'Clean single column' },
+    { id: 'creative', name: 'Creative', blurb: 'Photo band' }
   ];
   var SIDE_SECTIONS = {
     classic: ['skills', 'professionalSkills', 'technicalSkills', 'languages', 'hobbies', 'links'],
     modern: [],
     elegant: [],
-    executive: []
+    executive: [],
+    minimal: [],
+    creative: ['skills', 'languages']
   };
 
   var SECTIONS = [
@@ -498,7 +502,8 @@
     });
     if (!main) main = '<p class="cv-muted">Start typing on the left — your CV updates here instantly.</p>';
 
-    pagesHost.innerHTML = pageHtml(railExtra, main, false);
+    var themeName = (TEMPLATES.filter(function (t) { return t.id === state.template; })[0] || {}).name || state.template;
+    pagesHost.innerHTML = '<p class="cv-theme-live">Theme: ' + esc(themeName) + '</p>' + pageHtml(railExtra, main, false);
     var page1 = pagesHost.querySelector('.cv-page');
     var overflow = [];
     if (page1) {
@@ -624,10 +629,22 @@
     ]).then(function () {
       var pages = pagesHost.querySelectorAll('.cv-page');
       if (!pages.length) throw new Error('No CV pages');
+      var stage = document.createElement('div');
+      stage.setAttribute('aria-hidden', 'true');
+      stage.style.cssText = 'position:fixed;left:-12000px;top:0;width:794px;background:#fff;z-index:-1;';
+      Array.prototype.forEach.call(pages, function (page) {
+        var clone = page.cloneNode(true);
+        clone.style.transform = 'none';
+        clone.style.width = '210mm';
+        clone.style.height = '297mm';
+        stage.appendChild(clone);
+      });
+      document.body.appendChild(stage);
+      var shots = stage.querySelectorAll('.cv-page');
       var JsPDF = window.jspdf && window.jspdf.jsPDF;
       var pdf = new JsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' });
       var chain = Promise.resolve();
-      Array.prototype.forEach.call(pages, function (page, idx) {
+      Array.prototype.forEach.call(shots, function (page, idx) {
         chain = chain.then(function () {
           return html2canvas(page, {
             scale: 2,
@@ -643,6 +660,8 @@
       });
       return chain.then(function () {
         pdf.save(name + '-CV.pdf');
+      }).finally(function () {
+        if (stage.parentNode) stage.parentNode.removeChild(stage);
       });
     }).catch(function () {
       doPrint();
