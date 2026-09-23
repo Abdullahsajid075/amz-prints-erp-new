@@ -486,25 +486,14 @@ const Products = () => {
                     className="rounded-xl border-2 border-gray-700 bg-white overflow-hidden hover:border-orange-500 hover:shadow-md transition-all"
                     data-testid={`product-card-${product.id}`}
                   >
-                    <div className="aspect-[4/3] bg-gray-50 flex items-center justify-center overflow-hidden relative">
+                    <div className="aspect-square w-full bg-gray-50 overflow-hidden relative">
                       {img ? (
-                        <img src={img} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      ) : service ? (
-                        <Wrench className="h-8 w-8 text-gray-300" />
+                        <img src={img} alt="" className="absolute inset-0 w-full h-full object-cover" referrerPolicy="no-referrer" />
                       ) : (
-                        <Package className="h-8 w-8 text-gray-300" />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          {service ? <Wrench className="h-8 w-8 text-gray-300" /> : <Package className="h-8 w-8 text-gray-300" />}
+                        </div>
                       )}
-                      {imgs.length > 1 && (
-                        <Badge className="absolute bottom-1.5 right-1.5 text-[10px] px-1.5 py-0 h-5 bg-black/70 text-white border-0">
-                          {imgs.length} photos
-                        </Badge>
-                      )}
-                      <Badge
-                        variant="outline"
-                        className="absolute top-1.5 left-1.5 text-[10px] px-1.5 py-0 h-5 bg-white/90 border-gray-600 text-gray-700"
-                      >
-                        {service ? 'Service' : 'Product'}
-                      </Badge>
                       {tracking && (
                         <span
                           className="absolute top-1.5 right-1.5 min-w-[2rem] h-8 px-2 rounded-lg bg-white/95 border-2 border-orange-500 text-orange-600 text-lg font-black leading-none flex items-center justify-center shadow-sm"
@@ -513,25 +502,35 @@ const Products = () => {
                           {Number(product.stock ?? 0) || 0}
                         </span>
                       )}
-                      {isCatalogReady(product) && product.showOnWebsite !== false ? (
-                        <Badge className="absolute bottom-1.5 right-1.5 text-[10px] px-1.5 py-0 h-5 bg-emerald-600 text-white border-0">
-                          <Globe className="h-3 w-3 mr-0.5" />Web
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="absolute bottom-1.5 right-1.5 text-[10px] px-1.5 py-0 h-5 bg-white/90 text-gray-500">
-                          Hidden
-                        </Badge>
-                      )}
-                      {product.showOnTop ? (
-                        <Badge className="absolute bottom-1.5 left-1.5 text-[10px] px-1.5 py-0 h-5 bg-orange-600 text-white border-0">
-                          Top
-                        </Badge>
-                      ) : null}
                     </div>
                     <div className="p-3 space-y-1.5">
                       <p className="text-sm font-semibold leading-snug line-clamp-2 min-h-[2.5rem]" style={{ color: '#0747a3' }}>
                         {product.name}
                       </p>
+                      <div className="flex flex-wrap gap-1">
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 border-gray-600 text-gray-700">
+                          {service ? 'Service' : 'Product'}
+                        </Badge>
+                        {imgs.length > 1 && (
+                          <Badge className="text-[10px] px-1.5 py-0 h-5 bg-black text-white border-0">
+                            {imgs.length} photos
+                          </Badge>
+                        )}
+                        {isCatalogReady(product) && product.showOnWebsite !== false ? (
+                          <Badge className="text-[10px] px-1.5 py-0 h-5 bg-emerald-600 text-white border-0">
+                            <Globe className="h-3 w-3 mr-0.5" />Web
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 text-gray-500">
+                            Hidden
+                          </Badge>
+                        )}
+                        {product.showOnTop ? (
+                          <Badge className="text-[10px] px-1.5 py-0 h-5 bg-orange-600 text-white border-0">
+                            Top
+                          </Badge>
+                        ) : null}
+                      </div>
                       {Number(product.salePrice) > 0 ? (
                         <p className="text-base font-bold" style={{ color: '#ff6d00' }}>
                           <span className="text-gray-400 text-xs font-medium line-through mr-1.5">
