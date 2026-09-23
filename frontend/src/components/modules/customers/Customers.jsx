@@ -22,6 +22,7 @@ import {
   isCustomerBlocked, canUnblockCustomer, customerDisplayCode,
   openUrduBalanceWhatsApp, openCustomerWelcomeWhatsApp, openLedgerWhatsApp,
 } from '@/utils/customerHelpers';
+import { openBlankWhatsAppTab } from '@/services/notifications';
 import { useAuth } from '@/context/AuthContext';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
@@ -251,7 +252,8 @@ const Customers = () => {
     }
     setBalanceSending(true);
     try {
-      const result = openUrduBalanceWhatsApp(customer, { outstanding: amount });
+      const pendingWindow = openBlankWhatsAppTab();
+      const result = openUrduBalanceWhatsApp(customer, { outstanding: amount, pendingWindow });
       if (result?.ok) toast.message('WhatsApp opened — tap Send (Urdu balance reminder)');
       else toast.error('Could not open WhatsApp — check customer phone / allow popups');
     } finally {

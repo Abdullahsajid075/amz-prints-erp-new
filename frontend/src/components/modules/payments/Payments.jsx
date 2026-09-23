@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { paymentsAPI, settingsAPI, customersAPI, expensesAPI, ordersAPI, invoicesAPI } from '@/services/api';
 import { clearGasCache } from '@/services/gasClient';
-import { notifyPaymentEvent, printPaymentSlip } from '@/services/notifications';
+import { notifyPaymentEvent, printPaymentSlip, openBlankWhatsAppTab } from '@/services/notifications';
+import { lookupCustomerPhone, firstPhone } from '@/utils/notifyPhone';
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 import { sortBy } from '@/utils/sortBy';
@@ -61,7 +62,7 @@ function normalizePayment(p = {}) {
     category: p.category || '',
     customerId: p.customerId || p.customerid || '',
     party: p.party || p.customerName || p.customername || '',
-    partyPhone: p.partyPhone || p.partyphone || p.phone || '',
+    partyPhone: p.partyPhone || p.partyphone || p.phone || p.customerPhone || p.customerphone || '',
     partyEmail: p.partyEmail || p.partyemail || p.email || p.customerEmail || '',
     partyAddress: p.partyAddress || p.address || '',
     reference: p.reference || p.refId || p.refid || '',
@@ -310,14 +311,17 @@ const Payments = () => {
       }
     }
 
-    const phone = payment.partyPhone || payment.phone;
+    const phone = firstPhone(payment.partyPhone, payment.phone, payment.customerPhone);
     const notify = await notifyPaymentEvent({
       ...payment,
+      partyPhone: phone,
+      phone,
       amount: payment.amount,
       balanceDue: payment.balanceDue,
       partyEmail: payment.partyEmail || payment.email || '',
     }, {
       openWhatsApp: !!phone,
+      forceWhatsApp: true,
       pendingWindow,
       sendEmail: true,
     });
@@ -355,12 +359,8 @@ const Payments = () => {
 
     // Pre-open WhatsApp tab during click (survives popup blocker after await)
     let waWindow = null;
-    if (!editing && formData.type === 'inflow' && String(formData.partyPhone || '').trim()) {
-      try {
-        waWindow = window.open('about:blank', '_blank');
-      } catch {
-        waWindow = null;
-      }
+    if (!editing && String(formData.partyPhone || formData.phone || '').trim()) {
+      waWindow = openBlankWhatsAppTab();
     }
 
     setSaving(true);
@@ -405,8 +405,15 @@ const Payments = () => {
       setDialogOpen(false);
       loadPayments();
       if (!editing) {
+        const keptPhone = await lookupCustomerPhone({
+          phone: firstPhone(saved.partyPhone, saved.phone, saved.customerPhone, payload.partyPhone, payload.phone),
+          customerId: saved.customerId || payload.customerId,
+          customerName: saved.party || payload.party,
+        });
         await afterSaveActions({
           ...saved,
+          partyPhone: keptPhone,
+          phone: keptPhone,
           totalAmount: saved.totalAmount || payload.totalAmount,
           balanceDue: saved.balanceDue ?? payload.balanceDue,
         }, { pendingWindow: waWindow });
@@ -430,13 +437,24 @@ const Payments = () => {
   };
 
   const resendWhatsApp = async (p) => {
-    if (!(p.partyPhone || p.phone)) {
+    const waWindow = openBlankWhatsAppTab();
+    const phone = await lookupCustomerPhone({
+      phone: firstPhone(p.partyPhone, p.phone, p.customerPhone),
+      customerId: p.customerId,
+      customerName: p.party || p.customerName,
+    });
+    if (!phone) {
+      if (waWindow && !waWindow.closed) {
+        try { waWindow.close(); } catch { /* ignore */ }
+      }
       toast.error('No phone on this payment — edit and add party phone');
       return;
     }
-    let waWindow = null;
-    try { waWindow = window.open('about:blank', '_blank'); } catch { waWindow = null; }
-    const notify = await notifyPaymentEvent(p, { pendingWindow: waWindow });
+    const notify = await notifyPaymentEvent({
+      ...p,
+      partyPhone: phone,
+      phone,
+    }, { pendingWindow: waWindow, forceWhatsApp: true, openWhatsApp: true });
     if (notify?.whatsappOpened) toast.message('WhatsApp opened — tap Send');
     else toast.error('Could not open WhatsApp');
   };

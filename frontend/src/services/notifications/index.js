@@ -15,6 +15,7 @@ import {
 } from './templates';
 import { openWhatsAppChat } from './whatsappChannel';
 import { settingsAPI } from '../api';
+import { firstPhone } from '@/utils/notifyPhone';
 
 export {
   listChannels,
@@ -126,6 +127,7 @@ export async function notifyOrderEvent({
   company: companyOverride,
   notifications: notifOverride,
   openWhatsApp = true,
+  forceWhatsApp = false,
   pendingWindow = null,
   sendEmail = true,
 } = {}) {
@@ -145,12 +147,17 @@ export async function notifyOrderEvent({
     : loaded.notifications;
 
   const status = order?.status || '';
-  const phone = order?.customerPhone
-    || customer?.phone
-    || invoice?.customerPhone
-    || payment?.partyPhone
-    || payment?.phone
-    || '';
+  const phone = firstPhone(
+    order?.customerPhone,
+    order?.phone,
+    customer?.phone,
+    customer?.customerPhone,
+    invoice?.customerPhone,
+    invoice?.phone,
+    payment?.partyPhone,
+    payment?.phone,
+    payment?.customerPhone,
+  );
 
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://erp.amzprints.com';
   const trackingNumber = order?.trackingNumber || '';
@@ -192,15 +199,21 @@ export async function notifyOrderEvent({
   const payloadBase = { event, order, invoice, payment, company, customer, vars };
 
   let whatsappResult = null;
-  const allowWhatsApp = openWhatsApp
-    && notifications.whatsappEnabled
-    && customerAllows(customer, 'whatsapp')
-    && phone;
+  // User-clicked Send (forceWhatsApp) must ignore the Settings toggle / customer opt-out.
+  const allowWhatsApp = !!(openWhatsApp && phone && (
+    forceWhatsApp
+    || (notifications.whatsappEnabled && customerAllows(customer, 'whatsapp'))
+  ));
   if (allowWhatsApp) {
     const template = resolveWhatsAppTemplate(notifications.whatsappTemplates, event, status)
       || DEFAULT_WHATSAPP_TEMPLATES[event]
-      || DEFAULT_WHATSAPP_TEMPLATES.invoice_generated;
+      || DEFAULT_WHATSAPP_TEMPLATES.invoice_generated
+      || DEFAULT_WHATSAPP_TEMPLATES.payment_received;
     let text = String(template || '').trim() ? fillTemplate(template, vars) : '';
+    if (!text) {
+      const fallback = DEFAULT_WHATSAPP_TEMPLATES[event] || DEFAULT_WHATSAPP_TEMPLATES.invoice_generated;
+      text = fillTemplate(fallback, vars);
+    }
     if (vars.invoice_url && text && !text.includes(String(vars.invoice_url))) {
       text = `${text}\n\nInvoice link: ${vars.invoice_url}`;
     }
@@ -313,6 +326,8 @@ export async function notifyBalanceReminder(customer, ledger, options = {}) {
       balance: ledger.outstanding,
     },
     openWhatsApp: options.openWhatsApp !== false,
+    forceWhatsApp: options.forceWhatsApp === true || options.openWhatsApp !== false,
+    pendingWindow: options.pendingWindow || null,
     sendEmail: options.sendEmail !== false,
   });
 }
@@ -337,12 +352,13 @@ export async function notifyPaymentEvent(payment, options = {}) {
     },
     order: {
       customerName: payment?.party || payment?.customerName,
-      customerPhone: payment?.partyPhone || payment?.phone,
+      customerPhone: firstPhone(payment?.partyPhone, payment?.phone, payment?.customerPhone),
       customerEmail: payment?.partyEmail || payment?.email || payment?.customerEmail || '',
       totalAmount: total || received,
       balanceAmount: balance,
     },
     openWhatsApp: options.openWhatsApp !== false,
+    forceWhatsApp: options.forceWhatsApp !== false,
     pendingWindow: options.pendingWindow || null,
     sendEmail: options.sendEmail !== false,
   });

@@ -1703,7 +1703,7 @@ async function dispatch(req, res) {
         ref_id: b.refId || b.reference || '',
         customer_name: b.customerName || b.party || '',
         customer_id: b.customerId || '',
-        party_phone: b.partyPhone || '',
+        party_phone: b.partyPhone || b.phone || b.customerPhone || '',
         amount: num(b.amount),
         method: b.method || '',
         notes: b.notes || '',

@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from '@/components/ui/button';
 import { invoicesAPI, customersAPI } from '@/services/api';
 import { notifyOrderEvent, openBlankWhatsAppTab } from '@/services/notifications';
+import { lookupCustomerPhone, firstPhone } from '@/utils/notifyPhone';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
@@ -44,25 +45,34 @@ export default function ReceivablesDialog({ open, onOpenChange }) {
   const customerTotal = useMemo(() => customers.reduce((s, c) => s + Number(c.outstanding || 0), 0), [customers]);
 
   const sendReminder = async (party, amount, extra = {}) => {
-    if (!party.customerPhone && !party.phone) {
-      toast.error('Customer phone missing');
-      return;
-    }
     const id = party.id;
     setRemindingId(id);
     const pendingWindow = openBlankWhatsAppTab();
     try {
+      const phone = await lookupCustomerPhone({
+        phone: firstPhone(party.customerPhone, party.phone),
+        customerId: party.customerId || party.id,
+        customerName: party.customerName || party.name,
+      });
+      if (!phone) {
+        if (pendingWindow && !pendingWindow.closed) {
+          try { pendingWindow.close(); } catch { /* ignore */ }
+        }
+        toast.error('Customer phone missing');
+        return;
+      }
       const result = await notifyOrderEvent({
         event: 'payment_reminder',
         order: {
           customerName: party.customerName || party.name,
-          customerPhone: party.customerPhone || party.phone,
+          customerPhone: phone,
           orderId: extra.orderId || '',
           totalAmount: amount,
           balanceAmount: amount,
         },
-        invoice: { ...party, balanceAmount: amount },
+        invoice: { ...party, customerPhone: phone, balanceAmount: amount },
         openWhatsApp: true,
+        forceWhatsApp: true,
         sendEmail: false,
         pendingWindow,
       });

@@ -4,10 +4,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { ordersAPI, posRegisterAPI } from '@/services/api';
+import { ordersAPI, posRegisterAPI, settingsAPI } from '@/services/api';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 import { useBrand } from '@/context/BrandContext';
-import { ArrowLeft, Printer, Store, DollarSign, ShoppingBag, FileSpreadsheet } from 'lucide-react';
+import { mergePosSettings } from '@/utils/moduleSettings';
+import { printPosSlip, saleFromPosOrder } from '@/utils/posSlip';
+import { ArrowLeft, Printer, Store, DollarSign, ShoppingBag, FileSpreadsheet, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 
 function isPosOrder(o) {
@@ -31,6 +33,8 @@ const POSStatement = () => {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [zReports, setZReports] = useState([]);
+  const [posCfg, setPosCfg] = useState(mergePosSettings({}));
+  const [reprintingId, setReprintingId] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -42,6 +46,12 @@ const POSStatement = () => {
         setZReports(Array.isArray(reg.data?.history) ? reg.data.history : []);
       } catch {
         setZReports([]);
+      }
+      try {
+        const settings = await settingsAPI.get();
+        setPosCfg(mergePosSettings(settings.data || {}));
+      } catch {
+        setPosCfg(mergePosSettings({}));
       }
     } catch (err) {
       console.error(err);
@@ -128,6 +138,21 @@ const POSStatement = () => {
     }
     w.document.write(html);
     w.document.close();
+  };
+
+  const reprintSlip = async (order) => {
+    const key = order.id || order.orderId;
+    setReprintingId(key);
+    try {
+      const res = await printPosSlip(saleFromPosOrder(order), { company, posCfg });
+      if (!res.ok) toast.error('Allow popups to reprint the POS slip');
+      else toast.message('POS slip opened — print or save');
+    } catch (err) {
+      console.error(err);
+      toast.error('Could not reprint POS slip');
+    } finally {
+      setReprintingId('');
+    }
   };
 
   return (
@@ -244,11 +269,12 @@ const POSStatement = () => {
                   <th className="p-3">Phone</th>
                   <th className="p-3">Status</th>
                   <th className="p-3 text-right">Total</th>
+                  <th className="p-3 text-right">Slip</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={6} className="p-8 text-center text-gray-400">No POS orders in this period</td></tr>
+                  <tr><td colSpan={7} className="p-8 text-center text-gray-400">No POS orders in this period</td></tr>
                 ) : filtered.map((o) => (
                   <tr key={o.id || o.orderId} className="border-b last:border-0 hover:bg-orange-50/40">
                     <td className="p-3 font-semibold">{o.orderId || o.id}</td>
@@ -257,6 +283,19 @@ const POSStatement = () => {
                     <td className="p-3 text-gray-600">{o.customerPhone || '—'}</td>
                     <td className="p-3"><Badge variant="outline">{o.status || 'Delivered'}</Badge></td>
                     <td className="p-3 text-right font-bold" style={{ color: accent }}>{formatCurrency(orderAmount(o))}</td>
+                    <td className="p-3 text-right">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8"
+                        disabled={reprintingId === (o.id || o.orderId)}
+                        onClick={() => reprintSlip(o)}
+                        data-testid={`pos-reprint-${o.id || o.orderId}`}
+                      >
+                        <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                        Reprint
+                      </Button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
