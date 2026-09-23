@@ -105,10 +105,12 @@ create table if not exists products (
   show_on_website boolean default true,
   full_description text default '',
   variations jsonb default '[]'::jsonb,
+  track_inventory boolean default true,
   created_at timestamptz default now()
 );
 
 -- alter table products add column if not exists image text default '';
+alter table products add column if not exists track_inventory boolean default true;
 
 -- ========== ORDERS (+ quotations / POS via doc_type) ==========
 create table if not exists orders (

@@ -450,7 +450,7 @@ const Dashboard = () => {
                 <button
                   key={a.path}
                   type="button"
-                  onClick={() => (a.path === '/pos' ? (openPosCounterWindow() || navigate('/pos')) : navigate(a.path))}
+                  onClick={() => (a.path === '/pos' ? (openPosCounterWindow() || window.location.assign('/pos/counter')) : navigate(a.path))}
                   className="group inline-flex items-center gap-2.5 shrink-0 rounded-xl border border-black/[0.06] bg-white px-3 py-2.5 text-left hover:shadow-md hover:border-orange-200/80 transition-all"
                 >
                   <div

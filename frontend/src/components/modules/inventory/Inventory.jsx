@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { productsAPI, purchasesAPI, ordersAPI, settingsAPI } from '@/services/api';
 import { Warehouse, Search, Package, Settings } from 'lucide-react';
 import { mergeInventorySettings } from '@/utils/moduleSettings';
+import { isServiceItem, tracksInventory } from '@/utils/inventoryTrack';
 import { toast } from 'sonner';
 
 const UPCOMING_STATUSES = new Set(['Ordered', 'Partial Paid']);
@@ -77,6 +78,7 @@ const Inventory = () => {
       const st = String(order.status || '').toLowerCase();
       if (!OPEN_ORDER_STATUSES.has(st)) return;
       (order.products || order.items || order.lineItems || []).forEach((item) => {
+        if (isServiceItem(item) || !tracksInventory(item)) return;
         const qty = Number(item.quantity) || 0;
         [item.productId, item.id, item.name].forEach((key) => {
           if (!key) return;
@@ -89,6 +91,7 @@ const Inventory = () => {
 
   const rows = useMemo(() => {
     return products
+      .filter((p) => tracksInventory(p) && !isServiceItem(p))
       .map((p) => {
         const stock = Number(p.stock) || 0;
         const lowAt = Number(p.lowStockAlert ?? p.reorderLevel ?? lowDefault) || lowDefault;
@@ -117,7 +120,7 @@ const Inventory = () => {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-3xl font-bold" style={{ color: '#0747a3' }}>Inventory</h1>
-            <p className="text-gray-600 mt-1">Stock levels drop when POS / orders sell an item. Reserved uses open order qty.</p>
+            <p className="text-gray-600 mt-1">Stocked products only. Services and items with Track inventory off are not listed. Reserved uses open order qty.</p>
           </div>
           <Button asChild variant="outline">
             <Link to="/warehouse/inventory/settings"><Settings className="h-4 w-4 mr-1" />Inventory settings</Link>

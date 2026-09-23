@@ -73,11 +73,14 @@ function mapProduct(row) {
   const img = images[0] || row.image || '';
   const catalogReady = isWebsiteCatalogReady({ images, description: row.description, fullDescription: row.full_description, image: img });
   const showOnWebsite = catalogReady && (row.show_on_website == null ? true : truthy(row.show_on_website, true));
+  const productType = row.product_type || 'Product';
+  const isService = String(productType).toLowerCase() === 'service';
+  const trackInventory = isService ? false : (row.track_inventory == null ? true : truthy(row.track_inventory, true));
   return {
     id: row.id,
     name: row.name || '',
     category: row.category || '',
-    productType: row.product_type || 'Product',
+    productType,
     basePrice: rate,
     rate,
     salePrice,
@@ -87,7 +90,8 @@ function mapProduct(row) {
     fullDescription: row.full_description || '',
     status: row.status || 'Active',
     designer: row.designer || '',
-    stock: num(row.stock),
+    stock: isService ? 0 : num(row.stock),
+    trackInventory,
     material: row.material || '',
     size: row.size || '',
     minQuantity: num(row.min_quantity),

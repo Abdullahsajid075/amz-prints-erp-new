@@ -10,6 +10,7 @@ const {
   makePortalPassword, checkPortalPassword, issueCustomerToken, parseCustomerToken,
   sanitizePortalCustomer, isBlocked, productFromBody,
   withCustomerPhoto, customerPhoto, isWebsiteCatalogReady,
+  isServiceProduct, productTracksInventory,
 } = require('../lib/helpers');
 const {
   computeCustomerLedger,
@@ -291,10 +292,8 @@ async function loadCustomer(cid) {
 
 function isStockTrackedLine(p) {
   if (!p) return false;
-  const type = String(p.productType || p.product_type || '').toLowerCase();
-  if (type === 'service') return false;
-  if (/service/i.test(String(p.category || ''))) return false;
-  return true;
+  if (String(p.productId || p.product_id || '').startsWith('calc_')) return false;
+  return productTracksInventory(p);
 }
 
 function collectLineQtys(lines) {
@@ -330,7 +329,7 @@ async function loadInventoryPolicy() {
 async function syncProductStock(oldLines, newLines) {
   const policy = await loadInventoryPolicy();
   if (!policy.track) return;
-  const { data: catalog } = await supabase.from('products').select('id,name,stock,product_type,category');
+  const catalog = await dbSelectSafe('products', 'id,name,stock,product_type,category,track_inventory');
   const rows = catalog || [];
   const findRow = (line) => {
     if (line.id) {
@@ -359,7 +358,7 @@ async function syncProductStock(oldLines, newLines) {
     const delta = (newMap.get(pid) || 0) - (oldMap.get(pid) || 0);
     if (!delta) continue;
     const row = rows.find((r) => r.id === pid);
-    if (!row || String(row.product_type || '').toLowerCase() === 'service') continue;
+    if (!row || !productTracksInventory(row) || isServiceProduct(row)) continue;
     const have = num(row.stock);
     const next = have - delta;
     if (delta > 0 && next < -0.0001 && !policy.allowNeg) {
