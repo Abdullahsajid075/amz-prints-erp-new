@@ -609,11 +609,11 @@ const POS = () => {
                       className="text-left bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-orange-200 transition-all overflow-hidden"
                       data-testid={`pos-product-${p.id}`}
                     >
-                      <div className="relative h-28 bg-slate-50">
+                      <div className="relative aspect-square w-full bg-slate-50 overflow-hidden">
                         {img ? (
-                          <img src={img} alt="" className="w-full h-full object-contain p-2" />
+                          <img src={img} alt="" className="absolute inset-0 w-full h-full object-cover" />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-slate-300">
+                          <div className="absolute inset-0 flex items-center justify-center text-slate-300">
                             {service ? <Wrench className="h-8 w-8" /> : <Package className="h-8 w-8" />}
                           </div>
                         )}
@@ -623,7 +623,7 @@ const POS = () => {
                           </span>
                         ) : null}
                       </div>
-                      <div className="px-3 pb-3 pt-1">
+                      <div className="px-3 pb-3 pt-2">
                         <p className="text-[13px] font-semibold leading-snug line-clamp-2 min-h-[2.4rem]">{p.name}</p>
                         <p className="text-sm font-black mt-1" style={{ color: accent }}>{formatCurrency(p.rate || p.basePrice || p.effectivePrice)}</p>
                       </div>
