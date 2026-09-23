@@ -168,7 +168,12 @@ function persistIncompleteWebsiteHides(rows) {
 
 const LEAN_ORDER_COLS = 'id,order_id,date,created_at,customer_id,customer_phone,customer_name,status,doc_type,total_amount,advance_payment,balance_amount,delivery_date,tracking_number';
 const LEAN_INVOICE_COLS = 'id,customer_id,customer_phone,order_id,total,paid,previous_balance,status,invoice_no,date';
-const LEAN_PAYMENT_COLS = 'id,date,type,amount,customer_id,customer_phone,party_phone,category,method,notes,ref_id';
+/** Live payments table has party_phone, not customer_phone. */
+const LEAN_PAYMENT_COLS = 'id,date,type,amount,customer_id,customer_name,party_phone,category,method,notes,ref_id';
+/** Live expenses table has approved, not status. */
+const LEAN_EXPENSE_COLS = 'id,date,amount,approved,description,category,payment_method,paid_to';
+/** Live purchases table has date, not purchase_date. */
+const LEAN_PURCHASE_COLS = 'id,date,vendor_id,vendor_name,total,paid_amount,status';
 
 function attachVendorPayables(row, purchases) {
   const api = mapVendor(row);
@@ -828,10 +833,10 @@ async function dispatch(req, res) {
         if (wantCid && wantCid !== String(me.id)) {
           return sendError(res, 'This QR belongs to a different customer account. Please login with the matching account.', 403);
         }
-        const [{ data: orders }, { data: invoices }, { data: payments }] = await Promise.all([
-          supabase.from('orders').select(LEAN_ORDER_COLS),
-          supabase.from('invoices').select(LEAN_INVOICE_COLS),
-          supabase.from('payments').select(LEAN_PAYMENT_COLS),
+        const [orders, invoices, payments] = await Promise.all([
+          dbSelectSafe('orders', LEAN_ORDER_COLS),
+          dbSelectSafe('invoices', LEAN_INVOICE_COLS),
+          dbSelectSafe('payments', LEAN_PAYMENT_COLS),
         ]);
         const led = computeCustomerLedger(me, orders || [], invoices || [], payments || []);
         const relatedOrders = (orders || []).filter((o) =>
@@ -977,8 +982,8 @@ async function dispatch(req, res) {
       const [orders, customers, expenses, purchases, invoices, payments] = await Promise.all([
         dbSelectSafe('orders', LEAN_ORDER_COLS),
         dbSelectSafe('customers', 'id,phone,name,credit_balance'),
-        dbSelectSafe('expenses', 'id,date,amount,approved,status,description,category'),
-        dbSelectSafe('purchases', 'id,date,purchase_date,vendor_id,vendor_name,total,paid_amount,status'),
+        dbSelectSafe('expenses', LEAN_EXPENSE_COLS),
+        dbSelectSafe('purchases', LEAN_PURCHASE_COLS),
         dbSelectSafe('invoices', LEAN_INVOICE_COLS),
         dbSelectSafe('payments', LEAN_PAYMENT_COLS),
       ]);
@@ -1067,7 +1072,7 @@ async function dispatch(req, res) {
     if (method === 'GET' && path === '/dashboard/charts') {
       const [orders, expenses] = await Promise.all([
         dbSelectSafe('orders', 'date,doc_type,status,total_amount'),
-        dbSelectSafe('expenses', 'date,amount,approved,status'),
+        dbSelectSafe('expenses', 'id,date,amount,approved'),
       ]);
       const monthly = buildMonthlySales(orders || [], expenses || []);
       return send(res, { sales: monthly, expenses: monthly, monthlySales: monthly });
@@ -1226,11 +1231,11 @@ async function dispatch(req, res) {
     // Customers + CRM
     if (path === '/customers' || path.startsWith('/customers/')) {
       if (path === '/customers' && method === 'GET') {
-        const [{ data }, { data: orders }, { data: invoices }, { data: payments }] = await Promise.all([
-          supabase.from('customers').select('*').order('created_at', { ascending: false }),
-          supabase.from('orders').select(LEAN_ORDER_COLS),
-          supabase.from('invoices').select(LEAN_INVOICE_COLS),
-          supabase.from('payments').select(LEAN_PAYMENT_COLS),
+        const [data, orders, invoices, payments] = await Promise.all([
+          dbSelectSafe('customers', '*', (q) => q.order('created_at', { ascending: false })),
+          dbSelectSafe('orders', LEAN_ORDER_COLS),
+          dbSelectSafe('invoices', LEAN_INVOICE_COLS),
+          dbSelectSafe('payments', LEAN_PAYMENT_COLS),
         ]);
         return send(res, (data || []).map((c) => attachCustomerLedger(c, orders || [], invoices || [], payments || [])));
       }
@@ -1419,10 +1424,10 @@ async function dispatch(req, res) {
       if (method === 'GET') {
         const { data } = await supabase.from('customers').select('*').eq('id', cid).maybeSingle();
         if (!data) return sendError(res, 'Customer not found', 404);
-        const [{ data: orders }, { data: invoices }, { data: payments }] = await Promise.all([
-          supabase.from('orders').select(LEAN_ORDER_COLS),
-          supabase.from('invoices').select(LEAN_INVOICE_COLS),
-          supabase.from('payments').select(LEAN_PAYMENT_COLS),
+        const [orders, invoices, payments] = await Promise.all([
+          dbSelectSafe('orders', LEAN_ORDER_COLS),
+          dbSelectSafe('invoices', LEAN_INVOICE_COLS),
+          dbSelectSafe('payments', LEAN_PAYMENT_COLS),
         ]);
         return send(res, attachCustomerLedger(data, orders || [], invoices || [], payments || []));
       }
@@ -2157,12 +2162,12 @@ async function dispatch(req, res) {
     }
 
     if (path === '/reports' && method === 'GET') {
-      const [{ data: orders }, { data: expenses }, { data: payments }, { data: invoices }, { data: customers }] = await Promise.all([
-        supabase.from('orders').select(LEAN_ORDER_COLS),
-        supabase.from('expenses').select('id,date,amount,approved,status'),
-        supabase.from('payments').select('id,date,type,amount'),
-        supabase.from('invoices').select(LEAN_INVOICE_COLS),
-        supabase.from('customers').select('id,phone,name,credit_balance'),
+      const [orders, expenses, payments, invoices, customers] = await Promise.all([
+        dbSelectSafe('orders', LEAN_ORDER_COLS),
+        dbSelectSafe('expenses', LEAN_EXPENSE_COLS),
+        dbSelectSafe('payments', 'id,date,type,amount,customer_id,party_phone'),
+        dbSelectSafe('invoices', LEAN_INVOICE_COLS),
+        dbSelectSafe('customers', 'id,phone,name,credit_balance'),
       ]);
       const realOrders = (orders || []).filter((o) => !isQuotation(o) && !isCancelledStatus(o.status));
       const revenue = realOrders.reduce((s, o) => s + num(o.total_amount), 0);
