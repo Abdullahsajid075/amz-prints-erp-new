@@ -15,7 +15,7 @@ import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, getUserDisplayName } from '@/context/AuthContext';
-import { openPosCounterWindow, openPosCounterOrFallback } from '@/utils/posWindow';
+import { openPosCounterOrFallback } from '@/utils/posWindow';
 import POSCalculator from '@/components/modules/pos/POSCalculator';
 import { productImageSrc } from '@/utils/productImage';
 import { isServiceItem, tracksInventory } from '@/utils/inventoryTrack';
@@ -85,15 +85,6 @@ const POS = ({ kiosk = false }) => {
     if (!isKiosk) return undefined;
     const t = setInterval(() => setClock(new Date()), 1000);
     return () => clearInterval(t);
-  }, [isKiosk]);
-
-  useEffect(() => {
-    if (isKiosk) return undefined;
-    const timer = setTimeout(() => {
-      const w = openPosCounterWindow();
-      if (!w) toast.error('Allow popups — POS opens as a separate window');
-    }, 250);
-    return () => clearTimeout(timer);
   }, [isKiosk]);
 
   const loadRegister = useCallback(async () => {
@@ -167,10 +158,10 @@ const POS = ({ kiosk = false }) => {
         key={p.id}
         type="button"
         onClick={() => addToCart(p)}
-        className="text-left rounded-2xl border border-white/10 bg-[#121c2f] overflow-hidden hover:border-orange-500 hover:shadow-[0_0_0_1px_#ff6d00] transition-all group"
+        className="text-left rounded-2xl border border-amber-200/10 bg-gradient-to-b from-[#24182a] to-[#140c1c] overflow-hidden hover:border-amber-400/70 hover:shadow-[0_10px_28px_rgba(232,184,74,0.18)] transition-all group"
         data-testid={`pos-product-${p.id}`}
       >
-        <div className="relative h-20 bg-[#0b1424]">
+        <div className="relative h-24 bg-[#0d0814]">
           {img ? (
             <img src={img} alt="" className="w-full h-full object-cover" />
           ) : (
@@ -182,7 +173,7 @@ const POS = ({ kiosk = false }) => {
             {service ? 'Service' : 'Product'}
           </span>
           {tracking ? (
-            <span className="absolute top-1.5 right-1.5 min-w-[1.75rem] h-7 px-1.5 rounded-md bg-orange-500 text-white text-sm font-black leading-none flex items-center justify-center" title="On-hand quantity">
+            <span className="absolute top-1.5 right-1.5 min-w-[1.75rem] h-7 px-1.5 rounded-md bg-gradient-to-br from-amber-300 to-orange-500 text-[#1a0f08] text-sm font-black leading-none flex items-center justify-center shadow" title="On-hand quantity">
               {Number(p.stock ?? 0) || 0}
             </span>
           ) : null}
@@ -236,6 +227,11 @@ const POS = ({ kiosk = false }) => {
   };
 
   const addToCart = (product) => {
+    if (!register.current) {
+      toast.error('Pehle cash register open karein');
+      setOpenDlg(true);
+      return;
+    }
     const rate = Number(product.rate || product.basePrice || 0);
     setCart((prev) => {
       const idx = prev.findIndex((c) => c.productId === product.id);
@@ -328,8 +324,8 @@ const POS = ({ kiosk = false }) => {
       toast.error('Cart is empty');
       return;
     }
-    if (posCfg.requireRegister && !register.current) {
-      toast.error('Open the cash register first — opening float is required');
+    if (!register.current) {
+      toast.error('Pehle cash register open karein — opening float required');
       setOpenDlg(true);
       return;
     }
@@ -359,9 +355,11 @@ const POS = ({ kiosk = false }) => {
         advancePayment: payable,
         balanceAmount: 0,
         status: 'Delivered',
-        remarks: `POS Sale · ${paymentMethod}${discNote} · Recv ${cashReceived} · Change ${changeBack}`,
+        remarks: `POS Sale · ${paymentMethod}${discNote} · By ${cashier} · Recv ${cashReceived} · Change ${changeBack}`,
         docType: 'POS',
         paymentMethod,
+        soldBy: cashier,
+        cashier,
       };
       const created = await ordersAPI.create(payload);
       const sale = {
@@ -407,6 +405,13 @@ const POS = ({ kiosk = false }) => {
   };
 
   const cashier = getUserDisplayName(user) || 'Cashier';
+  const registerOpen = !!register.current;
+
+  useEffect(() => {
+    if (!isKiosk || registerOpen) return undefined;
+    setOpenDlg(true);
+    return undefined;
+  }, [isKiosk, registerOpen]);
 
   const openShift = async () => {
     setRegBusy(true);
@@ -522,58 +527,62 @@ const POS = ({ kiosk = false }) => {
     return (
       <div className="erp-page space-y-5" data-testid="pos-page">
         <div
-          className="relative overflow-hidden rounded-3xl text-white shadow-lg min-h-[280px] flex flex-col justify-end"
+          className="relative overflow-hidden rounded-[28px] text-white shadow-[0_24px_60px_rgba(20,12,28,0.28)] min-h-[320px] flex flex-col justify-end"
           style={{
             background: `
-              radial-gradient(900px 280px at 90% 10%, #ff6d0077, transparent 55%),
-              linear-gradient(135deg, #042a63 0%, #0747a3 48%, #0b3d2e 100%)
+              radial-gradient(720px 280px at 8% 0%, rgba(244,197,106,0.38), transparent 58%),
+              radial-gradient(640px 260px at 92% 20%, rgba(255,109,0,0.28), transparent 52%),
+              linear-gradient(145deg, #1a1024 0%, #2a1840 42%, #141022 100%)
             `,
           }}
         >
-          <svg className="absolute right-6 bottom-0 w-64 h-48 opacity-80" viewBox="0 0 200 140" fill="none" aria-hidden>
-            <rect x="30" y="40" width="110" height="70" rx="8" fill="#fff" opacity="0.95" />
-            <rect x="40" y="50" width="90" height="12" rx="3" fill="#0747a3" />
-            <rect x="40" y="70" width="50" height="8" rx="2" fill="#e2e8f0" />
-            <rect x="40" y="84" width="70" height="8" rx="2" fill="#e2e8f0" />
-            <rect x="145" y="55" width="28" height="50" rx="4" fill="#ff6d00" />
-            <circle cx="80" cy="28" r="14" fill="#10B981" />
-            <text x="80" y="33" textAnchor="middle" fontSize="12" fill="#fff" fontFamily="sans-serif">POS</text>
-          </svg>
-          <div className="relative p-6 sm:p-8 space-y-3 max-w-xl">
-            <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-white/70">Point of sale</p>
-            <h1 className="text-3xl sm:text-4xl font-bold leading-tight">POS Counter</h1>
-            <p className="text-white/80 text-sm">Opens as a dedicated till window: products, calculator, pay, opening &amp; closing register (Z-report).</p>
-            <div className="flex flex-wrap gap-2 pt-2">
-              <Button className="text-white" style={{ backgroundColor: '#ff6d00' }} onClick={() => {
-                const w = openPosCounterOrFallback();
-                if (!w) toast.error('Allow popups to open the POS window');
-              }}>
-                <Expand className="h-4 w-4 mr-2" />Open POS window
+          <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'radial-gradient(circle at 20% 80%, #f4c56a22 0, transparent 40%), radial-gradient(circle at 80% 30%, #ff8a3d18 0, transparent 35%)' }} />
+          <div className="relative p-7 sm:p-10 space-y-4 max-w-2xl">
+            <p className="text-[11px] uppercase tracking-[0.28em] font-bold text-amber-200/80">Amazon Printing · Point of sale</p>
+            <h1 className="text-4xl sm:text-5xl font-black leading-[1.05] tracking-tight">POS desk</h1>
+            <p className="text-white/78 text-[15px] max-w-lg">
+              Yeh tab till nahi kholta. Till sirf <strong className="text-amber-200">POS Counter</strong> se alag window mein khulta hai.
+              Register open kiye baghair koi sale nahi ho sakti.
+            </p>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Button
+                className="h-11 px-5 text-white font-bold shadow-lg"
+                style={{ background: 'linear-gradient(135deg,#f4c56a,#ff6d00)' }}
+                onClick={() => {
+                  const w = openPosCounterOrFallback();
+                  if (!w) toast.error('Allow popups to open the POS Counter');
+                }}
+              >
+                <Expand className="h-4 w-4 mr-2" />POS Counter
               </Button>
-              <Button variant="secondary" onClick={() => navigate('/accounts/pos-statement')}>
-                <FileSpreadsheet className="h-4 w-4 mr-2" />POS statement (Accounts)
+              <Button variant="secondary" className="h-11" onClick={() => navigate('/accounts/pos-statement')}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" />POS statement
               </Button>
-              <Button variant="outline" className="bg-white/10 text-white border-white/30" onClick={() => navigate('/pos/settings')}>
+              <Button variant="outline" className="h-11 bg-white/10 text-white border-white/25" onClick={() => navigate('/pos/settings')}>
                 <Settings className="h-4 w-4 mr-2" />POS settings
               </Button>
             </div>
           </div>
         </div>
         <div className="grid sm:grid-cols-3 gap-3">
-          <div className="rounded-2xl border p-4 bg-white">
-            <p className="text-xs text-slate-500">Register</p>
-            <p className="font-bold mt-1">{register.current ? 'OPEN' : 'CLOSED'}</p>
-            <p className="text-xs text-slate-500 mt-1">{register.current ? `Float ${formatCurrency(register.current.openingFloat)}` : 'Open the till in the POS window'}</p>
+          <div className={`rounded-2xl border p-4 ${registerOpen ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
+            <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold">Register</p>
+            <p className={`font-black mt-1 text-lg ${registerOpen ? 'text-emerald-700' : 'text-rose-600'}`}>{registerOpen ? 'OPEN' : 'CLOSED'}</p>
+            <p className="text-xs text-slate-500 mt-1">
+              {registerOpen
+                ? `Float ${formatCurrency(register.current.openingFloat)} · ${register.current.openedBy || cashier}`
+                : 'POS Counter kholo aur pehle register open karo'}
+            </p>
           </div>
           <div className="rounded-2xl border p-4 bg-white">
-            <p className="text-xs text-slate-500">This shift</p>
-            <p className="font-bold mt-1">{register.totals?.count || 0} sales</p>
+            <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold">This shift</p>
+            <p className="font-black mt-1 text-lg">{register.totals?.count || 0} sales</p>
             <p className="text-xs text-slate-500 mt-1">{formatCurrency(register.totals?.sales)}</p>
           </div>
           <div className="rounded-2xl border p-4 bg-white">
-            <p className="text-xs text-slate-500">Audit</p>
-            <p className="font-bold mt-1">Z-report</p>
-            <p className="text-xs text-slate-500 mt-1">Close register from the POS window at end of day</p>
+            <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold">Audit</p>
+            <p className="font-black mt-1 text-lg">Z-report</p>
+            <p className="text-xs text-slate-500 mt-1">Shift close POS Counter se — counted cash vs expected</p>
           </div>
         </div>
       </div>
@@ -585,38 +594,46 @@ const POS = ({ kiosk = false }) => {
   const dateLabel = clock.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
 
   return (
-    <div className="h-screen overflow-hidden flex flex-col bg-[#070d18] text-white" data-testid="pos-kiosk">
-      <header className="shrink-0 px-4 py-2.5 flex flex-wrap items-center gap-3 border-b border-white/10 bg-[#0b1526]">
-        <div className="flex items-center gap-2 min-w-0">
+    <div
+      className="h-screen overflow-hidden flex flex-col text-white"
+      data-testid="pos-kiosk"
+      style={{
+        background: 'radial-gradient(1200px 500px at 10% -10%, rgba(244,197,106,0.16), transparent 50%), radial-gradient(900px 420px at 100% 0%, rgba(255,109,0,0.12), transparent 46%), #120a18',
+      }}
+    >
+      <header className="shrink-0 px-4 py-3 flex flex-wrap items-center gap-3 border-b border-amber-200/15 bg-[#1a1024]/90 backdrop-blur">
+        <div className="flex items-center gap-2.5 min-w-0">
           {company.logo ? (
-            <img src={company.logo} alt="" className="h-9 w-9 rounded-lg object-contain bg-white/10" />
+            <img src={company.logo} alt="" className="h-10 w-10 rounded-xl object-contain bg-white/10 ring-1 ring-amber-200/20" />
           ) : (
-            <Store className="h-7 w-7 text-orange-500" />
+            <div className="h-10 w-10 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#f4c56a,#ff6d00)' }}>
+              <Store className="h-5 w-5 text-white" />
+            </div>
           )}
           <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-[0.18em] font-bold text-white/50">Till window</p>
-            <h1 className="text-lg font-bold leading-tight truncate">{company.name || 'AMZ Prints'} POS</h1>
+            <p className="text-[10px] uppercase tracking-[0.22em] font-bold text-amber-200/70">POS Counter</p>
+            <h1 className="text-lg font-black leading-tight truncate">{company.name || 'AMZ Prints'}</h1>
           </div>
         </div>
-        <div className="flex items-center gap-2 rounded-xl bg-white/5 px-3 py-1.5">
-          <Clock className="h-4 w-4 text-orange-400" />
+        <div className="flex items-center gap-2 rounded-2xl bg-white/5 px-3 py-1.5 ring-1 ring-white/10">
+          <Clock className="h-4 w-4 text-amber-300" />
           <div>
             <p className="text-sm font-bold leading-none tabular-nums">{clockLabel}</p>
-            <p className="text-[10px] text-white/50">{dateLabel} · {cashier}</p>
+            <p className="text-[10px] text-white/55">{dateLabel} · {cashier}</p>
           </div>
         </div>
-        <div className={`rounded-xl px-3 py-1.5 text-xs font-bold ${register.current ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'}`}>
-          {register.current
+        <div className={`rounded-2xl px-3 py-1.5 text-xs font-black tracking-wide ${registerOpen ? 'bg-emerald-400/15 text-emerald-300 ring-1 ring-emerald-300/30' : 'bg-rose-500/20 text-rose-200 ring-1 ring-rose-300/30'}`}>
+          {registerOpen
             ? `OPEN · float ${formatCurrency(register.current.openingFloat)} · ${register.totals?.count || 0} sales`
             : 'REGISTER CLOSED'}
         </div>
         <div className="ml-auto flex flex-wrap gap-1.5">
-          {register.current ? (
+          {registerOpen ? (
             <Button size="sm" variant="secondary" className="h-8" onClick={() => { setCountedCash(''); setCloseDlg(true); }}>
               <Lock className="h-3.5 w-3.5 mr-1" />Close (Z)
             </Button>
           ) : (
-            <Button size="sm" className="h-8 text-white" style={{ backgroundColor: '#ff6d00' }} onClick={() => setOpenDlg(true)}>
+            <Button size="sm" className="h-8 text-[#1a0f08] font-bold" style={{ background: 'linear-gradient(135deg,#f4c56a,#ff6d00)' }} onClick={() => setOpenDlg(true)}>
               <Unlock className="h-3.5 w-3.5 mr-1" />Open register
             </Button>
           )}
@@ -633,7 +650,7 @@ const POS = ({ kiosk = false }) => {
       </header>
 
       {lastSale ? (
-        <div className="shrink-0 px-4 py-2 flex flex-wrap gap-2 bg-[#102033] border-b border-white/10">
+        <div className="shrink-0 px-4 py-2 flex flex-wrap gap-2 bg-[#24182f] border-b border-amber-200/10">
           <span className="text-xs text-white/70 self-center">Last sale <strong className="text-white">{lastSale.orderId}</strong></span>
           <Button size="sm" variant="outline" className="h-8 rounded-lg bg-white text-slate-800" onClick={() => printReceipt(lastSale)} data-testid="pos-reprint">
             <Printer className="h-3.5 w-3.5 mr-1" />Reprint
@@ -688,13 +705,34 @@ const POS = ({ kiosk = false }) => {
         </div>
       ) : null}
 
-      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px]">
-        <section className="min-h-0 flex flex-col p-3 gap-3 border-r border-white/10">
+      <div className="flex-1 min-h-0 relative grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px]">
+        {!registerOpen && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#120a18]/80 backdrop-blur-sm p-6" data-testid="pos-register-lock">
+            <div className="max-w-md w-full rounded-3xl border border-amber-200/20 bg-gradient-to-b from-[#2a1a36] to-[#160e20] p-8 text-center shadow-[0_24px_60px_rgba(0,0,0,0.45)]">
+              <div className="mx-auto mb-4 h-14 w-14 rounded-2xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#f4c56a,#ff6d00)' }}>
+                <Lock className="h-7 w-7 text-[#1a0f08]" />
+              </div>
+              <p className="text-[11px] uppercase tracking-[0.22em] font-bold text-amber-200/70">Cash control</p>
+              <h2 className="text-2xl font-black mt-1">Register band hai</h2>
+              <p className="text-sm text-white/65 mt-2">
+                Jab tak cash register open nahi hoga, POS sale, cart, aur pay lock rahenge. Opening float declare karein.
+              </p>
+              <Button
+                className="mt-5 h-11 px-6 text-[#1a0f08] font-bold"
+                style={{ background: 'linear-gradient(135deg,#f4c56a,#ff6d00)' }}
+                onClick={() => setOpenDlg(true)}
+              >
+                <Unlock className="h-4 w-4 mr-2" />Open register
+              </Button>
+            </div>
+          </div>
+        )}
+        <section className="min-h-0 flex flex-col p-3 gap-3 border-r border-amber-200/10">
           <div className="flex flex-wrap gap-2 items-center">
             <div className="relative flex-1 min-w-[180px]">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-white/40" />
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-amber-200/50" />
               <Input
-                className="pl-10 h-10 bg-[#121c2f] border-white/10 text-white placeholder:text-white/35"
+                className="pl-10 h-10 bg-[#1d1328] border-amber-200/15 text-white placeholder:text-white/35"
                 placeholder="Search products or services…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -726,7 +764,7 @@ const POS = ({ kiosk = false }) => {
 
             {(filter === 'all' || filter === 'product') && productItems.length > 0 && (
               <div className="space-y-2">
-                <h3 className="text-[11px] font-bold uppercase tracking-wide text-white/50 sticky top-0 bg-[#070d18]/90 py-1">
+                <h3 className="text-[11px] font-bold uppercase tracking-wide text-amber-200/60 sticky top-0 bg-[#120a18]/90 py-1">
                   Products ({productItems.length})
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2.5">
@@ -737,7 +775,7 @@ const POS = ({ kiosk = false }) => {
 
             {(filter === 'all' || filter === 'service') && serviceItems.length > 0 && (
               <div className="space-y-2">
-                <h3 className="text-[11px] font-bold uppercase tracking-wide text-sky-300/80 sticky top-0 bg-[#070d18]/90 py-1 border-t border-white/10 pt-3">
+                <h3 className="text-[11px] font-bold uppercase tracking-wide text-sky-200/80 sticky top-0 bg-[#120a18]/90 py-1 border-t border-white/10 pt-3">
                   Services — no stock quantity ({serviceItems.length})
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2.5">
@@ -752,6 +790,11 @@ const POS = ({ kiosk = false }) => {
               <POSCalculator
                 accent={primary || '#ff6d00'}
                 onAdd={(line) => {
+                  if (!registerOpen) {
+                    toast.error('Pehle cash register open karein');
+                    setOpenDlg(true);
+                    return;
+                  }
                   setCart((prev) => [...prev, { ...line, trackInventory: false, productType: 'Service' }]);
                   toast.success('Added from calculator');
                 }}
@@ -760,7 +803,7 @@ const POS = ({ kiosk = false }) => {
           )}
         </section>
 
-        <aside className="min-h-0 flex flex-col bg-[#f7f4ee] text-slate-900">
+        <aside className="min-h-0 flex flex-col bg-[#fff8f0] text-slate-900 shadow-[-18px_0_40px_rgba(20,12,28,0.18)]">
           <div className="px-4 py-3 border-b flex items-center justify-between">
             <div className="flex items-center gap-2">
               <ShoppingCart className="h-5 w-5" style={{ color: primary || '#ff6d00' }} />
@@ -985,9 +1028,9 @@ const POS = ({ kiosk = false }) => {
               />
             </div>
             <Button
-              className="w-full h-12 text-white text-base font-bold"
-              style={{ backgroundColor: primary || '#ff6d00' }}
-              disabled={checkingOut || !cart.length}
+              className="w-full h-12 text-[#1a0f08] text-base font-black"
+              style={{ background: 'linear-gradient(135deg,#f4c56a,#ff6d00)' }}
+              disabled={checkingOut || !cart.length || !registerOpen}
               onClick={checkout}
               data-testid="pos-checkout"
             >

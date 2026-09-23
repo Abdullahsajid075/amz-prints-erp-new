@@ -54,6 +54,11 @@ function mapOrder(row) {
       ? num(row.balance_amount)
       : Math.max(0, total - advance),
     remarks: row.remarks || '',
+    soldBy: (() => {
+      const m = String(row.remarks || '').match(/\bBy\s+([^·|,]+)/i);
+      return m ? m[1].trim() : '';
+    })(),
+    createdAt: row.created_at || '',
     assignedDesigner: row.assigned_designer || '',
     tokenNo: row.token_no || '',
     docType: row.doc_type || 'Order',

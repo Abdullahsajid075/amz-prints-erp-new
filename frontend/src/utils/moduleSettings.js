@@ -69,7 +69,7 @@ export function mergePosSettings(api = {}) {
   return {
     ...DEFAULT_POS_SETTINGS,
     ...pos,
-    requireRegister: pos.requireRegister !== false,
+    requireRegister: true,
     showCalculator: pos.showCalculator !== false,
     showWebsiteQr: pos.showWebsiteQr !== false,
     showInvoiceQr: pos.showInvoiceQr !== false,

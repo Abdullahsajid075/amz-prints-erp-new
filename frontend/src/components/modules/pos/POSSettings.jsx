@@ -55,7 +55,7 @@ const POSSettings = () => {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => { const w = openPosCounterOrFallback(); if (!w) toast.error('Allow popups'); }}>
-            <Store className="h-4 w-4 mr-1" />Open counter
+            <Store className="h-4 w-4 mr-1" />POS Counter
           </Button>
           <Button className="text-white" style={{ backgroundColor: '#ff6d00' }} onClick={save} disabled={saving}>
             <Save className="h-4 w-4 mr-1" />{saving ? 'Saving…' : 'Save'}
@@ -67,9 +67,9 @@ const POSSettings = () => {
         <div className="flex items-center justify-between">
           <div>
             <Label>Require opening register</Label>
-            <p className="text-xs text-slate-500">Cash sales blocked until float is declared (IAS / retail cash control).</p>
+            <p className="text-xs text-slate-500">Always on — POS Counter lock rehta hai jab tak register open na ho.</p>
           </div>
-          <Switch checked={form.requireRegister} onCheckedChange={(v) => setForm((p) => ({ ...p, requireRegister: !!v }))} />
+          <Switch checked disabled />
         </div>
         <div className="flex items-center justify-between">
           <div>

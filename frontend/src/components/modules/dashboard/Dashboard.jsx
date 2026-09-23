@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { dashboardAPI, ordersAPI, invoicesAPI, expensesAPI, paymentsAPI, customersAPI, purchasesAPI } from '@/services/api';
-import { openPosCounterWindow } from '@/utils/posWindow';
 import { toast } from 'sonner';
 import { asApiList, buildDashboardFromLists, dashboardLooksEmpty } from '@/utils/dashboardFromLists';
 import { useAuth, getUserDisplayName } from '@/context/AuthContext';
@@ -450,7 +449,7 @@ const Dashboard = () => {
                 <button
                   key={a.path}
                   type="button"
-                  onClick={() => (a.path === '/pos' ? (openPosCounterWindow() || window.location.assign('/pos/counter')) : navigate(a.path))}
+                  onClick={() => navigate(a.path)}
                   className="group inline-flex items-center gap-2.5 shrink-0 rounded-xl border border-black/[0.06] bg-white px-3 py-2.5 text-left hover:shadow-md hover:border-orange-200/80 transition-all"
                 >
                   <div

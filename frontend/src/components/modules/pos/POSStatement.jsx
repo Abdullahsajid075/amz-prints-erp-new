@@ -9,20 +9,9 @@ import { formatCurrency, formatDate } from '@/utils/helpers';
 import { useBrand } from '@/context/BrandContext';
 import { mergePosSettings } from '@/utils/moduleSettings';
 import { printPosSlip, saleFromPosOrder } from '@/utils/posSlip';
+import { isPosOrder, orderAmount, parsePosCashier, parsePosMethod, posItemSummary } from '@/utils/posSale';
 import { ArrowLeft, Printer, Store, DollarSign, ShoppingBag, FileSpreadsheet, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
-
-function isPosOrder(o) {
-  const dt = String(o.docType || o.doctype || '').toLowerCase();
-  if (dt === 'pos') return true;
-  return /pos\s*sale/i.test(String(o.remarks || o.notes || ''));
-}
-
-function orderAmount(o) {
-  const direct = Number(o.totalAmount || o.total || 0);
-  if (direct > 0) return direct;
-  return (o.products || []).reduce((s, p) => s + (Number(p.quantity) || 0) * (Number(p.rate) || 0), 0);
-}
 
 const POSStatement = () => {
   const navigate = useNavigate();
@@ -65,11 +54,15 @@ const POSStatement = () => {
 
   const filtered = useMemo(() => {
     return orders.filter((o) => {
-      const d = String(o.date || '').slice(0, 10);
+      const d = String(o.date || o.createdAt || '').slice(0, 10);
       if (from && d < from) return false;
       if (to && d > to) return false;
       return true;
-    }).sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+    }).sort((a, b) => {
+      const ta = String(b.createdAt || b.date || '');
+      const tb = String(a.createdAt || a.date || '');
+      return ta.localeCompare(tb);
+    });
   }, [orders, from, to]);
 
   const totals = useMemo(() => {
@@ -80,15 +73,15 @@ const POSStatement = () => {
 
   const exportCsv = () => {
     const rows = [
-      ['POS #', 'Date', 'Customer', 'Phone', 'Method', 'Total', 'Paid', 'Status'].join(','),
+      ['POS #', 'Date', 'Cashier', 'Customer', 'Items', 'Method', 'Total', 'Status'].join(','),
       ...filtered.map((o) => [
         o.orderId || o.id,
         o.date,
-        `"${String(o.customerName || '').replace(/"/g, '""')}"`,
-        o.customerPhone || '',
-        o.paymentMethod || (String(o.remarks || '').split('·')[1] || '').trim(),
+        `"${String(parsePosCashier(o) || '').replace(/"/g, '""')}"`,
+        `"${String(o.customerName || 'Walk-in').replace(/"/g, '""')}"`,
+        `"${String(posItemSummary(o, 8)).replace(/"/g, '""')}"`,
+        parsePosMethod(o),
         orderAmount(o),
-        o.advancePayment ?? orderAmount(o),
         o.status || '',
       ].join(',')),
     ].join('\n');
@@ -106,9 +99,10 @@ const POSStatement = () => {
       <tr>
         <td>${o.orderId || o.id || ''}</td>
         <td>${formatDate(o.date)}</td>
+        <td>${parsePosCashier(o) || '—'}</td>
         <td>${o.customerName || 'Walk-in'}</td>
-        <td>${o.customerPhone || '—'}</td>
-        <td>${o.paymentMethod || '—'}</td>
+        <td>${posItemSummary(o)}</td>
+        <td>${parsePosMethod(o)}</td>
         <td style="text-align:right">${formatCurrency(orderAmount(o))}</td>
       </tr>`).join('');
     const html = `<!DOCTYPE html><html><head><title>POS Statement</title>
@@ -125,10 +119,10 @@ const POSStatement = () => {
       <h1>${company?.name || 'AMZ Prints'} — POS Statement</h1>
       <div class="meta">Period: ${from || 'All'} → ${to || 'All'} · Printed ${new Date().toLocaleString()}</div>
       <table>
-        <thead><tr><th>POS #</th><th>Date</th><th>Customer</th><th>Phone</th><th>Method</th><th>Total</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="6">No POS sales</td></tr>'}</tbody>
+        <thead><tr><th>POS #</th><th>Date</th><th>Cashier</th><th>Customer</th><th>Items</th><th>Method</th><th>Total</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="7">No POS sales</td></tr>'}</tbody>
       </table>
-      <div class="totals">Sales: ${filtered.length} · Total: ${formatCurrency(totals.sales)}</div>
+      <div class="totals">Transactions: ${filtered.length} · Total: ${formatCurrency(totals.sales)}</div>
       <script>window.onload=function(){window.print()}</script>
       </body></html>`;
     const w = window.open('', '_blank', 'width=900,height=700');
@@ -157,21 +151,29 @@ const POSStatement = () => {
 
   return (
     <div className="space-y-5" data-testid="pos-statement-page">
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <Button variant="outline" size="sm" onClick={() => navigate('/accounts')}>
-            <ArrowLeft className="h-4 w-4 mr-1" />Accounts
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold" style={{ color: '#1F2937' }}>POS Statement</h1>
-            <p className="text-gray-600 mt-1">Counter sales register · opening/closing (Z-report) under Accounts</p>
+      <div
+        className="relative overflow-hidden rounded-3xl text-white p-6 sm:p-8"
+        style={{
+          background: 'radial-gradient(700px 220px at 90% 0%, rgba(244,197,106,0.35), transparent 55%), linear-gradient(135deg,#1a1024 0%,#2a1840 55%,#141022 100%)',
+        }}
+      >
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <Button variant="outline" size="sm" className="bg-white/10 text-white border-white/25" onClick={() => navigate('/accounts')}>
+              <ArrowLeft className="h-4 w-4 mr-1" />Accounts
+            </Button>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.22em] font-bold text-amber-200/80">Counter register</p>
+              <h1 className="text-3xl font-black">POS Statement</h1>
+              <p className="text-white/70 mt-1">Har POS sale — cashier name, customer, items, amount</p>
+            </div>
           </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={exportCsv}><FileSpreadsheet className="h-4 w-4 mr-1" />CSV</Button>
-          <Button className="text-white" style={{ backgroundColor: accent }} onClick={printStatement}>
-            <Printer className="h-4 w-4 mr-1" />Print
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={exportCsv}><FileSpreadsheet className="h-4 w-4 mr-1" />CSV</Button>
+            <Button className="text-[#1a0f08] font-bold" style={{ background: 'linear-gradient(135deg,#f4c56a,#ff6d00)' }} onClick={printStatement}>
+              <Printer className="h-4 w-4 mr-1" />Print
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -188,43 +190,43 @@ const POSStatement = () => {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        <Card>
+        <Card className="border-0 shadow-sm">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white" style={{ backgroundColor: accent }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white" style={{ background: 'linear-gradient(135deg,#f4c56a,#ff6d00)' }}>
               <ShoppingBag className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">POS sales</p>
-              <p className="text-lg font-bold">{totals.count}</p>
+              <p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Transactions</p>
+              <p className="text-lg font-black">{totals.count}</p>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-0 shadow-sm">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-500 text-white">
               <DollarSign className="h-5 w-5" />
             </div>
             <div>
               <p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Total sales</p>
-              <p className="text-lg font-bold text-emerald-700">{formatCurrency(totals.sales)}</p>
+              <p className="text-lg font-black text-emerald-700">{formatCurrency(totals.sales)}</p>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-0 shadow-sm">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-blue-500 text-white">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-indigo-500 text-white">
               <Store className="h-5 w-5" />
             </div>
             <div>
               <p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Collected</p>
-              <p className="text-lg font-bold">{formatCurrency(totals.paid)}</p>
+              <p className="text-lg font-black">{formatCurrency(totals.paid)}</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
       {zReports.length > 0 && (
-        <Card>
+        <Card className="border-0 shadow-sm">
           <CardContent className="p-0 overflow-x-auto">
             <div className="px-4 pt-4 pb-2 font-semibold text-sm">Closed registers (Z-reports)</div>
             <table className="w-full text-sm">
@@ -242,7 +244,7 @@ const POSStatement = () => {
                 {zReports.map((z) => (
                   <tr key={z.id} className="border-b last:border-0">
                     <td className="p-3">{z.closedAt ? new Date(z.closedAt).toLocaleString() : '—'}</td>
-                    <td className="p-3">{z.closedBy || z.openedBy || '—'}</td>
+                    <td className="p-3 font-semibold">{z.closedBy || z.openedBy || '—'}</td>
                     <td className="p-3 text-right">{formatCurrency(z.openingFloat)}</td>
                     <td className="p-3 text-right">{formatCurrency(z.expectedCash)}</td>
                     <td className="p-3 text-right">{formatCurrency(z.countedCash)}</td>
@@ -258,31 +260,41 @@ const POSStatement = () => {
       {loading ? (
         <div className="py-12 text-center text-gray-500">Loading POS statement…</div>
       ) : (
-        <Card>
+        <Card className="border-0 shadow-sm overflow-hidden">
           <CardContent className="p-0 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b bg-gray-50 text-left text-xs uppercase tracking-wider text-gray-500">
+                <tr className="border-b bg-[#1a1024] text-left text-[11px] uppercase tracking-wider text-amber-100/80">
                   <th className="p-3">POS #</th>
                   <th className="p-3">Date</th>
+                  <th className="p-3">Cashier</th>
                   <th className="p-3">Customer</th>
-                  <th className="p-3">Phone</th>
-                  <th className="p-3">Status</th>
+                  <th className="p-3">Items</th>
+                  <th className="p-3">Pay</th>
                   <th className="p-3 text-right">Total</th>
                   <th className="p-3 text-right">Slip</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={7} className="p-8 text-center text-gray-400">No POS orders in this period</td></tr>
+                  <tr><td colSpan={8} className="p-8 text-center text-gray-400">No POS transactions in this period</td></tr>
                 ) : filtered.map((o) => (
-                  <tr key={o.id || o.orderId} className="border-b last:border-0 hover:bg-orange-50/40">
-                    <td className="p-3 font-semibold">{o.orderId || o.id}</td>
-                    <td className="p-3">{formatDate(o.date)}</td>
-                    <td className="p-3">{o.customerName || 'Walk-in'}</td>
-                    <td className="p-3 text-gray-600">{o.customerPhone || '—'}</td>
-                    <td className="p-3"><Badge variant="outline">{o.status || 'Delivered'}</Badge></td>
-                    <td className="p-3 text-right font-bold" style={{ color: accent }}>{formatCurrency(orderAmount(o))}</td>
+                  <tr key={o.id || o.orderId} className="border-b last:border-0 hover:bg-amber-50/50">
+                    <td className="p-3 font-bold text-slate-800">{o.orderId || o.id}</td>
+                    <td className="p-3 whitespace-nowrap">
+                      <div>{formatDate(o.date)}</div>
+                      {o.createdAt ? (
+                        <div className="text-[11px] text-slate-400">{new Date(o.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                      ) : null}
+                    </td>
+                    <td className="p-3 font-semibold text-[#2a1840]">{parsePosCashier(o) || '—'}</td>
+                    <td className="p-3">
+                      <div className="font-medium">{o.customerName || 'Walk-in'}</div>
+                      <div className="text-[11px] text-slate-400">{o.customerPhone || ''}</div>
+                    </td>
+                    <td className="p-3 text-slate-600 max-w-[220px] truncate" title={posItemSummary(o, 12)}>{posItemSummary(o)}</td>
+                    <td className="p-3"><Badge variant="outline">{parsePosMethod(o)}</Badge></td>
+                    <td className="p-3 text-right font-black" style={{ color: accent }}>{formatCurrency(orderAmount(o))}</td>
                     <td className="p-3 text-right">
                       <Button
                         size="sm"
