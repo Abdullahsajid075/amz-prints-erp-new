@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AMZ_PRINTS_VERSION', '3.8.0' );
+define( 'AMZ_PRINTS_VERSION', '3.9.0' );
 
 /**
  * Avoid long Hostinger CDN HTML cache hiding theme updates.
@@ -263,6 +263,7 @@ function amz_prints_default_pages() {
 		'nadra-e-services' => array( 'title' => 'NADRA E-Services', 'template' => 'page-templates/template-nadra.php' ),
 		'track-order'      => array( 'title' => 'Track Order', 'template' => 'page-templates/template-track-order.php' ),
 		'customer-login'   => array( 'title' => 'Customer Login', 'template' => 'page-templates/template-customer-login.php' ),
+		'customer-signup'  => array( 'title' => 'Customer Sign Up', 'template' => 'page-templates/template-customer-signup.php' ),
 		'my-account'       => array( 'title' => 'My Account', 'template' => 'page-templates/template-my-account.php' ),
 		'product'          => array( 'title' => 'Product', 'template' => 'page-templates/template-product.php' ),
 		'cart'             => array( 'title' => 'Cart', 'template' => 'page-templates/template-cart.php' ),
@@ -361,7 +362,7 @@ add_action( 'after_switch_theme', 'amz_prints_after_switch' );
  * Create missing pages on upgrade (fixes Services 404 without re-activating theme)
  */
 function amz_prints_maybe_upgrade_pages() {
-	if ( get_option( 'amz_prints_pages_ver' ) === '3.8.0' ) {
+	if ( get_option( 'amz_prints_pages_ver' ) === '3.9.0' ) {
 		return;
 	}
 	amz_prints_ensure_pages();
@@ -369,7 +370,7 @@ function amz_prints_maybe_upgrade_pages() {
 	set_theme_mod( 'amz_primary_color', '#0747a3' );
 	set_theme_mod( 'amz_secondary_color', '#111111' );
 	set_theme_mod( 'amz_accent_color', '#ff6d00' );
-	update_option( 'amz_prints_pages_ver', '3.8.0' );
+	update_option( 'amz_prints_pages_ver', '3.9.0' );
 }
 add_action( 'init', 'amz_prints_maybe_upgrade_pages', 20 );
 

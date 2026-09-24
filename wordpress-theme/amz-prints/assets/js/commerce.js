@@ -202,6 +202,30 @@
     var fb = modal.querySelector('[data-pm-feedback]');
     if (fb) { fb.hidden = true; fb.textContent = ''; }
 
+    var more = modal.querySelector('[data-pm-more]');
+    var moreRow = modal.querySelector('[data-pm-more-row]');
+    if (more && moreRow) {
+      moreRow.innerHTML = '';
+      var others = products.filter(function (p) {
+        if (!p || !p.name || String(p.id) === String(product.id)) return false;
+        var img = String(p.image || '');
+        return img.indexOf('data:image') === 0 || /^https?:\/\//i.test(img);
+      }).slice(0, 8);
+      more.hidden = !others.length;
+      others.forEach(function (p) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'product-modal__more-card';
+        b.setAttribute('data-open-product', p.id || '');
+        b.setAttribute('data-product-name', p.name || '');
+        b.innerHTML = '<img alt=""><span></span>';
+        b.querySelector('img').src = p.image;
+        b.querySelector('img').alt = p.name || '';
+        b.querySelector('span').textContent = p.name || '';
+        moreRow.appendChild(b);
+      });
+    }
+
     modal.classList.add('is-open');
     modal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('product-modal-open');

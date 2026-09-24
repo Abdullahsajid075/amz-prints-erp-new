@@ -3029,6 +3029,59 @@ body.nav-open .nav-toggle__bar:nth-child(3) { transform: translateY(-8px) rotate
 
 .product-modal.is-open .product-modal__dialog { transform: none; }
 
+.product-modal__more {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--amz-line);
+}
+
+.product-modal__more p {
+  margin: 0 0 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--amz-muted);
+}
+
+.product-modal__more-row {
+  display: flex;
+  gap: 0.55rem;
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
+}
+
+.product-modal__more-card {
+  flex: 0 0 112px;
+  border: 1px solid var(--amz-line);
+  background: #fff;
+  border-radius: 12px;
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+  text-align: left;
+}
+
+.product-modal__more-card img {
+  width: 100%;
+  height: 78px;
+  object-fit: cover;
+  display: block;
+}
+
+.product-modal__more-card span {
+  display: block;
+  padding: 0.35rem 0.4rem 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.auth-switch { margin-top: 0.7rem; }
+.auth-switch .btn { width: 100%; }
+
 .product-modal__close {
   position: absolute;
   top: 0.8rem;

@@ -80,6 +80,108 @@
 
 .amz-banners__dot.is-active { background: var(--amz-accent); width: 22px; }
 
+.amz-prodrail {
+  width: min(1250px, calc(100% - 1.5rem));
+  margin: -42px auto 0;
+  position: relative;
+  z-index: 2;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent);
+}
+
+.amz-prodrail__track {
+  display: flex;
+  gap: 0.75rem;
+  width: max-content;
+  animation: marqueeScroll 46s linear infinite;
+  padding: 0.4rem 0 0.9rem;
+}
+
+.amz-prodrail:hover .amz-prodrail__track { animation-play-state: paused; }
+
+.amz-prodrail__card {
+  width: 168px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  flex: 0 0 auto;
+  background: #fff;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 14px 30px rgba(14, 20, 27, 0.2);
+  cursor: pointer;
+  text-align: left;
+}
+
+.amz-prodrail__card img {
+  width: 100%;
+  height: 118px;
+  object-fit: cover;
+  display: block;
+  background: #eef2f8;
+}
+
+.amz-prodrail__card span {
+  display: block;
+  padding: 0.45rem 0.6rem 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #111;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.land-mix { padding: 1.4rem 0 0.2rem; }
+
+.land-mix__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.9rem;
+}
+
+.land-mix__card {
+  border-radius: 20px;
+  padding: 1.3rem 1.35rem 1.2rem;
+  min-height: 240px;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.land-mix__card p {
+  margin: 0;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.land-mix__card h2 { margin: 0 0 0.35rem; font-size: clamp(1.35rem, 2vw, 1.8rem); max-width: 16ch; }
+.land-mix__card ul { margin: 0 0 0.9rem; padding-left: 1.1rem; }
+.land-mix__card li { margin: 0.2rem 0; }
+.land-mix__card .btn { align-self: flex-start; margin-top: auto; }
+
+.land-mix__card--print {
+  background:
+    linear-gradient(145deg, rgba(17,17,17,0.2), transparent 40%),
+    linear-gradient(135deg, #ff6d00, #c2410c);
+}
+
+.land-mix__card--tech {
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.08), transparent 42%),
+    linear-gradient(135deg, #0747a3, #0a2f6b);
+}
+
+.land-mix__card--tech .btn { background: #fff; color: #0747a3; }
+
+@media (max-width: 800px) {
+  .land-mix__grid { grid-template-columns: 1fr; }
+}
+
 .amz-a4 {
   width: min(1250px, calc(100% - 1.5rem));
   margin: -54px auto 0;

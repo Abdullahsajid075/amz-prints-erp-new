@@ -90,7 +90,7 @@ function amz_prints_enqueue_assets() {
 	}
 
 	$google_client = trim( (string) amz_prints_mod( 'amz_google_client_id', '' ) );
-	if ( $google_client && ( is_page_template( 'page-templates/template-customer-login.php' ) || is_page( 'customer-login' ) ) ) {
+	if ( $google_client && ( is_page_template( 'page-templates/template-customer-login.php' ) || is_page_template( 'page-templates/template-customer-signup.php' ) || is_page( array( 'customer-login', 'customer-signup' ) ) ) ) {
 		wp_enqueue_script( 'google-gsi', 'https://accounts.google.com/gsi/client', array(), null, true );
 	}
 
@@ -125,6 +125,7 @@ function amz_prints_enqueue_assets() {
 		'googleClientId'=> $google_client,
 		'accountUrl'    => home_url( '/my-account/' ),
 		'loginUrl'      => home_url( '/customer-login/' ),
+		'signupUrl'     => home_url( '/customer-signup/' ),
 		'loggedIn'      => function_exists( 'amz_prints_customer_is_logged_in' ) ? amz_prints_customer_is_logged_in() : false,
 	) );
 

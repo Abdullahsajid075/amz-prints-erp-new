@@ -44,5 +44,9 @@
 				<p class="form-note" data-pm-feedback hidden></p>
 			</div>
 		</div>
+		<div class="product-modal__more" data-pm-more hidden>
+			<p><?php esc_html_e( 'More products', 'amz-prints' ); ?></p>
+			<div class="product-modal__more-row" data-pm-more-row></div>
+		</div>
 	</div>
 </div>

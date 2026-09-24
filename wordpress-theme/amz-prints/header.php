@@ -47,7 +47,7 @@
 				<a class="btn btn--ghost btn--sm btn--magnetic" href="<?php echo esc_url( home_url( '/my-account/' ) ); ?>"><?php esc_html_e( 'Account', 'amz-prints' ); ?></a>
 			<?php else : ?>
 				<a class="btn btn--ghost btn--sm btn--magnetic" href="<?php echo esc_url( home_url( '/customer-login/' ) ); ?>"><?php esc_html_e( 'Log in', 'amz-prints' ); ?></a>
-				<a class="btn btn--primary btn--sm btn--magnetic" href="<?php echo esc_url( home_url( '/customer-login/' ) ); ?>"><?php esc_html_e( 'Sign up', 'amz-prints' ); ?></a>
+				<a class="btn btn--primary btn--sm btn--magnetic" href="<?php echo esc_url( home_url( '/customer-signup/' ) ); ?>"><?php esc_html_e( 'Sign up', 'amz-prints' ); ?></a>
 			<?php endif; ?>
 			<button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="site-nav" type="button" aria-label="Menu">
 				<span class="nav-toggle__bar"></span>

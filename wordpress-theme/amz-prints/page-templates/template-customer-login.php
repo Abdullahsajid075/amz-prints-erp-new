@@ -2,13 +2,18 @@
 /**
  * Template Name: Customer Login
  *
- * Email check first. Log in and Sign up are separate screens — never both at once.
+ * Log in only. Sign up lives on its own page.
  *
  * @package AMZ_Prints
  */
 
 $redirect = isset( $_GET['redirect'] ) ? esc_url_raw( wp_unslash( $_GET['redirect'] ) ) : '';
 $redirect = $redirect ? wp_validate_redirect( $redirect, amz_prints_customer_account_url() ) : amz_prints_customer_account_url();
+
+if ( isset( $_GET['tab'] ) && 'register' === sanitize_key( wp_unslash( $_GET['tab'] ) ) ) {
+	wp_safe_redirect( home_url( '/customer-signup/' ) );
+	exit;
+}
 
 if ( amz_prints_customer_is_logged_in() ) {
 	wp_safe_redirect( $redirect );
@@ -18,71 +23,36 @@ if ( amz_prints_customer_is_logged_in() ) {
 get_header();
 
 $google_client = trim( (string) amz_prints_mod( 'amz_google_client_id', '' ) );
+$prefill       = isset( $_GET['email'] ) ? sanitize_email( wp_unslash( $_GET['email'] ) ) : '';
+$signup_url    = $prefill ? add_query_arg( 'email', rawurlencode( $prefill ), home_url( '/customer-signup/' ) ) : home_url( '/customer-signup/' );
 ?>
 
-<section class="auth-screen">
+<section class="auth-screen auth-screen--login">
 	<div class="auth-screen__visual" aria-hidden="true">
 		<p><?php echo esc_html( amz_prints_mod( 'amz_company_name', 'AMZ Prints' ) ); ?></p>
-		<strong><?php esc_html_e( 'One customer. One account.', 'amz-prints' ); ?></strong>
-		<span><?php esc_html_e( 'We check your email first. Existing customers log in. New customers sign up. No duplicate accounts.', 'amz-prints' ); ?></span>
+		<strong><?php esc_html_e( 'Log in', 'amz-prints' ); ?></strong>
+		<span><?php esc_html_e( 'For customers who already have an account. New here? Use Sign up — it is a separate page.', 'amz-prints' ); ?></span>
 	</div>
 	<div class="auth-screen__panel">
-		<div class="customer-auth-card" data-auth-root data-auth-tab="email">
-			<form class="amz-form" id="amz-customer-email-form" data-auth-panel="email">
-				<p class="eyebrow"><?php esc_html_e( 'Customer access', 'amz-prints' ); ?></p>
-				<h1><?php esc_html_e( 'Continue with email', 'amz-prints' ); ?></h1>
-				<p class="form-note"><?php esc_html_e( 'Enter the email on your AMZ Prints account. If it exists you will log in. If it does not, you will create an account.', 'amz-prints' ); ?></p>
-				<label>
-					<span><?php esc_html_e( 'Email', 'amz-prints' ); ?></span>
-					<input type="email" name="email" required autocomplete="email" placeholder="you@example.com">
-				</label>
-				<button type="submit" class="btn btn--primary btn--lg"><?php esc_html_e( 'Continue', 'amz-prints' ); ?></button>
-				<p class="form-note" id="amz-customer-email-msg" hidden></p>
-			</form>
-
-			<form class="amz-form" id="amz-customer-login-form" data-auth-panel="login" hidden>
-				<input type="hidden" name="redirect" value="<?php echo esc_attr( $redirect ); ?>">
+		<div class="customer-auth-card" data-auth-root data-auth-tab="login">
+			<form class="amz-form" id="amz-customer-login-form" data-auth-panel="login">
 				<p class="eyebrow"><?php esc_html_e( 'Existing account', 'amz-prints' ); ?></p>
 				<h1><?php esc_html_e( 'Log in', 'amz-prints' ); ?></h1>
+				<input type="hidden" name="redirect" value="<?php echo esc_attr( $redirect ); ?>">
 				<label>
 					<span><?php esc_html_e( 'Email', 'amz-prints' ); ?></span>
-					<input type="email" name="email" required readonly autocomplete="username">
+					<input type="email" name="email" required autocomplete="username" placeholder="you@example.com" value="<?php echo esc_attr( $prefill ); ?>">
 				</label>
 				<label>
 					<span><?php esc_html_e( 'Password', 'amz-prints' ); ?></span>
 					<input type="password" name="password" required autocomplete="current-password" minlength="6">
 				</label>
 				<button type="submit" class="btn btn--primary btn--lg"><?php esc_html_e( 'Log in', 'amz-prints' ); ?></button>
-				<p class="form-note">
-					<button type="button" class="linkish" data-auth-tab="forgot"><?php esc_html_e( 'Forgot password?', 'amz-prints' ); ?></button>
-					<button type="button" class="linkish" data-auth-tab="email"><?php esc_html_e( 'Use a different email', 'amz-prints' ); ?></button>
-				</p>
+				<p class="form-note"><button type="button" class="linkish" data-auth-tab="forgot"><?php esc_html_e( 'Forgot password?', 'amz-prints' ); ?></button></p>
 				<p class="form-note" id="amz-customer-login-msg" hidden></p>
-			</form>
-
-			<form class="amz-form" id="amz-customer-register-form" data-auth-panel="register" hidden>
-				<input type="hidden" name="redirect" value="<?php echo esc_attr( $redirect ); ?>">
-				<p class="eyebrow"><?php esc_html_e( 'New customer', 'amz-prints' ); ?></p>
-				<h1><?php esc_html_e( 'Sign up', 'amz-prints' ); ?></h1>
-				<label>
-					<span><?php esc_html_e( 'Full name', 'amz-prints' ); ?></span>
-					<input type="text" name="name" required autocomplete="name">
-				</label>
-				<label>
-					<span><?php esc_html_e( 'Email', 'amz-prints' ); ?></span>
-					<input type="email" name="email" required readonly autocomplete="email">
-				</label>
-				<label>
-					<span><?php esc_html_e( 'Phone', 'amz-prints' ); ?></span>
-					<input type="tel" name="phone" required autocomplete="tel" placeholder="03xx...">
-				</label>
-				<label>
-					<span><?php esc_html_e( 'Password', 'amz-prints' ); ?></span>
-					<input type="password" name="password" required autocomplete="new-password" minlength="6">
-				</label>
-				<button type="submit" class="btn btn--primary btn--lg"><?php esc_html_e( 'Create account', 'amz-prints' ); ?></button>
-				<p class="form-note"><button type="button" class="linkish" data-auth-tab="email"><?php esc_html_e( 'Use a different email', 'amz-prints' ); ?></button></p>
-				<p class="form-note" id="amz-customer-register-msg" hidden></p>
+				<p class="auth-switch" id="amz-login-signup-hint" hidden>
+					<a class="btn btn--ghost" id="amz-login-signup-link" href="<?php echo esc_url( $signup_url ); ?>"><?php esc_html_e( 'Create an account', 'amz-prints' ); ?></a>
+				</p>
 			</form>
 
 			<div data-auth-panel="forgot" hidden>
@@ -91,7 +61,7 @@ $google_client = trim( (string) amz_prints_mod( 'amz_google_client_id', '' ) );
 				<form class="amz-form" id="amz-customer-forgot-form">
 					<label>
 						<span><?php esc_html_e( 'Account email', 'amz-prints' ); ?></span>
-						<input type="email" name="email" required autocomplete="email" placeholder="you@example.com">
+						<input type="email" name="email" required autocomplete="email" value="<?php echo esc_attr( $prefill ); ?>">
 					</label>
 					<button type="submit" class="btn btn--primary btn--lg"><?php esc_html_e( 'Send verification code', 'amz-prints' ); ?></button>
 					<p class="form-note" id="amz-customer-forgot-msg" hidden></p>
@@ -112,12 +82,10 @@ $google_client = trim( (string) amz_prints_mod( 'amz_google_client_id', '' ) );
 				<p class="form-note"><button type="button" class="linkish" data-auth-tab="login"><?php esc_html_e( 'Back to log in', 'amz-prints' ); ?></button></p>
 			</div>
 
-			<div class="customer-google-box" data-auth-google hidden>
+			<div class="customer-google-box" data-auth-google>
 				<div class="customer-auth-divider"><span><?php esc_html_e( 'or', 'amz-prints' ); ?></span></div>
-				<h3 data-google-login-copy><?php esc_html_e( 'Continue with Google', 'amz-prints' ); ?></h3>
-				<p data-google-login-copy><?php esc_html_e( 'Only if this Google email is already signed up.', 'amz-prints' ); ?></p>
-				<h3 data-google-register-copy hidden><?php esc_html_e( 'Continue with Google', 'amz-prints' ); ?></h3>
-				<p data-google-register-copy hidden><?php esc_html_e( 'Creates one account for this Google email if it is new.', 'amz-prints' ); ?></p>
+				<h3><?php esc_html_e( 'Continue with Google', 'amz-prints' ); ?></h3>
+				<p><?php esc_html_e( 'Google verifies your email. This signs in an account that already exists.', 'amz-prints' ); ?></p>
 				<?php if ( $google_client ) : ?>
 					<div id="amz-google-btn" class="amz-google-btn"></div>
 					<p class="form-note" id="amz-customer-google-msg" hidden></p>

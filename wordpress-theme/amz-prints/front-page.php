@@ -71,10 +71,23 @@ $track_url = function_exists( 'amz_prints_customer_is_logged_in' ) && amz_prints
 	: home_url( '/customer-login/?redirect=' . rawurlencode( home_url( '/my-account/#track' ) ) );
 
 $banners = function_exists( 'amz_prints_home_banners' ) ? amz_prints_home_banners() : array();
-$a4      = function_exists( 'amz_prints_home_a4_slides' ) ? amz_prints_home_a4_slides() : array();
 $strip   = function_exists( 'amz_prints_running_strip_items' ) ? amz_prints_running_strip_items() : array( $company );
-$a4_loop = $a4 ? array_merge( $a4, $a4 ) : array();
 $strip_loop = array_merge( $strip, $strip );
+$photo_products = array();
+foreach ( $erp_all as $p ) {
+	if ( empty( $p['name'] ) ) {
+		continue;
+	}
+	$raw = trim( (string) ( $p['image'] ?? '' ) );
+	if ( ! $raw ) {
+		continue;
+	}
+	if ( 0 !== strpos( $raw, 'data:image' ) && ! preg_match( '#^https?://#i', $raw ) ) {
+		continue;
+	}
+	$photo_products[] = $p;
+}
+$photo_loop = $photo_products ? array_merge( $photo_products, $photo_products ) : array();
 ?>
 
 <section class="amz-stage" aria-label="<?php echo esc_attr( $headline ); ?>">
@@ -99,13 +112,19 @@ $strip_loop = array_merge( $strip, $strip );
 			</div>
 		<?php endif; ?>
 	</div>
-	<?php if ( $a4_loop ) : ?>
-		<div class="amz-a4" aria-label="<?php esc_attr_e( 'A4 catalog', 'amz-prints' ); ?>">
-			<div class="amz-a4__track">
-				<?php foreach ( $a4_loop as $src ) : ?>
-					<figure class="amz-a4__page">
-						<img src="<?php echo esc_url( $src ); ?>" alt="<?php esc_attr_e( 'Catalog page', 'amz-prints' ); ?>" loading="lazy">
-					</figure>
+	<?php if ( $photo_loop ) : ?>
+		<div class="amz-prodrail" aria-label="<?php esc_attr_e( 'Products with photos', 'amz-prints' ); ?>">
+			<div class="amz-prodrail__track">
+				<?php foreach ( $photo_loop as $product ) : ?>
+					<button
+						type="button"
+						class="amz-prodrail__card"
+						data-open-product="<?php echo esc_attr( (string) ( $product['id'] ?? '' ) ); ?>"
+						data-product-name="<?php echo esc_attr( (string) $product['name'] ); ?>"
+					>
+						<img src="<?php echo function_exists( 'amz_prints_product_img_src' ) ? amz_prints_product_img_src( $product['image'] ) : esc_url( $product['image'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>" alt="<?php echo esc_attr( $product['name'] ); ?>">
+						<span><?php echo esc_html( $product['name'] ); ?></span>
+					</button>
 				<?php endforeach; ?>
 			</div>
 		</div>
@@ -119,6 +138,31 @@ $strip_loop = array_merge( $strip, $strip );
 		<?php endforeach; ?>
 	</div>
 </div>
+
+<section class="land-mix">
+	<div class="container land-mix__grid">
+		<article class="land-mix__card land-mix__card--print">
+			<p><?php esc_html_e( 'Printing', 'amz-prints' ); ?></p>
+			<h2><?php esc_html_e( 'Press, color, and finish', 'amz-prints' ); ?></h2>
+			<ul>
+				<li><?php esc_html_e( 'Offset and digital print', 'amz-prints' ); ?></li>
+				<li><?php esc_html_e( 'Large format, UV, DTF', 'amz-prints' ); ?></li>
+				<li><?php esc_html_e( 'Packaging and signage', 'amz-prints' ); ?></li>
+			</ul>
+			<a class="btn btn--primary" href="<?php echo esc_url( home_url( '/services/' ) ); ?>"><?php esc_html_e( 'Printing services', 'amz-prints' ); ?></a>
+		</article>
+		<article class="land-mix__card land-mix__card--tech">
+			<p><?php esc_html_e( 'Technology', 'amz-prints' ); ?></p>
+			<h2><?php esc_html_e( 'Digital studio and software', 'amz-prints' ); ?></h2>
+			<ul>
+				<li><?php esc_html_e( 'Websites, apps, and ERP', 'amz-prints' ); ?></li>
+				<li><?php esc_html_e( 'Brand systems and motion', 'amz-prints' ); ?></li>
+				<li><?php esc_html_e( 'Live order tracking', 'amz-prints' ); ?></li>
+			</ul>
+			<a class="btn btn--primary" href="<?php echo esc_url( home_url( '/digital-services/' ) ); ?>"><?php esc_html_e( 'Digital services', 'amz-prints' ); ?></a>
+		</article>
+	</div>
+</section>
 
 <section class="land-quick">
 	<div class="container land-quick__grid">
@@ -152,7 +196,7 @@ $strip_loop = array_merge( $strip, $strip );
 				<?php if ( function_exists( 'amz_prints_customer_is_logged_in' ) && amz_prints_customer_is_logged_in() ) : ?>
 					<a class="btn btn--ghost" href="<?php echo esc_url( home_url( '/my-account/' ) ); ?>"><?php esc_html_e( 'My account', 'amz-prints' ); ?></a>
 				<?php else : ?>
-					<a class="btn btn--ghost" href="<?php echo esc_url( home_url( '/customer-login/' ) ); ?>"><?php esc_html_e( 'Create account', 'amz-prints' ); ?></a>
+					<a class="btn btn--ghost" href="<?php echo esc_url( home_url( '/customer-signup/' ) ); ?>"><?php esc_html_e( 'Create account', 'amz-prints' ); ?></a>
 				<?php endif; ?>
 			</div>
 		</div>

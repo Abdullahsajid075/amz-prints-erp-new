@@ -112,10 +112,14 @@
           var code = res && res.data && res.data.code;
           if (code === 'need_signup') {
             var emailVal = fd.get('email') || '';
-            var regEmail = document.querySelector('#amz-customer-register-form [name="email"]');
-            if (regEmail) regEmail.value = emailVal;
-            setTab('register');
-            msg(document.getElementById('amz-customer-register-msg'), (res.data && res.data.message) || 'No account yet — create one below.', true);
+            var hint = document.getElementById('amz-login-signup-hint');
+            var link = document.getElementById('amz-login-signup-link');
+            if (link) {
+              var base = cfg.signupUrl || '/customer-signup/';
+              link.href = base + (base.indexOf('?') >= 0 ? '&' : '?') + 'email=' + encodeURIComponent(emailVal);
+            }
+            if (hint) hint.hidden = false;
+            msg(out, (res.data && res.data.message) || 'No account for this email. Use Sign up.', true);
             return;
           }
           msg(out, (res && res.data && res.data.message) || 'Login failed', true);
@@ -151,10 +155,14 @@
           var code = res && res.data && res.data.code;
           if (code === 'need_login') {
             var emailVal = fd.get('email') || '';
-            var logEmail = document.querySelector('#amz-customer-login-form [name="email"]');
-            if (logEmail) logEmail.value = emailVal;
-            setTab('login');
-            msg(document.getElementById('amz-customer-login-msg'), (res.data && res.data.message) || 'Account already exists — log in.', true);
+            var hint = document.getElementById('amz-signup-login-hint');
+            var link = document.getElementById('amz-signup-login-link');
+            if (link) {
+              var base = cfg.loginUrl || '/customer-login/';
+              link.href = base + (base.indexOf('?') >= 0 ? '&' : '?') + 'email=' + encodeURIComponent(emailVal);
+            }
+            if (hint) hint.hidden = false;
+            msg(out, (res.data && res.data.message) || 'This email already has an account. Please sign in.', true);
             return;
           }
           msg(out, (res && res.data && res.data.message) || 'Sign up failed', true);
@@ -239,7 +247,16 @@
       redirect: redirect
     }).then(function (res) {
       if (!res || !res.success) {
-        msg(out, (res && res.data && res.data.message) || 'Google login failed', true);
+        var gmsg = (res && res.data && res.data.message) || 'Google login failed';
+        msg(out, gmsg, true);
+        if (!isSignup && /sign up/i.test(gmsg)) {
+          var hint = document.getElementById('amz-login-signup-hint');
+          if (hint) hint.hidden = false;
+        }
+        if (isSignup && /already|log in|sign in/i.test(gmsg)) {
+          var hintIn = document.getElementById('amz-signup-login-hint');
+          if (hintIn) hintIn.hidden = false;
+        }
         return;
       }
       msg(out, (res.data && res.data.created) ? 'Account created. Redirecting…' : 'Signed in. Redirecting…', false);
