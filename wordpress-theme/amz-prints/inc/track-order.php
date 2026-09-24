@@ -10,18 +10,22 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-/** Default Apps Script / Hostinger API used by erp.amzprints.com */
+/** Live Supabase/Vercel catalog — old Google Apps Script lists products without photos. */
 define(
 	'AMZ_PRINTS_ERP_API_DEFAULT',
-	'https://script.google.com/macros/s/AKfycbxEvWjbbh0-VJ1JxKR-qFZ9TbllIyh9rAJRg1ythfihJP61o6sxvcYhHehXafZEYummLw/exec'
+	'https://amz-prints-api.vercel.app/api'
 );
 
 /**
  * ERP API base URL (Customizer override supported).
+ * Never use the retired GAS web app — it still publishes no-image products.
  */
 function amz_prints_erp_api_url() {
 	$url = trim( (string) amz_prints_mod( 'amz_erp_api_url', AMZ_PRINTS_ERP_API_DEFAULT ) );
-	return $url ? $url : AMZ_PRINTS_ERP_API_DEFAULT;
+	if ( ! $url || stripos( $url, 'script.google.com' ) !== false ) {
+		return AMZ_PRINTS_ERP_API_DEFAULT;
+	}
+	return $url;
 }
 
 /**

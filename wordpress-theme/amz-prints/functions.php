@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AMZ_PRINTS_VERSION', '2.3.2' );
+define( 'AMZ_PRINTS_VERSION', '2.3.4' );
 define( 'AMZ_PRINTS_DIR', get_template_directory() );
 define( 'AMZ_PRINTS_URI', get_template_directory_uri() );
 
@@ -351,6 +351,36 @@ function amz_prints_seed_demo_content() {
 
 	update_option( 'amz_prints_seeded', 1 );
 }
+
+/**
+ * Delist leftover WordPress catalog posts that have no featured image.
+ * The live storefront is the ERP catalog; no-photo WP products must not stay published.
+ */
+function amz_prints_delist_wp_products_without_images() {
+	if ( get_option( 'amz_prints_delisted_noimage_v1' ) ) {
+		return;
+	}
+	$ids = get_posts(
+		array(
+			'post_type'      => 'amz_product',
+			'post_status'    => 'publish',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+		)
+	);
+	foreach ( $ids as $id ) {
+		if ( ! has_post_thumbnail( $id ) ) {
+			wp_update_post(
+				array(
+					'ID'          => $id,
+					'post_status' => 'draft',
+				)
+			);
+		}
+	}
+	update_option( 'amz_prints_delisted_noimage_v1', 1 );
+}
+add_action( 'init', 'amz_prints_delist_wp_products_without_images', 30 );
 
 /**
  * Contact / quote form handlers (emails site admin)

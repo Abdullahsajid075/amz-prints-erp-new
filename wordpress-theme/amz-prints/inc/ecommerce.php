@@ -94,8 +94,13 @@ function amz_prints_erp_get_product( $id ) {
 	if ( ! empty( $data['images'] ) && is_array( $data['images'] ) ) {
 		$images = array_values( array_filter( array_map( 'strval', $data['images'] ) ) );
 	}
-	$primary = (string) ( $data['image'] ?? $data['photo'] ?? '' );
-	if ( $primary && ! in_array( $primary, $images, true ) ) {
+	$primary = function_exists( 'amz_prints_first_real_product_photo' )
+		? amz_prints_first_real_product_photo( $data )
+		: (string) ( $data['image'] ?? $data['photo'] ?? '' );
+	if ( ! $primary ) {
+		return null;
+	}
+	if ( ! in_array( $primary, $images, true ) ) {
 		array_unshift( $images, $primary );
 	}
 	$variations = array();

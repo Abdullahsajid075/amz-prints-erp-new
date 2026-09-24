@@ -1,11 +1,13 @@
 <?php
 /**
- * Products archive
+ * Products archive — ERP catalog only. No-photo products stay delisted.
  *
  * @package AMZ_Prints
  */
 
 get_header();
+
+$erp_products = function_exists( 'amz_prints_erp_get_products' ) ? amz_prints_erp_get_products() : array();
 ?>
 
 <section class="page-hero">
@@ -17,36 +19,40 @@ get_header();
 
 <section class="section">
 	<div class="container product-grid product-grid--page">
-		<?php
-		if ( have_posts() ) :
-			while ( have_posts() ) :
-				the_post();
-				$price = get_post_meta( get_the_ID(), '_amz_price_label', true );
+		<?php if ( ! empty( $erp_products ) ) : ?>
+			<?php foreach ( $erp_products as $product ) : ?>
+				<?php
+				$purl    = function_exists( 'amz_prints_product_url' ) ? amz_prints_product_url( $product ) : home_url( '/products/' );
+				$gallery = function_exists( 'amz_prints_product_gallery' ) ? amz_prints_product_gallery( $product ) : array();
+				$img     = ! empty( $gallery[0] ) ? $gallery[0] : ( ! empty( $product['image'] ) ? $product['image'] : '' );
+				if ( ! $img || ( function_exists( 'amz_prints_is_real_product_photo' ) && ! amz_prints_is_real_product_photo( $img ) ) ) {
+					continue;
+				}
+				$price_html = function_exists( 'amz_prints_erp_product_price_html' )
+					? amz_prints_erp_product_price_html( $product )
+					: '';
+				$excerpt = ! empty( $product['description'] ) ? wp_trim_words( $product['description'], 16 ) : '';
 				?>
 				<article class="product-tile reveal" data-reveal>
-					<a href="<?php the_permalink(); ?>">
+					<a href="<?php echo esc_url( $purl ); ?>">
 						<div class="product-tile__media">
-							<?php if ( has_post_thumbnail() ) : ?>
-								<?php the_post_thumbnail( 'amz-product' ); ?>
-							<?php else : ?>
-								<div class="product-tile__placeholder" aria-hidden="true">
-									<span><?php echo esc_html( mb_substr( get_the_title(), 0, 1 ) ); ?></span>
-								</div>
-							<?php endif; ?>
+							<img src="<?php echo esc_attr( $img ); ?>" alt="<?php echo esc_attr( $product['name'] ); ?>" loading="lazy" referrerpolicy="no-referrer">
 						</div>
 						<div class="product-tile__body">
-							<h3><?php the_title(); ?></h3>
-							<p><?php echo esc_html( wp_trim_words( get_the_excerpt() ?: get_the_content(), 16 ) ); ?></p>
-							<?php if ( $price ) : ?>
-								<span class="product-tile__price"><?php echo esc_html( $price ); ?></span>
+							<h3><?php echo esc_html( $product['name'] ); ?></h3>
+							<?php if ( $excerpt ) : ?>
+								<p><?php echo esc_html( $excerpt ); ?></p>
+							<?php endif; ?>
+							<?php if ( $price_html ) : ?>
+								<span class="product-tile__price"><?php echo $price_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
 							<?php endif; ?>
 						</div>
 					</a>
 				</article>
-				<?php
-			endwhile;
-		endif;
-		?>
+			<?php endforeach; ?>
+		<?php else : ?>
+			<p class="shop-empty"><?php esc_html_e( 'Only products with photos are listed. Incomplete items have been removed from the website.', 'amz-prints' ); ?></p>
+		<?php endif; ?>
 	</div>
 </section>
 
