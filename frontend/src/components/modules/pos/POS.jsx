@@ -13,7 +13,7 @@ import { useBrand } from '@/context/BrandContext';
 import {
   Search, Plus, Minus, Trash2, Printer, PackagePlus, UserPlus, Package, Wrench,
   Lock, Unlock, BookOpen, Settings, Clock, LayoutGrid, Pause, RotateCcw,
-  Banknote, CreditCard, Building2, Quote, User,
+  Banknote, CreditCard, Building2, Quote, User, ArrowDownLeft, Coins,
 } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
@@ -314,6 +314,11 @@ const POS = () => {
     ? Math.max(0, receivedNum)
     : payable;
   const changeBack = Math.max(0, cashReceived - payable);
+  const dueLeft = Math.max(0, payable - cashReceived);
+  const isShortPay = dueLeft > 0.009;
+
+  const setTender = (n) => setReceivedAmount(String(Math.max(0, Math.round(Number(n) || 0))));
+  const addTender = (n) => setTender(cashReceived + n);
 
   const rememberSale = (sale) => {
     setLastSale(sale);
@@ -411,7 +416,11 @@ const POS = () => {
           : '',
       };
       rememberSale(sale);
-      toast.success(`Sale ${sale.orderId} completed`);
+      toast.success(
+        sale.changeBack > 0
+          ? `Sale ${sale.orderId} · paid ${formatCurrency(sale.receivedAmount)} · change ${formatCurrency(sale.changeBack)}`
+          : `Sale ${sale.orderId} completed`
+      );
       if (created.data?._invoiceError) toast.error(created.data._invoiceError);
       else if (created.data?.invoiceNumber) toast.message(`Invoice ${created.data.invoiceNumber} created`);
       if (sale.customerPhone && applyServerNotificationHint(created.data)) {
@@ -677,8 +686,18 @@ const POS = () => {
           </div>
         </section>
 
-        <aside className="min-h-0 flex flex-col bg-white border-l">
-          <div className="px-4 py-3 border-b flex items-center justify-between">
+        <aside
+          className="min-h-0 flex flex-col relative"
+          data-testid="pos-sale-panel"
+          style={{
+            background: 'linear-gradient(180deg, rgba(255,255,255,0.78) 0%, rgba(244,247,255,0.52) 55%, rgba(255,255,255,0.40) 100%)',
+            backdropFilter: 'blur(22px)',
+            WebkitBackdropFilter: 'blur(22px)',
+            boxShadow: '-18px 0 48px rgba(7,71,163,0.14), inset 1px 0 0 rgba(255,255,255,0.85)',
+            borderLeft: '1px solid rgba(255,255,255,0.65)',
+          }}
+        >
+          <div className="px-4 py-3 border-b border-white/60 flex items-center justify-between">
             <div>
               <p className="text-[11px] uppercase tracking-wider font-bold" style={{ color: accent }}>Current sale</p>
               <p className="text-xs text-slate-500">{cart.length} items</p>
@@ -689,7 +708,14 @@ const POS = () => {
           </div>
 
           <div className="px-4 py-3 border-b space-y-2">
-            <div className="rounded-xl border bg-slate-50 px-3 py-2 text-sm">
+            <div
+              className="rounded-xl px-3 py-2 text-sm"
+              style={{
+                background: 'linear-gradient(180deg, rgba(255,255,255,0.8), rgba(255,255,255,0.45))',
+                border: '1px solid rgba(255,255,255,0.75)',
+                boxShadow: '0 8px 18px rgba(15,23,42,0.08), inset 0 1px 0 rgba(255,255,255,0.9)',
+              }}
+            >
               <span className="font-semibold">{selectedCustomer?.name || 'Walk-in'}</span>
               {selectedCustomer?.phone ? <span className="text-slate-500"> · {selectedCustomer.phone}</span> : null}
             </div>
@@ -781,7 +807,17 @@ const POS = () => {
             ))}
           </div>
 
-          <div className="shrink-0 border-t px-4 py-3 space-y-2">
+          <div
+            className="shrink-0 m-3 mt-2 rounded-2xl p-3 space-y-3"
+            data-testid="pos-tender-glass"
+            style={{
+              background: 'linear-gradient(165deg, rgba(255,255,255,0.82) 0%, rgba(255,255,255,0.46) 100%)',
+              backdropFilter: 'blur(18px)',
+              WebkitBackdropFilter: 'blur(18px)',
+              border: '1px solid rgba(255,255,255,0.78)',
+              boxShadow: '0 18px 40px rgba(15,23,42,0.16), 0 2px 0 rgba(255,255,255,0.95) inset, 0 -8px 18px rgba(7,71,163,0.05) inset',
+            }}
+          >
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label className="text-[11px] text-slate-500">Discount</Label>
@@ -800,11 +836,60 @@ const POS = () => {
               <div className="flex justify-between text-slate-500"><span>Subtotal</span><span>{formatCurrency(subtotal)}</span></div>
               <div className="flex justify-between text-slate-500"><span>Discount</span><span>-{formatCurrency(discountAmount)}</span></div>
               <div className="flex justify-between text-slate-500"><span>Tax</span><span>{formatCurrency(taxAmount)}</span></div>
-              <div className="flex justify-between items-end pt-1">
-                <span className="font-bold">Total</span>
-                <span className="text-2xl font-black" style={{ color: accent }}>{formatCurrency(payable)}</span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-1.5" data-testid="pos-pay-breakdown">
+              <div
+                className="rounded-xl px-2 py-2 text-center"
+                style={{
+                  background: 'linear-gradient(180deg, rgba(255,109,0,0.16), rgba(255,255,255,0.55))',
+                  boxShadow: '0 8px 16px rgba(255,109,0,0.12), inset 0 1px 0 rgba(255,255,255,0.8)',
+                  border: '1px solid rgba(255,109,0,0.22)',
+                }}
+              >
+                <p className="text-[9px] uppercase tracking-wider font-bold text-orange-700">Payable</p>
+                <p className="text-sm font-black leading-tight" style={{ color: accent }} data-testid="pos-payable">{formatCurrency(payable)}</p>
+              </div>
+              <div
+                className="rounded-xl px-2 py-2 text-center"
+                style={{
+                  background: 'linear-gradient(180deg, rgba(7,71,163,0.14), rgba(255,255,255,0.55))',
+                  boxShadow: '0 8px 16px rgba(7,71,163,0.10), inset 0 1px 0 rgba(255,255,255,0.8)',
+                  border: '1px solid rgba(7,71,163,0.18)',
+                }}
+              >
+                <p className="text-[9px] uppercase tracking-wider font-bold text-blue-800">Paid</p>
+                <p className="text-sm font-black leading-tight text-[#0747a3]" data-testid="pos-paid">{formatCurrency(cashReceived)}</p>
+              </div>
+              <div
+                className="rounded-xl px-2 py-2 text-center"
+                style={{
+                  background: isShortPay
+                    ? 'linear-gradient(180deg, rgba(225,29,72,0.16), rgba(255,255,255,0.55))'
+                    : 'linear-gradient(180deg, rgba(16,185,129,0.18), rgba(255,255,255,0.55))',
+                  boxShadow: isShortPay
+                    ? '0 8px 16px rgba(225,29,72,0.12), inset 0 1px 0 rgba(255,255,255,0.8)'
+                    : '0 8px 16px rgba(16,185,129,0.12), inset 0 1px 0 rgba(255,255,255,0.8)',
+                  border: isShortPay ? '1px solid rgba(225,29,72,0.22)' : '1px solid rgba(16,185,129,0.22)',
+                }}
+              >
+                <p className={`text-[9px] uppercase tracking-wider font-bold ${isShortPay ? 'text-rose-700' : 'text-emerald-800'}`}>
+                  {isShortPay ? 'Due left' : 'Change'}
+                </p>
+                <p className={`text-sm font-black leading-tight ${isShortPay ? 'text-rose-700' : 'text-emerald-800'}`} data-testid="pos-change">
+                  {formatCurrency(isShortPay ? dueLeft : changeBack)}
+                </p>
               </div>
             </div>
+            <p className="text-[11px] text-slate-600 text-center font-medium">
+              Customer pays <strong className="text-[#0747a3]">{formatCurrency(cashReceived)}</strong>
+              {' · '}bill <strong style={{ color: accent }}>{formatCurrency(payable)}</strong>
+              {' · '}
+              {isShortPay
+                ? <span className="text-rose-700">abhi {formatCurrency(dueLeft)} dena baqi</span>
+                : <span className="text-emerald-700">change {formatCurrency(changeBack)} wapas</span>}
+            </p>
+
             <div className="grid grid-cols-3 gap-1.5">
               {[
                 { key: 'Cash', icon: Banknote, label: 'Cash' },
@@ -815,29 +900,54 @@ const POS = () => {
                   key={m.key}
                   type="button"
                   onClick={() => setPaymentMethod(m.key)}
-                  className={`h-10 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1 ${paymentMethod === m.key ? 'text-white border-transparent' : 'bg-white text-slate-600'}`}
-                  style={paymentMethod === m.key ? { backgroundColor: accent } : undefined}
+                  className={`h-10 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1 ${paymentMethod === m.key ? 'text-white border-transparent shadow-lg' : 'bg-white/70 text-slate-600 border-white/80'}`}
+                  style={paymentMethod === m.key ? { backgroundColor: accent, boxShadow: '0 8px 18px rgba(255,109,0,0.35)' } : undefined}
                 >
                   <m.icon className="h-3.5 w-3.5" />{m.label}
                 </button>
               ))}
             </div>
-            {paymentMethod === 'Cash' && (
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label className="text-[11px] text-slate-500">Received</Label>
-                  <Input type="number" min="0" value={receivedAmount} onChange={(e) => setReceivedAmount(e.target.value)} className="h-8" placeholder={String(payable || 0)} />
-                </div>
-                <div>
-                  <Label className="text-[11px] text-slate-500">Change</Label>
-                  <Input className="h-8 bg-emerald-50 font-semibold text-emerald-800" value={formatCurrency(changeBack)} disabled />
-                </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-[11px] text-slate-500">Customer paid</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={receivedAmount}
+                  onChange={(e) => setReceivedAmount(e.target.value)}
+                  className="h-9 bg-white/80 font-bold"
+                  placeholder={String(payable || 0)}
+                  data-testid="pos-received"
+                />
               </div>
-            )}
-            <Input className="h-8" placeholder="WhatsApp number" value={waPhone} onChange={(e) => setWaPhone(e.target.value)} />
+              <div>
+                <Label className="text-[11px] text-slate-500">{isShortPay ? 'Still due' : 'Change to give'}</Label>
+                <Input
+                  className={`h-9 font-black ${isShortPay ? 'bg-rose-50 text-rose-800' : 'bg-emerald-50 text-emerald-800'}`}
+                  value={formatCurrency(isShortPay ? dueLeft : changeBack)}
+                  disabled
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              <Button type="button" size="sm" variant="outline" className="h-7 text-[11px] bg-white/70" onClick={() => setTender(payable)}>
+                Exact
+              </Button>
+              {[500, 1000, 5000, 10000].map((n) => (
+                <Button key={n} type="button" size="sm" variant="outline" className="h-7 text-[11px] bg-white/70" onClick={() => setTender(n)}>
+                  {n >= 1000 ? `${n / 1000}k` : n}
+                </Button>
+              ))}
+              <Button type="button" size="sm" variant="outline" className="h-7 text-[11px] bg-white/70" onClick={() => addTender(100)}>
+                +100
+              </Button>
+            </div>
+
+            <Input className="h-8 bg-white/80" placeholder="WhatsApp number" value={waPhone} onChange={(e) => setWaPhone(e.target.value)} />
             <Button
               className="w-full h-12 text-white text-base font-black rounded-xl"
-              style={{ backgroundColor: accent }}
+              style={{ backgroundColor: accent, boxShadow: '0 10px 24px rgba(255,109,0,0.38)' }}
               disabled={checkingOut || !cart.length || !registerOpen}
               onClick={checkout}
               data-testid="pos-checkout"
@@ -845,15 +955,48 @@ const POS = () => {
               <Printer className="h-4 w-4 mr-2" />
               {checkingOut ? 'Processing…' : 'Complete sale'}
             </Button>
-            <Button
-              variant="outline"
-              className="w-full h-10 rounded-xl font-semibold"
-              disabled={!lastSale}
-              onClick={() => printReceipt(lastSale)}
-              data-testid="pos-reprint-cart"
-            >
-              <RotateCcw className="h-4 w-4 mr-2" />Reprint receipt
-            </Button>
+            <div className="grid grid-cols-2 gap-1.5">
+              <Button
+                variant="outline"
+                className="h-9 rounded-xl font-semibold bg-white/70"
+                disabled={!lastSale}
+                onClick={() => printReceipt(lastSale)}
+                data-testid="pos-reprint-cart"
+              >
+                <RotateCcw className="h-4 w-4 mr-1" />Reprint
+              </Button>
+              <Button
+                variant="outline"
+                className="h-9 rounded-xl font-semibold bg-white/70"
+                disabled={!lastSale}
+                onClick={() => lastSale && sendPosWhatsApp(lastSale)}
+              >
+                <WhatsAppIcon className="h-3.5 w-3.5 mr-1" />WhatsApp
+              </Button>
+            </div>
+            {lastSale ? (
+              <div
+                className="rounded-xl px-3 py-2 text-[11px] leading-snug"
+                data-testid="pos-last-change"
+                style={{
+                  background: 'linear-gradient(180deg, rgba(16,185,129,0.12), rgba(255,255,255,0.5))',
+                  border: '1px solid rgba(16,185,129,0.2)',
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.8)',
+                }}
+              >
+                <p className="font-bold text-emerald-800 inline-flex items-center gap-1">
+                  <Coins className="h-3 w-3" />Last sale {lastSale.orderId || ''}
+                </p>
+                <p className="text-slate-600">
+                  Paid {formatCurrency(lastSale.receivedAmount ?? lastSale.totalAmount)} · bill {formatCurrency(lastSale.totalAmount)}
+                  {' · '}
+                  <span className="font-black text-emerald-800 inline-flex items-center gap-0.5">
+                    <ArrowDownLeft className="h-3 w-3" />
+                    change {formatCurrency(lastSale.changeBack ?? 0)}
+                  </span>
+                </p>
+              </div>
+            ) : null}
           </div>
         </aside>
       </div>
