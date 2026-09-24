@@ -601,33 +601,75 @@ const POS = () => {
                   const img = productImageSrc(p);
                   const service = isServiceItem(p);
                   const tracking = tracksInventory(p);
+                  const qty = cart.find((c) => c.productId === p.id)?.quantity || 0;
                   return (
-                    <button
+                    <div
                       key={p.id}
-                      type="button"
-                      onClick={() => addToCart(p)}
                       className="text-left bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-orange-200 transition-all overflow-hidden"
                       data-testid={`pos-product-${p.id}`}
                     >
-                      <div className="relative aspect-square w-full bg-slate-50 overflow-hidden">
-                        {img ? (
-                          <img src={img} alt="" className="absolute inset-0 w-full h-full object-cover" />
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center text-slate-300">
-                            {service ? <Wrench className="h-8 w-8" /> : <Package className="h-8 w-8" />}
+                      <button
+                        type="button"
+                        onClick={() => addToCart(p)}
+                        className="w-full text-left"
+                      >
+                        <div className="relative aspect-square w-full bg-slate-50 overflow-hidden">
+                          {img ? (
+                            <img src={img} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                          ) : (
+                            <div className="absolute inset-0 flex items-center justify-center text-slate-300">
+                              {service ? <Wrench className="h-8 w-8" /> : <Package className="h-8 w-8" />}
+                            </div>
+                          )}
+                          {tracking ? (
+                            <span className="absolute top-2 right-2 min-w-[1.5rem] h-6 px-1.5 rounded-md text-white text-xs font-black flex items-center justify-center" style={{ backgroundColor: accent }}>
+                              {Number(p.stock ?? 0) || 0}
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="px-3 pt-2">
+                          <p className="text-[13px] font-semibold leading-snug line-clamp-2 min-h-[2.4rem]">{p.name}</p>
+                          <p className="text-sm font-black mt-1" style={{ color: accent }}>{formatCurrency(p.rate || p.basePrice || p.effectivePrice)}</p>
+                        </div>
+                      </button>
+                      <div className="px-2 pb-2 pt-2">
+                        {qty > 0 ? (
+                          <div className="flex items-center gap-1">
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="outline"
+                              className="h-9 w-9 shrink-0 font-black"
+                              onClick={() => updateQty(p.id, -1)}
+                              data-testid={`pos-qty-minus-${p.id}`}
+                            >
+                              <Minus className="h-4 w-4" />
+                            </Button>
+                            <span className="flex-1 text-center text-base font-black" data-testid={`pos-qty-${p.id}`}>{qty}</span>
+                            <Button
+                              type="button"
+                              size="icon"
+                              className="h-9 w-9 shrink-0 text-white"
+                              style={{ backgroundColor: accent }}
+                              onClick={() => addToCart(p)}
+                              data-testid={`pos-qty-plus-${p.id}`}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
                           </div>
+                        ) : (
+                          <Button
+                            type="button"
+                            className="w-full h-9 text-white font-bold rounded-xl"
+                            style={{ backgroundColor: accent }}
+                            onClick={() => addToCart(p)}
+                            data-testid={`pos-qty-add-${p.id}`}
+                          >
+                            <Plus className="h-4 w-4 mr-1" />Add
+                          </Button>
                         )}
-                        {tracking ? (
-                          <span className="absolute top-2 right-2 min-w-[1.5rem] h-6 px-1.5 rounded-md text-white text-xs font-black flex items-center justify-center" style={{ backgroundColor: accent }}>
-                            {Number(p.stock ?? 0) || 0}
-                          </span>
-                        ) : null}
                       </div>
-                      <div className="px-3 pb-3 pt-2">
-                        <p className="text-[13px] font-semibold leading-snug line-clamp-2 min-h-[2.4rem]">{p.name}</p>
-                        <p className="text-sm font-black mt-1" style={{ color: accent }}>{formatCurrency(p.rate || p.basePrice || p.effectivePrice)}</p>
-                      </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
@@ -689,51 +731,54 @@ const POS = () => {
             </div>
           </div>
 
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500">
-                <tr>
-                  <th className="p-2 text-left font-semibold">#</th>
-                  <th className="p-2 text-left font-semibold">Item</th>
-                  <th className="p-2 text-center font-semibold">Qty</th>
-                  <th className="p-2 text-right font-semibold">Price</th>
-                  <th className="p-2 text-right font-semibold">Total</th>
-                  <th className="p-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {!cart.length ? (
-                  <tr><td colSpan={6} className="p-8 text-center text-slate-400">Tap a product to add</td></tr>
-                ) : cart.map((item, i) => (
-                  <tr key={item.productId} className="border-b last:border-0">
-                    <td className="p-2 text-slate-400">{i + 1}</td>
-                    <td className="p-2">
-                      <p className="font-medium leading-snug">{item.name}</p>
-                    </td>
-                    <td className="p-2">
-                      <div className="flex items-center justify-center gap-1">
-                        <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQty(item.productId, -1)}><Minus className="h-3 w-3" /></Button>
-                        <Input
-                          type="number"
-                          min="1"
-                          value={item.quantity}
-                          onChange={(e) => setQtyManual(item.productId, e.target.value)}
-                          className="h-7 w-12 text-center text-sm font-semibold px-1"
-                        />
-                        <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQty(item.productId, 1)}><Plus className="h-3 w-3" /></Button>
-                      </div>
-                    </td>
-                    <td className="p-2 text-right">{formatCurrency(item.rate)}</td>
-                    <td className="p-2 text-right font-bold">{formatCurrency(item.quantity * item.rate)}</td>
-                    <td className="p-2">
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setCart((c) => c.filter((x) => x.productId !== item.productId))}>
-                        <Trash2 className="h-3.5 w-3.5 text-red-500" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2 space-y-2">
+            {!cart.length ? (
+              <p className="p-8 text-center text-slate-400 text-sm">Tap a product to add</p>
+            ) : cart.map((item, i) => (
+              <div key={item.productId} className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5" data-testid={`pos-cart-line-${item.productId}`}>
+                <div className="flex items-start gap-2">
+                  <span className="text-[11px] text-slate-400 font-semibold mt-0.5">{i + 1}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold leading-snug text-sm">{item.name}</p>
+                    <p className="text-[11px] text-slate-500">{formatCurrency(item.rate)} each</p>
+                  </div>
+                  <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => setCart((c) => c.filter((x) => x.productId !== item.productId))}>
+                    <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                  </Button>
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    className="h-10 w-10 shrink-0 font-black"
+                    onClick={() => updateQty(item.productId, -1)}
+                    data-testid={`pos-cart-minus-${item.productId}`}
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={item.quantity}
+                    onChange={(e) => setQtyManual(item.productId, e.target.value)}
+                    className="h-10 w-16 text-center text-base font-black px-1"
+                    data-testid={`pos-cart-qty-${item.productId}`}
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    className="h-10 w-10 shrink-0 text-white"
+                    style={{ backgroundColor: accent }}
+                    onClick={() => updateQty(item.productId, 1)}
+                    data-testid={`pos-cart-plus-${item.productId}`}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                  <span className="ml-auto text-sm font-black" style={{ color: accent }}>{formatCurrency(item.quantity * item.rate)}</span>
+                </div>
+              </div>
+            ))}
           </div>
 
           <div className="shrink-0 border-t px-4 py-3 space-y-2">
