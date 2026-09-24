@@ -12,18 +12,6 @@ $legal    = amz_prints_mod( 'amz_legal_name', 'Amazon Printings (Pvt) Ltd' );
 $headline = amz_prints_mod( 'amz_hero_headline', 'Print that moves brands forward.' );
 $sub      = amz_prints_mod( 'amz_hero_sub', 'Offset, digital, large format, packaging, and digital services — crafted with color precision and on-time delivery.' );
 
-$fallback_imgs = array(
-	'https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=1800&q=80',
-	'https://images.unsplash.com/photo-1562564055-71e051d33c19?auto=format&fit=crop&w=900&q=80',
-	'https://images.unsplash.com/photo-1586075010923-2dd4570fb338?auto=format&fit=crop&w=900&q=80',
-	'https://images.unsplash.com/photo-1626785774573-4b7993143459?auto=format&fit=crop&w=900&q=80',
-	'https://images.unsplash.com/photo-1611532736579-6b16e2b50449?auto=format&fit=crop&w=900&q=80',
-);
-
-$main_id  = absint( amz_prints_mod( 'amz_hero_image', 0 ) );
-$main_url = $main_id ? wp_get_attachment_image_url( $main_id, 'amz-hero' ) : '';
-$hero_bg  = $main_url ? $main_url : $fallback_imgs[0];
-
 $catalog = array_slice( amz_prints_services_catalog(), 0, 8 );
 $erp_all = function_exists( 'amz_prints_erp_get_products' ) ? amz_prints_erp_get_products() : array();
 $cats    = array();
@@ -32,38 +20,6 @@ foreach ( $erp_all as $p ) {
 	if ( $c ) {
 		$cats[ sanitize_title( $c ) ] = $c;
 	}
-}
-
-$featured = array();
-foreach ( $erp_all as $p ) {
-	if ( empty( $p['name'] ) ) {
-		continue;
-	}
-	$raw = ! empty( $p['image'] ) ? (string) $p['image'] : '';
-	$pname = mb_strtolower( (string) $p['name'] );
-	if ( false !== strpos( $pname, 'sahulat' ) ) {
-		continue;
-	}
-	if ( $raw && 0 !== strpos( $raw, 'data:image' ) && ! preg_match( '#^https?://#i', $raw ) ) {
-		$raw = '';
-	}
-	$featured[] = array(
-		'name' => (string) $p['name'],
-		'url'  => $raw ? $raw : $fallback_imgs[ ( count( $featured ) % 4 ) + 1 ],
-		'id'   => (string) ( $p['id'] ?? '' ),
-	);
-	if ( count( $featured ) >= 4 ) {
-		break;
-	}
-}
-if ( count( $featured ) < 4 ) {
-	$defaults = array(
-		array( 'name' => 'Business Cards', 'url' => $fallback_imgs[1], 'id' => '' ),
-		array( 'name' => 'Banners & Signage', 'url' => $fallback_imgs[2], 'id' => '' ),
-		array( 'name' => 'Packaging & Boxes', 'url' => $fallback_imgs[3], 'id' => '' ),
-		array( 'name' => 'Custom Apparel', 'url' => $fallback_imgs[4], 'id' => '' ),
-	);
-	$featured = array_slice( array_merge( $featured, $defaults ), 0, 4 );
 }
 
 $track_url = function_exists( 'amz_prints_customer_is_logged_in' ) && amz_prints_customer_is_logged_in()
@@ -75,14 +31,7 @@ $strip   = function_exists( 'amz_prints_running_strip_items' ) ? amz_prints_runn
 $strip_loop = array_merge( $strip, $strip );
 $photo_products = array();
 foreach ( $erp_all as $p ) {
-	if ( empty( $p['name'] ) ) {
-		continue;
-	}
-	$raw = trim( (string) ( $p['image'] ?? '' ) );
-	if ( ! $raw ) {
-		continue;
-	}
-	if ( 0 !== strpos( $raw, 'data:image' ) && ! preg_match( '#^https?://#i', $raw ) ) {
+	if ( empty( $p['name'] ) || ! function_exists( 'amz_prints_product_photo_url' ) || ! amz_prints_product_photo_url( $p ) ) {
 		continue;
 	}
 	$photo_products[] = $p;
@@ -116,15 +65,11 @@ $photo_loop = $photo_products ? array_merge( $photo_products, $photo_products ) 
 		<div class="amz-prodrail" aria-label="<?php esc_attr_e( 'Products with photos', 'amz-prints' ); ?>">
 			<div class="amz-prodrail__track">
 				<?php foreach ( $photo_loop as $product ) : ?>
-					<button
-						type="button"
-						class="amz-prodrail__card"
-						data-open-product="<?php echo esc_attr( (string) ( $product['id'] ?? '' ) ); ?>"
-						data-product-name="<?php echo esc_attr( (string) $product['name'] ); ?>"
-					>
+					<?php $rail_url = function_exists( 'amz_prints_erp_product_url' ) ? amz_prints_erp_product_url( $product['id'] ?? '' ) : home_url( '/products/' ); ?>
+					<a class="amz-prodrail__card" href="<?php echo esc_url( $rail_url ); ?>">
 						<img src="<?php echo function_exists( 'amz_prints_product_img_src' ) ? amz_prints_product_img_src( $product['image'] ) : esc_url( $product['image'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>" alt="<?php echo esc_attr( $product['name'] ); ?>">
 						<span><?php echo esc_html( $product['name'] ); ?></span>
-					</button>
+					</a>
 				<?php endforeach; ?>
 			</div>
 		</div>

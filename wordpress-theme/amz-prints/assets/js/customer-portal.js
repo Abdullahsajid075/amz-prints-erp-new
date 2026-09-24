@@ -118,8 +118,7 @@
               var base = cfg.signupUrl || '/customer-signup/';
               link.href = base + (base.indexOf('?') >= 0 ? '&' : '?') + 'email=' + encodeURIComponent(emailVal);
             }
-            if (hint) hint.hidden = false;
-            msg(out, (res.data && res.data.message) || 'No account for this email. Use Sign up.', true);
+            msg(out, (res.data && res.data.message) || 'No account for this email. Use Create an account.', true);
             return;
           }
           msg(out, (res && res.data && res.data.message) || 'Login failed', true);
@@ -161,7 +160,6 @@
               var base = cfg.loginUrl || '/customer-login/';
               link.href = base + (base.indexOf('?') >= 0 ? '&' : '?') + 'email=' + encodeURIComponent(emailVal);
             }
-            if (hint) hint.hidden = false;
             msg(out, (res.data && res.data.message) || 'This email already has an account. Please sign in.', true);
             return;
           }

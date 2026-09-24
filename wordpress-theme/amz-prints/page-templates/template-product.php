@@ -66,12 +66,27 @@ if ( $product ) {
 					<?php if ( ! empty( $product['description'] ) ) : ?>
 						<p><?php echo esc_html( $product['description'] ); ?></p>
 					<?php endif; ?>
-					<ul class="product-detail__meta">
-						<?php if ( ! empty( $product['material'] ) ) : ?><li><strong><?php esc_html_e( 'Material', 'amz-prints' ); ?>:</strong> <?php echo esc_html( $product['material'] ); ?></li><?php endif; ?>
-						<?php if ( ! empty( $product['size'] ) ) : ?><li><strong><?php esc_html_e( 'Size', 'amz-prints' ); ?>:</strong> <?php echo esc_html( $product['size'] ); ?></li><?php endif; ?>
-						<?php if ( ! empty( $product['unit'] ) ) : ?><li><strong><?php esc_html_e( 'Unit', 'amz-prints' ); ?>:</strong> <?php echo esc_html( $product['unit'] ); ?></li><?php endif; ?>
-						<li><strong><?php esc_html_e( 'Min. qty', 'amz-prints' ); ?>:</strong> <?php echo esc_html( (string) max( 1, (int) ( $product['minQuantity'] ?? 1 ) ) ); ?></li>
-					</ul>
+					<?php
+					$options = array(
+						__( 'Material', 'amz-prints' ) => (string) ( $product['material'] ?? '' ),
+						__( 'Size', 'amz-prints' )     => (string) ( $product['size'] ?? '' ),
+						__( 'Unit', 'amz-prints' )     => (string) ( $product['unit'] ?? '' ),
+					);
+					$options = array_filter( $options );
+					?>
+					<?php if ( $options ) : ?>
+						<p class="product-detail__options-label"><?php esc_html_e( 'Options from the catalog', 'amz-prints' ); ?></p>
+						<ul class="product-detail__meta">
+							<?php foreach ( $options as $label => $value ) : ?>
+								<li><strong><?php echo esc_html( $label ); ?>:</strong> <?php echo esc_html( $value ); ?></li>
+							<?php endforeach; ?>
+							<li><strong><?php esc_html_e( 'Min. qty', 'amz-prints' ); ?>:</strong> <?php echo esc_html( (string) max( 1, (int) ( $product['minQuantity'] ?? 1 ) ) ); ?></li>
+						</ul>
+					<?php else : ?>
+						<ul class="product-detail__meta">
+							<li><strong><?php esc_html_e( 'Min. qty', 'amz-prints' ); ?>:</strong> <?php echo esc_html( (string) max( 1, (int) ( $product['minQuantity'] ?? 1 ) ) ); ?></li>
+						</ul>
+					<?php endif; ?>
 
 					<?php if ( (float) ( $product['basePrice'] ?? 0 ) > 0 ) : ?>
 						<div class="product-detail__actions" data-add-cart="<?php echo esc_attr( $product['id'] ); ?>">
@@ -90,6 +105,22 @@ if ( $product ) {
 					<?php endif; ?>
 				</div>
 			</div>
+			<?php
+			$related = function_exists( 'amz_prints_related_products' ) ? amz_prints_related_products( $product, 8 ) : array();
+			?>
+			<?php if ( $related ) : ?>
+				<section class="related-products">
+					<header class="section-head">
+						<p class="eyebrow"><?php esc_html_e( 'Keep browsing', 'amz-prints' ); ?></p>
+						<h2><?php echo esc_html( ! empty( $product['category'] ) ? sprintf( __( 'More in %s', 'amz-prints' ), $product['category'] ) : __( 'Related products', 'amz-prints' ) ); ?></h2>
+					</header>
+					<div class="shop-grid related-products__grid">
+						<?php foreach ( $related as $related_product ) : ?>
+							<?php get_template_part( 'template-parts/product', 'card', array( 'product' => $related_product ) ); ?>
+						<?php endforeach; ?>
+					</div>
+				</section>
+			<?php endif; ?>
 		<?php endif; ?>
 	</div>
 </section>

@@ -112,6 +112,9 @@
   box-shadow: 0 14px 30px rgba(14, 20, 27, 0.2);
   cursor: pointer;
   text-align: left;
+  text-decoration: none;
+  color: inherit;
+  display: block;
 }
 
 .amz-prodrail__card img {
@@ -180,6 +183,14 @@
 
 @media (max-width: 800px) {
   .land-mix__grid { grid-template-columns: 1fr; }
+  .amz-banners { height: 180px; border-radius: 12px; }
+  .amz-prodrail { margin-top: 0.7rem; }
+  .amz-prodrail__card { width: 140px; }
+  .amz-prodrail__card img { height: 96px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .amz-prodrail__track { animation: none; }
 }
 
 .amz-a4 {

@@ -52,15 +52,16 @@ $login_url     = $prefill ? add_query_arg( 'email', rawurlencode( $prefill ), ho
 				</label>
 				<button type="submit" class="btn btn--primary btn--lg"><?php esc_html_e( 'Sign up', 'amz-prints' ); ?></button>
 				<p class="form-note" id="amz-customer-register-msg" hidden></p>
-				<p class="auth-switch" id="amz-signup-login-hint" hidden>
-					<a class="btn btn--ghost" id="amz-signup-login-link" href="<?php echo esc_url( $login_url ); ?>"><?php esc_html_e( 'Sign in to your account', 'amz-prints' ); ?></a>
+				<p class="auth-switch" id="amz-signup-login-hint">
+					<?php esc_html_e( 'Already have an account?', 'amz-prints' ); ?>
+					<a id="amz-signup-login-link" href="<?php echo esc_url( $login_url ); ?>"><?php esc_html_e( 'Sign in', 'amz-prints' ); ?></a>
 				</p>
 			</form>
 
 			<div class="customer-google-box" data-auth-google>
 				<div class="customer-auth-divider"><span><?php esc_html_e( 'or', 'amz-prints' ); ?></span></div>
 				<h3><?php esc_html_e( 'Continue with Google', 'amz-prints' ); ?></h3>
-				<p><?php esc_html_e( 'Google verifies your email, then we create one AMZ Prints account.', 'amz-prints' ); ?></p>
+				<p><?php esc_html_e( 'Google verifies this email. If it is already registered we sign you in. If it is new, we create one account.', 'amz-prints' ); ?></p>
 				<?php if ( $google_client ) : ?>
 					<div id="amz-google-btn" class="amz-google-btn"></div>
 					<p class="form-note" id="amz-customer-google-msg" hidden></p>

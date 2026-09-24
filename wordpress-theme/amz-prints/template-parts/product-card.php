@@ -23,22 +23,10 @@ if ( ! $category ) {
 	$category = 'general';
 }
 $pid = (string) ( $product['id'] ?? '' );
+$url = function_exists( 'amz_prints_erp_product_url' ) ? amz_prints_erp_product_url( $pid ) : home_url( '/product/?id=' . rawurlencode( $pid ) );
 ?>
 <article class="shop-card has-tilt" data-category="<?php echo esc_attr( $category ); ?>" data-product-id="<?php echo esc_attr( $pid ); ?>">
-	<button
-		type="button"
-		class="shop-card__link"
-		data-open-product="<?php echo esc_attr( $pid ); ?>"
-		data-product-name="<?php echo esc_attr( $product['name'] ); ?>"
-		data-product-category="<?php echo esc_attr( (string) ( $product['category'] ?? '' ) ); ?>"
-		data-product-desc="<?php echo esc_attr( $excerpt ); ?>"
-		data-product-price="<?php echo esc_attr( (string) $price_n ); ?>"
-		data-product-unit="<?php echo esc_attr( (string) ( $product['unit'] ?? '' ) ); ?>"
-		data-product-material="<?php echo esc_attr( (string) ( $product['material'] ?? '' ) ); ?>"
-		data-product-size="<?php echo esc_attr( (string) ( $product['size'] ?? '' ) ); ?>"
-		data-product-min="<?php echo esc_attr( (string) max( 1, (int) ( $product['minQuantity'] ?? 1 ) ) ); ?>"
-		aria-haspopup="dialog"
-	>
+	<a class="shop-card__link" href="<?php echo esc_url( $url ); ?>">
 		<div class="shop-card__media">
 			<?php if ( $img ) : ?>
 				<img src="<?php echo function_exists( 'amz_prints_product_img_src' ) ? amz_prints_product_img_src( $img ) : esc_url( $img ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>" alt="<?php echo esc_attr( $product['name'] ); ?>" width="800" height="800" loading="lazy" decoding="async">
@@ -57,5 +45,5 @@ $pid = (string) ( $product['id'] ?? '' );
 			<span class="shop-card__price"><?php echo esc_html( $price ); ?></span>
 			<span class="shop-card__cta"><?php esc_html_e( 'View details', 'amz-prints' ); ?></span>
 		</div>
-	</button>
+	</a>
 </article>

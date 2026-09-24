@@ -105,6 +105,66 @@ function amz_prints_erp_product_url( $product_id ) {
  * @param string $product_id Product id.
  * @return array|null
  */
+/**
+ * Public photo URL for an ERP product, or empty when none was uploaded.
+ *
+ * @param array $product Product row.
+ * @return string
+ */
+function amz_prints_product_photo_url( $product ) {
+	if ( ! is_array( $product ) ) {
+		return '';
+	}
+	$raw = trim( (string) ( $product['image'] ?? '' ) );
+	if ( ! $raw && ! empty( $product['images'][0] ) ) {
+		$raw = trim( (string) $product['images'][0] );
+	}
+	if ( ! $raw ) {
+		return '';
+	}
+	if ( function_exists( 'amz_prints_public_image_url' ) ) {
+		$url = amz_prints_public_image_url( $raw );
+		if ( $url ) {
+			return $url;
+		}
+	}
+	if ( 0 === strpos( $raw, 'data:image' ) || preg_match( '#^https?://#i', $raw ) ) {
+		return $raw;
+	}
+	return '';
+}
+
+/**
+ * Other ERP products with photos, same category first.
+ *
+ * @param array $product Current product.
+ * @param int   $limit   Max items.
+ * @return array
+ */
+function amz_prints_related_products( $product, $limit = 8 ) {
+	$limit = max( 1, (int) $limit );
+	if ( ! function_exists( 'amz_prints_erp_get_products' ) ) {
+		return array();
+	}
+	$cat  = mb_strtolower( trim( (string) ( $product['category'] ?? '' ) ) );
+	$id   = (string) ( $product['id'] ?? '' );
+	$same = array();
+	$rest = array();
+	foreach ( amz_prints_erp_get_products() as $row ) {
+		if ( (string) ( $row['id'] ?? '' ) === $id || ! amz_prints_product_photo_url( $row ) ) {
+			continue;
+		}
+		$row_cat = mb_strtolower( trim( (string) ( $row['category'] ?? '' ) ) );
+		if ( $cat && $row_cat === $cat ) {
+			$same[] = $row;
+		} else {
+			$rest[] = $row;
+		}
+	}
+	$picked = $same ? $same : $rest;
+	return array_slice( $picked, 0, $limit );
+}
+
 function amz_prints_erp_find_product( $product_id ) {
 	$product_id = (string) $product_id;
 	if ( ! $product_id || ! function_exists( 'amz_prints_erp_get_products' ) ) {
