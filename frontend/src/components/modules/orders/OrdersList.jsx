@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { ordersAPI, invoicesAPI, settingsAPI } from '@/services/api';
 import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
 import { documentFileName } from '@/utils/printHelpers';
+import { printOrderBookSlip } from '@/utils/orderBookSlip';
 import { ORDER_STATUS, isOpenOrder, isNotStartedOrder } from '@/utils/constants';
 import { sortBy, pinFirst } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
@@ -487,6 +488,19 @@ const OrdersList = () => {
     } catch (err) { console.error(err); toast.error('Failed to print order'); }
   };
 
+  const handlePrintOrderSlip = async (order) => {
+    try {
+      const res = await ordersAPI.getById(order.id);
+      const full = res.data || order;
+      const printed = await printOrderBookSlip(full, { company });
+      if (!printed?.ok) toast.error('Print dialog blocked — allow printing for order slip');
+      else toast.message('Customer order slip sent to POS printer');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to print customer order slip');
+    }
+  };
+
   const handleGenerateInvoice = async (order) => {
     if (order?.invoiceId) {
       navigate(`/invoices/${order.invoiceId}`);
@@ -591,6 +605,9 @@ const OrdersList = () => {
             </Button>
             <Button size="icon" variant="outline" className="h-8 w-8 rounded-lg bg-white/50" title="Copy tracking link" onClick={() => copyTrackingLink(order)} data-testid={`track-link-${order.id}`}>
               <Link2 className="h-3.5 w-3.5" style={{ color: '#ff6d00' }} />
+            </Button>
+            <Button size="icon" variant="outline" className="h-8 w-8 rounded-lg bg-white/50" title="Customer order slip (POS printer)" onClick={() => handlePrintOrderSlip(order)} data-testid={`order-slip-${order.id}`}>
+              <Receipt className="h-3.5 w-3.5" style={{ color: '#ff6d00' }} />
             </Button>
             <Button size="icon" variant="outline" className="h-8 w-8 rounded-lg bg-white/50" title="Print" onClick={() => handlePrint(order)} data-testid={`print-order-${order.id}`}>
               <Printer className="h-3.5 w-3.5" />
@@ -764,6 +781,7 @@ const OrdersList = () => {
                             <Wallet className="h-4 w-4" />
                           </Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => copyTrackingLink(order)} title="Copy tracking link"><Link2 className="h-4 w-4" style={{ color: '#ff6d00' }} /></Button>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-orange-600" onClick={() => handlePrintOrderSlip(order)} title="Customer order slip (POS printer)" data-testid={`order-slip-row-${order.id}`}><Receipt className="h-4 w-4" /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handlePrint(order)} title="Print"><Printer className="h-4 w-4" /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleDuplicate(order.id)} title="Duplicate"><Copy className="h-4 w-4" /></Button>
                         </div>
@@ -896,6 +914,9 @@ const OrdersList = () => {
               <>
                 <Button variant="outline" onClick={() => copyTrackingLink(viewOrder)}>
                   <Link2 className="h-4 w-4 mr-1" />Copy Track Link
+                </Button>
+                <Button variant="outline" className="text-orange-700 border-orange-200" onClick={() => handlePrintOrderSlip(viewOrder)} data-testid="view-order-slip">
+                  <Receipt className="h-4 w-4 mr-1" />Customer slip
                 </Button>
                 <Button variant="outline" onClick={() => handlePrint(viewOrder)}><Printer className="h-4 w-4 mr-1" />Print</Button>
                 {viewOrder.status === 'Ready' && (

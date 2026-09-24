@@ -14,7 +14,8 @@ import { ORDER_STATUS } from '@/utils/constants';
 import { formatCurrency } from '@/utils/helpers';
 import { catalogFieldsForOrderLine } from '@/utils/productImage';
 import { useBrand } from '@/context/BrandContext';
-import { Plus, Trash2, Save, ArrowLeft, ClipboardList, PackagePlus, AlertTriangle, Wallet } from 'lucide-react';
+import { printOrderBookSlip } from '@/utils/orderBookSlip';
+import { Plus, Trash2, Save, ArrowLeft, ClipboardList, PackagePlus, AlertTriangle, Wallet, Receipt } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
@@ -420,6 +421,7 @@ const OrderForm = () => {
         if (created.data?._invoiceError) toast.error(created.data._invoiceError);
         else if (created.data?.invoiceNumber) toast.message(`Invoice ${created.data.invoiceNumber} linked for this payment`);
         setCreatedInfo({
+          ...data,
           orderId: data.orderId || created.data?.orderId || '',
           trackingNumber: data.trackingNumber || created.data?.trackingNumber || '',
           invoiceNumber: created.data?.invoiceNumber || '',
@@ -877,7 +879,20 @@ const OrderForm = () => {
             <p>Tracking number: <strong data-testid="created-tracking">{createdInfo?.trackingNumber || '—'}</strong></p>
             {createdInfo?.invoiceNumber && <p>Invoice: <strong>{createdInfo.invoiceNumber}</strong></p>}
           </div>
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              className="text-orange-700 border-orange-200"
+              data-testid="print-created-order-slip"
+              onClick={async () => {
+                const printed = await printOrderBookSlip(createdInfo, { company });
+                if (!printed?.ok) toast.error('Print dialog blocked — allow printing for order slip');
+                else toast.message('Customer order slip sent to POS printer');
+              }}
+            >
+              <Receipt className="h-4 w-4 mr-1" />Print customer slip
+            </Button>
             <Button type="button" className="text-white" style={{ backgroundColor: accent }} onClick={() => { setCreatedInfo(null); navigate('/orders'); }}>
               Go to orders
             </Button>
