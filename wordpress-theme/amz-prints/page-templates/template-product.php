@@ -88,6 +88,14 @@ if ( $product ) {
 						</ul>
 					<?php endif; ?>
 
+					<?php if ( ! empty( $product['variations'] ) && is_array( $product['variations'] ) ) : ?>
+						<label class="product-detail__options-label" for="amz-product-variation"><?php esc_html_e( 'Option', 'amz-prints' ); ?></label>
+						<select id="amz-product-variation">
+							<?php foreach ( $product['variations'] as $var ) : ?>
+								<option value="<?php echo esc_attr( (string) $var['price'] ); ?>"><?php echo esc_html( $var['name'] . ( (float) $var['price'] > 0 ? ' — Rs. ' . number_format_i18n( (float) $var['price'], 0 ) : '' ) ); ?></option>
+							<?php endforeach; ?>
+						</select>
+					<?php endif; ?>
 					<?php if ( (float) ( $product['basePrice'] ?? 0 ) > 0 ) : ?>
 						<div class="product-detail__actions" data-add-cart="<?php echo esc_attr( $product['id'] ); ?>">
 							<div class="cart-line__qty">

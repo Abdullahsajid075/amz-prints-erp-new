@@ -135,8 +135,22 @@ function amz_prints_erp_request( $method, $path, $body = null ) {
  * @param bool $force_refresh Bypass transient.
  * @return array List of product arrays (empty on failure).
  */
+function amz_prints_erp_flag( $value ) {
+	if ( is_bool( $value ) ) {
+		return $value;
+	}
+	$raw = strtolower( trim( (string) $value ) );
+	if ( in_array( $raw, array( '1', 'true', 'yes', 'on' ), true ) ) {
+		return true;
+	}
+	if ( in_array( $raw, array( '0', 'false', 'no', 'off' ), true ) ) {
+		return false;
+	}
+	return null;
+}
+
 function amz_prints_erp_get_products( $force_refresh = false ) {
-	$cache_key = 'amz_prints_erp_products_v2';
+	$cache_key = 'amz_prints_erp_products_v3';
 	if ( ! $force_refresh ) {
 		$cached = get_transient( $cache_key );
 		if ( is_array( $cached ) ) {
@@ -195,6 +209,33 @@ function amz_prints_erp_get_products( $force_refresh = false ) {
 			$primary = $images[0];
 		}
 
+		$active = amz_prints_erp_flag( $row['active'] ?? null );
+		$status = strtolower( trim( (string) ( $row['status'] ?? 'active' ) ) );
+		if ( false === $active || 'inactive' === $status ) {
+			continue;
+		}
+		$on_site = amz_prints_erp_flag( $row['showOnWebsite'] ?? null );
+		if ( false === $on_site ) {
+			continue;
+		}
+		$sale = isset( $row['effectivePrice'] ) ? (float) $row['effectivePrice'] : ( isset( $row['salePrice'] ) ? (float) $row['salePrice'] : 0 );
+		if ( $sale > 0 ) {
+			$price = $sale;
+		}
+		$variations = array();
+		if ( ! empty( $row['variations'] ) && is_array( $row['variations'] ) ) {
+			foreach ( $row['variations'] as $var ) {
+				if ( ! is_array( $var ) || empty( $var['name'] ) ) {
+					continue;
+				}
+				$variations[] = array(
+					'id'    => (string) ( $var['id'] ?? '' ),
+					'name'  => (string) $var['name'],
+					'price' => isset( $var['price'] ) ? (float) $var['price'] : 0,
+				);
+			}
+		}
+
 		$products[] = array(
 			'id'           => (string) ( $row['id'] ?? '' ),
 			'name'         => $name,
@@ -202,18 +243,48 @@ function amz_prints_erp_get_products( $force_refresh = false ) {
 			'productType'  => (string) ( $row['productType'] ?? 'Product' ),
 			'basePrice'    => $price,
 			'unit'         => (string) ( $row['unit'] ?? 'per piece' ),
-			'description'  => (string) ( $row['description'] ?? '' ),
+			'description'  => (string) ( $row['fullDescription'] ?? $row['description'] ?? '' ),
 			'material'     => (string) ( $row['material'] ?? '' ),
 			'size'         => (string) ( $row['size'] ?? '' ),
 			'minQuantity'  => isset( $row['minQuantity'] ) ? (float) $row['minQuantity'] : 1,
 			'image'        => $primary,
 			'images'       => $images,
+			'showOnTop'    => true === amz_prints_erp_flag( $row['showOnTop'] ?? null ),
+			'variations'   => $variations,
 		);
 	}
 
-	set_transient( $cache_key, $products, 5 * MINUTE_IN_SECONDS );
+	usort(
+		$products,
+		static function ( $a, $b ) {
+			if ( ! empty( $a['showOnTop'] ) !== ! empty( $b['showOnTop'] ) ) {
+				return ! empty( $a['showOnTop'] ) ? -1 : 1;
+			}
+			return strcmp( (string) $b['id'], (string) $a['id'] );
+		}
+	);
+
+	set_transient( $cache_key, $products, MINUTE_IN_SECONDS );
 	return $products;
 }
+
+/**
+ * Shop and home catalog must not sit in a full-page cache.
+ */
+function amz_prints_catalog_nocache() {
+	if ( is_admin() ) {
+		return;
+	}
+	$catalog = is_front_page() || is_page( array( 'products', 'product' ) );
+	if ( ! $catalog ) {
+		return;
+	}
+	if ( ! defined( 'DONOTCACHEPAGE' ) ) {
+		define( 'DONOTCACHEPAGE', true );
+	}
+	nocache_headers();
+}
+add_action( 'template_redirect', 'amz_prints_catalog_nocache', 0 );
 
 /**
  * Format ERP price for display.

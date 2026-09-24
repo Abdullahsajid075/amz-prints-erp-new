@@ -35,12 +35,18 @@ if ( ! $hero_url && function_exists( 'amz_prints_home_banners' ) ) {
 $strip   = function_exists( 'amz_prints_running_strip_items' ) ? amz_prints_running_strip_items() : array( $company );
 $strip_loop = array_merge( $strip, $strip );
 $photo_products = array();
+$photo_rest     = array();
 foreach ( $erp_all as $p ) {
 	if ( empty( $p['name'] ) || ! function_exists( 'amz_prints_product_photo_url' ) || ! amz_prints_product_photo_url( $p ) ) {
 		continue;
 	}
-	$photo_products[] = $p;
+	if ( ! empty( $p['showOnTop'] ) ) {
+		$photo_products[] = $p;
+	} else {
+		$photo_rest[] = $p;
+	}
 }
+$photo_products = array_merge( $photo_products, $photo_rest );
 $photo_loop = $photo_products ? array_merge( $photo_products, $photo_products ) : array();
 ?>
 
