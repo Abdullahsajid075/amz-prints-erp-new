@@ -166,6 +166,10 @@
           msg(out, (res && res.data && res.data.message) || 'Sign up failed', true);
           return;
         }
+        if (res.data && res.data.needsVerification) {
+          msg(out, res.data.message || 'Check your email and open the verification link, then log in.', false);
+          return;
+        }
         msg(out, (res.data && res.data.message) || 'Account created — redirecting…', false);
         window.location.href = fd.get('redirect') || (res.data && res.data.redirect) || cfg.accountUrl;
       }).catch(function () {

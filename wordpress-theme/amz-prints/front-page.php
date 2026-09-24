@@ -26,7 +26,12 @@ $track_url = function_exists( 'amz_prints_customer_is_logged_in' ) && amz_prints
 	? home_url( '/my-account/#track' )
 	: home_url( '/customer-login/?redirect=' . rawurlencode( home_url( '/my-account/#track' ) ) );
 
-$banners = function_exists( 'amz_prints_home_banners' ) ? amz_prints_home_banners() : array();
+$hero_id  = absint( amz_prints_mod( 'amz_hero_image', 0 ) );
+$hero_url = $hero_id ? wp_get_attachment_image_url( $hero_id, 'full' ) : '';
+if ( ! $hero_url && function_exists( 'amz_prints_home_banners' ) ) {
+	$banner_fallback = amz_prints_home_banners();
+	$hero_url        = ! empty( $banner_fallback[0]['url'] ) ? $banner_fallback[0]['url'] : '';
+}
 $strip   = function_exists( 'amz_prints_running_strip_items' ) ? amz_prints_running_strip_items() : array( $company );
 $strip_loop = array_merge( $strip, $strip );
 $photo_products = array();
@@ -45,21 +50,9 @@ $photo_loop = $photo_products ? array_merge( $photo_products, $photo_products ) 
 		<h1><?php echo esc_html( $headline ); ?></h1>
 		<p><?php echo esc_html( $sub ); ?></p>
 	</div>
-	<div class="amz-banners" data-banner-slider data-hero-interval="4500">
-		<?php foreach ( $banners as $i => $banner ) : ?>
-			<?php
-			$tag   = ! empty( $banner['link'] ) ? 'a' : 'div';
-			$attrs = ! empty( $banner['link'] ) ? ' href="' . esc_url( $banner['link'] ) . '"' : '';
-			?>
-			<<?php echo $tag; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?> class="amz-banners__slide<?php echo 0 === $i ? ' is-active' : ''; ?>"<?php echo $attrs; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?> style="background-image:url('<?php echo esc_url( $banner['url'] ); ?>')"></<?php echo $tag; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
-		<?php endforeach; ?>
-		<?php if ( count( $banners ) > 1 ) : ?>
-			<div class="amz-banners__dots">
-				<?php foreach ( $banners as $i => $banner ) : ?>
-					<button type="button" class="amz-banners__dot<?php echo 0 === $i ? ' is-active' : ''; ?>" data-banner-dot="<?php echo esc_attr( (string) $i ); ?>" aria-label="<?php echo esc_attr( sprintf( __( 'Banner %d', 'amz-prints' ), $i + 1 ) ); ?>"></button>
-				<?php endforeach; ?>
-			</div>
-		<?php endif; ?>
+	<div class="amz-hero"<?php echo $hero_url ? ' style="background-image:url(\'' . esc_url( $hero_url ) . '\')"' : ''; ?>>
+		<span class="amz-hero__dots" aria-hidden="true"></span>
+		<span class="amz-hero__lines" aria-hidden="true"></span>
 	</div>
 	<?php if ( $photo_loop ) : ?>
 		<div class="amz-prodrail" aria-label="<?php esc_attr_e( 'Products with photos', 'amz-prints' ); ?>">

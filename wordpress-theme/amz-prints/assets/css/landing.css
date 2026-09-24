@@ -80,9 +80,54 @@
 
 .amz-banners__dot.is-active { background: var(--amz-accent); width: 22px; }
 
+.amz-hero {
+  position: relative;
+  width: min(1250px, calc(100% - 1.5rem));
+  height: 320px;
+  margin: 0 auto;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #0e141b center/cover no-repeat;
+  box-shadow: 0 18px 40px rgba(7, 71, 163, 0.18);
+}
+
+.amz-hero__dots,
+.amz-hero__lines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.amz-hero__dots {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.55) 1.1px, transparent 1.2px);
+  background-size: 14px 14px;
+  animation: amzDots 18s linear infinite;
+  opacity: 0.55;
+}
+
+.amz-hero__lines {
+  background-image: repeating-linear-gradient(
+    -18deg,
+    transparent 0 18px,
+    rgba(255, 109, 0, 0.28) 18px 19px
+  );
+  animation: amzLines 22s linear infinite;
+  mix-blend-mode: screen;
+}
+
+@keyframes amzDots {
+  from { background-position: 0 0; }
+  to { background-position: 140px 70px; }
+}
+
+@keyframes amzLines {
+  from { background-position: 0 0; }
+  to { background-position: 180px 0; }
+}
+
 .amz-prodrail {
   width: min(1250px, calc(100% - 1.5rem));
-  margin: -42px auto 0;
+  margin: 1.15rem auto 0;
   position: relative;
   z-index: 2;
   overflow: hidden;
@@ -183,8 +228,8 @@
 
 @media (max-width: 800px) {
   .land-mix__grid { grid-template-columns: 1fr; }
-  .amz-banners { height: 180px; border-radius: 12px; }
-  .amz-prodrail { margin-top: 0.7rem; }
+  .amz-hero { height: 200px; border-radius: 12px; }
+  .amz-prodrail { margin-top: 0.9rem; }
   .amz-prodrail__card { width: 140px; }
   .amz-prodrail__card img { height: 96px; }
 }

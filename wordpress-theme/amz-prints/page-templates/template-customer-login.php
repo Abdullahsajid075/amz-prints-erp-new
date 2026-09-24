@@ -49,6 +49,9 @@ $signup_url    = $prefill ? add_query_arg( 'email', rawurlencode( $prefill ), ho
 				</label>
 				<button type="submit" class="btn btn--primary btn--lg"><?php esc_html_e( 'Log in', 'amz-prints' ); ?></button>
 				<p class="form-note"><button type="button" class="linkish" data-auth-tab="forgot"><?php esc_html_e( 'Forgot password?', 'amz-prints' ); ?></button></p>
+				<?php if ( isset( $_GET['verify'] ) && 'invalid' === sanitize_key( wp_unslash( $_GET['verify'] ) ) ) : ?>
+					<p class="form-note"><?php esc_html_e( 'That verification link is not valid. Sign up again to receive a new email.', 'amz-prints' ); ?></p>
+				<?php endif; ?>
 				<p class="form-note" id="amz-customer-login-msg" hidden></p>
 				<p class="auth-switch" id="amz-login-signup-hint">
 					<a class="btn btn--ghost" id="amz-login-signup-link" href="<?php echo esc_url( $signup_url ); ?>"><?php esc_html_e( 'Create an account', 'amz-prints' ); ?></a>
