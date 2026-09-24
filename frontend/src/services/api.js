@@ -56,6 +56,7 @@ export const productsAPI = {
   create: (data) => gasRequest('POST', '/products', withToken({ data })),
   update: (id, data) => gasRequest('PUT', `/products/${id}`, withToken({ data })),
   delete: (id) => gasRequest('DELETE', `/products/${id}`, withToken()),
+  publishWebsite: () => gasRequest('POST', '/products/publish-website', withToken({ data: {} })),
 };
 
 export const designersAPI = {

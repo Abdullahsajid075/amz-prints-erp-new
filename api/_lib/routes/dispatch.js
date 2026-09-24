@@ -153,17 +153,42 @@ async function dbSelectSafe(table, cols, extraFn) {
 }
 
 function persistIncompleteWebsiteHides(rows) {
-  const ids = (rows || [])
-    .filter((row) => {
-      const api = mapProduct(row);
-      return api && api.id && !isWebsiteCatalogReady(api) && (row.show_on_website !== false);
-    })
-    .map((row) => row.id)
-    .slice(0, 80);
-  if (!ids.length) return;
-  Promise.all(ids.map((pid) => (
-    supabase.from('products').update({ show_on_website: false, show_on_top: false }).eq('id', pid)
-  ))).catch((err) => console.error('website hide', dbErrorMessage(err)));
+  syncWebsiteCatalogFlags(rows).catch((err) => console.error('website catalog sync', dbErrorMessage(err)));
+}
+
+/** Website rule: HD photo + description + active → show. Incomplete → hide. */
+async function syncWebsiteCatalogFlags(rows) {
+  const list = rows || [];
+  const hide = [];
+  const show = [];
+  for (const row of list) {
+    const api = mapProduct(row);
+    if (!api || !api.id) continue;
+    const ready = isWebsiteCatalogReady(api);
+    if (!ready && row.show_on_website !== false) hide.push(row.id);
+    if (ready && api.active && row.show_on_website === false) show.push(row.id);
+  }
+  const writes = [
+    ...hide.slice(0, 80).map((pid) => (
+      supabase.from('products').update({ show_on_website: false, show_on_top: false }).eq('id', pid)
+    )),
+    ...show.slice(0, 80).map((pid) => (
+      supabase.from('products').update({ show_on_website: true }).eq('id', pid)
+    )),
+  ];
+  if (writes.length) {
+    await Promise.all(writes).catch((err) => console.error('website catalog sync', dbErrorMessage(err)));
+  }
+  const hideSet = new Set(hide);
+  const showSet = new Set(show);
+  for (const row of list) {
+    if (showSet.has(row.id)) row.show_on_website = true;
+    if (hideSet.has(row.id)) {
+      row.show_on_website = false;
+      row.show_on_top = false;
+    }
+  }
+  return { hidden: hide.length, published: show.length };
 }
 
 const LEAN_ORDER_COLS = 'id,order_id,date,created_at,customer_id,customer_phone,customer_name,status,doc_type,total_amount,advance_payment,balance_amount,delivery_date,tracking_number';
@@ -791,18 +816,22 @@ async function dispatch(req, res) {
         return sendError(res, `Document not found for: ${rawCode}`, 404);
       }
       if (method === 'GET' && path === '/public/products') {
+        if (typeof res.setHeader === 'function') {
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+          res.setHeader('Pragma', 'no-cache');
+        }
         const { data } = await supabase.from('products').select('*');
-        persistIncompleteWebsiteHides(data || []);
-        const products = (data || []).map(mapProduct).filter((p) => p && p.active && p.showOnWebsite && isWebsiteCatalogReady(p));
+        await syncWebsiteCatalogFlags(data || []);
+        const products = (data || []).map(mapProduct).filter((p) => p && p.active && isWebsiteCatalogReady(p));
         products.sort((a, b) => Number(!!b.showOnTop) - Number(!!a.showOnTop) || String(a.name).localeCompare(String(b.name)));
-        return send(res, { products });
+        return send(res, { products, generatedAt: new Date().toISOString() });
       }
       if (method === 'GET' && path.startsWith('/public/products/')) {
         const pid = decodeURIComponent(path.replace('/public/products/', '')).trim();
         const { data } = await supabase.from('products').select('*').eq('id', pid).maybeSingle();
         if (!data) return sendError(res, 'Product not found', 404);
         const pub = mapProduct(data);
-        if (!pub || !pub.active || !pub.showOnWebsite || !isWebsiteCatalogReady(pub)) return sendError(res, 'Product not available', 404);
+        if (!pub || !pub.active || !isWebsiteCatalogReady(pub)) return sendError(res, 'Product not available', 404);
         return send(res, pub);
       }
       if (method === 'POST' && path === '/public/lead') {
@@ -955,7 +984,7 @@ async function dispatch(req, res) {
           }
           if (!match) return sendError(res, `Product not found: ${line.name || pid || 'unknown'}`, 400);
           const api = mapProduct(match);
-          if (!api.active || !api.showOnWebsite || !isWebsiteCatalogReady(api)) return sendError(res, `Product not available: ${api.name}`, 400);
+          if (!api.active || !isWebsiteCatalogReady(api)) return sendError(res, `Product not available: ${api.name}`, 400);
           const rate = num(api.effectivePrice);
           subtotal += rate * qty;
           products.push({
@@ -1599,8 +1628,15 @@ async function dispatch(req, res) {
       if (path === '/products' && method === 'GET') {
         const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false });
         if (error) throw error;
-        persistIncompleteWebsiteHides(data || []);
+        await syncWebsiteCatalogFlags(data || []);
         return send(res, (data || []).map(mapProduct));
+      }
+      if (path === '/products/publish-website' && (method === 'POST' || method === 'PUT')) {
+        const { data, error } = await supabase.from('products').select('*');
+        if (error) throw error;
+        const sync = await syncWebsiteCatalogFlags(data || []);
+        const products = (data || []).map(mapProduct).filter((p) => p && p.active && isWebsiteCatalogReady(p));
+        return send(res, { ...sync, count: products.length, products });
       }
       if (path === '/products' && method === 'POST') {
         const row = productFromBody(body);
