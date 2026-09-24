@@ -17,7 +17,7 @@ import PageHeader from '@/components/shared/PageHeader';
 import { clearGasCache } from '@/services/gasClient';
 import { compressGalleryImageFile, productImageSrc, productImagesList, fitImagesForSheets, MAX_PRODUCT_IMAGES } from '@/utils/productImage';
 import {
-  Plus, Search, Edit, Trash2, Package, X, Save, Wrench, ImagePlus, Boxes, Globe,
+  Plus, Search, Edit, Trash2, Package, X, Save, Wrench, ImagePlus, Boxes, Globe, RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DEFAULT_PRODUCT_CATEGORIES, DEFAULT_PRODUCT_MATERIALS, mergeInventorySettings } from '@/utils/moduleSettings';
@@ -58,7 +58,7 @@ const emptyProduct = {
   image: '',
   images: [],
   active: true,
-  showOnWebsite: false,
+  showOnWebsite: true,
   showOnTop: false,
   variations: [],
 };
@@ -88,6 +88,7 @@ const Products = () => {
   const [imageBusy, setImageBusy] = useState(false);
   const [stockDialog, setStockDialog] = useState({ open: false, product: null, value: '' });
   const [stockSaving, setStockSaving] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [catalogOptions, setCatalogOptions] = useState({
     categories: PRODUCT_CATEGORIES,
     materials: MATERIALS,
@@ -223,7 +224,7 @@ const Products = () => {
       setFormData((prev) => {
         const merged = [...(prev.images || []), ...added];
         const images = merged.slice(0, MAX_PRODUCT_IMAGES);
-        return { ...prev, images, image: images[0] || '' };
+        return { ...prev, images, image: images[0] || '', showOnWebsite: true };
       });
       toast.success(added.length > 1 ? `${added.length} photos ready (original resolution)` : 'Photo ready (original resolution)');
     } catch (err) {
@@ -276,8 +277,8 @@ const Products = () => {
         images: productImagesList(product),
         status: product.active === false ? 'Inactive' : (product.status || 'Active'),
         active: product.active !== false,
-        showOnWebsite: isCatalogReady(product) && product.showOnWebsite !== false,
-        showOnTop: isCatalogReady(product) && product.showOnWebsite !== false && !!product.showOnTop,
+        showOnWebsite: isCatalogReady(product),
+        showOnTop: isCatalogReady(product) && !!product.showOnTop,
         variations: product.variations || [],
       });
       clearGasCache();
@@ -307,8 +308,10 @@ const Products = () => {
       const salePrice = Number(formData.salePrice) > 0 ? Number(formData.salePrice) : 0;
       const images = fitImagesForSheets(formData.images || []);
       const ready = isCatalogReady({ ...formData, images });
-      if (!ready && formData.showOnWebsite !== false) {
+      if (!ready) {
         toast.message('Website se hide — HD photo aur description dono zaroori hain');
+      } else if (formData.showOnWebsite === false) {
+        toast.message('Product ready hai — website par push ho raha hai (catalog rule)');
       }
       const payload = service
         ? {
@@ -330,8 +333,8 @@ const Products = () => {
             images,
             active: formData.active !== false,
             status: formData.active === false ? 'Inactive' : 'Active',
-            showOnWebsite: ready && formData.showOnWebsite !== false,
-            showOnTop: ready && formData.showOnWebsite !== false && !!formData.showOnTop,
+            showOnWebsite: ready,
+            showOnTop: ready && !!formData.showOnTop,
             variations,
           }
         : {
@@ -353,8 +356,8 @@ const Products = () => {
             images,
             active: formData.active !== false,
             status: formData.active === false ? 'Inactive' : 'Active',
-            showOnWebsite: ready && formData.showOnWebsite !== false,
-            showOnTop: ready && formData.showOnWebsite !== false && !!formData.showOnTop,
+            showOnWebsite: ready,
+            showOnTop: ready && !!formData.showOnTop,
             variations,
           };
       const save = (body) => (editingProduct
@@ -369,6 +372,13 @@ const Products = () => {
       toast.success(editingProduct
         ? (service ? 'Service updated' : 'Product updated')
         : (service ? 'Service created' : 'Product created'));
+      try {
+        const pub = await productsAPI.publishWebsite();
+        const n = Number(pub?.data?.published || pub?.data?.count || 0);
+        if (ready) toast.message(`Website catalog updated${n ? ` · ${n} ready item(s)` : ''}`);
+      } catch {
+        /* save already succeeded */
+      }
       clearGasCache();
       setDialogOpen(false);
       fetchProducts();
@@ -401,6 +411,30 @@ const Products = () => {
           <div className="flex gap-2">
             <Button asChild variant="outline" className="h-9 rounded-xl">
               <Link to="/warehouse/inventory/settings">Categories & materials</Link>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-9 rounded-xl"
+              disabled={publishing}
+              data-testid="push-website-catalog"
+              onClick={async () => {
+                setPublishing(true);
+                try {
+                  const pub = await productsAPI.publishWebsite();
+                  clearGasCache();
+                  const n = Number(pub?.data?.count || 0);
+                  const added = Number(pub?.data?.published || 0);
+                  toast.success(`Website push: ${n} ready item(s)${added ? ` · ${added} newly published` : ''}`);
+                  fetchProducts();
+                } catch (err) {
+                  toast.error(err?.response?.data?.message || 'Website push failed');
+                } finally {
+                  setPublishing(false);
+                }
+              }}
+            >
+              <RefreshCw className={`h-4 w-4 mr-1.5 ${publishing ? 'animate-spin' : ''}`} />
+              {publishing ? 'Pushing…' : 'Push to website'}
             </Button>
             <Button onClick={openCreateDialog} style={{ backgroundColor: '#ff6d00' }} className="text-white h-9 rounded-xl" data-testid="add-product-button">
               <Plus className="h-4 w-4 mr-1.5" />
@@ -709,7 +743,7 @@ const Products = () => {
               <div>
                 <Label htmlFor="show-on-website" className="text-sm font-semibold">Show on website</Label>
                 <p className="text-[11px] text-gray-500 mt-0.5">
-                  Sirf HD photo + description wale products website pe dikhte hain. Baaki auto-hide.
+                  Photo + description ready hon to website par automatically push. Incomplete auto-hide.
                 </p>
               </div>
               <Switch

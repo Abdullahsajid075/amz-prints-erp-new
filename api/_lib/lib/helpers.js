@@ -211,8 +211,8 @@ function productFromBody(b = {}, rid) {
     description: b.description || '',
     fullDescription: b.fullDescription || b.full_description || '',
   });
-  const wantWebsite = b.showOnWebsite != null ? truthy(b.showOnWebsite, true) : (b.show_on_website != null ? truthy(b.show_on_website, true) : true);
-  const showOnWebsite = catalogReady && wantWebsite;
+  const explicitHide = b.showOnWebsite === false || b.show_on_website === false;
+  const showOnWebsite = catalogReady && !explicitHide;
   return {
     id: rid || b.id || '',
     name: b.name || '',
