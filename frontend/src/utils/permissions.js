@@ -12,6 +12,8 @@ export const APP_MODULES = [
   { key: 'warehouse', label: 'Warehouse' },
   { key: 'pos', label: 'POS' },
   { key: 'hr', label: 'HR' },
+  { key: 'tasks', label: 'Internal Tasks' },
+  { key: 'broadcasts', label: 'Broadcasts' },
   { key: 'calculator', label: 'Cost Calculator' },
   { key: 'accounts', label: 'Accounts' },
   { key: 'vendors', label: 'Vendors' },
@@ -93,6 +95,8 @@ export function moduleForPath(pathname) {
   }
   if (path.startsWith('/pos')) return 'pos';
   if (path.startsWith('/hr') || path.startsWith('/employees') || path.startsWith('/designers')) return 'hr';
+  if (path.startsWith('/tasks')) return 'tasks';
+  if (path.startsWith('/broadcasts') || path.startsWith('/announcements')) return 'broadcasts';
   if (path.startsWith('/calculator')) return 'calculator';
   if (path.startsWith('/accounts/vendors') || path === '/vendors') return 'vendors';
   if (path.startsWith('/accounts') || path.startsWith('/payments') || path.startsWith('/expenses')) {

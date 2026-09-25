@@ -307,6 +307,53 @@ function mapToken(t) {
   };
 }
 
+function mapTask(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    title: row.title || '',
+    description: row.description || '',
+    assigneeId: row.assignee_id || '',
+    assigneeName: row.assignee_name || '',
+    priority: row.priority || 'Medium',
+    status: row.status || 'Pending',
+    deadline: row.deadline || '',
+    createdBy: row.created_by || '',
+    createdByName: row.created_by_name || '',
+    createdAt: row.created_at || '',
+    updatedAt: row.updated_at || '',
+  };
+}
+
+function mapBroadcastSend(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    broadcastId: row.broadcast_id || '',
+    customerId: row.customer_id || '',
+    customerName: row.customer_name || '',
+    customerPhone: row.customer_phone || '',
+    status: row.status || 'opened',
+    sentAt: row.sent_at || row.created_at || '',
+  };
+}
+
+function mapBroadcast(row, sends) {
+  if (!row) return null;
+  const list = Array.isArray(sends) ? sends.map(mapBroadcastSend).filter(Boolean) : [];
+  return {
+    id: row.id,
+    title: row.title || '',
+    message: row.message || '',
+    image: row.image || '',
+    createdBy: row.created_by || '',
+    createdByName: row.created_by_name || '',
+    createdAt: row.created_at || '',
+    sends: list,
+    sendCount: list.length,
+  };
+}
+
 module.exports = {
   mapCustomer,
   mapOrder,
@@ -319,4 +366,7 @@ module.exports = {
   mapPurchase,
   mapUser,
   mapToken,
+  mapTask,
+  mapBroadcast,
+  mapBroadcastSend,
 };

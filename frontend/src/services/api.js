@@ -42,6 +42,26 @@ export const customersAPI = {
   deleteNote: (id, noteId) => gasRequest('DELETE', `/customers/${id}/notes/${noteId}`, withToken()),
 };
 
+export const tasksAPI = {
+  getAll: (params) => gasRequest('GET', '/tasks', withToken({ params })),
+  getById: (id) => gasRequest('GET', `/tasks/${id}`, withToken()),
+  create: (data) => gasRequest('POST', '/tasks', withToken({ data })),
+  update: (id, data) => gasRequest('PUT', `/tasks/${id}`, withToken({ data })),
+  updateStatus: (id, status) => gasRequest('PATCH', `/tasks/${id}/status`, withToken({ data: { status } })),
+  delete: (id) => gasRequest('DELETE', `/tasks/${id}`, withToken()),
+};
+
+export const broadcastsAPI = {
+  getAll: (params) => gasRequest('GET', '/broadcasts', withToken({ params })),
+  getById: (id) => gasRequest('GET', `/broadcasts/${id}`, withToken()),
+  create: (data) => gasRequest('POST', '/broadcasts', withToken({ data })),
+  update: (id, data) => gasRequest('PUT', `/broadcasts/${id}`, withToken({ data })),
+  delete: (id) => gasRequest('DELETE', `/broadcasts/${id}`, withToken()),
+  listSends: (id) => gasRequest('GET', `/broadcasts/${id}/sends`, withToken()),
+  logSend: (id, data) => gasRequest('POST', `/broadcasts/${id}/send`, withToken({ data })),
+  sendWhatsApp: (id, data) => gasRequest('POST', `/broadcasts/${id}/whatsapp`, withToken({ data })),
+};
+
 export const employeesAPI = {
   getAll: (params) => gasRequest('GET', '/employees', withToken({ params })),
   getById: (id) => gasRequest('GET', `/employees/${id}`, withToken()),
@@ -203,6 +223,8 @@ export default {
   ordersAPI,
   customersAPI,
   employeesAPI,
+  tasksAPI,
+  broadcastsAPI,
   productsAPI,
   designersAPI,
   filesAPI,

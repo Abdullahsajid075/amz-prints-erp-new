@@ -1,6 +1,6 @@
 /** Canonical AMZ Prints ERP operator manual — used on-screen, print, and download. */
 
-export const GUIDE_VERSION = '2.1';
+export const GUIDE_VERSION = '2.2';
 export const GUIDE_EFFECTIVE = 'September 2026';
 
 export const GUIDE_SECTIONS = [
@@ -214,8 +214,29 @@ export const GUIDE_SECTIONS = [
     ],
   },
   {
+    id: 'tasks',
+    title: '20. Internal task management',
+    audience: 'Managers / all staff',
+    body: [
+      'Internal Tasks is the daily operations board. Create a task, assign it to an employee from HR, set priority (Low / Medium / High / Urgent) and a deadline.',
+      'Statuses: Pending → In Progress → On Hold → Completed, or Cancelled. Employees update the status of work assigned to them. Filters cover employee, priority, deadline, and status.',
+      'Overdue tasks (deadline before today, not completed/cancelled) are highlighted. Dashboard shows pending / in progress / overdue counts.',
+    ],
+  },
+  {
+    id: 'broadcasts',
+    title: '21. Customer broadcasts & announcements',
+    audience: 'Sales / marketing',
+    body: [
+      'Use Broadcasts to write a promotional message, attach a JPEG/JPG/PNG, preview it, then Send to Customers.',
+      'The customer list is the live ERP database (name, WhatsApp number). Search and city / opt-in filters apply. Each Send opens WhatsApp with the prepared text.',
+      'Standard WhatsApp links cannot attach a photo automatically. The ERP downloads / copies the image so staff can attach it in the chat. If WhatsApp Business Cloud API credentials are configured on the server, image and text can send together — only then is the image reported as sent.',
+      'History stores message, image, date, customers, and send status. Reuse loads a previous advertisement without rewriting it.',
+    ],
+  },
+  {
     id: 'website',
-    title: '20. Website, tracking & cutover notes',
+    title: '22. Website, tracking & cutover notes',
     audience: 'Admin',
     body: [
       'Public catalogue / order forms on the company website talk to the same API as this ERP. Only products with an HD photo and a description are listed; everything else is auto-hidden.',

@@ -5,7 +5,13 @@ const { websiteCatalogSyncScript } = require('../lib/websiteCatalogSync');
 const {
   mapCustomer, mapOrder, mapProduct, mapInvoice, mapEmployee,
   mapVendor, mapPayment, mapExpense, mapPurchase, mapUser, mapToken,
+  mapTask, mapBroadcast, mapBroadcastSend,
 } = require('../lib/mappers');
+const {
+  listRows, getRow, insertRow, updateRow, deleteRow, listSends, insertSend,
+  taskFromBody, broadcastFromBody, nowIso, id: opsId,
+} = require('../lib/opsStore');
+const { sendWhatsAppCloud, cloudConfigured } = require('../lib/whatsappCloud');
 const {
   isAdminRole, userLabel, collectOrderIds, invoiceStatusFromPaid,
   makePortalPassword, checkPortalPassword, issueCustomerToken, parseCustomerToken,
@@ -2321,8 +2327,143 @@ async function dispatch(req, res) {
       });
     }
 
+    if (path === '/tasks' || path.startsWith('/tasks/')) {
+      const TASK_TABLE = 'internal_tasks';
+      const TASK_KEY = 'internal_tasks';
+      if (path === '/tasks' && method === 'GET') {
+        const rows = await listRows(TASK_TABLE, TASK_KEY);
+        return send(res, rows.map(mapTask).filter(Boolean));
+      }
+      if (path === '/tasks' && method === 'POST') {
+        const title = String(body.title || '').trim();
+        if (!title) return sendError(res, 'Task title is required', 400);
+        const row = { ...taskFromBody(body, '', user), created_at: nowIso() };
+        await insertRow(TASK_TABLE, TASK_KEY, row);
+        return send(res, mapTask(row));
+      }
+      const tid = decodeURIComponent(String(path.split('/')[2] || '').trim());
+      if (!tid) return sendError(res, 'Task id required', 400);
+      if (path === `/tasks/${tid}/status` && (method === 'PATCH' || method === 'PUT' || method === 'POST')) {
+        const status = String(body.status || '').trim();
+        if (!status) return sendError(res, 'Status is required', 400);
+        const updated = await updateRow(TASK_TABLE, TASK_KEY, tid, { status, updated_at: nowIso() });
+        if (!updated) return sendError(res, 'Task not found', 404);
+        return send(res, mapTask(updated));
+      }
+      if (method === 'GET') {
+        const row = await getRow(TASK_TABLE, TASK_KEY, tid);
+        if (!row) return sendError(res, 'Task not found', 404);
+        return send(res, mapTask(row));
+      }
+      if (method === 'PUT' || method === 'PATCH') {
+        const existing = await getRow(TASK_TABLE, TASK_KEY, tid);
+        if (!existing) return sendError(res, 'Task not found', 404);
+        const next = taskFromBody({
+          title: body.title != null ? body.title : existing.title,
+          description: body.description != null ? body.description : existing.description,
+          assigneeId: body.assigneeId != null ? body.assigneeId : existing.assignee_id,
+          assigneeName: body.assigneeName != null ? body.assigneeName : existing.assignee_name,
+          priority: body.priority != null ? body.priority : existing.priority,
+          status: body.status != null ? body.status : existing.status,
+          deadline: body.deadline != null ? body.deadline : existing.deadline,
+        }, tid, user);
+        delete next.created_by;
+        delete next.created_by_name;
+        next.created_at = existing.created_at;
+        const updated = await updateRow(TASK_TABLE, TASK_KEY, tid, next);
+        return send(res, mapTask(updated || { ...existing, ...next }));
+      }
+      if (method === 'DELETE') {
+        await deleteRow(TASK_TABLE, TASK_KEY, tid);
+        return send(res, { success: true });
+      }
+    }
+
+    if (path === '/broadcasts' || path.startsWith('/broadcasts/')) {
+      const AD_TABLE = 'broadcasts';
+      const AD_KEY = 'broadcasts';
+      if (path === '/broadcasts' && method === 'GET') {
+        const rows = await listRows(AD_TABLE, AD_KEY);
+        const out = [];
+        for (const row of rows) {
+          const sends = await listSends(row.id);
+          out.push(mapBroadcast(row, sends));
+        }
+        return send(res, out);
+      }
+      if (path === '/broadcasts' && method === 'POST') {
+        const message = String(body.message || body.text || '').trim();
+        if (!message) return sendError(res, 'Advertisement text is required', 400);
+        const row = { ...broadcastFromBody(body, '', user), created_at: nowIso() };
+        await insertRow(AD_TABLE, AD_KEY, row);
+        return send(res, mapBroadcast(row, []));
+      }
+      const bid = decodeURIComponent(String(path.split('/')[2] || '').trim());
+      if (!bid) return sendError(res, 'Broadcast id required', 400);
+      const existingAd = await getRow(AD_TABLE, AD_KEY, bid);
+      if (!existingAd && method !== 'DELETE') return sendError(res, 'Advertisement not found', 404);
+
+      if (path === `/broadcasts/${bid}/sends` && method === 'GET') {
+        const sends = await listSends(bid);
+        return send(res, sends.map(mapBroadcastSend).filter(Boolean));
+      }
+      if (path === `/broadcasts/${bid}/send` && method === 'POST') {
+        const sendRow = {
+          id: opsId('adsend'),
+          broadcast_id: bid,
+          customer_id: String(body.customerId || body.customer_id || '').trim(),
+          customer_name: String(body.customerName || body.customer_name || '').trim(),
+          customer_phone: String(body.customerPhone || body.customer_phone || '').trim(),
+          status: String(body.status || 'opened').trim() || 'opened',
+          sent_at: nowIso(),
+        };
+        await insertSend(sendRow);
+        return send(res, mapBroadcastSend(sendRow));
+      }
+      if (path === `/broadcasts/${bid}/whatsapp` && method === 'POST') {
+        const phone = String(body.phone || body.customerPhone || '').trim();
+        const result = await sendWhatsAppCloud({
+          phone,
+          text: existingAd.message || '',
+          imageDataUrl: existingAd.image || '',
+        });
+        const sendRow = {
+          id: opsId('adsend'),
+          broadcast_id: bid,
+          customer_id: String(body.customerId || '').trim(),
+          customer_name: String(body.customerName || '').trim(),
+          customer_phone: phone,
+          status: result.ok ? (result.imageSent ? 'sent' : 'text_sent') : 'opened',
+          sent_at: nowIso(),
+        };
+        await insertSend(sendRow);
+        return send(res, {
+          ...result,
+          cloudConfigured: cloudConfigured(),
+          send: mapBroadcastSend(sendRow),
+        });
+      }
+      if (method === 'GET' && path === `/broadcasts/${bid}`) {
+        const sends = await listSends(bid);
+        return send(res, mapBroadcast(existingAd, sends));
+      }
+      if (method === 'PUT' || method === 'PATCH') {
+        const next = broadcastFromBody({ ...existingAd, ...body }, bid, user);
+        delete next.created_by;
+        delete next.created_by_name;
+        next.created_at = existingAd.created_at;
+        const updated = await updateRow(AD_TABLE, AD_KEY, bid, next);
+        const sends = await listSends(bid);
+        return send(res, mapBroadcast(updated || { ...existingAd, ...next }, sends));
+      }
+      if (method === 'DELETE') {
+        await deleteRow(AD_TABLE, AD_KEY, bid);
+        return send(res, { success: true });
+      }
+    }
+
     if (path === '/debug/schema' && method === 'GET') {
-      const tables = ['users', 'customers', 'crm_notes', 'employees', 'products', 'orders', 'invoices', 'vendors', 'purchases', 'expenses', 'payments', 'counters', 'tokens', 'settings'];
+      const tables = ['users', 'customers', 'crm_notes', 'employees', 'products', 'orders', 'invoices', 'vendors', 'purchases', 'expenses', 'payments', 'counters', 'tokens', 'settings', 'internal_tasks', 'broadcasts', 'broadcast_sends'];
       const counts = {};
       for (const t of tables) {
         const { count, error } = await supabase.from(t).select('*', { count: 'exact', head: true });

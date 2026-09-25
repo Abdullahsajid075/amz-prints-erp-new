@@ -4,7 +4,9 @@ import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, ShoppingCart, Users, Warehouse, FileText,
   CreditCard, BarChart3, Settings, X, Ticket,
-  Store, Quote, Calculator, Kanban, ShoppingBag, UsersRound, ChevronDown
+  Store, Quote, Calculator, Kanban, ShoppingBag, UsersRound, ChevronDown,
+  ListTodo, Megaphone
+}
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -31,6 +33,7 @@ const menuGroups = [
       { icon: FileText, label: 'Invoices', path: '/invoices', module: 'invoices', testId: 'nav-invoices' },
       { icon: Users, label: 'Customers', path: '/customers', module: 'customers', testId: 'nav-customers' },
       { icon: Kanban, label: 'CRM', path: '/crm', module: 'crm', testId: 'nav-crm' },
+      { icon: Megaphone, label: 'Broadcasts', path: '/broadcasts', module: 'broadcasts', testId: 'nav-broadcasts' },
       {
         icon: Store,
         label: 'POS',
@@ -72,6 +75,7 @@ const menuGroups = [
           { label: 'Employees', path: '/hr/employees', module: 'hr' },
         ],
       },
+      { icon: ListTodo, label: 'Internal Tasks', path: '/tasks', module: 'tasks', testId: 'nav-tasks' },
       { icon: Calculator, label: 'Cost Calculator', path: '/calculator', module: 'calculator', testId: 'nav-calculator' },
     ],
   },
