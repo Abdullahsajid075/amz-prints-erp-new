@@ -49,22 +49,74 @@ $photo_products = array_merge( $photo_products, $photo_rest );
 $photo_loop = $photo_products ? array_merge( $photo_products, $photo_products ) : array();
 ?>
 
-<section class="land-hero" aria-label="<?php echo esc_attr( $headline ); ?>">
-	<div class="land-hero__photo" style="background-image:url('<?php echo esc_url( $hero_url ); ?>')"></div>
-	<div class="land-hero__wash" aria-hidden="true"></div>
-	<div class="land-hero__inner">
-		<div class="land-hero__copy">
-			<p class="land-hero__brand"><?php echo esc_html( $company ); ?></p>
-			<p class="land-hero__legal"><?php echo esc_html( $legal ); ?></p>
+<section class="home-hero">
+	<div class="container home-hero__grid">
+		<div class="home-hero__copy">
+			<p class="home-hero__kicker"><?php esc_html_e( 'Print house + digital studio', 'amz-prints' ); ?></p>
 			<h1><?php echo esc_html( $headline ); ?></h1>
-			<p class="land-hero__sub"><?php echo esc_html( $sub ); ?></p>
-			<div class="land-hero__actions">
+			<p><?php echo esc_html( $sub ); ?></p>
+			<div class="home-hero__actions">
 				<a class="btn btn--primary btn--lg" href="<?php echo esc_url( home_url( '/products/' ) ); ?>"><?php esc_html_e( 'Shop products', 'amz-prints' ); ?></a>
 				<a class="btn btn--ghost btn--lg" href="<?php echo esc_url( home_url( '/quote/' ) ); ?>"><?php esc_html_e( 'Get a quote', 'amz-prints' ); ?></a>
 			</div>
 		</div>
+		<div class="home-hero__frame" style="background-image:url('<?php echo esc_url( $hero_url ); ?>')" role="img" aria-label="<?php echo esc_attr( $company ); ?>"></div>
 	</div>
 </section>
+
+<section class="home-banner" style="background-image:url('<?php echo esc_url( $hero_url ); ?>')">
+	<div class="home-banner__veil"></div>
+	<div class="container home-banner__row">
+		<div>
+			<p><?php echo esc_html( $company ); ?></p>
+			<strong><?php echo esc_html( $legal ); ?></strong>
+		</div>
+		<a class="btn btn--primary" href="<?php echo esc_url( home_url( '/services/' ) ); ?>"><?php esc_html_e( 'Explore services', 'amz-prints' ); ?></a>
+	</div>
+</section>
+
+<?php
+$featured_products = array_slice( $photo_products, 0, 8 );
+$featured_services = array_slice( $catalog, 0, 4 );
+?>
+<?php if ( $featured_products ) : ?>
+<section class="home-block">
+	<div class="container">
+		<header class="section-head">
+			<p class="eyebrow"><?php esc_html_e( 'Featured products', 'amz-prints' ); ?></p>
+			<h2><?php esc_html_e( 'Pieces ready to order', 'amz-prints' ); ?></h2>
+		</header>
+		<div class="feat-grid">
+			<?php foreach ( $featured_products as $product ) : ?>
+				<?php get_template_part( 'template-parts/product', 'card', array( 'product' => $product ) ); ?>
+			<?php endforeach; ?>
+		</div>
+	</div>
+</section>
+<?php endif; ?>
+
+<?php if ( $featured_services ) : ?>
+<section class="home-block home-block--services">
+	<div class="container">
+		<header class="section-head">
+			<p class="eyebrow"><?php esc_html_e( 'Featured services', 'amz-prints' ); ?></p>
+			<h2><?php esc_html_e( 'Print, brand, and digital', 'amz-prints' ); ?></h2>
+		</header>
+		<div class="feat-services">
+			<?php foreach ( $featured_services as $cat ) : ?>
+				<a class="feat-service" href="<?php echo esc_url( home_url( '/services/#' . $cat['slug'] ) ); ?>">
+					<img src="<?php echo esc_url( $cat['image'] ); ?>" alt="">
+					<span>
+						<strong><?php echo esc_html( amz_prints_svc_label( $cat ) ); ?></strong>
+						<em><?php echo esc_html( implode( ' · ', array_map( 'amz_prints_svc_label', array_slice( $cat['items'], 0, 2 ) ) ) ); ?></em>
+					</span>
+				</a>
+			<?php endforeach; ?>
+		</div>
+	</div>
+</section>
+<?php endif; ?>
+
 	<?php if ( $photo_loop ) : ?>
 		<div class="amz-prodrail" aria-label="<?php esc_attr_e( 'Products with photos', 'amz-prints' ); ?>">
 			<div class="amz-prodrail__track">

@@ -235,6 +235,41 @@ function amz_prints_customer_verify_from_request() {
 }
 add_action( 'template_redirect', 'amz_prints_customer_verify_from_request', 1 );
 
+function amz_prints_remember_portal_session( $token, $customer ) {
+	$token = (string) $token;
+	if ( ! $token ) {
+		return;
+	}
+	$all = get_option( 'amz_prints_portal_sessions', array() );
+	if ( ! is_array( $all ) ) {
+		$all = array();
+	}
+	$all[ $token ] = array(
+		'customer' => is_array( $customer ) ? $customer : array(),
+		'exp'      => time() + WEEK_IN_SECONDS,
+	);
+	if ( count( $all ) > 40 ) {
+		$all = array_slice( $all, -40, null, true );
+	}
+	update_option( 'amz_prints_portal_sessions', $all, false );
+}
+
+function amz_prints_portal_snapshot( $token ) {
+	$all = get_option( 'amz_prints_portal_sessions', array() );
+	$row = ( is_array( $all ) && isset( $all[ $token ] ) ) ? $all[ $token ] : null;
+	if ( ! is_array( $row ) || (int) ( $row['exp'] ?? 0 ) < time() ) {
+		return null;
+	}
+	return array(
+		'customer'        => isset( $row['customer'] ) && is_array( $row['customer'] ) ? $row['customer'] : array(),
+		'orders'          => array(),
+		'invoices'        => array(),
+		'discounts'       => array(),
+		'ledger'          => array(),
+		'pendingPayments' => array(),
+	);
+}
+
 function amz_prints_customer_fetch_session() {
 	$token = amz_prints_customer_token();
 	if ( ! $token ) {
@@ -246,8 +281,16 @@ function amz_prints_customer_fetch_session() {
 	}
 	$result = amz_prints_customer_api( '/public/customer/session', array( 'token' => $token ) );
 	if ( is_wp_error( $result ) ) {
+		$snap = amz_prints_portal_snapshot( $token );
+		$msg  = $result->get_error_message();
+		if ( $snap && ( false !== stripos( $msg, 'not found' ) || false !== stripos( $msg, 'session' ) ) ) {
+			return $snap;
+		}
 		amz_prints_customer_clear_token();
 		return $result;
+	}
+	if ( ! empty( $result['customer'] ) && is_array( $result['customer'] ) ) {
+		amz_prints_remember_portal_session( $token, $result['customer'] );
 	}
 	return $result;
 }
@@ -333,6 +376,7 @@ function amz_prints_ajax_customer_register() {
 		'verified' => true,
 	) );
 	amz_prints_customer_set_token( $result['token'] );
+	amz_prints_remember_portal_session( $result['token'], isset( $result['customer'] ) ? $result['customer'] : array() );
 	$redirect = isset( $_POST['redirect'] ) ? esc_url_raw( wp_unslash( $_POST['redirect'] ) ) : '';
 	$redirect = $redirect ? wp_validate_redirect( $redirect, amz_prints_customer_account_url() ) : amz_prints_customer_account_url();
 	wp_send_json_success( array(
@@ -372,6 +416,7 @@ function amz_prints_ajax_customer_login() {
 		wp_send_json_error( array( 'message' => __( 'Login failed.', 'amz-prints' ) ), 400 );
 	}
 	amz_prints_customer_set_token( $result['token'] );
+	amz_prints_remember_portal_session( $result['token'], isset( $result['customer'] ) ? $result['customer'] : array() );
 	$redirect = isset( $_POST['redirect'] ) ? esc_url_raw( wp_unslash( $_POST['redirect'] ) ) : '';
 	$redirect = $redirect ? wp_validate_redirect( $redirect, amz_prints_customer_account_url() ) : amz_prints_customer_account_url();
 	wp_send_json_success( array(
@@ -422,6 +467,7 @@ function amz_prints_ajax_customer_google() {
 				) );
 				if ( ! is_wp_error( $made ) && ! empty( $made['token'] ) ) {
 					amz_prints_customer_set_token( $made['token'] );
+					amz_prints_remember_portal_session( $made['token'], isset( $made['customer'] ) ? $made['customer'] : array() );
 					$redirect = isset( $_POST['redirect'] ) ? esc_url_raw( wp_unslash( $_POST['redirect'] ) ) : '';
 					$redirect = $redirect ? wp_validate_redirect( $redirect, amz_prints_customer_account_url() ) : amz_prints_customer_account_url();
 					wp_send_json_success( array(
@@ -459,6 +505,7 @@ function amz_prints_ajax_customer_google() {
 		wp_send_json_error( array( 'message' => __( 'Google verification failed.', 'amz-prints' ) ), 400 );
 	}
 	amz_prints_customer_set_token( $result['token'] );
+	amz_prints_remember_portal_session( $result['token'], isset( $result['customer'] ) ? $result['customer'] : array() );
 	$redirect = isset( $_POST['redirect'] ) ? esc_url_raw( wp_unslash( $_POST['redirect'] ) ) : '';
 	$redirect = $redirect ? wp_validate_redirect( $redirect, amz_prints_customer_account_url() ) : amz_prints_customer_account_url();
 	wp_send_json_success( array(
