@@ -368,8 +368,11 @@ const Customers = () => {
         notify: true,
         sendEmail: false,
       });
+      if (Array.isArray(data.allocations) && data.allocations.length) {
+        toast.message(`Applied to ${data.allocations.map((a) => a.invoiceNo || a.invoiceId).filter(Boolean).join(', ')}`);
+      }
       if (Number(data.extra) > 0 || Number(data.creditBalance) > 0) {
-        toast.message(`Credit balance: ${formatCurrency(data.creditBalance || data.extra)}`);
+        toast.message(`Unallocated credit: ${formatCurrency(data.extra || data.creditBalance)}`);
       }
       toast.success('Payment recorded');
       setPayCustomer(null);

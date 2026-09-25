@@ -24,6 +24,15 @@ const paidEarly = computeCustomerLedger(
   [{ id: 'i1', customer_id: 'c1', order_id: 'ORD-1', total: 1000, paid: 1000, previous_balance: 0 }],
   []
 );
-assert(paidEarly.outstanding === 400, `legacy order balance should remain, got ${paidEarly.outstanding}`);
+assert(paidEarly.outstanding === 0, `paid invoice must not keep stale order balance, got ${paidEarly.outstanding}`);
+
+const parkedCredit = computeCustomerLedger(
+  { id: 'c1', credit_balance: 3000 },
+  [{ id: 'o1', order_id: 'ORD-1', customer_id: 'c1', total_amount: 3000, balance_amount: 3000, doc_type: 'Order' }],
+  [{ id: 'i1', customer_id: 'c1', order_id: 'ORD-1', invoice_no: 'INV-1', total: 3000, paid: 0, previous_balance: 0 }],
+  []
+);
+assert(parkedCredit.invoiceOutstanding === 3000, `invoice due should stay visible, got ${parkedCredit.invoiceOutstanding}`);
+assert(parkedCredit.outstanding === 0, `unallocated credit offsets AR, got ${parkedCredit.outstanding}`);
 
 console.log('ledger tests ok');

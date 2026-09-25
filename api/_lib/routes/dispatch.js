@@ -500,19 +500,6 @@ async function findOrCreateInvoiceForOrder(order) {
     return keys.some((k) => ids.includes(k) || String(row.order_id) === k);
   });
   if (existing) return existing;
-  const unpaid = (invoices || []).find((row) =>
-    String(row.customer_id) === String(order.customer_id)
-    && num(row.paid) === 0
-    && String(order.customer_id || '') !== 'cust_walkin'
-  );
-  if (unpaid && String(order.doc_type || '').toLowerCase() !== 'pos') {
-    const ids = collectOrderIds({ orderId: order.order_id || order.id }, unpaid);
-    await supabase.from('invoices').update({
-      order_id: ids[0] || unpaid.order_id,
-      order_ids: ids,
-    }).eq('id', unpaid.id);
-    return { ...unpaid, order_ids: ids, order_id: ids[0] || unpaid.order_id };
-  }
   const total = num(order.total_amount);
   const row = {
     id: id('inv'),
@@ -568,7 +555,201 @@ async function allocateAdvanceOntoInvoice(order, invoice) {
 
 async function ensureOrderInvoice(order) {
   const invoice = await findOrCreateInvoiceForOrder(order);
-  return allocateAdvanceOntoInvoice(order, invoice);
+  const afterAdvance = await allocateAdvanceOntoInvoice(order, invoice);
+  if (order.customer_id) {
+    const cust = await loadCustomer(order.customer_id);
+    if (cust && num(cust.credit_balance) > 0.009) {
+      await applyExistingCreditToInvoices(cust);
+      const { data: refreshed } = await supabase.from('invoices').select('*').eq('id', (afterAdvance && afterAdvance.id) || invoice.id).maybeSingle();
+      return refreshed || afterAdvance;
+    }
+  }
+  return afterAdvance;
+}
+
+function invoiceRemaining(inv) {
+  if (!inv || isCancelledStatus(inv.status)) return 0;
+  return Math.max(0, num(inv.total != null ? inv.total : inv.total_amount) + num(inv.previous_balance) - num(inv.paid));
+}
+
+async function syncLinkedOrderBalances(invoice) {
+  if (!invoice) return null;
+  const ids = collectOrderIds({}, invoice);
+  const due = invoiceRemaining(invoice);
+  let first = null;
+  for (const key of ids) {
+    if (!key) continue;
+    let { data: order } = await supabase.from('orders').select('*').eq('id', key).maybeSingle();
+    if (!order) {
+      const { data: byCode } = await supabase.from('orders').select('*').eq('order_id', key).maybeSingle();
+      order = byCode;
+    }
+    if (!order) continue;
+    const total = num(order.total_amount);
+    const nextBal = ids.length <= 1 ? due : Math.min(due, Math.max(0, total - num(order.advance_payment)));
+    await supabase.from('orders').update({
+      balance_amount: nextBal,
+      advance_payment: Math.max(0, total - nextBal),
+    }).eq('id', order.id);
+    if (!first) {
+      const { data: refreshed } = await supabase.from('orders').select('*').eq('id', order.id).maybeSingle();
+      first = refreshed;
+    }
+  }
+  return first;
+}
+
+async function findInvoiceForCustomerRef(customer, ref) {
+  const raw = String(ref || '').trim();
+  if (!raw) return null;
+  const tryOne = async (col, val) => {
+    const { data } = await supabase.from('invoices').select('*').eq(col, val).maybeSingle();
+    return data || null;
+  };
+  if (/^inv/i.test(raw) || raw.startsWith('invoice_')) {
+    return (await tryOne('invoice_no', raw)) || (await tryOne('id', raw));
+  }
+  if (/^ord/i.test(raw) || raw.startsWith('order_')) {
+    const { data: byOrder } = await supabase.from('invoices').select('*').eq('order_id', raw);
+    const match = (byOrder || []).find((inv) => String(inv.customer_id) === String(customer.id)) || (byOrder || [])[0];
+    if (match) return match;
+    return (await tryOne('order_id', raw));
+  }
+  return (await tryOne('invoice_no', raw)) || (await tryOne('id', raw));
+}
+
+async function listOpenInvoicesForCustomer(customerId) {
+  const { data } = await supabase.from('invoices').select('*').eq('customer_id', customerId);
+  return (data || [])
+    .filter((inv) => invoiceRemaining(inv) > 0.009)
+    .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+}
+
+async function applyExistingCreditToInvoices(customer) {
+  let credit = num(customer.credit_balance);
+  if (!(credit > 0.009)) return { applied: 0, creditAfter: credit, invoices: [] };
+  const open = await listOpenInvoicesForCustomer(customer.id);
+  if (!open.length) return { applied: 0, creditAfter: credit, invoices: [] };
+  const touched = [];
+  for (const inv of open) {
+    if (!(credit > 0.009)) break;
+    const due = invoiceRemaining(inv);
+    const use = Math.min(credit, due);
+    if (!(use > 0)) continue;
+    const history = Array.isArray(inv.payment_history) ? [...inv.payment_history] : [];
+    history.push({
+      id: id('pay'),
+      date: today(),
+      amount: use,
+      applied: use,
+      extra: 0,
+      method: 'Advance',
+      notes: 'Allocated from customer credit / portal payment',
+      locked: true,
+    });
+    const paidAfter = num(inv.paid) + use;
+    await supabase.from('invoices').update({
+      paid: paidAfter,
+      status: invoiceStatusFromPaid(num(inv.total != null ? inv.total : inv.total_amount), paidAfter),
+      payment_history: history,
+    }).eq('id', inv.id);
+    await syncLinkedOrderBalances({ ...inv, paid: paidAfter });
+    credit = Math.max(0, credit - use);
+    touched.push({ invoiceId: inv.id, invoiceNo: inv.invoice_no, allocated: use });
+  }
+  await supabase.from('customers').update({ credit_balance: credit }).eq('id', customer.id);
+  const { data: creditPays } = await supabase.from('payments')
+    .select('*')
+    .eq('customer_id', customer.id)
+    .eq('category', 'Customer Credit');
+  let leftover = credit;
+  for (const pay of (creditPays || []).sort((a, b) => String(b.date).localeCompare(String(a.date)))) {
+    const have = num(pay.balance_due != null ? pay.balance_due : pay.amount);
+    if (!(have > 0.009)) continue;
+    const keep = Math.min(have, leftover);
+    leftover = Math.max(0, leftover - keep);
+    await supabase.from('payments').update({
+      balance_due: keep,
+      notes: keep > 0.009
+        ? (pay.notes || 'Unallocated customer payment')
+        : `${pay.notes || 'Customer payment'} · applied to invoice`,
+      category: keep > 0.009 ? pay.category : 'Invoice Payment',
+      ref_id: keep > 0.009 ? pay.ref_id : (touched[0]?.invoiceNo || pay.ref_id),
+    }).eq('id', pay.id);
+  }
+  return { applied: num(customer.credit_balance) - credit, creditAfter: credit, invoices: touched };
+}
+
+async function applyCustomerReceipt(customer, body = {}, user) {
+  const amount = num(body.amount);
+  if (!(amount > 0)) throw new Error('Enter a valid payment amount');
+  const ref = body.invoiceId || body.invoice_id || body.linkedInvoiceId
+    || body.linkedOrderId || body.orderId || body.order_id || body.reference || '';
+  const target = await findInvoiceForCustomerRef(customer, ref);
+  const queue = [];
+  if (target && invoiceRemaining(target) > 0.009) queue.push(target);
+  else {
+    const open = await listOpenInvoicesForCustomer(customer.id);
+    queue.push(...open);
+  }
+  let left = amount;
+  const applied = [];
+  for (const inv of queue) {
+    if (left <= 0.009) break;
+    const due = invoiceRemaining(inv);
+    const use = Math.min(left, due);
+    if (!(use > 0)) continue;
+    const result = await recordInvoicePayment(inv.id, { ...body, amount: use }, user);
+    applied.push(result);
+    left = Math.max(0, left - use);
+  }
+  if (left <= 0.009) {
+    const { data: fresh } = await supabase.from('customers').select('*').eq('id', customer.id).maybeSingle();
+    return {
+      customer: attachCustomerLedger(fresh || customer, [], applied.map((a) => a.invoice).filter(Boolean), applied.map((a) => a.payment).filter(Boolean)),
+      payment: applied[0]?.payment || null,
+      invoice: applied[0]?.invoice || null,
+      applied: amount,
+      extra: 0,
+      allocations: applied.map((a) => ({
+        invoiceId: a.invoice?.id,
+        invoiceNo: a.invoice?.invoiceNumber || a.invoice?.invoiceNo,
+        allocated: a.applied,
+      })),
+    };
+  }
+  const { data: latest } = await supabase.from('customers').select('*').eq('id', customer.id).maybeSingle();
+  const creditAfter = num(latest?.credit_balance) + left;
+  await supabase.from('customers').update({ credit_balance: creditAfter }).eq('id', customer.id);
+  const payRow = {
+    id: id('pay'),
+    date: body.date || today(),
+    type: 'inflow',
+    category: 'Customer Credit',
+    ref_id: customer.id,
+    customer_name: customer.name,
+    customer_id: customer.id,
+    party_phone: customer.phone,
+    amount: left,
+    method: body.method || 'Cash',
+    notes: body.notes || 'Unallocated customer payment',
+    balance_due: left,
+    total_amount: left,
+  };
+  await supabase.from('payments').insert(payRow);
+  return {
+    customer: mapCustomer({ ...(latest || customer), credit_balance: creditAfter }),
+    payment: applied[0]?.payment || mapPayment(payRow),
+    invoice: applied[0]?.invoice || null,
+    applied: amount - left,
+    extra: left,
+    unallocated: left > 0.009,
+    allocations: applied.map((a) => ({
+      invoiceId: a.invoice?.id,
+      invoiceNo: a.invoice?.invoiceNumber || a.invoice?.invoiceNo,
+      allocated: a.applied,
+    })),
+  };
 }
 
 async function recordInvoicePayment(invoiceId, body = {}, user) {
@@ -624,27 +805,8 @@ async function recordInvoicePayment(invoiceId, body = {}, user) {
   };
   await supabase.from('payments').insert(paymentRow);
 
-  let linkedOrder = null;
-  const snapRef = body.orderId || body.linkedOrderId;
-  const ids = collectOrderIds({ orderId: snapRef }, inv);
-  const orderKey = snapRef || (ids.length === 1 ? ids[0] : '');
-  if (orderKey && !body.skipOrderSnapshot) {
-    let { data: order } = await supabase.from('orders').select('*').eq('id', orderKey).maybeSingle();
-    if (!order) {
-      const { data: byCode } = await supabase.from('orders').select('*').eq('order_id', orderKey).maybeSingle();
-      order = byCode;
-    }
-    if (order) {
-      const advance = num(order.advance_payment) + applied;
-      const total = num(order.total_amount);
-      await supabase.from('orders').update({
-        advance_payment: advance,
-        balance_amount: Math.max(0, total - advance),
-      }).eq('id', order.id);
-      const { data: refreshed } = await supabase.from('orders').select('*').eq('id', order.id).maybeSingle();
-      linkedOrder = refreshed;
-    }
-  }
+  const { data: invPaid } = await supabase.from('invoices').select('*').eq('id', inv.id).maybeSingle();
+  const linkedOrder = await syncLinkedOrderBalances(invPaid || { ...inv, paid: paidAfter });
 
   if (extra > 0 && inv.customer_id) {
     const cust = await loadCustomer(inv.customer_id);
@@ -1571,34 +1733,16 @@ async function dispatch(req, res) {
         if (!customer) return sendError(res, 'Customer not found', 404);
         const amount = num(body.amount);
         if (!(amount > 0)) return sendError(res, 'Enter a valid payment amount', 400);
-        const invoiceRef = body.invoiceId || body.invoice_id || body.linkedInvoiceId || '';
-        if (invoiceRef) {
-          const result = await recordInvoicePayment(invoiceRef, { ...body, amount }, user);
-          return send(res, result);
-        }
-        await supabase.from('customers').update({
-          credit_balance: num(customer.credit_balance) + amount,
-        }).eq('id', cid);
-        const payRow = {
-          id: id('pay'),
-          date: body.date || today(),
-          type: 'inflow',
-          category: 'Customer Credit',
-          ref_id: customer.id,
-          customer_name: customer.name,
-          customer_id: customer.id,
-          party_phone: customer.phone,
-          amount,
-          method: body.method || 'Cash',
-          notes: body.notes || 'Unallocated customer payment',
-          balance_due: amount,
-          total_amount: amount,
-        };
-        await supabase.from('payments').insert(payRow);
+        const result = await applyCustomerReceipt(customer, { ...body, amount }, user);
+        const [fresh, orders, invoices, payments] = await Promise.all([
+          loadCustomer(cid),
+          dbSelectSafe('orders', LEAN_ORDER_COLS),
+          dbSelectSafe('invoices', LEAN_INVOICE_COLS),
+          dbSelectSafe('payments', LEAN_PAYMENT_COLS),
+        ]);
         return send(res, {
-          customer: mapCustomer({ ...customer, credit_balance: num(customer.credit_balance) + amount }),
-          payment: mapPayment(payRow),
-          unallocated: true,
+          ...result,
+          customer: attachCustomerLedger(fresh || customer, orders || [], invoices || [], payments || []),
         });
       }
       if (parts[2] === 'allocate' && method === 'POST') {
