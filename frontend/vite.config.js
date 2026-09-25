@@ -19,7 +19,7 @@ module.exports = defineConfig(({ mode }) => {
   // Fallback until Vercel env is set (prefer Hostinger API URL in production)
   if (!envDefine['process.env.REACT_APP_GAS_API_URL']) {
     envDefine['process.env.REACT_APP_GAS_API_URL'] = JSON.stringify(
-      'https://script.google.com/macros/s/AKfycbxEvWjbbh0-VJ1JxKR-qFZ9TbllIyh9rAJRg1ythfihJP61o6sxvcYhHehXafZEYummLw/exec'
+      'https://amz-prints-api.vercel.app'
     );
   }
 

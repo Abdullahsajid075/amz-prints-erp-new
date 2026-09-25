@@ -12,7 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 if ( ! defined( 'AMZ_PRINTS_ERP_API_DEFAULT' ) ) {
 	define(
 		'AMZ_PRINTS_ERP_API_DEFAULT',
-		'https://script.google.com/macros/s/AKfycbxEvWjbbh0-VJ1JxKR-qFZ9TbllIyh9rAJRg1ythfihJP61o6sxvcYhHehXafZEYummLw/exec'
+		'https://amz-prints-api.vercel.app'
 	);
 }
 
@@ -59,10 +59,10 @@ function amz_prints_erp_decode_response( $raw, $code = 200 ) {
 }
 
 /**
- * Low-level ERP request (GAS / Hostinger style: ?path=...).
+ * Low-level ERP request (Supabase API, same ?path= contract as the ERP app).
  *
- * Apps Script returns 302 → googleusercontent echo URL for POST.
- * WordPress must NOT auto-convert that to GET-with-body-loss; we follow manually.
+ * The live API is https://amz-prints-api.vercel.app (Supabase). Older Apps Script
+ * URLs answer with a 302; those are still followed so a saved legacy URL keeps working.
  *
  * @param string     $method GET|POST|PUT|PATCH|DELETE
  * @param string     $path   API path starting with /
@@ -150,7 +150,7 @@ function amz_prints_erp_flag( $value ) {
 }
 
 function amz_prints_erp_get_products( $force_refresh = false ) {
-	$cache_key = 'amz_prints_erp_products_v3';
+	$cache_key = 'amz_prints_erp_products_v4';
 	if ( ! $force_refresh ) {
 		$cached = get_transient( $cache_key );
 		if ( is_array( $cached ) ) {

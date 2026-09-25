@@ -3,7 +3,7 @@
  * Usage: node scripts/verify-gas.mjs [email] [password]
  */
 const GAS_URL = process.env.REACT_APP_GAS_API_URL ||
-  'https://script.google.com/macros/s/AKfycbxEvWjbbh0-VJ1JxKR-qFZ9TbllIyh9rAJRg1ythfihJP61o6sxvcYhHehXafZEYummLw/exec';
+  'https://amz-prints-api.vercel.app';
 
 async function gasRequest(method, path, { data, token, params } = {}) {
   const url = new URL(GAS_URL);

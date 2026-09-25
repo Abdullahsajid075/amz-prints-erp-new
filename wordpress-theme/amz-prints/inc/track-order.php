@@ -10,10 +10,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-/** Default Apps Script / Hostinger API used by erp.amzprints.com */
+/** Supabase-backed ERP API used by erp.amzprints.com */
 define(
 	'AMZ_PRINTS_ERP_API_DEFAULT',
-	'https://script.google.com/macros/s/AKfycbxEvWjbbh0-VJ1JxKR-qFZ9TbllIyh9rAJRg1ythfihJP61o6sxvcYhHehXafZEYummLw/exec'
+	'https://amz-prints-api.vercel.app'
 );
 
 /**
