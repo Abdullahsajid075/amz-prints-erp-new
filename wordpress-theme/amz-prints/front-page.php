@@ -26,13 +26,54 @@ $track_url = function_exists( 'amz_prints_customer_is_logged_in' ) && amz_prints
 	? home_url( '/my-account/#track' )
 	: home_url( '/customer-login/?redirect=' . rawurlencode( home_url( '/my-account/#track' ) ) );
 
-$hero_id  = absint( amz_prints_mod( 'amz_hero_image', 0 ) );
-$hero_url = $hero_id ? wp_get_attachment_image_url( $hero_id, 'amz-hero' ) : '';
-if ( ! $hero_url ) {
-	$hero_url = 'https://images.unsplash.com/photo-1562564055-71e051d33c19?auto=format&fit=crop&w=1800&q=80';
+$slide_copy = array(
+	array(
+		'kicker' => __( 'Printing', 'amz-prints' ),
+		'title'  => $headline,
+		'text'   => $sub,
+		'tone'   => 'orange',
+	),
+	array(
+		'kicker' => __( 'Technology', 'amz-prints' ),
+		'title'  => amz_prints_mod( 'amz_hero_title_2', 'Digital work, built to ship.' ),
+		'text'   => amz_prints_mod( 'amz_hero_text_2', 'Websites, software, and brand systems from the same house that prints the work.' ),
+		'tone'   => 'blue',
+	),
+	array(
+		'kicker' => __( 'Brand', 'amz-prints' ),
+		'title'  => amz_prints_mod( 'amz_hero_title_3', 'Color, finish, and identity.' ),
+		'text'   => amz_prints_mod( 'amz_hero_text_3', 'Cards, signage, packaging, and large format with a finish you can hold.' ),
+		'tone'   => 'ink',
+	),
+	array(
+		'kicker' => __( 'Orders', 'amz-prints' ),
+		'title'  => amz_prints_mod( 'amz_hero_title_4', 'Every job, live to track.' ),
+		'text'   => amz_prints_mod( 'amz_hero_text_4', 'Create an account, place the order, and follow design, print, and delivery.' ),
+		'tone'   => 'orange',
+	),
+);
+$slide_ids = array( 'amz_hero_image', 'amz_hero_image_2', 'amz_hero_image_3', 'amz_hero_support_1' );
+$fallbacks = array(
+	'https://images.unsplash.com/photo-1562564055-71e051d33c19?auto=format&fit=crop&w=1200&q=80',
+	'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1200&q=80',
+	'https://images.unsplash.com/photo-1626785774573-4b7993143459?auto=format&fit=crop&w=1200&q=80',
+	'https://images.unsplash.com/photo-1586075010923-2dd4570fb338?auto=format&fit=crop&w=1200&q=80',
+);
+$hero_slides = array();
+foreach ( $slide_copy as $i => $copy ) {
+	$id  = absint( amz_prints_mod( $slide_ids[ $i ], 0 ) );
+	$url = $id ? wp_get_attachment_image_url( $id, 'large' ) : '';
+	$hero_slides[] = array(
+		'kicker' => $copy['kicker'],
+		'title'  => $copy['title'],
+		'text'   => $copy['text'],
+		'image'  => $url ? $url : $fallbacks[ $i ],
+		'tone'   => $copy['tone'],
+	);
 }
-$strip   = function_exists( 'amz_prints_running_strip_items' ) ? amz_prints_running_strip_items() : array( $company );
-$strip_loop = array_merge( $strip, $strip );
+$strip_raw  = amz_prints_mod( 'amz_running_strip', 'Offset Printing | Digital Printing | Large Format | Packaging | Branding | NADRA e-Services | Free CV | Order Tracking | Shop Online' );
+$strip      = array_values( array_filter( array_map( 'trim', explode( '|', (string) $strip_raw ) ) ) );
+$strip_loop = $strip ? array_merge( $strip, $strip ) : array();
 $photo_products = array();
 $photo_rest     = array();
 foreach ( $erp_all as $p ) {
@@ -45,40 +86,35 @@ foreach ( $erp_all as $p ) {
 		$photo_rest[] = $p;
 	}
 }
-$photo_products = array_merge( $photo_products, $photo_rest );
-$photo_loop = $photo_products ? array_merge( $photo_products, $photo_products ) : array();
-?>
-
-<section class="home-hero">
-	<div class="container home-hero__grid">
-		<div class="home-hero__copy">
-			<p class="home-hero__kicker"><?php esc_html_e( 'Print house + digital studio', 'amz-prints' ); ?></p>
-			<h1><?php echo esc_html( $headline ); ?></h1>
-			<p><?php echo esc_html( $sub ); ?></p>
-			<div class="home-hero__actions">
-				<a class="btn btn--primary btn--lg" href="<?php echo esc_url( home_url( '/products/' ) ); ?>"><?php esc_html_e( 'Shop products', 'amz-prints' ); ?></a>
-				<a class="btn btn--ghost btn--lg" href="<?php echo esc_url( home_url( '/quote/' ) ); ?>"><?php esc_html_e( 'Get a quote', 'amz-prints' ); ?></a>
-			</div>
-		</div>
-		<div class="home-hero__frame" style="background-image:url('<?php echo esc_url( $hero_url ); ?>')" role="img" aria-label="<?php echo esc_attr( $company ); ?>"></div>
-	</div>
-</section>
-
-<section class="home-banner" style="background-image:url('<?php echo esc_url( $hero_url ); ?>')">
-	<div class="home-banner__veil"></div>
-	<div class="container home-banner__row">
-		<div>
-			<p><?php echo esc_html( $company ); ?></p>
-			<strong><?php echo esc_html( $legal ); ?></strong>
-		</div>
-		<a class="btn btn--primary" href="<?php echo esc_url( home_url( '/services/' ) ); ?>"><?php esc_html_e( 'Explore services', 'amz-prints' ); ?></a>
-	</div>
-</section>
-
-<?php
+$photo_products    = array_merge( $photo_products, $photo_rest );
+$photo_loop        = $photo_products ? array_merge( $photo_products, $photo_products ) : array();
 $featured_products = array_slice( $photo_products, 0, 8 );
 $featured_services = array_slice( $catalog, 0, 4 );
 ?>
+
+<section class="stage" data-hero-rotator data-interval="10000" aria-roledescription="carousel" aria-label="<?php echo esc_attr( $headline ); ?>">
+	<div class="container stage__panel">
+		<?php foreach ( $hero_slides as $i => $slide ) : ?>
+			<article class="stage__slide stage__slide--<?php echo esc_attr( $slide['tone'] ); ?><?php echo 0 === $i ? ' is-active' : ''; ?>" data-slide>
+				<div class="stage__copy">
+					<p><?php echo esc_html( $slide['kicker'] ); ?></p>
+					<h1><?php echo esc_html( $slide['title'] ); ?></h1>
+					<p class="stage__lead"><?php echo esc_html( $slide['text'] ); ?></p>
+					<div class="stage__actions">
+						<a class="btn btn--light btn--lg" href="<?php echo esc_url( home_url( '/products/' ) ); ?>"><?php esc_html_e( 'Shop products', 'amz-prints' ); ?></a>
+						<a class="btn btn--ghost btn--lg stage__ghost" href="<?php echo esc_url( home_url( '/quote/' ) ); ?>"><?php esc_html_e( 'Get a quote', 'amz-prints' ); ?></a>
+					</div>
+				</div>
+				<div class="stage__photo" style="background-image:url('<?php echo esc_url( $slide['image'] ); ?>')" role="img" aria-label="<?php echo esc_attr( $slide['title'] ); ?>"></div>
+			</article>
+		<?php endforeach; ?>
+		<div class="stage__dots">
+			<?php foreach ( $hero_slides as $i => $slide ) : ?>
+				<button type="button" class="<?php echo 0 === $i ? 'is-active' : ''; ?>" data-stage-dot="<?php echo esc_attr( (string) $i ); ?>" aria-label="<?php echo esc_attr( sprintf( __( 'Slide %d', 'amz-prints' ), $i + 1 ) ); ?>"></button>
+			<?php endforeach; ?>
+		</div>
+	</div>
+</section>
 <?php if ( $featured_products ) : ?>
 <section class="home-block">
 	<div class="container">

@@ -169,14 +169,14 @@ function amz_prints_customize_register( $wp_customize ) {
 		'sanitize_callback' => 'absint',
 	) );
 	$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'amz_hero_image', array(
-		'label'       => __( 'Main hero image (large)', 'amz-prints' ),
+		'label'       => __( 'Hero slide 1 image (right side)', 'amz-prints' ),
 		'section'     => 'amz_hero',
 		'mime_type'   => 'image',
-		'description' => __( 'Primary large image for the mosaic / slide 1.', 'amz-prints' ),
+		'description' => __( 'Right-side photo on the first homepage slide. Headline and supporting sentence above are the text for this slide.', 'amz-prints' ),
 	) ) );
 
 	foreach ( array(
-		'amz_hero_support_1' => 'Supporting image 1',
+		'amz_hero_support_1' => 'Hero slide 4 image (right side)',
 		'amz_hero_support_2' => 'Supporting image 2',
 		'amz_hero_support_3' => 'Supporting image 3',
 		'amz_hero_support_4' => 'Supporting image 4',
@@ -198,10 +198,10 @@ function amz_prints_customize_register( $wp_customize ) {
 		'sanitize_callback' => 'absint',
 	) );
 	$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'amz_hero_image_2', array(
-		'label'       => __( 'Slider image 2 (legacy)', 'amz-prints' ),
+		'label'       => __( 'Hero slide 2 image (right side)', 'amz-prints' ),
 		'section'     => 'amz_hero',
 		'mime_type'   => 'image',
-		'description' => __( 'Used only when Hero layout = Full-bleed slider.', 'amz-prints' ),
+		'description' => __( 'Right-side photo on slide 2. Pair it with Hero slide 2 headline and text.', 'amz-prints' ),
 	) ) );
 
 	for ( $bi = 1; $bi <= 6; $bi++ ) {
@@ -272,10 +272,36 @@ function amz_prints_customize_register( $wp_customize ) {
 		'sanitize_callback' => 'absint',
 	) );
 	$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'amz_hero_image_3', array(
-		'label'     => __( 'Slider image 3 (legacy)', 'amz-prints' ),
+		'label'     => __( 'Hero slide 3 image', 'amz-prints' ),
 		'section'   => 'amz_hero',
 		'mime_type' => 'image',
 	) ) );
+
+	$hero_slide_copy = array(
+		2 => array( 'Digital work, built to ship.', 'Websites, software, and brand systems from the same house that prints the work.' ),
+		3 => array( 'Color, finish, and identity.', 'Cards, signage, packaging, and large format with a finish you can hold.' ),
+		4 => array( 'Every job, live to track.', 'Create an account, place the order, and follow design, print, and delivery.' ),
+	);
+	foreach ( $hero_slide_copy as $n => $pair ) {
+		$wp_customize->add_setting( 'amz_hero_title_' . $n, array(
+			'default'           => $pair[0],
+			'sanitize_callback' => 'sanitize_text_field',
+		) );
+		$wp_customize->add_control( 'amz_hero_title_' . $n, array(
+			'label'   => sprintf( __( 'Hero slide %d headline', 'amz-prints' ), $n ),
+			'section' => 'amz_hero',
+			'type'    => 'text',
+		) );
+		$wp_customize->add_setting( 'amz_hero_text_' . $n, array(
+			'default'           => $pair[1],
+			'sanitize_callback' => 'sanitize_textarea_field',
+		) );
+		$wp_customize->add_control( 'amz_hero_text_' . $n, array(
+			'label'   => sprintf( __( 'Hero slide %d text', 'amz-prints' ), $n ),
+			'section' => 'amz_hero',
+			'type'    => 'textarea',
+		) );
+	}
 
 	/* ── Sections visibility / copy ── */
 	$wp_customize->add_section( 'amz_sections', array(
