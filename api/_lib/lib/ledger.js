@@ -10,9 +10,11 @@ function isCancelledStatus(status) {
 }
 
 function phoneKey(value) {
-  const digits = String(value || '').replace(/\D/g, '');
+  const raw = String(value || '').trim();
+  if (!raw || /error/i.test(raw)) return '';
+  const digits = raw.replace(/\D/g, '');
   if (digits.length >= 10) return digits.slice(-10);
-  return digits;
+  return '';
 }
 
 function invoiceTotalDue(inv) {
@@ -27,9 +29,6 @@ function belongsToCustomer(row, customer) {
   const custPhone = phoneKey(customer.phone);
   const rowPhone = phoneKey(row.customer_phone || row.party_phone || row.customerPhone);
   if (custPhone && rowPhone && custPhone === rowPhone) return true;
-  const cName = String(customer.name || '').trim().toLowerCase();
-  const rName = String(row.customer_name || row.customerName || '').trim().toLowerCase();
-  if (cName && rName && cName === rName && cName !== 'walk-in' && cName !== 'walkin') return true;
   return false;
 }
 
@@ -41,9 +40,26 @@ function computeCustomerLedger(customer, orders, invoices, payments, opts = {}) 
   const realOrders = (orders || []).filter((o) =>
     !isQuotation(o) && !isCancelledStatus(o.status) && belongsToCustomer(o, customer)
   );
-  const invs = (invoices || []).filter((inv) =>
-    !isCancelledStatus(inv.status) && belongsToCustomer(inv, customer)
-  );
+  const orderKeys = new Set();
+  realOrders.forEach((o) => {
+    if (o.order_id) orderKeys.add(String(o.order_id));
+    if (o.id) orderKeys.add(String(o.id));
+  });
+  const invs = (invoices || []).filter((inv) => {
+    if (isCancelledStatus(inv.status)) return false;
+    const refs = invoiceOrderRefs(inv).map((ref) => String(ref));
+    const ownedByThisOrder = refs.some((ref) => orderKeys.has(ref));
+    if (ownedByThisOrder) return true;
+    if (refs.length) {
+      const otherOwner = (orders || []).some((o) =>
+        !isQuotation(o)
+        && !belongsToCustomer(o, customer)
+        && (refs.includes(String(o.order_id || '')) || refs.includes(String(o.id || '')))
+      );
+      if (otherOwner) return false;
+    }
+    return belongsToCustomer(inv, customer);
+  });
   const pays = (payments || []).filter((p) => belongsToCustomer(p, customer)
     || String(p.customer_id || '') === String(customer.id || ''));
 
@@ -58,8 +74,7 @@ function computeCustomerLedger(customer, orders, invoices, payments, opts = {}) 
   const invoiceBilled = invs.reduce((s, inv) => s + invoiceTotalDue(inv), 0);
   const orphanBilled = orphanOrders.reduce((s, o) => s + num(o.total_amount), 0);
   const invoiceOutstanding = invs.reduce((s, inv) => s + Math.max(0, invoiceTotalDue(inv) - num(inv.paid)), 0);
-  const orphanOutstanding = orphanOrders.reduce((s, o) => s + num(o.balance_amount), 0);
-  const orderBalanceSum = realOrders.reduce((s, o) => s + num(o.balance_amount), 0);
+  const orphanOutstanding = orphanOrders.reduce((s, o) => s + num(o.balance_amount != null ? o.balance_amount : Math.max(0, num(o.total_amount) - num(o.advance_payment))), 0);
   const paymentPaid = pays.reduce((s, p) => {
     const t = String(p.type || 'inflow').toLowerCase();
     const cat = String(p.category || '').toLowerCase();
@@ -70,16 +85,15 @@ function computeCustomerLedger(customer, orders, invoices, payments, opts = {}) 
     return s + num(p.amount);
   }, 0);
   const credit = num(customer.credit_balance);
-  // Prefer the larger of invoice-centric AR and legacy order balances so cutover
-  // never hides the old Sheets outstanding when invoices were marked paid early.
-  const composed = invoiceOutstanding + orphanOutstanding;
-  const outstanding = Math.max(0, Math.max(composed, orderBalanceSum) - credit);
+  // Invoice remaining + uninvoiced order balances, minus unallocated credit.
+  // Invoiced orders must not keep a stale order.balance_amount in AR.
+  const outstanding = Math.max(0, invoiceOutstanding + orphanOutstanding - credit);
 
   if (opts && opts.statement === false) {
     return {
       totalBilled: invoiceBilled + orphanBilled,
       totalPaid: Math.max(0, paymentPaid),
-      orderOutstanding: Math.max(orphanOutstanding, orderBalanceSum),
+      orderOutstanding: orphanOutstanding,
       invoiceOutstanding,
       outstanding,
       creditBalance: credit,
@@ -150,7 +164,7 @@ function computeCustomerLedger(customer, orders, invoices, payments, opts = {}) 
   return {
     totalBilled: invoiceBilled + orphanBilled,
     totalPaid: Math.max(0, paymentPaid),
-    orderOutstanding: Math.max(orphanOutstanding, orderBalanceSum),
+    orderOutstanding: orphanOutstanding,
     invoiceOutstanding,
     outstanding,
     creditBalance: credit,
