@@ -40,6 +40,8 @@ import PublicOrderTracking from '@/components/modules/tracking/PublicOrderTracki
 import PublicSlipVerify from '@/components/modules/tracking/PublicSlipVerify';
 import PublicEmployeeVerify from '@/components/modules/employees/PublicEmployeeVerify';
 import CustomerPortal from '@/components/modules/portal/CustomerPortal';
+import Tasks from '@/components/modules/tasks/Tasks';
+import Broadcasts from '@/components/modules/broadcasts/Broadcasts';
 
 /**
  * App shell (Brand + Auth) only mounts for protected routes.
@@ -152,6 +154,8 @@ function App() {
 
           <Route path="customers" element={<Customers />} />
           <Route path="crm" element={<CustomerCRM />} />
+          <Route path="broadcasts" element={<Broadcasts />} />
+          <Route path="announcements" element={<Navigate to="/broadcasts" replace />} />
 
           <Route path="warehouse" element={<Warehouse />} />
           <Route path="warehouse/products" element={<Products />} />
@@ -167,6 +171,7 @@ function App() {
           <Route path="hr" element={<Navigate to="/hr/employees" replace />} />
           <Route path="hr/employees" element={<Employees />} />
           <Route path="employees" element={<Navigate to="/hr/employees" replace />} />
+          <Route path="tasks" element={<Tasks />} />
 
           <Route path="pos" element={<POS />} />
           <Route path="pos/counter" element={<Navigate to="/pos" replace />} />

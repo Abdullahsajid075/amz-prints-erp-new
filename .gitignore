@@ -66,6 +66,7 @@ agenthub/agents/youtube/db
 
 # Archive files and large assets
 **/*.zip
+!/wordpress-theme/amz-erp-catalog-sync.zip
 **/*.tar.gz
 **/*.tar
 **/*.tgz

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { dashboardAPI, ordersAPI, invoicesAPI, expensesAPI, paymentsAPI, customersAPI, purchasesAPI } from '@/services/api';
+import { dashboardAPI, ordersAPI, invoicesAPI, expensesAPI, paymentsAPI, customersAPI, purchasesAPI, tasksAPI } from '@/services/api';
 import { toast } from 'sonner';
 import { asApiList, buildDashboardFromLists, dashboardLooksEmpty } from '@/utils/dashboardFromLists';
 import { useAuth, getUserDisplayName } from '@/context/AuthContext';
@@ -14,7 +14,7 @@ import {
   TrendingUp, TrendingDown, ShoppingCart, CheckCircle, DollarSign,
   Receipt, Users, Calendar, Activity, FileText, FileSpreadsheet, RefreshCw,
   ArrowRight, Wallet, Plus, Ticket, Store, AlertTriangle, Search,
-  Palette, Printer, PackageCheck, Sparkles, Calculator
+  Palette, Printer, PackageCheck, Sparkles, Calculator, ListTodo, Megaphone
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -36,6 +36,8 @@ const QUICK_ACTIONS = [
   { label: 'Invoice', path: '/invoices/new', module: 'invoices', icon: FileSpreadsheet, tint: '#F59E0B' },
   { label: 'Customer', path: '/customers', module: 'customers', icon: Users, tint: '#64748B' },
   { label: 'Cost Calc', path: '/calculator', module: 'calculator', icon: Calculator, tint: '#0D9488' },
+  { label: 'Internal Tasks', path: '/tasks', module: 'tasks', icon: ListTodo, tint: '#334155' },
+  { label: 'Broadcasts', path: '/broadcasts', module: 'broadcasts', icon: Megaphone, tint: '#DB2777' },
 ];
 
 function greetingForHour(h) {
@@ -140,6 +142,7 @@ const Dashboard = () => {
   const [chartData, setChartData] = useState({ monthlySales: [], orderStatus: [] });
   const [receivablesOpen, setReceivablesOpen] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [taskSummary, setTaskSummary] = useState(null);
 
   const fetchDashboardDataWith = useCallback(async (range) => {
     const from = range?.from || '';
@@ -226,6 +229,32 @@ const Dashboard = () => {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchDashboardData(); }, []);
+
+  useEffect(() => {
+    if (!canAccessModule('tasks')) {
+      setTaskSummary(null);
+      return undefined;
+    }
+    let cancelled = false;
+    tasksAPI.getAll()
+      .then((res) => {
+        if (cancelled) return;
+        const list = Array.isArray(res.data) ? res.data : [];
+        const today = new Date().toISOString().slice(0, 10);
+        setTaskSummary({
+          pending: list.filter((t) => t.status === 'Pending').length,
+          progress: list.filter((t) => t.status === 'In Progress').length,
+          overdue: list.filter((t) => {
+            const d = String(t.deadline || '').slice(0, 10);
+            return d && d < today && t.status !== 'Completed' && t.status !== 'Cancelled';
+          }).length,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setTaskSummary(null);
+      });
+    return () => { cancelled = true; };
+  }, [canAccessModule]);
 
   const displayName = getUserDisplayName(user);
   const greeting = greetingForHour(new Date().getHours());
@@ -436,6 +465,22 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+
+      {taskSummary && (
+        <button
+          type="button"
+          onClick={() => goIfAllowed('/tasks', 'tasks')}
+          className="erp-panel w-full text-left px-4 py-3 flex flex-wrap items-center gap-4 hover:shadow-md transition-shadow"
+          data-testid="dashboard-tasks"
+        >
+          <ListTodo className="h-5 w-5 text-slate-600" />
+          <span className="font-semibold text-ink">Internal tasks</span>
+          <span className="text-sm text-amber-700">{taskSummary.pending} pending</span>
+          <span className="text-sm text-sky-700">{taskSummary.progress} in progress</span>
+          <span className="text-sm text-rose-700">{taskSummary.overdue} overdue</span>
+          <ArrowRight className="h-4 w-4 text-slate-300 ml-auto" />
+        </button>
+      )}
 
       {quickActions.length > 0 && (
         <section>
