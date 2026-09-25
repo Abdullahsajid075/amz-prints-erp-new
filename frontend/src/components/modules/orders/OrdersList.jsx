@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { ordersAPI, settingsAPI } from '@/services/api';
-import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
+import { ordersAPI, settingsAPI, invoicesAPI } from '@/services/api';
+import { openInvoicesForCustomer } from '@/utils/invoiceOrders';
+import { formatCurrency, formatDate, getStatusColor, invoiceBalanceDue } from '@/utils/helpers';
 import { documentFileName } from '@/utils/printHelpers';
 import { printOrderBookSlip } from '@/utils/orderBookSlip';
 import { ORDER_STATUS, isOpenOrder, isNotStartedOrder } from '@/utils/constants';
@@ -17,7 +18,7 @@ import PageHeader from '@/components/shared/PageHeader';
 import { openWhatsAppChat, fillTemplate, buildTemplateVars, resolveWhatsAppTemplate, notifyOrderEvent } from '@/services/notifications';
 import { orderIsDeliveredWithBalance, openUrduBalanceWhatsApp } from '@/utils/customerHelpers';
 import { finishPaymentRecording } from '@/utils/paymentActions';
-import { Plus, Search, Eye, Edit, Copy, Trash2, User, Phone, Mail, MapPin, Calendar, Package, FileText, X, Printer, Receipt, Truck, Link2, Bell, StickyNote, Wallet } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Copy, Trash2, User, Phone, Mail, MapPin, Calendar, Package, FileText, X, Printer, Receipt, Truck, Link2, Bell, StickyNote, Wallet, Link } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
 
@@ -86,6 +87,8 @@ const OrdersList = () => {
   const [paymentData, setPaymentData] = useState({ amount: '', method: 'Cash', notes: '' });
   const [paymentSaving, setPaymentSaving] = useState(false);
   const [statusBusyId, setStatusBusyId] = useState('');
+  const [addInvoicePick, setAddInvoicePick] = useState(null);
+  const [addInvoiceBusy, setAddInvoiceBusy] = useState(false);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -522,6 +525,45 @@ const OrdersList = () => {
     }
   };
 
+  const attachOrderToInvoice = async (order, invoice) => {
+    if (!order || !invoice) return;
+    setAddInvoiceBusy(true);
+    try {
+      await invoicesAPI.addOrder(invoice.id, { orderId: order.orderId || order.id });
+      toast.success(`Order ${order.orderId || order.id} added to ${invoice.invoiceNumber || 'invoice'}`);
+      setAddInvoicePick(null);
+      fetchOrders();
+      navigate(`/invoices/${invoice.id}`);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err?.message || 'Could not add order to invoice');
+    } finally {
+      setAddInvoiceBusy(false);
+    }
+  };
+
+  const handleAddToCurrentInvoice = async (order) => {
+    if (order?.invoiceId) {
+      navigate(`/invoices/${order.invoiceId}`);
+      return;
+    }
+    try {
+      const res = await invoicesAPI.getAll();
+      const open = openInvoicesForCustomer(res.data || [], order);
+      if (!open.length) {
+        toast.message('Is customer ki koi open invoice nahi — naya invoice ban raha hai');
+        await handleGenerateInvoice(order);
+        return;
+      }
+      if (open.length === 1) {
+        await attachOrderToInvoice(order, open[0]);
+        return;
+      }
+      setAddInvoicePick({ order, invoices: open });
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Could not load invoices');
+    }
+  };
+
   const renderCard = (order) => (
     <div
       key={order.id}
@@ -580,9 +622,14 @@ const OrdersList = () => {
                 {order.invoiceNumber || 'Invoice'}
               </Button>
             ) : (
-              <Button size="sm" variant="outline" className="h-8 px-2 text-[11px] rounded-lg bg-white/50" title="Create invoice" onClick={() => handleGenerateInvoice(order)} data-testid={`invoice-order-${order.id}`}>
-                Create invoice
-              </Button>
+              <>
+                <Button size="sm" variant="outline" className="h-8 px-2 text-[11px] rounded-lg bg-white/50" title="Create invoice" onClick={() => handleGenerateInvoice(order)} data-testid={`invoice-order-${order.id}`}>
+                  Create invoice
+                </Button>
+                <Button size="sm" variant="outline" className="h-8 px-2 text-[11px] rounded-lg bg-white/50" title="Add to current invoice" onClick={() => handleAddToCurrentInvoice(order)} data-testid={`add-current-invoice-${order.id}`}>
+                  <Link className="h-3 w-3 mr-1" />Add to current invoice
+                </Button>
+              </>
             )}
             <Button size="icon" variant="outline" className="h-8 w-8 rounded-lg bg-white/50 text-green-600 hover:bg-green-50" title="WhatsApp" onClick={() => handleWhatsApp(order)} data-testid={`whatsapp-order-${order.id}`}>
               <WhatsAppIcon className="h-3.5 w-3.5" />
@@ -742,9 +789,14 @@ const OrdersList = () => {
                               {order.invoiceNumber || 'Invoice'}
                             </Button>
                           ) : (
-                            <Button size="sm" variant="ghost" className="h-8 px-2 text-[11px]" onClick={() => handleGenerateInvoice(order)} title="Create invoice">
-                              Create invoice
-                            </Button>
+                            <>
+                              <Button size="sm" variant="ghost" className="h-8 px-2 text-[11px]" onClick={() => handleGenerateInvoice(order)} title="Create invoice">
+                                Create invoice
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-8 px-2 text-[11px]" onClick={() => handleAddToCurrentInvoice(order)} title="Add to current invoice">
+                                Add to current invoice
+                              </Button>
+                            </>
                           )}
                           <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-700" onClick={() => openPayment(order)} title="Record payment on invoice"><Wallet className="h-4 w-4" /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600" onClick={() => handleWhatsApp(order)} title="WhatsApp"><WhatsAppIcon className="h-4 w-4" /></Button>
@@ -944,9 +996,14 @@ const OrdersList = () => {
                     <Receipt className="h-4 w-4 mr-1" style={{ color: '#ff6d00' }} />{viewOrder.invoiceNumber || 'Invoice'}
                   </Button>
                 ) : (
-                  <Button variant="outline" onClick={() => handleGenerateInvoice(viewOrder)}>
-                    <Receipt className="h-4 w-4 mr-1" style={{ color: '#ff6d00' }} />Create invoice
-                  </Button>
+                  <>
+                    <Button variant="outline" onClick={() => handleGenerateInvoice(viewOrder)}>
+                      <Receipt className="h-4 w-4 mr-1" style={{ color: '#ff6d00' }} />Create invoice
+                    </Button>
+                    <Button variant="outline" onClick={() => handleAddToCurrentInvoice(viewOrder)}>
+                      <Link className="h-4 w-4 mr-1" />Add to current invoice
+                    </Button>
+                  </>
                 )}
                 <Button variant="outline" className="text-emerald-700 border-emerald-200" onClick={() => openPayment(viewOrder)}>
                   <Wallet className="h-4 w-4 mr-1" />Pay on invoice
@@ -1002,6 +1059,31 @@ const OrdersList = () => {
               </DialogFooter>
             </form>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!addInvoicePick} onOpenChange={(open) => { if (!open && !addInvoiceBusy) setAddInvoicePick(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add to current invoice</DialogTitle>
+            <DialogDescription>
+              {addInvoicePick?.order?.orderId} · {addInvoicePick?.order?.customerName} — pick the open invoice to attach this order.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            {(addInvoicePick?.invoices || []).map((inv) => (
+              <button
+                key={inv.id}
+                type="button"
+                disabled={addInvoiceBusy}
+                className="w-full text-left rounded-xl border px-3 py-2 hover:border-orange-300 hover:bg-orange-50"
+                onClick={() => attachOrderToInvoice(addInvoicePick.order, inv)}
+              >
+                <p className="font-semibold">{inv.invoiceNumber}</p>
+                <p className="text-xs text-gray-500">Balance {formatCurrency(invoiceBalanceDue(inv))}</p>
+              </button>
+            ))}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

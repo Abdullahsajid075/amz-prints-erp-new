@@ -839,17 +839,19 @@ const InvoiceForm = () => {
           </Card>
         </div>
 
-        {formData.customerId && (ordersLoading || openOrders.length > 0) && (
+        {formData.customerId ? (
           <Card className="border-orange-100/80 shadow-sm rounded-2xl" data-testid="open-orders-tray">
             <CardHeader className="py-3">
-              <CardTitle className="text-base">Open / pending orders</CardTitle>
+              <CardTitle className="text-base">Customer orders — drag onto this invoice</CardTitle>
               <p className="text-xs text-gray-500 font-normal">
-                Drag a card onto the invoice, or tap Add. An order already on another invoice cannot be added again.
+                Multiple orders of this customer can be dragged here or added with Add. Orders already billed on another invoice stay out — combine those invoices from the Invoices page.
               </p>
             </CardHeader>
             <CardContent className="pt-0">
               {ordersLoading && !openOrders.length ? (
                 <p className="text-sm text-gray-400">Loading orders…</p>
+              ) : !openOrders.length ? (
+                <p className="text-sm text-gray-500">No unbilled orders for this customer. If they already have more than one open invoice, use Combine invoices.</p>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                   {openOrders.map((order) => (
@@ -859,6 +861,10 @@ const InvoiceForm = () => {
               )}
             </CardContent>
           </Card>
+        ) : (
+          <p className="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+            Select a customer first — then drag their other orders onto this invoice.
+          </p>
         )}
 
         <Card className="border-orange-100/80 shadow-sm rounded-2xl">
@@ -875,11 +881,11 @@ const InvoiceForm = () => {
           </CardHeader>
           <CardContent className="space-y-2 pt-0">
             <InvoiceItemsDropZone>
-            {openOrders.length > 0 && (
-              <div className="rounded-xl border border-dashed border-orange-300 bg-orange-50/40 p-2 text-center text-xs text-orange-800 mb-2">
-                Drop open orders here to add their items
+            {formData.customerId ? (
+              <div className="rounded-xl border border-dashed border-orange-300 bg-orange-50/40 p-3 text-center text-xs text-orange-800 mb-2">
+                Drop this customer&apos;s orders here to add them to one invoice
               </div>
-            )}
+            ) : null}
             {!catalog.length && (
               <div className="rounded-xl border border-dashed border-orange-300 bg-orange-50/60 p-3 text-center text-sm mb-2">
                 Catalog empty —{' '}

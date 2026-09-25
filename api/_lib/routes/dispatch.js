@@ -13,7 +13,7 @@ const {
 } = require('../lib/opsStore');
 const { sendWhatsAppCloud, cloudConfigured } = require('../lib/whatsappCloud');
 const {
-  isAdminRole, userLabel, collectOrderIds, invoiceStatusFromPaid,
+  isAdminRole, userLabel, collectOrderIds, invoiceStatusFromPaid, asArray, uniqueStrings,
   makePortalPassword, checkPortalPassword, issueCustomerToken, parseCustomerToken,
   sanitizePortalCustomer, isBlocked, productFromBody,
   withCustomerPhoto, customerPhoto, isWebsiteCatalogReady,
@@ -678,6 +678,122 @@ async function applyExistingCreditToInvoices(customer) {
     }).eq('id', pay.id);
   }
   return { applied: num(customer.credit_balance) - credit, creditAfter: credit, invoices: touched };
+}
+
+function orderLinesForInvoice(order) {
+  const products = Array.isArray(order.products) ? order.products : asArray(order.products);
+  const oid = order.order_id || order.id;
+  return products.map((p) => ({
+    productId: p.productId || p.product_id || '',
+    name: p.name || '',
+    quantity: num(p.quantity) || 1,
+    rate: num(p.rate),
+    size: p.size || '',
+    material: p.material || '',
+    description: p.description || p.notes || '',
+    notes: p.description || p.notes || '',
+    productType: p.productType || p.product_type || 'Product',
+    sourceOrderId: oid,
+  }));
+}
+
+async function loadOrderByRef(ref) {
+  const key = String(ref || '').trim();
+  if (!key) return null;
+  let { data: order } = await supabase.from('orders').select('*').eq('id', key).maybeSingle();
+  if (!order) {
+    const { data: byCode } = await supabase.from('orders').select('*').eq('order_id', key).maybeSingle();
+    order = byCode;
+  }
+  return order || null;
+}
+
+async function findInvoiceHoldingOrder(order, exceptId = '') {
+  const keys = [order.order_id, order.id].filter(Boolean).map(String);
+  const { data: invoices } = await supabase.from('invoices').select('*');
+  return (invoices || []).find((inv) => {
+    if (exceptId && String(inv.id) === String(exceptId)) return false;
+    const ids = collectOrderIds({}, inv).map(String);
+    return keys.some((k) => ids.includes(k) || String(inv.order_id) === k);
+  }) || null;
+}
+
+async function addOrderOntoInvoice(invoice, order) {
+  const oid = order.order_id || order.id;
+  const existingIds = collectOrderIds({}, invoice).map(String);
+  if (existingIds.includes(String(oid)) || existingIds.includes(String(order.id))) {
+    return invoice;
+  }
+  const items = [...asArray(invoice.items), ...orderLinesForInvoice(order)];
+  const addTotal = num(order.total_amount);
+  const nextSub = num(invoice.subtotal) + addTotal;
+  const nextTotal = num(invoice.total != null ? invoice.total : invoice.total_amount) + addTotal;
+  const nextIds = uniqueStrings([...existingIds, oid]);
+  await supabase.from('invoices').update({
+    items,
+    subtotal: nextSub,
+    total: nextTotal,
+    order_id: nextIds[0] || invoice.order_id,
+    order_ids: nextIds,
+    customer_id: invoice.customer_id || order.customer_id,
+    customer_name: invoice.customer_name || order.customer_name,
+    customer_phone: invoice.customer_phone || order.customer_phone,
+    status: invoiceStatusFromPaid(nextTotal + num(invoice.previous_balance), num(invoice.paid)),
+  }).eq('id', invoice.id);
+  const { data: refreshed } = await supabase.from('invoices').select('*').eq('id', invoice.id).maybeSingle();
+  const afterAdvance = await allocateAdvanceOntoInvoice(order, refreshed || invoice);
+  const { data: latest } = await supabase.from('invoices').select('*').eq('id', invoice.id).maybeSingle();
+  const finalInv = latest || afterAdvance || refreshed || invoice;
+  await syncLinkedOrderBalances(finalInv);
+  return finalInv;
+}
+
+async function combineOpenInvoices(ids) {
+  const rows = [];
+  for (const raw of ids) {
+    const { data } = await supabase.from('invoices').select('*').eq('id', raw).maybeSingle();
+    if (data) rows.push(data);
+  }
+  if (rows.length < 2) throw new Error('Select at least two open invoices');
+  const cid = String(rows[0].customer_id || '');
+  const phone = String(rows[0].customer_phone || '').replace(/\D/g, '').slice(-10);
+  const sameCustomer = rows.every((r) => {
+    if (cid && String(r.customer_id || '') === cid) return true;
+    const p = String(r.customer_phone || '').replace(/\D/g, '').slice(-10);
+    return !!(phone && p && phone === p);
+  });
+  if (!sameCustomer) {
+    throw new Error('Only invoices of the same customer can be combined');
+  }
+  const open = rows.filter((r) => invoiceRemaining(r) > 0.009);
+  if (open.length < 2) throw new Error('Select open (unpaid / partial) invoices only');
+  const target = open.slice().sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))[0];
+  const sources = open.filter((r) => r.id !== target.id);
+  const allIds = uniqueStrings(open.flatMap((r) => collectOrderIds({}, r)));
+  const allItems = open.flatMap((r) => asArray(r.items));
+  const total = open.reduce((s, r) => s + num(r.total != null ? r.total : r.total_amount), 0);
+  const subtotal = open.reduce((s, r) => s + num(r.subtotal != null ? r.subtotal : r.total), 0);
+  const paid = open.reduce((s, r) => s + num(r.paid), 0);
+  const history = open.flatMap((r) => (Array.isArray(r.payment_history) ? r.payment_history : []));
+  const prev = num(target.previous_balance);
+  await supabase.from('invoices').update({
+    items: allItems,
+    order_ids: allIds,
+    order_id: allIds[0] || target.order_id,
+    subtotal,
+    total,
+    paid,
+    previous_balance: prev,
+    payment_history: history,
+    status: invoiceStatusFromPaid(total + prev, paid),
+    notes: `${target.notes || ''}${sources.length ? ` | Combined ${sources.map((s) => s.invoice_no).join(', ')}` : ''}`.trim(),
+  }).eq('id', target.id);
+  for (const src of sources) {
+    await supabase.from('invoices').delete().eq('id', src.id);
+  }
+  const { data } = await supabase.from('invoices').select('*').eq('id', target.id).maybeSingle();
+  await syncLinkedOrderBalances(data);
+  return data;
 }
 
 async function applyCustomerReceipt(customer, body = {}, user) {
@@ -2429,8 +2545,34 @@ async function dispatch(req, res) {
         }
         return send(res, mapInvoice(row));
       }
+      if (path === '/invoices/combine' && method === 'POST') {
+        const ids = Array.isArray(body.invoiceIds) ? body.invoiceIds : (Array.isArray(body.ids) ? body.ids : []);
+        const merged = await combineOpenInvoices(ids);
+        return send(res, mapInvoice(merged));
+      }
       const iid = path.split('/')[2];
       const invAction = path.split('/')[3];
+      if (invAction === 'add-order' && method === 'POST') {
+        const { data: invoice } = await supabase.from('invoices').select('*').eq('id', decodeURIComponent(iid)).maybeSingle();
+        if (!invoice) return sendError(res, 'Invoice not found', 404);
+        if (!(invoiceRemaining(invoice) > 0.009) && /paid/i.test(String(invoice.status || ''))) {
+          return sendError(res, 'Cannot add an order to a paid invoice', 400);
+        }
+        const order = await loadOrderByRef(body.orderId || body.order_id || body.id);
+        if (!order) return sendError(res, 'Order not found', 404);
+        if (String(order.doc_type || 'Order').toLowerCase() === 'quotation') {
+          return sendError(res, 'Quotations cannot be added to an invoice', 400);
+        }
+        if (invoice.customer_id && order.customer_id && String(invoice.customer_id) !== String(order.customer_id)) {
+          return sendError(res, 'Order belongs to a different customer', 400);
+        }
+        const holder = await findInvoiceHoldingOrder(order, invoice.id);
+        if (holder) {
+          return sendError(res, `Order already on invoice ${holder.invoice_no || holder.id}. Combine those invoices instead.`, 400);
+        }
+        const next = await addOrderOntoInvoice(invoice, order);
+        return send(res, mapInvoice(next));
+      }
       if (invAction === 'payment' && method === 'POST') {
         const result = await recordInvoicePayment(decodeURIComponent(iid), body, user);
         return send(res, result);
