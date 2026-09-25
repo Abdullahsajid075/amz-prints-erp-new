@@ -126,8 +126,8 @@
 }
 
 .amz-prodrail {
-  width: min(1250px, calc(100% - 1.5rem));
-  margin: 1.15rem auto 0;
+  width: min(var(--container), calc(100% - 2.5rem));
+  margin: 0.85rem auto 0;
   position: relative;
   z-index: 2;
   overflow: hidden;
@@ -291,12 +291,15 @@
 
 .land-hero {
   position: relative;
-  min-height: 0;
-  height: min(460px, 62vh);
-  padding: calc(var(--header-h) + 0.8rem) 0 1.1rem;
+  width: min(var(--container), calc(100% - 2.5rem));
+  height: min(400px, 56vh);
+  margin: calc(var(--header-h) + 0.9rem) auto 0.35rem;
+  padding: 0;
+  border-radius: 20px;
   overflow: hidden;
   display: flex;
   align-items: center;
+  box-shadow: 0 16px 36px rgba(7, 71, 163, 0.16);
 }
 
 .land-hero__photo {
@@ -323,9 +326,12 @@
 .land-hero__inner {
   position: relative;
   z-index: 2;
-  width: min(100% - 2.5rem, var(--container));
+  width: auto;
+  max-width: 34rem;
+  margin: 0;
+  padding: 1.4rem 2.2rem;
   display: grid;
-  gap: 1.6rem;
+  gap: 0.2rem;
 }
 
 .land-hero__copy {
@@ -341,7 +347,7 @@
   margin: 0;
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  font-size: clamp(1.55rem, 3vw, 2.2rem);
   letter-spacing: -0.05em;
   line-height: 0.92;
   color: var(--amz-ink);
@@ -565,7 +571,14 @@
 }
 
 @media (max-width: 640px) {
-  .land-hero { height: auto; min-height: 320px; padding-top: calc(var(--header-h) + 1.1rem); }
+  .land-hero {
+    width: min(var(--container), calc(100% - 1.5rem));
+    height: auto;
+    min-height: 280px;
+    margin-top: calc(var(--header-h) + 0.7rem);
+    padding: 0;
+  }
+  .land-hero__inner { padding: 1.1rem 1.15rem; }
   .land-hero__tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .land-quick { margin-top: 0.6rem; }
   .land-quick__grid { grid-template-columns: 1fr 1fr; }
