@@ -40,8 +40,7 @@ function amz_prints_customer_set_token( $token ) {
 	$expire = time() + WEEK_IN_SECONDS;
 	setcookie( AMZ_PRINTS_CUSTOMER_COOKIE, $token, array(
 		'expires'  => $expire,
-		'path'     => COOKIEPATH ? COOKIEPATH : '/',
-		'domain'   => COOKIE_DOMAIN,
+		'path'     => '/',
 		'secure'   => is_ssl(),
 		'httponly' => true,
 		'samesite' => 'Lax',
@@ -52,8 +51,7 @@ function amz_prints_customer_set_token( $token ) {
 function amz_prints_customer_clear_token() {
 	setcookie( AMZ_PRINTS_CUSTOMER_COOKIE, '', array(
 		'expires'  => time() - HOUR_IN_SECONDS,
-		'path'     => COOKIEPATH ? COOKIEPATH : '/',
-		'domain'   => COOKIE_DOMAIN,
+		'path'     => '/',
 		'secure'   => is_ssl(),
 		'httponly' => true,
 		'samesite' => 'Lax',
@@ -172,28 +170,64 @@ function amz_prints_customer_redirect_from_post() {
 /**
  * Website session that does not depend on the ERP Google or session routes.
  */
-function amz_prints_customer_sign_in_local( $email, $profile, $password = '' ) {
+function amz_prints_customer_sign_in_local( $email, $profile, $password = '', $erp_token = '' ) {
 	$email   = strtolower( trim( (string) $email ) );
 	$profile = is_array( $profile ) ? $profile : array();
 	$row     = amz_prints_local_customer_get( $email );
 	$row     = is_array( $row ) ? $row : array();
-	$row['name']     = (string) ( $profile['name'] ?? ( $row['name'] ?? '' ) );
+	$typed_name = trim( (string) ( $profile['name'] ?? '' ) );
+	if ( $typed_name ) {
+		$row['name'] = $typed_name;
+	} elseif ( empty( $row['name'] ) ) {
+		$row['name'] = '';
+	}
 	$row['email']    = $email;
-	$row['phone']    = (string) ( $profile['phone'] ?? ( $row['phone'] ?? '' ) );
-	$row['address']  = (string) ( $profile['address'] ?? ( $row['address'] ?? '' ) );
+	$typed_phone = trim( (string) ( $profile['phone'] ?? '' ) );
+	if ( $typed_phone ) {
+		$row['phone'] = $typed_phone;
+	}
+	if ( isset( $profile['address'] ) && '' !== trim( (string) $profile['address'] ) ) {
+		$row['address'] = (string) $profile['address'];
+	}
 	$row['verified'] = true;
 	if ( strlen( (string) $password ) >= 6 ) {
 		$row['password'] = wp_hash_password( $password );
+	}
+	if ( $erp_token ) {
+		$row['erp_token'] = (string) $erp_token;
 	}
 	amz_prints_local_customer_save( $email, $row );
 	$token = amz_prints_local_issue_token( $email );
 	amz_prints_customer_set_token( $token );
 	amz_prints_remember_portal_session( $token, array(
-		'name'  => $row['name'],
-		'email' => $email,
-		'phone' => $row['phone'],
+		'name'    => $row['name'],
+		'email'   => $email,
+		'phone'   => (string) ( $row['phone'] ?? '' ),
+		'address' => (string) ( $row['address'] ?? '' ),
 	) );
 	return $token;
+}
+
+function amz_prints_customer_matching_erp_token( $email, $result ) {
+	if ( is_wp_error( $result ) || empty( $result['token'] ) || ! is_array( $result['customer'] ?? null ) ) {
+		return '';
+	}
+	$api_email = strtolower( trim( (string) ( $result['customer']['email'] ?? '' ) ) );
+	if ( $api_email && $api_email !== strtolower( trim( (string) $email ) ) ) {
+		return '';
+	}
+	return (string) $result['token'];
+}
+
+function amz_prints_customer_erp_token() {
+	$token = amz_prints_customer_token();
+	$local = amz_prints_local_session_customer( $token );
+	$email = strtolower( (string) ( $local['customer']['email'] ?? '' ) );
+	$row   = $email ? amz_prints_local_customer_get( $email ) : null;
+	if ( is_array( $row ) && ! empty( $row['erp_token'] ) ) {
+		return (string) $row['erp_token'];
+	}
+	return ( 0 === strpos( (string) $token, 'amzlocal.' ) ) ? '' : (string) $token;
 }
 
 function amz_prints_local_issue_token( $email ) {
@@ -229,6 +263,7 @@ function amz_prints_local_session_customer( $token ) {
 			'email'   => (string) ( $customer['email'] ?? '' ),
 			'phone'   => (string) ( $customer['phone'] ?? '' ),
 			'address' => (string) ( $customer['address'] ?? '' ),
+			'cardNumber' => 'AMZ-' . strtoupper( substr( md5( strtolower( (string) ( $customer['email'] ?? '' ) ) ), 0, 6 ) ),
 		),
 		'ledger'  => array(),
 		'pending' => array(),
@@ -425,8 +460,7 @@ function amz_prints_ajax_customer_register() {
 				'password' => $password,
 			) );
 			if ( ! is_wp_error( $login ) && ! empty( $login['token'] ) ) {
-				amz_prints_customer_sign_in_local( $email, isset( $login['customer'] ) ? $login['customer'] : array( 'name' => $name, 'phone' => $phone ), $password );
-				amz_prints_customer_set_token( $login['token'] );
+				amz_prints_customer_sign_in_local( $email, array( 'name' => $name, 'phone' => $phone, 'address' => $address ), $password, amz_prints_customer_matching_erp_token( $email, $login ) );
 				wp_send_json_success( array(
 					'redirect' => amz_prints_customer_redirect_from_post(),
 					'message'  => __( 'This email already had an account. You are signed in.', 'amz-prints' ),
@@ -457,16 +491,12 @@ function amz_prints_ajax_customer_register() {
 		wp_send_json_error( array( 'message' => __( 'The ERP did not create this account. Check name, email, and phone, then try again.', 'amz-prints' ) ), 400 );
 	}
 
-	amz_prints_local_customer_save( $email, array(
-		'name'     => $name,
-		'email'    => $email,
-		'phone'    => $phone,
-		'address'  => $address,
-		'password' => wp_hash_password( $password ),
-		'verified' => true,
-	) );
-	amz_prints_customer_set_token( $result['token'] );
-	amz_prints_remember_portal_session( $result['token'], isset( $result['customer'] ) ? $result['customer'] : array() );
+	amz_prints_customer_sign_in_local(
+		$email,
+		array( 'name' => $name, 'phone' => $phone, 'address' => $address ),
+		$password,
+		amz_prints_customer_matching_erp_token( $email, $result )
+	);
 	$redirect = isset( $_POST['redirect'] ) ? esc_url_raw( wp_unslash( $_POST['redirect'] ) ) : '';
 	$redirect = $redirect ? wp_validate_redirect( $redirect, amz_prints_customer_account_url() ) : amz_prints_customer_account_url();
 	wp_send_json_success( array(
@@ -521,15 +551,19 @@ function amz_prints_ajax_customer_login() {
 		wp_send_json_error( array( 'message' => __( 'Login failed.', 'amz-prints' ) ), 400 );
 	}
 	$cust = isset( $result['customer'] ) && is_array( $result['customer'] ) ? $result['customer'] : array();
-	amz_prints_local_customer_save( $email, array(
-		'name'     => (string) ( $cust['name'] ?? '' ),
-		'email'    => $email,
-		'phone'    => (string) ( $cust['phone'] ?? '' ),
-		'password' => wp_hash_password( $password ),
-		'verified' => true,
-	) );
-	amz_prints_customer_set_token( $result['token'] );
-	amz_prints_remember_portal_session( $result['token'], $cust );
+	$api_email = strtolower( trim( (string) ( $cust['email'] ?? '' ) ) );
+	if ( $api_email && $api_email !== strtolower( $email ) ) {
+		$cust = array();
+	}
+	amz_prints_customer_sign_in_local(
+		$email,
+		array(
+			'name'  => (string) ( $cust['name'] ?? '' ),
+			'phone' => (string) ( $cust['phone'] ?? '' ),
+		),
+		$password,
+		amz_prints_customer_matching_erp_token( $email, $result )
+	);
 	$redirect = isset( $_POST['redirect'] ) ? esc_url_raw( wp_unslash( $_POST['redirect'] ) ) : '';
 	$redirect = $redirect ? wp_validate_redirect( $redirect, amz_prints_customer_account_url() ) : amz_prints_customer_account_url();
 	wp_send_json_success( array(
@@ -584,8 +618,7 @@ function amz_prints_ajax_customer_google() {
 			) );
 		}
 		if ( ! is_wp_error( $made ) && is_array( $made ) && ! empty( $made['token'] ) ) {
-			amz_prints_customer_sign_in_local( $google['email'], isset( $made['customer'] ) ? $made['customer'] : array( 'name' => $gname, 'phone' => $phone ), $pass );
-			amz_prints_customer_set_token( $made['token'] );
+			amz_prints_customer_sign_in_local( $google['email'], array( 'name' => $gname, 'phone' => $phone ), $pass, amz_prints_customer_matching_erp_token( $google['email'], $made ) );
 			wp_send_json_success( array(
 				'redirect' => amz_prints_customer_redirect_from_post(),
 				'created'  => true,
@@ -602,10 +635,7 @@ function amz_prints_ajax_customer_google() {
 			'message'  => __( 'Google verified. You are signed in.', 'amz-prints' ),
 		) );
 	}
-	$cust = isset( $result['customer'] ) && is_array( $result['customer'] ) ? $result['customer'] : array( 'name' => $gname, 'phone' => $phone );
-	amz_prints_customer_sign_in_local( $google['email'], $cust, $pass );
-	amz_prints_customer_set_token( $result['token'] );
-	amz_prints_remember_portal_session( $result['token'], isset( $result['customer'] ) ? $result['customer'] : array() );
+	amz_prints_customer_sign_in_local( $google['email'], array( 'name' => $gname, 'phone' => $phone ), $pass, amz_prints_customer_matching_erp_token( $google['email'], $result ) );
 	$redirect = isset( $_POST['redirect'] ) ? esc_url_raw( wp_unslash( $_POST['redirect'] ) ) : '';
 	$redirect = $redirect ? wp_validate_redirect( $redirect, amz_prints_customer_account_url() ) : amz_prints_customer_account_url();
 	wp_send_json_success( array(
@@ -732,7 +762,11 @@ function amz_prints_ajax_customer_reset_confirm() {
 	}
 	delete_transient( $key );
 	if ( ! empty( $result['token'] ) ) {
-		amz_prints_customer_set_token( $result['token'] );
+		$reset_customer = isset( $result['customer'] ) && is_array( $result['customer'] ) ? $result['customer'] : array();
+		amz_prints_customer_sign_in_local( $email, array(
+			'name'  => (string) ( $reset_customer['name'] ?? '' ),
+			'phone' => (string) ( $reset_customer['phone'] ?? '' ),
+		), $password, amz_prints_customer_matching_erp_token( $email, $result ) );
 	}
 	$redirect = isset( $_POST['redirect'] ) ? esc_url_raw( wp_unslash( $_POST['redirect'] ) ) : '';
 	$redirect = $redirect ? wp_validate_redirect( $redirect, amz_prints_customer_account_url() ) : amz_prints_customer_account_url();

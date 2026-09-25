@@ -478,7 +478,7 @@ function amz_prints_ajax_place_order() {
 	}
 
 	$body = array(
-		'token'            => amz_prints_customer_token(),
+		'token'            => function_exists( 'amz_prints_customer_erp_token' ) ? amz_prints_customer_erp_token() : amz_prints_customer_token(),
 		'items'            => $items,
 		'paymentMethod'    => $pay_opt['label'],
 		'policyAccepted'   => true,
