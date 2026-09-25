@@ -92,12 +92,12 @@ $featured_products = array_slice( $photo_products, 0, 8 );
 $featured_services = array_slice( $catalog, 0, 4 );
 ?>
 
-<section class="stage" data-hero-rotator data-interval="10000" aria-roledescription="carousel" aria-label="<?php echo esc_attr( $headline ); ?>">
+<section class="stage" data-hero-rotator data-interval="5000" aria-roledescription="carousel" aria-label="<?php echo esc_attr( $headline ); ?>">
 	<div class="container stage__panel">
 		<?php foreach ( $hero_slides as $i => $slide ) : ?>
 			<article class="stage__slide stage__slide--<?php echo esc_attr( $slide['tone'] ); ?><?php echo 0 === $i ? ' is-active' : ''; ?>" data-slide>
 				<div class="stage__copy">
-					<p><?php echo esc_html( $slide['kicker'] ); ?></p>
+					<p class="stage__kicker"><?php echo esc_html( $slide['kicker'] ); ?></p>
 					<h1><?php echo esc_html( $slide['title'] ); ?></h1>
 					<p class="stage__lead"><?php echo esc_html( $slide['text'] ); ?></p>
 					<div class="stage__actions">
@@ -115,6 +115,29 @@ $featured_services = array_slice( $catalog, 0, 4 );
 		</div>
 	</div>
 </section>
+
+<div class="amz-marquee amz-marquee--ink" aria-hidden="true">
+	<div class="amz-marquee__track">
+		<?php foreach ( $strip_loop as $item ) : ?>
+			<span class="amz-marquee__item"><?php echo esc_html( $item ); ?><em></em></span>
+		<?php endforeach; ?>
+	</div>
+</div>
+
+<?php if ( $photo_loop ) : ?>
+	<div class="amz-prodrail" aria-label="<?php esc_attr_e( 'Products with photos', 'amz-prints' ); ?>">
+		<div class="amz-prodrail__track">
+			<?php foreach ( $photo_loop as $product ) : ?>
+				<?php $rail_url = function_exists( 'amz_prints_erp_product_url' ) ? amz_prints_erp_product_url( $product['id'] ?? '' ) : home_url( '/products/' ); ?>
+				<a class="amz-prodrail__card" href="<?php echo esc_url( $rail_url ); ?>">
+					<img src="<?php echo function_exists( 'amz_prints_product_img_src' ) ? amz_prints_product_img_src( $product['image'] ) : esc_url( $product['image'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>" alt="<?php echo esc_attr( $product['name'] ); ?>">
+					<span><?php echo esc_html( $product['name'] ); ?></span>
+				</a>
+			<?php endforeach; ?>
+		</div>
+	</div>
+<?php endif; ?>
+
 <?php if ( $featured_products ) : ?>
 <section class="home-block">
 	<div class="container">
@@ -152,28 +175,6 @@ $featured_services = array_slice( $catalog, 0, 4 );
 	</div>
 </section>
 <?php endif; ?>
-
-	<?php if ( $photo_loop ) : ?>
-		<div class="amz-prodrail" aria-label="<?php esc_attr_e( 'Products with photos', 'amz-prints' ); ?>">
-			<div class="amz-prodrail__track">
-				<?php foreach ( $photo_loop as $product ) : ?>
-					<?php $rail_url = function_exists( 'amz_prints_erp_product_url' ) ? amz_prints_erp_product_url( $product['id'] ?? '' ) : home_url( '/products/' ); ?>
-					<a class="amz-prodrail__card" href="<?php echo esc_url( $rail_url ); ?>">
-						<img src="<?php echo function_exists( 'amz_prints_product_img_src' ) ? amz_prints_product_img_src( $product['image'] ) : esc_url( $product['image'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>" alt="<?php echo esc_attr( $product['name'] ); ?>">
-						<span><?php echo esc_html( $product['name'] ); ?></span>
-					</a>
-				<?php endforeach; ?>
-			</div>
-		</div>
-	<?php endif; ?>
-
-<div class="amz-marquee amz-marquee--ink" aria-hidden="true">
-	<div class="amz-marquee__track">
-		<?php foreach ( $strip_loop as $item ) : ?>
-			<span class="amz-marquee__item"><?php echo esc_html( $item ); ?><em></em></span>
-		<?php endforeach; ?>
-	</div>
-</div>
 
 <section class="land-mix">
 	<div class="container land-mix__grid">

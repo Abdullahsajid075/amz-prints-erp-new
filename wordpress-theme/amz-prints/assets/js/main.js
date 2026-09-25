@@ -247,8 +247,6 @@
         if (!isNaN(t)) { stageShow(t); stageStart(); }
       });
     });
-    stageRoot.addEventListener('mouseenter', function () { if (stageTimer) window.clearInterval(stageTimer); });
-    stageRoot.addEventListener('mouseleave', stageStart);
     stageStart();
   }
 
