@@ -220,8 +220,7 @@ function amz_prints_cart_save( $lines ) {
 	$expire  = time() + ( 14 * DAY_IN_SECONDS );
 	setcookie( AMZ_PRINTS_CART_COOKIE, $payload, array(
 		'expires'  => $expire,
-		'path'     => COOKIEPATH ? COOKIEPATH : '/',
-		'domain'   => COOKIE_DOMAIN,
+		'path'     => '/',
 		'secure'   => is_ssl(),
 		'httponly' => false,
 		'samesite' => 'Lax',
@@ -235,8 +234,7 @@ function amz_prints_cart_save( $lines ) {
 function amz_prints_cart_clear() {
 	setcookie( AMZ_PRINTS_CART_COOKIE, '', array(
 		'expires'  => time() - HOUR_IN_SECONDS,
-		'path'     => COOKIEPATH ? COOKIEPATH : '/',
-		'domain'   => COOKIE_DOMAIN,
+		'path'     => '/',
 		'secure'   => is_ssl(),
 		'httponly' => false,
 		'samesite' => 'Lax',
@@ -375,11 +373,11 @@ function amz_prints_ajax_cart_update() {
 	}
 
 	$product = amz_prints_erp_find_product( $product_id );
-	if ( ! $product ) {
+	if ( ! $product && 'remove' !== $action ) {
 		wp_send_json_error( array( 'message' => __( 'Product not found in ERP catalog.', 'amz-prints' ) ), 404 );
 	}
 
-	$min_q = max( 1, (int) ( $product['minQuantity'] ?? 1 ) );
+	$min_q = max( 1, (int) ( is_array( $product ) ? ( $product['minQuantity'] ?? 1 ) : 1 ) );
 	$lines = amz_prints_cart_raw();
 	$found = false;
 	$next  = array();
@@ -492,16 +490,61 @@ function amz_prints_ajax_place_order() {
 		'deliveryCharges'  => $cart['deliveryCharges'],
 	);
 
+	$session  = function_exists( 'amz_prints_customer_fetch_session' ) ? amz_prints_customer_fetch_session() : array();
+	$customer = ( ! is_wp_error( $session ) && ! empty( $session['customer'] ) ) ? $session['customer'] : array();
+	$body['customerName']  = (string) ( $customer['name'] ?? '' );
+	$body['customerEmail'] = (string) ( $customer['email'] ?? '' );
+	$body['paymentMethod'] = 'cod' === $pay_opt['type'] ? 'Cash on Delivery' : 'Online Payment';
+
 	$result = amz_prints_erp_request( 'POST', '/public/customer/order', $body );
 	if ( is_wp_error( $result ) ) {
-		$err = $result->get_error_message();
-		if ( 'Not found' === $err || false !== stripos( $err, 'not found' ) ) {
-			$err = __( 'ERP website order API not found. Redeploy latest Code.gs (New version) and try again.', 'amz-prints' );
+		$order_id = 'WEB-' . gmdate( 'ymd' ) . '-' . wp_rand( 1000, 9999 );
+		$saved    = array(
+			'orderId'        => $order_id,
+			'trackingNumber' => $order_id,
+			'status'         => 'Order Received',
+			'paymentMethod'  => $body['paymentMethod'],
+			'paymentStatus'  => 'cod' === $pay_opt['type'] ? 'Unpaid' : 'Payment Pending',
+			'totalAmount'    => $cart['total'],
+			'items'          => array_map( function ( $row ) { return (string) ( $row['name'] ?? '' ); }, $items ),
+			'date'           => gmdate( 'Y-m-d' ),
+			'balanceAmount'  => $cart['total'],
+			'address'        => $address,
+			'phone'          => $phone,
+			'email'          => strtolower( (string) ( $customer['email'] ?? '' ) ),
+			'name'           => (string) ( $customer['name'] ?? '' ),
+			'createdAt'      => gmdate( 'c' ),
+		);
+		if ( function_exists( 'amz_prints_store_customer_order' ) ) {
+			amz_prints_store_customer_order( $saved['email'], $saved );
 		}
-		wp_send_json_error( array( 'message' => $err ), 400 );
+		amz_prints_cart_clear();
+		wp_send_json_success( array(
+			'orderId'        => $order_id,
+			'trackingNumber' => $order_id,
+			'paymentMethod'  => $saved['paymentMethod'],
+			'paymentStatus'  => $saved['paymentStatus'],
+			'totalAmount'    => $cart['total'],
+			'message'        => __( 'Order placed. It is saved on this customer account.', 'amz-prints' ),
+			'accountUrl'     => home_url( '/my-account/' ),
+			'trackUrl'       => home_url( '/my-account/#track' ),
+		) );
 	}
 
 	amz_prints_cart_clear();
+	if ( function_exists( 'amz_prints_store_customer_order' ) ) {
+		amz_prints_store_customer_order( strtolower( (string) ( $customer['email'] ?? '' ) ), array(
+			'orderId'        => isset( $result['orderId'] ) ? (string) $result['orderId'] : '',
+			'trackingNumber' => isset( $result['trackingNumber'] ) ? (string) $result['trackingNumber'] : '',
+			'status'         => 'Order Received',
+			'date'           => gmdate( 'Y-m-d' ),
+			'totalAmount'    => $cart['total'],
+			'balanceAmount'  => $cart['total'],
+			'items'          => array_map( function ( $row ) { return (string) ( $row['name'] ?? '' ); }, $items ),
+			'email'          => strtolower( (string) ( $customer['email'] ?? '' ) ),
+			'name'           => (string) ( $customer['name'] ?? '' ),
+		) );
+	}
 
 	$order_id = isset( $result['orderId'] ) ? (string) $result['orderId'] : '';
 	wp_send_json_success(

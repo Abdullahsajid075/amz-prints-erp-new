@@ -302,6 +302,29 @@ function amz_prints_portal_snapshot( $token ) {
 	);
 }
 
+function amz_prints_store_customer_order( $email, $order ) {
+	$email = strtolower( trim( (string) $email ) );
+	if ( ! $email || ! is_array( $order ) ) {
+		return;
+	}
+	$all = get_option( 'amz_prints_customer_orders', array() );
+	if ( ! is_array( $all ) ) {
+		$all = array();
+	}
+	if ( empty( $all[ $email ] ) || ! is_array( $all[ $email ] ) ) {
+		$all[ $email ] = array();
+	}
+	$all[ $email ][] = $order;
+	update_option( 'amz_prints_customer_orders', $all, false );
+}
+
+function amz_prints_customer_orders_for( $email ) {
+	$email = strtolower( trim( (string) $email ) );
+	$all   = get_option( 'amz_prints_customer_orders', array() );
+	$rows  = ( $email && is_array( $all ) && isset( $all[ $email ] ) && is_array( $all[ $email ] ) ) ? $all[ $email ] : array();
+	return array_reverse( $rows );
+}
+
 function amz_prints_customer_fetch_session() {
 	$token = amz_prints_customer_token();
 	if ( ! $token ) {
@@ -309,6 +332,8 @@ function amz_prints_customer_fetch_session() {
 	}
 	$local = amz_prints_local_session_customer( $token );
 	if ( $local ) {
+		$email = strtolower( (string) ( $local['customer']['email'] ?? '' ) );
+		$local['orders'] = amz_prints_customer_orders_for( $email );
 		return $local;
 	}
 	$result = amz_prints_customer_api( '/public/customer/session', array( 'token' => $token ) );
@@ -316,6 +341,8 @@ function amz_prints_customer_fetch_session() {
 		$snap = amz_prints_portal_snapshot( $token );
 		$msg  = $result->get_error_message();
 		if ( $snap && ( false !== stripos( $msg, 'not found' ) || false !== stripos( $msg, 'session' ) ) ) {
+			$email = strtolower( (string) ( $snap['customer']['email'] ?? '' ) );
+			$snap['orders'] = amz_prints_customer_orders_for( $email );
 			return $snap;
 		}
 		amz_prints_customer_clear_token();
@@ -323,6 +350,11 @@ function amz_prints_customer_fetch_session() {
 	}
 	if ( ! empty( $result['customer'] ) && is_array( $result['customer'] ) ) {
 		amz_prints_remember_portal_session( $token, $result['customer'] );
+		$email = strtolower( (string) ( $result['customer']['email'] ?? '' ) );
+		$mine  = amz_prints_customer_orders_for( $email );
+		if ( $mine ) {
+			$result['orders'] = array_merge( $mine, isset( $result['orders'] ) && is_array( $result['orders'] ) ? $result['orders'] : array() );
+		}
 	}
 	return $result;
 }

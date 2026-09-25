@@ -43,6 +43,11 @@
 		</nav>
 
 		<div class="site-header__actions">
+			<?php $amz_cart_n = function_exists( 'amz_prints_cart_count' ) ? amz_prints_cart_count() : 0; ?>
+			<a class="header-cart" href="<?php echo esc_url( home_url( '/cart/' ) ); ?>" aria-label="<?php esc_attr_e( 'Cart', 'amz-prints' ); ?>">
+				<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M7 18a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm10 0a2 2 0 1 0 .001 4A2 2 0 0 0 17 18zM6.2 6l.4 2h13.1l-1.5 7H8.1L6.2 6zM5.2 4H2V2h4l.4 2H22l-2.2 10H7.4L5.2 4z"/></svg>
+				<em data-cart-count <?php echo $amz_cart_n ? '' : 'hidden'; ?>><?php echo esc_html( (string) $amz_cart_n ); ?></em>
+			</a>
 			<?php if ( function_exists( 'amz_prints_customer_is_logged_in' ) && amz_prints_customer_is_logged_in() ) : ?>
 				<a class="btn btn--ghost btn--sm btn--magnetic" href="<?php echo esc_url( home_url( '/my-account/' ) ); ?>"><?php esc_html_e( 'Account', 'amz-prints' ); ?></a>
 			<?php else : ?>

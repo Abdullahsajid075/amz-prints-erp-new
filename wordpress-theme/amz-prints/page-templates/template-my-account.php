@@ -199,9 +199,15 @@ get_header();
 											<br><small><?php echo esc_html( $order['trackingNumber'] ); ?></small>
 										<?php endif; ?>
 									</td>
-									<td><?php echo esc_html( $order['date'] ?: '—' ); ?></td>
+									<td><?php echo esc_html( $order['date'] ?: ( $order['createdAt'] ?? '—' ) ); ?></td>
 									<td><span class="track-status-pill"><?php echo esc_html( $order['status'] ?: '—' ); ?></span></td>
-									<td><?php echo esc_html( ! empty( $order['items'] ) ? implode( ', ', $order['items'] ) : '—' ); ?></td>
+									<td><?php
+										$names = array();
+										foreach ( (array) ( $order['items'] ?? array() ) as $it ) {
+											$names[] = is_array( $it ) ? (string) ( $it['name'] ?? '' ) : (string) $it;
+										}
+										echo esc_html( $names ? implode( ', ', array_filter( $names ) ) : '—' );
+									?></td>
 									<td><?php echo esc_html( number_format_i18n( (float) ( $order['totalAmount'] ?? 0 ), 0 ) ); ?></td>
 									<td><?php echo esc_html( number_format_i18n( (float) ( $order['balanceAmount'] ?? 0 ), 0 ) ); ?></td>
 								</tr>

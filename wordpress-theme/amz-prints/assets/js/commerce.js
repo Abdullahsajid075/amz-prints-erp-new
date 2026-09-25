@@ -338,7 +338,10 @@
       var pid = line.getAttribute('data-product-id');
       var input = line.querySelector('[data-cart-qty-input]');
       if (e.target.closest('[data-cart-remove]')) {
-        cartUpdate(pid, 0, 'remove').then(function () { window.location.reload(); });
+        cartUpdate(pid, 0, 'remove').then(function (res) {
+          if (!res || !res.success) throw new Error((res && res.data && res.data.message) || 'Could not remove item');
+          window.location.reload();
+        }).catch(function (err) { alert(err.message || 'Could not remove item'); });
         return;
       }
       var step = e.target.closest('[data-cart-qty]');

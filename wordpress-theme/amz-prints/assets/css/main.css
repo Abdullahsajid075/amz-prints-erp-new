@@ -667,6 +667,34 @@ body:not(.amz-home) .site-header {
   gap: 0.7rem;
   flex-shrink: 0;
 }
+.header-cart {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  color: #111;
+  background: #fff;
+  border: 1px solid rgba(17, 17, 17, 0.12);
+}
+.header-cart em {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 99px;
+  background: #ff6d00;
+  color: #fff;
+  font-style: normal;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+}
 
 .nav-toggle {
   display: none;
