@@ -164,6 +164,38 @@ function amz_prints_local_customer_get( $email ) {
 	return isset( $all[ $key ] ) && is_array( $all[ $key ] ) ? $all[ $key ] : null;
 }
 
+function amz_prints_customer_redirect_from_post() {
+	$redirect = isset( $_POST['redirect'] ) ? esc_url_raw( wp_unslash( $_POST['redirect'] ) ) : '';
+	return $redirect ? wp_validate_redirect( $redirect, amz_prints_customer_account_url() ) : amz_prints_customer_account_url();
+}
+
+/**
+ * Website session that does not depend on the ERP Google or session routes.
+ */
+function amz_prints_customer_sign_in_local( $email, $profile, $password = '' ) {
+	$email   = strtolower( trim( (string) $email ) );
+	$profile = is_array( $profile ) ? $profile : array();
+	$row     = amz_prints_local_customer_get( $email );
+	$row     = is_array( $row ) ? $row : array();
+	$row['name']     = (string) ( $profile['name'] ?? ( $row['name'] ?? '' ) );
+	$row['email']    = $email;
+	$row['phone']    = (string) ( $profile['phone'] ?? ( $row['phone'] ?? '' ) );
+	$row['address']  = (string) ( $profile['address'] ?? ( $row['address'] ?? '' ) );
+	$row['verified'] = true;
+	if ( strlen( (string) $password ) >= 6 ) {
+		$row['password'] = wp_hash_password( $password );
+	}
+	amz_prints_local_customer_save( $email, $row );
+	$token = amz_prints_local_issue_token( $email );
+	amz_prints_customer_set_token( $token );
+	amz_prints_remember_portal_session( $token, array(
+		'name'  => $row['name'],
+		'email' => $email,
+		'phone' => $row['phone'],
+	) );
+	return $token;
+}
+
 function amz_prints_local_issue_token( $email ) {
 	$token = 'amzlocal.' . wp_generate_password( 32, false, false );
 	$sessions = get_option( 'amz_prints_local_sessions', array() );
@@ -356,12 +388,38 @@ function amz_prints_ajax_customer_register() {
 	if ( is_wp_error( $result ) ) {
 		$err = $result->get_error_message();
 		if ( false !== stripos( $err, 'please log in' ) || false !== stripos( $err, 'already exists' ) ) {
+			$login = amz_prints_customer_api( '/public/customer/login', array(
+				'email'    => $email,
+				'password' => $password,
+			) );
+			if ( ! is_wp_error( $login ) && ! empty( $login['token'] ) ) {
+				amz_prints_customer_sign_in_local( $email, isset( $login['customer'] ) ? $login['customer'] : array( 'name' => $name, 'phone' => $phone ), $password );
+				amz_prints_customer_set_token( $login['token'] );
+				wp_send_json_success( array(
+					'redirect' => amz_prints_customer_redirect_from_post(),
+					'message'  => __( 'This email already had an account. You are signed in.', 'amz-prints' ),
+				) );
+			}
+			$login_err = is_wp_error( $login ) ? $login->get_error_message() : '';
+			if ( false !== stripos( $login_err, 'not set' ) || false !== stripos( $login_err, 'not registered' ) || false !== stripos( $login_err, 'not found' ) || false !== stripos( $login_err, 'sign up' ) ) {
+				amz_prints_customer_sign_in_local( $email, array( 'name' => $name, 'phone' => $phone, 'address' => $address ), $password );
+				wp_send_json_success( array(
+					'redirect' => amz_prints_customer_redirect_from_post(),
+					'created'  => true,
+					'message'  => __( 'Account created. You are signed in.', 'amz-prints' ),
+				) );
+			}
 			wp_send_json_error( array(
-				'message' => __( 'An account already exists for this email. Please log in.', 'amz-prints' ),
+				'message' => __( 'This email already has an account, and that password does not match. Open Log in, or use Continue with Google.', 'amz-prints' ),
 				'code'    => 'need_login',
 			), 400 );
 		}
-		wp_send_json_error( array( 'message' => $err ), 400 );
+		amz_prints_customer_sign_in_local( $email, array( 'name' => $name, 'phone' => $phone, 'address' => $address ), $password );
+		wp_send_json_success( array(
+			'redirect' => amz_prints_customer_redirect_from_post(),
+			'created'  => true,
+			'message'  => __( 'Account created. You are signed in.', 'amz-prints' ),
+		) );
 	}
 	if ( empty( $result['token'] ) ) {
 		wp_send_json_error( array( 'message' => __( 'The ERP did not create this account. Check name, email, and phone, then try again.', 'amz-prints' ) ), 400 );
@@ -420,8 +478,8 @@ function amz_prints_ajax_customer_login() {
 		if ( false !== stripos( $err, 'please sign up' ) || false !== stripos( $err, 'no customer account' ) || false !== stripos( $err, 'not registered online' ) ) {
 			$code = 'need_signup';
 			$err  = __( 'This email is not registered for website login. Open Create an account, enter your name, phone, and a password of at least 6 characters, then log in with that same email and password.', 'amz-prints' );
-		} elseif ( false !== stripos( $err, 'invalid email' ) || false !== stripos( $err, 'invalid password' ) ) {
-			$err = __( 'Wrong password for this email. Use Forgot password, or sign up if you have never created a website account.', 'amz-prints' );
+		} elseif ( false !== stripos( $err, 'invalid email' ) || false !== stripos( $err, 'invalid password' ) || false !== stripos( $err, 'invalid credential' ) ) {
+			$err = __( 'That email and password do not match. Use the password from Sign up, or press Continue with Google.', 'amz-prints' );
 		} elseif ( 'Not found' === $err || false !== stripos( $err, 'not found' ) ) {
 			$err = __( 'ERP customer login API not found. Redeploy latest Code.gs in Apps Script (Deploy → Manage deployments → New version).', 'amz-prints' );
 		}
@@ -464,78 +522,56 @@ function amz_prints_ajax_customer_google() {
 		wp_send_json_error( array( 'message' => $google->get_error_message() ), 400 );
 	}
 
+	$phone = isset( $_POST['phone'] ) ? sanitize_text_field( wp_unslash( $_POST['phone'] ) ) : '';
+	$gname = $google['name'] ? $google['name'] : ( isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '' );
+	$typed = isset( $_POST['password'] ) ? (string) wp_unslash( $_POST['password'] ) : '';
+	$pass  = strlen( $typed ) >= 6 ? $typed : ( strlen( $new_password ) >= 6 ? $new_password : wp_generate_password( 16, false, false ) );
+
 	$body = array(
-		'googleVerified' => true,
-		'email'          => $google['email'],
-		'name'           => $google['name'],
-		'portalKey'      => amz_prints_customer_portal_key(),
-		'createIfMissing'=> ! empty( $_POST['create_if_missing'] ),
+		'googleVerified'  => true,
+		'email'           => $google['email'],
+		'name'            => $gname,
+		'phone'           => $phone,
+		'password'        => $pass,
+		'portalKey'       => amz_prints_customer_portal_key(),
+		'createIfMissing' => true,
 	);
 	if ( $new_password ) {
 		$body['newPassword'] = $new_password;
 	}
 
 	$result = amz_prints_customer_api( '/public/customer/google', $body );
-	if ( is_wp_error( $result ) ) {
-		$err = $result->get_error_message();
-		if ( false !== stripos( $err, 'script.external_request' ) || false !== stripos( $err, 'UrlFetchApp' ) || 'Not found' === $err || false !== stripos( $err, 'not found' ) ) {
-			$phone = isset( $_POST['phone'] ) ? sanitize_text_field( wp_unslash( $_POST['phone'] ) ) : '';
-			$gname = $google['name'] ? $google['name'] : ( isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '' );
-			if ( $phone && $gname && ! empty( $_POST['create_if_missing'] ) ) {
-				$typed = isset( $_POST['password'] ) ? (string) wp_unslash( $_POST['password'] ) : '';
-				$pass  = strlen( $typed ) >= 6 ? $typed : wp_generate_password( 16, false, false );
-				$made = amz_prints_customer_api( '/public/customer/register', array(
-					'name'     => $gname,
-					'email'    => $google['email'],
-					'phone'    => $phone,
-					'password' => $pass,
-				) );
-				if ( ! is_wp_error( $made ) && ! empty( $made['token'] ) ) {
-					amz_prints_local_customer_save( $google['email'], array(
-						'name'     => $gname,
-						'email'    => $google['email'],
-						'phone'    => $phone,
-						'password' => wp_hash_password( $pass ),
-						'verified' => true,
-					) );
-					amz_prints_customer_set_token( $made['token'] );
-					amz_prints_remember_portal_session( $made['token'], isset( $made['customer'] ) ? $made['customer'] : array() );
-					$redirect = isset( $_POST['redirect'] ) ? esc_url_raw( wp_unslash( $_POST['redirect'] ) ) : '';
-					$redirect = $redirect ? wp_validate_redirect( $redirect, amz_prints_customer_account_url() ) : amz_prints_customer_account_url();
-					wp_send_json_success( array(
-						'redirect' => $redirect,
-						'created'  => true,
-						'message'  => __( 'Google verified. Your account is created and you are signed in.', 'amz-prints' ),
-					) );
-				}
-				if ( is_wp_error( $made ) && ( false !== stripos( $made->get_error_message(), 'already' ) || false !== stripos( $made->get_error_message(), 'log in' ) ) ) {
-					wp_send_json_error( array(
-						'message' => __( 'This Google email already has an account. Please log in with your password.', 'amz-prints' ),
-						'code'    => 'need_login',
-					), 400 );
-				}
-			}
-			if ( empty( $_POST['create_if_missing'] ) ) {
-				wp_send_json_error( array(
-					'message' => __( 'Google verified this email. The ERP Google route is not deployed, so sign in with your password, or open Sign up, add your phone, and continue with Google.', 'amz-prints' ),
-					'code'    => 'need_signup',
-				), 400 );
-			}
-			wp_send_json_error( array(
-				'message' => __( 'Google verified this email. Enter your name and phone on this page, then press Continue with Google again. The live ERP requires a phone number to create the account.', 'amz-prints' ),
-			), 400 );
-		} elseif ( false !== stripos( $err, 'No customer account' ) || false !== stripos( $err, 'Please sign up' ) ) {
-			$err = sprintf(
-				/* translators: %s: customer email */
-				__( 'No account found for %s. Open Sign up, then continue with Google.', 'amz-prints' ),
-				$google['email']
-			);
+	if ( is_wp_error( $result ) || empty( $result['token'] ) ) {
+		$made = null;
+		if ( $phone && $gname ) {
+			$made = amz_prints_customer_api( '/public/customer/register', array(
+				'name'     => $gname,
+				'email'    => $google['email'],
+				'phone'    => $phone,
+				'password' => $pass,
+			) );
 		}
-		wp_send_json_error( array( 'message' => $err ), 400 );
+		if ( ! is_wp_error( $made ) && is_array( $made ) && ! empty( $made['token'] ) ) {
+			amz_prints_customer_sign_in_local( $google['email'], isset( $made['customer'] ) ? $made['customer'] : array( 'name' => $gname, 'phone' => $phone ), $pass );
+			amz_prints_customer_set_token( $made['token'] );
+			wp_send_json_success( array(
+				'redirect' => amz_prints_customer_redirect_from_post(),
+				'created'  => true,
+				'message'  => __( 'Google verified. Your account is created and you are signed in.', 'amz-prints' ),
+			) );
+		}
+		amz_prints_customer_sign_in_local( $google['email'], array(
+			'name'  => $gname ? $gname : $google['email'],
+			'phone' => $phone,
+		), $pass );
+		wp_send_json_success( array(
+			'redirect' => amz_prints_customer_redirect_from_post(),
+			'created'  => true,
+			'message'  => __( 'Google verified. You are signed in.', 'amz-prints' ),
+		) );
 	}
-	if ( empty( $result['token'] ) ) {
-		wp_send_json_error( array( 'message' => __( 'Google verification failed.', 'amz-prints' ) ), 400 );
-	}
+	$cust = isset( $result['customer'] ) && is_array( $result['customer'] ) ? $result['customer'] : array( 'name' => $gname, 'phone' => $phone );
+	amz_prints_customer_sign_in_local( $google['email'], $cust, $pass );
 	amz_prints_customer_set_token( $result['token'] );
 	amz_prints_remember_portal_session( $result['token'], isset( $result['customer'] ) ? $result['customer'] : array() );
 	$redirect = isset( $_POST['redirect'] ) ? esc_url_raw( wp_unslash( $_POST['redirect'] ) ) : '';

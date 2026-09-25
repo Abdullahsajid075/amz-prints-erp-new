@@ -88,7 +88,7 @@ $signup_url    = $prefill ? add_query_arg( 'email', rawurlencode( $prefill ), ho
 			<div class="customer-google-box" data-auth-google>
 				<div class="customer-auth-divider"><span><?php esc_html_e( 'or', 'amz-prints' ); ?></span></div>
 				<h3><?php esc_html_e( 'Continue with Google', 'amz-prints' ); ?></h3>
-				<p><?php esc_html_e( 'Google verifies this email. An existing account is signed in. A new Google email is not registered here — use Create an account.', 'amz-prints' ); ?></p>
+				<p><?php esc_html_e( 'Press Continue with Google. If this email is new, the account is created and you are signed in.', 'amz-prints' ); ?></p>
 				<?php if ( $google_client ) : ?>
 					<div id="amz-google-btn" class="amz-google-btn"></div>
 					<p class="form-note" id="amz-customer-google-msg" hidden></p>
