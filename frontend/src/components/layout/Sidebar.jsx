@@ -20,6 +20,8 @@ const menuGroups = [
     label: null,
     items: [
       { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', module: 'dashboard', testId: 'nav-dashboard' },
+      { icon: ListTodo, label: 'Internal Tasks', path: '/tasks', module: 'tasks', testId: 'nav-tasks' },
+      { icon: Megaphone, label: 'Broadcasts', path: '/broadcasts', module: 'broadcasts', testId: 'nav-broadcasts' },
     ],
   },
   {
@@ -32,7 +34,6 @@ const menuGroups = [
       { icon: FileText, label: 'Invoices', path: '/invoices', module: 'invoices', testId: 'nav-invoices' },
       { icon: Users, label: 'Customers', path: '/customers', module: 'customers', testId: 'nav-customers' },
       { icon: Kanban, label: 'CRM', path: '/crm', module: 'crm', testId: 'nav-crm' },
-      { icon: Megaphone, label: 'Broadcasts', path: '/broadcasts', module: 'broadcasts', testId: 'nav-broadcasts' },
       {
         icon: Store,
         label: 'POS',
@@ -74,7 +75,6 @@ const menuGroups = [
           { label: 'Employees', path: '/hr/employees', module: 'hr' },
         ],
       },
-      { icon: ListTodo, label: 'Internal Tasks', path: '/tasks', module: 'tasks', testId: 'nav-tasks' },
       { icon: Calculator, label: 'Cost Calculator', path: '/calculator', module: 'calculator', testId: 'nav-calculator' },
     ],
   },

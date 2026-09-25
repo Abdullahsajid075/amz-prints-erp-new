@@ -12,8 +12,8 @@ export const APP_MODULES = [
   { key: 'warehouse', label: 'Warehouse' },
   { key: 'pos', label: 'POS' },
   { key: 'hr', label: 'HR' },
-  { key: 'tasks', label: 'Internal Tasks' },
-  { key: 'broadcasts', label: 'Broadcasts' },
+  { key: 'tasks', label: 'Internal Tasks', always: true },
+  { key: 'broadcasts', label: 'Broadcasts', always: true },
   { key: 'calculator', label: 'Cost Calculator' },
   { key: 'accounts', label: 'Accounts' },
   { key: 'vendors', label: 'Vendors' },
@@ -61,7 +61,7 @@ export function canAccessModule(user, moduleKey) {
   if (!user || !moduleKey) return false;
   const key = String(moduleKey).trim().toLowerCase();
   if (!key) return false;
-  if (key === 'dashboard') return true;
+  if (key === 'dashboard' || key === 'tasks' || key === 'broadcasts') return true;
   if (hasFullAccess(user)) return true;
   if (key === 'settings') return false;
 
