@@ -394,6 +394,7 @@ const Products = () => {
     if (!window.confirm(`Delete "${product.name}"?`)) return;
     try {
       await productsAPI.delete(product.id);
+      try { await productsAPI.publishWebsite(); } catch { /* listing refresh is enough */ }
       toast.success('Deleted');
       fetchProducts();
     } catch {

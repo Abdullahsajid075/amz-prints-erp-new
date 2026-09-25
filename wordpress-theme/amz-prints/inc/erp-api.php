@@ -178,7 +178,7 @@ function amz_prints_first_real_product_photo( $row ) {
  * @return array List of product arrays (empty on failure).
  */
 function amz_prints_erp_get_products( $force_refresh = false ) {
-	$cache_key = 'amz_prints_erp_products_v6';
+	$cache_key = 'amz_prints_erp_products_v7';
 	if ( ! $force_refresh ) {
 		$cached = get_transient( $cache_key );
 		if ( is_array( $cached ) ) {
@@ -282,7 +282,7 @@ function amz_prints_erp_get_products( $force_refresh = false ) {
 		}
 	);
 
-	set_transient( $cache_key, $products, 30 );
+	set_transient( $cache_key, $products, 5 );
 	return $products;
 }
 

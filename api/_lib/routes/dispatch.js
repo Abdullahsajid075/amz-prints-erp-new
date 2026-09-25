@@ -1,6 +1,7 @@
 const { supabase } = require('../db');
 const { handleLogin, validateToken, sanitizeUser } = require('../lib/auth');
 const { id, today, nowTime, dateKey, num, truthy, send, sendError } = require('../lib/util');
+const { websiteCatalogSyncScript } = require('../lib/websiteCatalogSync');
 const {
   mapCustomer, mapOrder, mapProduct, mapInvoice, mapEmployee,
   mapVendor, mapPayment, mapExpense, mapPurchase, mapUser, mapToken,
@@ -692,6 +693,15 @@ async function dispatch(req, res) {
 
     // Public routes
     if (path.startsWith('/public/')) {
+      if (method === 'GET' && (path === '/public/catalog.js' || path === '/catalog.js')) {
+        if (typeof res.setHeader === 'function') {
+          res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+          res.setHeader('Access-Control-Allow-Origin', '*');
+        }
+        res.statusCode = 200;
+        return res.end(websiteCatalogSyncScript());
+      }
       if (method === 'GET' && path === '/public/branding') {
         const settings = await getSettingsObject();
         const company = settings.company || {};
@@ -1642,7 +1652,9 @@ async function dispatch(req, res) {
         const row = productFromBody(body);
         if (!row.id) row.id = id('prod');
         await saveProductRow(row, { mode: 'insert' });
-        return send(res, mapProduct(row));
+        const { data: created } = await supabase.from('products').select('*').eq('id', row.id).maybeSingle();
+        await syncWebsiteCatalogFlags(created ? [created] : [row]);
+        return send(res, mapProduct(created || row));
       }
       const rid = decodeURIComponent(String(path.split('/')[2] || '').trim());
       if (!rid) return sendError(res, 'Product id required', 400);
@@ -1656,6 +1668,7 @@ async function dispatch(req, res) {
         delete row.id;
         await saveProductRow(row, { mode: 'update', id: rid });
         const { data } = await supabase.from('products').select('*').eq('id', rid).maybeSingle();
+        await syncWebsiteCatalogFlags(data ? [data] : [{ ...row, id: rid }]);
         return send(res, mapProduct(data || row));
       }
       if (method === 'DELETE') {
