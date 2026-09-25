@@ -168,6 +168,15 @@
   object-fit: cover;
   display: block;
   background: #eef2f8;
+  animation: prodZoom 7s ease-in-out infinite alternate;
+}
+
+.amz-prodrail__card:nth-child(2n) img { animation-delay: -2s; }
+.amz-prodrail__card:nth-child(3n) img { animation-delay: -4s; }
+
+@keyframes prodZoom {
+  from { transform: scale(1); }
+  to { transform: scale(1.08); }
 }
 
 .amz-prodrail__card span {
@@ -191,8 +200,8 @@
 
 .land-mix__card {
   border-radius: 20px;
-  padding: 1.3rem 1.35rem 1.2rem;
-  min-height: 240px;
+  padding: 1rem 1.15rem 0.95rem;
+  min-height: 0;
   color: #fff;
   display: flex;
   flex-direction: column;
@@ -235,7 +244,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .amz-prodrail__track { animation: none; }
+  .amz-prodrail__track,
+  .land-hero__photo,
+  .land-hero__copy,
+  .amz-prodrail__card img { animation: none; }
 }
 
 .amz-a4 {
@@ -279,19 +291,25 @@
 
 .land-hero {
   position: relative;
-  min-height: calc(100svh - var(--header-h));
-  padding: calc(var(--header-h) + 1.4rem) 0 2.2rem;
+  min-height: 0;
+  height: min(460px, 62vh);
+  padding: calc(var(--header-h) + 0.8rem) 0 1.1rem;
   overflow: hidden;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
 }
 
 .land-hero__photo {
   position: absolute;
-  inset: 0;
+  inset: -4%;
   background-size: cover;
   background-position: center 28%;
-  transform: scale(1.04);
+  animation: heroKen 16s ease-in-out infinite alternate;
+}
+
+@keyframes heroKen {
+  from { transform: scale(1); }
+  to { transform: scale(1.08); }
 }
 
 .land-hero__wash {
@@ -310,11 +328,20 @@
   gap: 1.6rem;
 }
 
+.land-hero__copy {
+  animation: heroIn 0.7s ease both;
+}
+
+@keyframes heroIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+
 .land-hero__brand {
   margin: 0;
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(2.4rem, 6vw, 4.4rem);
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
   letter-spacing: -0.05em;
   line-height: 0.92;
   color: var(--amz-ink);
@@ -538,7 +565,7 @@
 }
 
 @media (max-width: 640px) {
-  .land-hero { min-height: auto; padding-top: calc(var(--header-h) + 1.1rem); }
+  .land-hero { height: auto; min-height: 320px; padding-top: calc(var(--header-h) + 1.1rem); }
   .land-hero__tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .land-quick { margin-top: 0.6rem; }
   .land-quick__grid { grid-template-columns: 1fr 1fr; }
