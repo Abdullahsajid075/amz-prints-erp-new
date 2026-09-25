@@ -20,6 +20,7 @@ function isAllowedOrigin(origin) {
     const host = new URL(origin).hostname;
     if (host === 'localhost' || host === '127.0.0.1') return true;
     if (host.endsWith('.vercel.app')) return true;
+    if (host === 'amzprints.com' || host.endsWith('.amzprints.com')) return true;
   } catch {
     return false;
   }

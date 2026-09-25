@@ -4409,17 +4409,65 @@ function productEffectivePrice_(p) {
   return sale > 0 ? sale : regular;
 }
 
+function isRealProductPhoto_(src) {
+  var s = String(src || '').trim();
+  if (s.length < 12) return false;
+  return s.indexOf('data:image') === 0 || /^https?:\/\//i.test(s);
+}
+
+function isWebsiteCatalogReady_(p) {
+  if (!p) return false;
+  var images = [];
+  if (Array.isArray(p.images)) {
+    p.images.forEach(function (img) { images.push(img); });
+  }
+  if (p.image) images.unshift(p.image);
+  if (p.photo) images.unshift(p.photo);
+  var hasPhoto = false;
+  for (var i = 0; i < images.length; i++) {
+    if (isRealProductPhoto_(images[i])) {
+      hasPhoto = true;
+      break;
+    }
+  }
+  var desc = String(p.description || p.fullDescription || p.fulldescription || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return hasPhoto && desc.length >= 3;
+}
+
+function fetchLiveErpPublicProducts_() {
+  try {
+    var url = 'https://amz-prints-api.vercel.app/api?path=' + encodeURIComponent('/public/products');
+    var res = UrlFetchApp.fetch(url, {
+      muteHttpExceptions: true,
+      followRedirects: true,
+      headers: { Accept: 'application/json' },
+    });
+    if (res.getResponseCode() >= 400) return null;
+    var data = JSON.parse(res.getContentText() || '{}');
+    var list = data && data.products ? data.products : (Array.isArray(data) ? data : []);
+    if (!list.length) return null;
+    return list.filter(function (p) {
+      return p && p.active !== false && isWebsiteCatalogReady_(p);
+    });
+  } catch (err) {
+    return null;
+  }
+}
+
 function toPublicProduct_(p) {
   var api = toApiProduct_(p);
   if (!api.active) return null;
-  if (!api.showOnWebsite) return null;
   if (!Array.isArray(api.images) || !api.images.length) {
     api.images = api.image ? [api.image] : [];
   }
-  // Always expose the full gallery to the website (HD Drive URLs or stored photos)
   if (api.image && api.images.indexOf(api.image) < 0) {
     api.images = [api.image].concat(api.images);
   }
+  // Same rule for every product: no real photo = not on the website.
+  if (!isWebsiteCatalogReady_(api)) return null;
   return api;
 }
 
@@ -4596,6 +4644,16 @@ function handlePublic_(path, method, body) {
   }
 
   if (method === 'GET' && path === '/public/products') {
+    var liveProducts = fetchLiveErpPublicProducts_();
+    if (liveProducts) {
+      liveProducts.sort(function (a, b) {
+        var at = a.showOnTop ? 1 : 0;
+        var bt = b.showOnTop ? 1 : 0;
+        if (bt !== at) return bt - at;
+        return String(a.name || '').localeCompare(String(b.name || ''));
+      });
+      return { products: liveProducts };
+    }
     ensureHeaders_(getSheet_(SHEET_NAMES.PRODUCTS), SHEET_NAMES.PRODUCTS);
     var products = getSheetRows_(SHEET_NAMES.PRODUCTS)
       .map(toPublicProduct_)
@@ -4611,6 +4669,9 @@ function handlePublic_(path, method, body) {
 
   if (method === 'GET' && path.indexOf('/public/products/') === 0) {
     var productId = decodeURIComponent(path.replace('/public/products/', '')).trim();
+    var liveList = fetchLiveErpPublicProducts_() || [];
+    var liveOne = liveList.filter(function (p) { return String(p.id) === productId; })[0];
+    if (liveOne) return liveOne;
     var productRows = getSheetRows_(SHEET_NAMES.PRODUCTS);
     var productRow = productRows.find(function (p) { return String(p.id) === productId; });
     if (!productRow) throw new Error('Product not found');

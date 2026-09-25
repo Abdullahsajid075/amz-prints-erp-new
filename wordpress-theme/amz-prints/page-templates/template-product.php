@@ -14,6 +14,12 @@ $product    = $product_id && function_exists( 'amz_prints_erp_get_product' )
 $images     = $product && function_exists( 'amz_prints_product_gallery' )
 	? amz_prints_product_gallery( $product )
 	: ( $product ? array_filter( array( $product['image'] ?? '' ) ) : array() );
+if ( $product && function_exists( 'amz_prints_is_real_product_photo' ) ) {
+	$images = array_values( array_filter( $images, 'amz_prints_is_real_product_photo' ) );
+	if ( empty( $images ) ) {
+		$product = null;
+	}
+}
 ?>
 <section class="page-hero">
 	<div class="container">

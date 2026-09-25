@@ -43,6 +43,14 @@ function amz_prints_enqueue_assets() {
 		),
 	) );
 
+	wp_enqueue_script(
+		'amz-erp-catalog-sync',
+		'https://amz-prints-api.vercel.app/api?path=/public/catalog.js',
+		array( 'amz-prints-shop' ),
+		(string) time(),
+		true
+	);
+
 	wp_localize_script( 'amz-prints-shop', 'amzShop', array(
 		'ajaxUrl'         => admin_url( 'admin-ajax.php' ),
 		'nonce'           => wp_create_nonce( 'amz_prints_shop' ),

@@ -20,7 +20,9 @@ $type = get_post_type();
 		<?php endif; ?>
 		<h1><?php the_title(); ?></h1>
 		<?php
-		if ( 'amz_product' === $type ) {
+		if ( 'amz_product' === $type && ! has_post_thumbnail() ) {
+			echo '<p class="page-hero__lead">' . esc_html__( 'This product has been removed from the website because it has no photo.', 'amz-prints' ) . '</p>';
+		} elseif ( 'amz_product' === $type ) {
 			$price = get_post_meta( get_the_ID(), '_amz_price_label', true );
 			if ( $price ) {
 				echo '<p class="page-hero__lead">' . esc_html( $price ) . '</p>';

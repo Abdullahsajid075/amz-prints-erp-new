@@ -91,15 +91,23 @@ function parseImages(images, fallback = '') {
   return list.slice(0, 5);
 }
 
-/** Website catalog: at least one photo and a real description. */
+/** Real website photo: data-URL or http(s), not a letter placeholder. */
+function isRealProductPhoto(src) {
+  const s = String(src || '').trim();
+  if (s.length < 12) return false;
+  return /^data:image\//i.test(s) || /^https?:\/\//i.test(s);
+}
+
+/** Website catalog: at least one real photo and a real description. */
 function isWebsiteCatalogReady(p) {
   if (!p) return false;
   const images = parseImages(p.images || p.gallery, p.image || p.photo || '');
+  const hasPhoto = images.some(isRealProductPhoto);
   const desc = String(p.description || p.fullDescription || p.full_description || '')
     .replace(/<[^>]*>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-  return images.length > 0 && desc.length >= 3;
+  return hasPhoto && desc.length >= 3;
 }
 
 function invoiceStatusFromPaid(total, paid) {
@@ -244,6 +252,7 @@ module.exports = {
   uniqueStrings,
   collectOrderIds,
   parseImages,
+  isRealProductPhoto,
   isWebsiteCatalogReady,
   isServiceProduct,
   productTracksInventory,

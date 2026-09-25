@@ -12,17 +12,21 @@ if ( ! defined( 'ABSPATH' ) ) {
 if ( ! defined( 'AMZ_PRINTS_ERP_API_DEFAULT' ) ) {
 	define(
 		'AMZ_PRINTS_ERP_API_DEFAULT',
-		'https://script.google.com/macros/s/AKfycbxEvWjbbh0-VJ1JxKR-qFZ9TbllIyh9rAJRg1ythfihJP61o6sxvcYhHehXafZEYummLw/exec'
+		'https://amz-prints-api.vercel.app/api'
 	);
 }
 
 if ( ! function_exists( 'amz_prints_erp_api_url' ) ) {
 	/**
 	 * ERP API base URL (Customizer override supported).
+	 * Retired Google Apps Script catalogs still include products with no photo.
 	 */
 	function amz_prints_erp_api_url() {
 		$url = trim( (string) amz_prints_mod( 'amz_erp_api_url', AMZ_PRINTS_ERP_API_DEFAULT ) );
-		return $url ? $url : AMZ_PRINTS_ERP_API_DEFAULT;
+		if ( ! $url || stripos( $url, 'script.google.com' ) !== false ) {
+			return AMZ_PRINTS_ERP_API_DEFAULT;
+		}
+		return $url;
 	}
 }
 
@@ -130,13 +134,51 @@ function amz_prints_erp_request( $method, $path, $body = null ) {
 }
 
 /**
+ * True when the value is a real product photo (data-URL or http(s)).
+ *
+ * @param string $src Candidate image.
+ * @return bool
+ */
+function amz_prints_is_real_product_photo( $src ) {
+	$c = trim( (string) $src );
+	if ( strlen( $c ) < 12 ) {
+		return false;
+	}
+	return ( 0 === stripos( $c, 'data:image' ) ) || (bool) preg_match( '#^https?://#i', $c );
+}
+
+/**
+ * First real photo from a product row, or empty string.
+ *
+ * @param array $row Product row.
+ * @return string
+ */
+function amz_prints_first_real_product_photo( $row ) {
+	$images = array();
+	if ( ! empty( $row['images'] ) && is_array( $row['images'] ) ) {
+		$images = array_values( array_filter( array_map( 'strval', $row['images'] ) ) );
+	}
+	$primary = (string) ( $row['image'] ?? $row['photo'] ?? '' );
+	if ( $primary && ! in_array( $primary, $images, true ) ) {
+		array_unshift( $images, $primary );
+	}
+	foreach ( $images as $candidate ) {
+		if ( amz_prints_is_real_product_photo( $candidate ) ) {
+			return trim( (string) $candidate );
+		}
+	}
+	return '';
+}
+
+/**
  * Live active products from ERP (short cache so new catalog items appear quickly).
+ * Products without a real photo are never returned — they stay delisted.
  *
  * @param bool $force_refresh Bypass transient.
  * @return array List of product arrays (empty on failure).
  */
 function amz_prints_erp_get_products( $force_refresh = false ) {
-	$cache_key = 'amz_prints_erp_products_v4';
+	$cache_key = 'amz_prints_erp_products_v7';
 	if ( ! $force_refresh ) {
 		$cached = get_transient( $cache_key );
 		if ( is_array( $cached ) ) {
@@ -188,6 +230,10 @@ function amz_prints_erp_get_products( $force_refresh = false ) {
 		if ( $primary && ! in_array( $primary, $images, true ) ) {
 			array_unshift( $images, $primary );
 		}
+		$photo = amz_prints_first_real_product_photo( $row );
+		if ( ! $photo ) {
+			continue;
+		}
 		$variations = array();
 		if ( ! empty( $row['variations'] ) && is_array( $row['variations'] ) ) {
 			foreach ( $row['variations'] as $v ) {
@@ -216,7 +262,7 @@ function amz_prints_erp_get_products( $force_refresh = false ) {
 			'material'        => (string) ( $row['material'] ?? '' ),
 			'size'            => (string) ( $row['size'] ?? '' ),
 			'minQuantity'     => isset( $row['minQuantity'] ) ? (float) $row['minQuantity'] : 1,
-			'image'           => $primary ?: ( $images[0] ?? '' ),
+			'image'           => $photo,
 			'images'          => $images,
 			'variations'      => $variations,
 			'showOnWebsite'   => ! empty( $row['showOnWebsite'] ) || ! array_key_exists( 'showOnWebsite', $row ),
@@ -236,7 +282,7 @@ function amz_prints_erp_get_products( $force_refresh = false ) {
 		}
 	);
 
-	set_transient( $cache_key, $products, 30 );
+	set_transient( $cache_key, $products, 5 );
 	return $products;
 }
 
