@@ -1462,6 +1462,10 @@ async function dispatch(req, res) {
           if (cust) body.customerId = cust.id;
         }
         if (!body.trackingNumber) body.trackingNumber = `TRK-${Math.floor(1000 + Math.random() * 9000)}`;
+        if (String(body.status || '').trim().toLowerCase() === 'delivered') {
+          const allowed = await customerCanBeDelivered(body);
+          if (!allowed) return sendError(res, 'This customer has no invoice. Create the invoice first — the order can be delivered only after that.', 400);
+        }
         const row = orderFromBody(body);
         if (!row.order_id) row.order_id = await nextOrderId(docType === 'pos' ? 'POS' : 'ORD');
         if (!row.status_history || !row.status_history.length) {
@@ -1486,9 +1490,36 @@ async function dispatch(req, res) {
       return await handleOrderByRow(existing, action, method, body, res);
     }
 
+    async function customerCanBeDelivered(orderRow) {
+      const { data: invoices } = await supabase.from('invoices').select('id,customer_id,customer_phone,customer_email,order_id');
+      const cid = String(orderRow.customer_id || orderRow.customerId || '').trim();
+      const phone = String(orderRow.customer_phone || orderRow.customerPhone || '').replace(/\D/g, '');
+      const email = String(orderRow.customer_email || orderRow.customerEmail || '').trim().toLowerCase();
+      const oid = String(orderRow.id || '').trim();
+      const orderCode = String(orderRow.order_id || orderRow.orderId || '').trim();
+      return (invoices || []).some((inv) => {
+        const invOrder = String(inv.order_id || '').trim();
+        if (orderCode && invOrder && invOrder === orderCode) return true;
+        if (oid && invOrder && invOrder === oid) return true;
+        if (cid && String(inv.customer_id || '') === cid) return true;
+        const invPhone = String(inv.customer_phone || '').replace(/\D/g, '');
+        if (phone && invPhone && phone === invPhone) return true;
+        const invEmail = String(inv.customer_email || '').trim().toLowerCase();
+        if (email && invEmail && email === invEmail) return true;
+        return false;
+      });
+    }
+
+    const DELIVERY_BLOCKED = 'This customer has no invoice. Create the invoice first — the order can be delivered only after that.';
+
     async function handleOrderByRow(existing, action, method, body, res) {
       if (action === 'status' && (method === 'PATCH' || method === 'POST')) {
         const status = body.status || existing.status;
+        const becomingDelivered = String(status).trim().toLowerCase() === 'delivered'
+          && String(existing.status || '').trim().toLowerCase() !== 'delivered';
+        if (becomingDelivered && !(await customerCanBeDelivered(existing))) {
+          return sendError(res, DELIVERY_BLOCKED, 400);
+        }
         const hist = Array.isArray(existing.status_history) ? [...existing.status_history] : [];
         hist.push({ status, at: `${today()} ${nowTime()}`, note: 'Status update' });
         await supabase.from('orders').update({ status, status_history: hist }).eq('id', existing.id);
@@ -1505,6 +1536,18 @@ async function dispatch(req, res) {
       }
       if (method === 'GET') return send(res, mapOrder(existing));
       if (method === 'PUT') {
+        const nextStatus = body.status || existing.status;
+        const becomingDelivered = String(nextStatus).trim().toLowerCase() === 'delivered'
+          && String(existing.status || '').trim().toLowerCase() !== 'delivered';
+        if (becomingDelivered && !(await customerCanBeDelivered({
+          ...existing,
+          customer_id: body.customerId || existing.customer_id,
+          customer_phone: body.customerPhone || existing.customer_phone,
+          customer_email: body.customerEmail || existing.customer_email,
+          order_id: existing.order_id,
+        }))) {
+          return sendError(res, DELIVERY_BLOCKED, 400);
+        }
         const row = orderFromBody(body, existing);
         row.id = existing.id;
         if (!row.order_id) row.order_id = existing.order_id;

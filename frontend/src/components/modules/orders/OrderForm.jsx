@@ -568,6 +568,7 @@ const OrderForm = () => {
                       ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-[11px] text-gray-500 mt-1">Delivered is allowed only after an invoice exists for this customer.</p>
                 </div>
               </div>
               <div>
