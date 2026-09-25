@@ -13,7 +13,7 @@ import { useBrand } from '@/context/BrandContext';
 import {
   Search, Plus, Minus, Trash2, Printer, PackagePlus, UserPlus, Package, Wrench,
   Lock, Unlock, BookOpen, Settings, Clock, LayoutGrid, Pause, RotateCcw,
-  Banknote, CreditCard, Building2, Quote, User, ArrowDownLeft, Coins,
+  Banknote, CreditCard, Building2, Quote, User, ArrowDownLeft, Coins, ShoppingCart, X,
 } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
@@ -70,6 +70,7 @@ const POS = () => {
   const [clock, setClock] = useState(() => new Date());
   const [registerReady, setRegisterReady] = useState(false);
   const [varPick, setVarPick] = useState(null);
+  const [cartDrawer, setCartDrawer] = useState(false);
 
   const loadProducts = useCallback(async () => {
     try {
@@ -177,10 +178,22 @@ const POS = () => {
     });
   }, [products, category, search]);
 
-  const stockGuard = (product, nextQty) => {
-    if (!product || !invCfg.trackStock || invCfg.allowNegativeStock) return true;
+  const availableStock = (product, variationId = '') => {
+    if (variationId && Array.isArray(product?.variations)) {
+      const found = product.variations.find((v) => String(v.id) === String(variationId));
+      if (found && found.stock != null && found.stock !== '') return Number(found.stock) || 0;
+    }
+    return Number(product?.stock ?? 0) || 0;
+  };
+
+  const stockGuard = (product, nextQty, variationId = '') => {
+    if (!product || !invCfg.trackStock) return true;
     if (!tracksInventory(product)) return true;
-    const stock = Number(product.stock ?? 0) || 0;
+    const stock = availableStock(product, variationId);
+    if (stock <= 0) {
+      toast.error(`POS sale nahi ho sakti — ${product.name} stock 0. Order book karein.`);
+      return false;
+    }
     if (nextQty > stock) {
       toast.error(`Inventory block: only ${stock} of ${product.name} in stock`);
       return false;
@@ -206,7 +219,7 @@ const POS = () => {
     setCart((prev) => {
       const idx = prev.findIndex((c) => `${c.productId}::${c.variationId || ''}` === lineKey);
       const nextQty = idx >= 0 ? prev[idx].quantity + 1 : 1;
-      if (!stockGuard({ ...product, stock: chosen?.stock != null ? chosen.stock : product.stock }, nextQty)) return prev;
+      if (!stockGuard(product, nextQty, chosen?.id || '')) return prev;
       if (idx >= 0) {
         const next = [...prev];
         next[idx] = { ...next[idx], quantity: nextQty };
@@ -228,18 +241,24 @@ const POS = () => {
       }];
     });
     setVarPick(null);
+    if (typeof window !== 'undefined' && window.innerWidth < 640) setCartDrawer(true);
   };
 
   const lineKeyOf = (item) => `${item.productId}::${item.variationId || ''}`;
 
+  const matchesCartItem = (c, item, list) => {
+    if (typeof item !== 'string') return lineKeyOf(c) === lineKeyOf(item);
+    const first = list.findIndex((x) => String(x.productId) === String(item));
+    return list.indexOf(c) === first;
+  };
+
   const updateQty = (item, delta) => {
-    const key = typeof item === 'string' ? `${item}::` : lineKeyOf(item);
     setCart((prev) => prev
       .map((c) => {
-        if (lineKeyOf(c) !== key) return c;
+        if (!matchesCartItem(c, item, prev)) return c;
         const nextQty = c.quantity + delta;
         const catalog = products.find((p) => p.id === c.productId);
-        if (delta > 0 && catalog && !stockGuard(catalog, nextQty)) return c;
+        if (delta > 0 && catalog && !stockGuard(catalog, nextQty, c.variationId)) return c;
         return { ...c, quantity: nextQty };
       })
       .filter((c) => c.quantity > 0));
@@ -248,15 +267,19 @@ const POS = () => {
   const setQtyManual = (item, raw) => {
     const n = Math.floor(Number(raw));
     if (!Number.isFinite(n)) return;
-    const key = typeof item === 'string' ? `${item}::` : lineKeyOf(item);
     setCart((prev) => prev
       .map((c) => {
-        if (lineKeyOf(c) !== key) return c;
+        if (!matchesCartItem(c, item, prev)) return c;
         const catalog = products.find((p) => p.id === c.productId);
-        if (catalog && n > c.quantity && !stockGuard(catalog, n)) return c;
+        if (catalog && n > c.quantity && !stockGuard(catalog, n, c.variationId)) return c;
         return { ...c, quantity: Math.max(0, n) };
       })
       .filter((c) => c.quantity > 0));
+  };
+
+  const removeCartLine = (item) => {
+    const key = lineKeyOf(item);
+    setCart((prev) => prev.filter((c) => lineKeyOf(c) !== key));
   };
 
   const clearCart = () => {
@@ -378,6 +401,16 @@ const POS = () => {
     if (!register.current) {
       toast.error('Pehle cash register open karein — opening float required');
       setOpenDlg(true);
+      return;
+    }
+    const blocked = cart.find((item) => {
+      const catalog = products.find((p) => p.id === item.productId);
+      if (!catalog || !invCfg.trackStock || !tracksInventory(catalog)) return false;
+      const stock = availableStock(catalog, item.variationId);
+      return stock <= 0 || item.quantity > stock;
+    });
+    if (blocked) {
+      toast.error(`POS sale nahi ho sakti — ${blocked.name} stock 0 / short. Order book karein.`);
       return;
     }
     setCheckingOut(true);
@@ -572,6 +605,14 @@ const POS = () => {
             <Unlock className="h-4 w-4 mr-1" />Open register
           </Button>
         )}
+        <Button
+          variant="outline"
+          className="h-10 rounded-xl sm:hidden font-semibold"
+          onClick={() => setCartDrawer(true)}
+          data-testid="pos-open-cart"
+        >
+          <ShoppingCart className="h-4 w-4 mr-1" />Cart{cart.length ? ` (${cart.reduce((s, i) => s + i.quantity, 0)})` : ''}
+        </Button>
         <div className="ml-auto flex items-center gap-2 text-sm">
           <div className={`h-2 w-2 rounded-full ${registerOpen ? 'bg-emerald-500' : 'bg-rose-500'}`} />
           <User className="h-4 w-4 text-slate-400" />
@@ -580,7 +621,7 @@ const POS = () => {
         </div>
       </header>
 
-      <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px]">
+      <div className="flex-1 min-h-0 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(280px,400px)]">
         <section className="min-h-0 flex flex-col p-3 gap-3 relative">
           {!registerOpen && (
             <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/80 backdrop-blur-[2px] p-6" data-testid="pos-register-lock">
@@ -625,12 +666,13 @@ const POS = () => {
                 </Button>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
                 {filtered.map((p) => {
                   const img = productImageSrc(p);
                   const service = isServiceItem(p);
                   const tracking = tracksInventory(p);
-                  const qty = cart.find((c) => c.productId === p.id)?.quantity || 0;
+                  const qty = cart.filter((c) => c.productId === p.id).reduce((s, c) => s + c.quantity, 0);
+                  const outOfStock = tracking && availableStock(p) <= 0;
                   return (
                     <div
                       key={p.id}
@@ -639,7 +681,7 @@ const POS = () => {
                     >
                       <button
                         type="button"
-                        onClick={() => addToCart(p)}
+                        onClick={() => (outOfStock ? toast.error(`POS sale nahi ho sakti — ${p.name} stock 0. Order book karein.`) : addToCart(p))}
                         className="w-full text-left"
                       >
                         <div className="relative aspect-square w-full bg-slate-50 overflow-hidden">
@@ -651,8 +693,13 @@ const POS = () => {
                             </div>
                           )}
                           {tracking ? (
-                            <span className="absolute top-2 right-2 min-w-[1.5rem] h-6 px-1.5 rounded-md text-white text-xs font-black flex items-center justify-center" style={{ backgroundColor: accent }}>
+                            <span className="absolute top-2 right-2 min-w-[1.5rem] h-6 px-1.5 rounded-md text-white text-xs font-black flex items-center justify-center" style={{ backgroundColor: outOfStock ? '#b91c1c' : accent }}>
                               {Number(p.stock ?? 0) || 0}
+                            </span>
+                          ) : null}
+                          {outOfStock ? (
+                            <span className="absolute inset-x-2 bottom-2 rounded-md bg-white/90 text-[11px] font-bold text-rose-700 px-1.5 py-1 text-center">
+                              Out of stock — book as Order
                             </span>
                           ) : null}
                         </div>
@@ -662,7 +709,16 @@ const POS = () => {
                         </div>
                       </button>
                       <div className="px-2 pb-2 pt-2">
-                        {qty > 0 ? (
+                        {outOfStock ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full h-9 font-bold rounded-xl"
+                            onClick={() => navigate('/orders/new')}
+                          >
+                            Book order
+                          </Button>
+                        ) : qty > 0 ? (
                           <div className="flex items-center gap-1">
                             <Button
                               type="button"
@@ -706,11 +762,23 @@ const POS = () => {
           </div>
         </section>
 
+        {cartDrawer ? (
+          <button
+            type="button"
+            className="sm:hidden fixed inset-0 z-30 bg-slate-900/40"
+            aria-label="Close cart"
+            onClick={() => setCartDrawer(false)}
+          />
+        ) : null}
+
         <aside
-          className="min-h-0 flex flex-col relative"
+          className={`min-h-0 h-full overflow-y-auto flex flex-col relative z-40 bg-white transition-transform duration-200
+            max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:h-[min(88vh,760px)] max-sm:rounded-t-3xl max-sm:shadow-2xl
+            ${cartDrawer ? 'max-sm:translate-y-0' : 'max-sm:translate-y-full max-sm:pointer-events-none'}
+            sm:translate-y-0 sm:pointer-events-auto sm:static`}
           data-testid="pos-sale-panel"
           style={{
-            background: 'linear-gradient(180deg, rgba(255,255,255,0.78) 0%, rgba(244,247,255,0.52) 55%, rgba(255,255,255,0.40) 100%)',
+            background: 'linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(244,247,255,0.88) 55%, rgba(255,255,255,0.92) 100%)',
             backdropFilter: 'blur(22px)',
             WebkitBackdropFilter: 'blur(22px)',
             boxShadow: '-18px 0 48px rgba(7,71,163,0.14), inset 1px 0 0 rgba(255,255,255,0.85)',
@@ -722,6 +790,9 @@ const POS = () => {
               <p className="text-[11px] uppercase tracking-wider font-bold" style={{ color: accent }}>Current sale</p>
               <p className="text-xs text-slate-500">{cart.length} items</p>
             </div>
+            <Button size="icon" variant="ghost" className="sm:hidden h-8 w-8" onClick={() => setCartDrawer(false)} aria-label="Close cart">
+              <X className="h-4 w-4" />
+            </Button>
             <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => window.open(`${window.location.origin}/customers?new=1`, '_blank')}>
               <UserPlus className="h-3.5 w-3.5 mr-1" />Customer
             </Button>
@@ -777,18 +848,26 @@ const POS = () => {
             </div>
           </div>
 
-          <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2 space-y-2">
+          <div className="flex-1 min-h-[160px] overflow-y-auto px-3 py-2 space-y-2">
             {!cart.length ? (
               <p className="p-8 text-center text-slate-400 text-sm">Tap a product to add</p>
             ) : cart.map((item, i) => (
-              <div key={item.productId} className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5" data-testid={`pos-cart-line-${item.productId}`}>
+              <div key={`${item.productId}::${item.variationId || i}`} className="rounded-xl border border-slate-200 bg-white p-2.5 min-h-[4.5rem] shadow-sm" data-testid={`pos-cart-line-${item.productId}`}>
                 <div className="flex items-start gap-2">
                   <span className="text-[11px] text-slate-400 font-semibold mt-0.5">{i + 1}</span>
+                  {item.image ? (
+                    <img src={item.image} alt="" className="h-12 w-12 rounded-lg object-cover bg-slate-100 shrink-0" />
+                  ) : (
+                    <div className="h-12 w-12 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                      <Package className="h-4 w-4 text-slate-400" />
+                    </div>
+                  )}
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold leading-snug text-sm">{item.name}</p>
+                    {item.variationName ? <p className="text-[11px] text-slate-500">{item.variationName}</p> : null}
                     <p className="text-[11px] text-slate-500">{formatCurrency(item.rate)} each</p>
                   </div>
-                  <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => setCart((c) => c.filter((x) => x.productId !== item.productId))}>
+                  <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => removeCartLine(item)}>
                     <Trash2 className="h-3.5 w-3.5 text-red-500" />
                   </Button>
                 </div>

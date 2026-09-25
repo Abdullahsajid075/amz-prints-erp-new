@@ -42,6 +42,7 @@ import PublicEmployeeVerify from '@/components/modules/employees/PublicEmployeeV
 import CustomerPortal from '@/components/modules/portal/CustomerPortal';
 import Tasks from '@/components/modules/tasks/Tasks';
 import Broadcasts from '@/components/modules/broadcasts/Broadcasts';
+import Acknowledgments from '@/components/modules/acknowledgments/Acknowledgments';
 
 /**
  * App shell (Brand + Auth) only mounts for protected routes.
@@ -172,6 +173,8 @@ function App() {
           <Route path="hr/employees" element={<Employees />} />
           <Route path="employees" element={<Navigate to="/hr/employees" replace />} />
           <Route path="tasks" element={<Tasks />} />
+          <Route path="acknowledgments" element={<Acknowledgments />} />
+          <Route path="acknowledgements" element={<Navigate to="/acknowledgments" replace />} />
 
           <Route path="pos" element={<POS />} />
           <Route path="pos/counter" element={<Navigate to="/pos" replace />} />

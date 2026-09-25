@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -114,6 +114,8 @@ const Purchases = () => {
   const [paymentData, setPaymentData] = useState({ amount: 0, method: 'Cash', date: new Date().toISOString().split('T')[0], notes: '' });
   const [paymentMethods, setPaymentMethods] = useState(['Cash', 'Bank Transfer', 'UPI', 'Card', 'Cheque']);
   const [paying, setPaying] = useState(false);
+  const [searchParams] = useSearchParams();
+  const ackPrefillDone = useRef(false);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -135,6 +137,28 @@ const Purchases = () => {
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  useEffect(() => {
+    if (ackPrefillDone.current || loading) return;
+    const pid = String(searchParams.get('product') || '').trim();
+    if (!pid) return;
+    ackPrefillDone.current = true;
+    const qty = Math.max(1, Number(searchParams.get('qty')) || 1);
+    const product = products.find((p) => String(p.id) === pid || String(p.name || '').trim() === pid);
+    setEditing(null);
+    setFormData({
+      ...emptyPurchase,
+      items: [{
+        _key: 'i_ack',
+        productId: product?.id || '',
+        name: product?.name || pid,
+        quantity: qty,
+        rate: Number(product?.costPrice ?? product?.purchasePrice ?? product?.rate ?? 0) || 0,
+        unit: product?.unit || 'piece',
+      }],
+    });
+    setDialogOpen(true);
+  }, [searchParams, products, loading]);
 
   useEffect(() => {
     settingsAPI.get().then((res) => {

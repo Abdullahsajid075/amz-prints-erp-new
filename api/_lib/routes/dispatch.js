@@ -363,8 +363,37 @@ async function loadInventoryPolicy() {
   }
 }
 
+function annotateBackorders(lines, catalogRows = []) {
+  const rows = Array.isArray(catalogRows) ? catalogRows : [];
+  const findRow = (line) => {
+    const pid = String(line.productId || line.product_id || '').trim();
+    if (pid) {
+      const byId = rows.find((r) => String(r.id) === pid);
+      if (byId) return byId;
+    }
+    const name = String(line.name || '').trim().toLowerCase();
+    if (!name) return null;
+    return rows.find((r) => String(r.name || '').trim().toLowerCase() === name) || null;
+  };
+  return (Array.isArray(lines) ? lines : []).map((line) => {
+    const row = findRow(line);
+    if (!row || isServiceProduct(row) || !productTracksInventory(row)) {
+      return { ...line, backorder: 0 };
+    }
+    const variationId = String(line.variationId || line.variation_id || '').trim();
+    let have = num(row.stock);
+    if (variationId && Array.isArray(row.variations)) {
+      const found = row.variations.find((v) => String(v.id) === variationId);
+      if (found && found.stock != null && found.stock !== '') have = num(found.stock);
+    }
+    const qty = num(line.quantity);
+    const backorder = have <= 0 ? qty : Math.max(0, qty - have);
+    return { ...line, backorder };
+  });
+}
+
 /** Apply stock change: selling more (new > old) decreases on-hand. */
-async function syncProductStock(oldLines, newLines) {
+async function syncProductStock(oldLines, newLines, opts = {}) {
   const policy = await loadInventoryPolicy();
   if (!policy.track) return;
   const catalog = await dbSelectSafe('products', 'id,name,stock,product_type,category,track_inventory,variations');
@@ -399,7 +428,7 @@ async function syncProductStock(oldLines, newLines) {
     if (!row || !productTracksInventory(row) || isServiceProduct(row)) continue;
     const have = num(row.stock);
     const next = have - delta;
-    if (delta > 0 && next < -0.0001 && !policy.allowNeg) {
+    if (delta > 0 && next < -0.0001 && !policy.allowNeg && !opts.allowShortage) {
       throw new Error(`Insufficient stock for ${row.name || 'item'}: available ${have}, required ${delta}`);
     }
     const stored = policy.allowNeg ? next : Math.max(0, next);
@@ -431,6 +460,16 @@ async function syncProductStock(oldLines, newLines) {
     variations[idx].stock = Math.max(0, have - delta);
     await supabase.from('products').update({ variations }).eq('id', pid);
   }
+}
+
+async function persistOrderStock(row, { isPos = false, oldLines = [] } = {}) {
+  if (isPos) {
+    await syncProductStock(oldLines, row.products, { allowShortage: false });
+    return;
+  }
+  const catalog = await dbSelectSafe('products', 'id,name,stock,product_type,category,track_inventory,variations');
+  row.products = annotateBackorders(row.products, catalog || []);
+  await syncProductStock(oldLines, row.products, { allowShortage: true });
 }
 
 async function withInvoiceMeta(apiOrder) {
@@ -1082,7 +1121,7 @@ async function dispatch(req, res) {
         row.order_id = await nextOrderId('WEB');
         row.tracking_number = await nextTrackingNumber();
         row.status_history = [{ status: row.status, at: `${today()} ${nowTime()}`, note: 'Website order' }];
-        await syncProductStock([], row.products);
+        await persistOrderStock(row, { isPos: false });
         const { error: webOrdErr } = await supabase.from('orders').insert(row);
         if (webOrdErr) {
           try { await syncProductStock(row.products, []); } catch { /* ignore */ }
@@ -2018,7 +2057,7 @@ async function dispatch(req, res) {
             row.remarks = `${row.remarks || ''}${row.remarks ? ' | ' : ''}Advance applied ${adv.applied}`.trim();
           }
         }
-        await syncProductStock([], row.products);
+        await persistOrderStock(row, { isPos: docType === 'pos' });
         const { error } = await supabase.from('orders').insert(row);
         if (error) {
           try { await syncProductStock(row.products, []); } catch { /* keep original insert error */ }
@@ -2073,8 +2112,9 @@ async function dispatch(req, res) {
         hist.push({ status, at: `${today()} ${nowTime()}`, note: 'Status update' });
         const wasCancelled = isCancelledStatus(existing.status);
         const nowCancelled = isCancelledStatus(status);
-        if (!wasCancelled && nowCancelled) await syncProductStock(existing.products, []);
-        if (wasCancelled && !nowCancelled) await syncProductStock([], existing.products);
+        const statusIsPos = String(existing.doc_type || '').toLowerCase() === 'pos';
+        if (!wasCancelled && nowCancelled) await syncProductStock(existing.products, [], { allowShortage: true });
+        if (wasCancelled && !nowCancelled) await persistOrderStock(existing, { isPos: statusIsPos, oldLines: [] });
         await supabase.from('orders').update({ status, status_history: hist }).eq('id', existing.id);
         const { data } = await supabase.from('orders').select('*').eq('id', existing.id).maybeSingle();
         return send(res, mapOrder(data));
@@ -2115,7 +2155,12 @@ async function dispatch(req, res) {
         row.id = existing.id;
         if (!row.order_id) row.order_id = existing.order_id;
         if (!isCancelledStatus(existing.status) && String(existing.doc_type || '').toLowerCase() !== 'quotation') {
-          await syncProductStock(existing.products, isCancelledStatus(row.status) ? [] : row.products);
+          const putIsPos = String(row.doc_type || existing.doc_type || '').toLowerCase() === 'pos';
+          if (isCancelledStatus(row.status)) {
+            await syncProductStock(existing.products, [], { allowShortage: true });
+          } else {
+            await persistOrderStock(row, { isPos: putIsPos, oldLines: existing.products });
+          }
         }
         await supabase.from('orders').update(row).eq('id', existing.id);
         return send(res, mapOrder(row));

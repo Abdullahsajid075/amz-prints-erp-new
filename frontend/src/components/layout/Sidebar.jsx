@@ -5,14 +5,15 @@ import {
   LayoutDashboard, ShoppingCart, Users, Warehouse, FileText,
   CreditCard, BarChart3, Settings, X, Ticket,
   Store, Quote, Calculator, Kanban, ShoppingBag, UsersRound, ChevronDown,
-  ListTodo, Megaphone,
+  ListTodo, Megaphone, ClipboardCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/context/AuthContext';
 import { useBrand } from '@/context/BrandContext';
-import { ordersAPI } from '@/services/api';
+import { ordersAPI, productsAPI, purchasesAPI } from '@/services/api';
 import { isOpenOrder } from '@/utils/constants';
+import { buildPurchaseNeeds } from '@/utils/purchaseNeeds';
 
 const menuGroups = [
   {
@@ -50,6 +51,7 @@ const menuGroups = [
     id: 'ops',
     label: 'Operations',
     items: [
+      { icon: ClipboardCheck, label: 'Acknowledgments', path: '/acknowledgments', module: 'acknowledgments', testId: 'nav-acknowledgments' },
       { icon: ShoppingBag, label: 'Purchases', path: '/purchases', module: 'purchases', testId: 'nav-purchases' },
       {
         icon: Warehouse,
@@ -126,6 +128,7 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
   const navigate = useNavigate();
   const [openGroup, setOpenGroup] = useState('');
   const [openOrderCount, setOpenOrderCount] = useState(0);
+  const [ackCount, setAckCount] = useState(0);
   const accent = primary || '#ff6d00';
 
   const visibleGroups = useMemo(() => {
@@ -176,6 +179,31 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
       })
       .catch(() => {
         if (!cancelled) setOpenOrderCount(0);
+      });
+    return () => { cancelled = true; };
+  }, [location.pathname, canAccessModule]);
+
+  useEffect(() => {
+    if (!canAccessModule('acknowledgments')) {
+      setAckCount(0);
+      return undefined;
+    }
+    let cancelled = false;
+    Promise.all([
+      ordersAPI.getAll(),
+      productsAPI.getAll(),
+      purchasesAPI.getAll().catch(() => ({ data: [] })),
+    ])
+      .then(([ordRes, prodRes, poRes]) => {
+        if (cancelled) return;
+        setAckCount(buildPurchaseNeeds({
+          orders: Array.isArray(ordRes.data) ? ordRes.data : [],
+          products: Array.isArray(prodRes.data) ? prodRes.data : [],
+          purchases: Array.isArray(poRes.data) ? poRes.data : [],
+        }).length);
+      })
+      .catch(() => {
+        if (!cancelled) setAckCount(0);
       });
     return () => { cancelled = true; };
   }, [location.pathname, canAccessModule]);
@@ -277,6 +305,19 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
                               <>
                                 <item.icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-white' : 'text-sidebar-muted')} />
                                 <span className="flex-1 truncate">{item.label}</span>
+                                {item.path === '/acknowledgments' && ackCount > 0 && (
+                                  <span
+                                    className="ml-auto min-w-[1.25rem] h-5 px-1.5 rounded-full text-[10px] font-bold leading-5 text-center tabular-nums"
+                                    style={{
+                                      backgroundColor: isActive ? 'rgba(255,255,255,0.22)' : '#d97706',
+                                      color: '#fff',
+                                    }}
+                                    title={`${ackCount} need to purchase`}
+                                    aria-label={`${ackCount} need to purchase`}
+                                  >
+                                    {ackCount > 99 ? '99+' : ackCount}
+                                  </span>
+                                )}
                                 {item.path === '/orders' && openOrderCount > 0 && (
                                   <span
                                     className="ml-auto min-w-[1.25rem] h-5 px-1.5 rounded-full text-[10px] font-bold leading-5 text-center tabular-nums"
