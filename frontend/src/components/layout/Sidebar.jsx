@@ -5,8 +5,7 @@ import {
   LayoutDashboard, ShoppingCart, Users, Warehouse, FileText,
   CreditCard, BarChart3, Settings, X, Ticket,
   Store, Quote, Calculator, Kanban, ShoppingBag, UsersRound, ChevronDown,
-  ListTodo, Megaphone
-}
+  ListTodo, Megaphone,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
