@@ -27,11 +27,24 @@ function downloadDataUrl(dataUrl, filename) {
   return true;
 }
 
+function dataUrlToBlob(dataUrl) {
+  const raw = String(dataUrl || '');
+  const comma = raw.indexOf(',');
+  if (comma < 0) return null;
+  const header = raw.slice(0, comma);
+  const mime = (header.match(/data:([^;]+)/) || [])[1] || 'image/jpeg';
+  const bin = atob(raw.slice(comma + 1));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
 async function copyImage(dataUrl) {
   if (!dataUrl || !navigator.clipboard?.write) return false;
-  const res = await fetch(dataUrl);
-  const blob = await res.blob();
-  await navigator.clipboard.write([new ClipboardItem({ [blob.type || 'image/png']: blob })]);
+  const blob = dataUrlToBlob(dataUrl) || await (await fetch(dataUrl)).blob();
+  if (!blob) return false;
+  const type = blob.type || 'image/png';
+  await navigator.clipboard.write([new ClipboardItem({ [type]: blob })]);
   return true;
 }
 
@@ -165,6 +178,16 @@ const Broadcasts = () => {
     }
     setSendingId(customer.id);
     const pending = openBlankWhatsAppTab();
+
+    let copied = false;
+    if (image) {
+      try {
+        copied = await copyImage(image);
+      } catch {
+        copied = false;
+      }
+    }
+
     let cloud = null;
     try {
       if (activeId) {
@@ -189,7 +212,10 @@ const Broadcasts = () => {
       return;
     }
 
-    const opened = openWhatsAppChat(customer.phone, text, { pendingWindow: pending });
+    const opened = openWhatsAppChat(customer.phone, text, {
+      pendingWindow: pending,
+      skipCopy: !!image,
+    });
     if (!opened.ok) {
       toast.error(opened.reason === 'missing_phone' ? 'No WhatsApp number' : 'Could not open WhatsApp');
       setSendingId('');
@@ -197,9 +223,13 @@ const Broadcasts = () => {
     }
 
     if (image) {
-      downloadDataUrl(image, imageName || 'advertisement.jpg');
-      try { await copyImage(image); } catch { /* optional */ }
-      toast.message('WhatsApp opened with the text. Attach the downloaded image in the chat — links cannot add photos automatically.');
+      if (!copied) {
+        try { copied = await copyImage(image); } catch { copied = false; }
+      }
+      if (!copied) downloadDataUrl(image, imageName || 'advertisement.jpg');
+      toast.message(copied
+        ? `WhatsApp opened for ${customer.name}. Paste the copied image, then tap Send.`
+        : 'WhatsApp opened with the text. Image download started — attach it in the chat, then tap Send.');
     } else {
       toast.success(`WhatsApp opened for ${customer.name}`);
     }
@@ -210,7 +240,7 @@ const Broadcasts = () => {
           customerId: customer.id,
           customerName: customer.name,
           customerPhone: customer.phone,
-          status: 'opened',
+          status: copied ? 'opened_image_copied' : 'opened',
         });
       } catch { /* history is best-effort */ }
     }

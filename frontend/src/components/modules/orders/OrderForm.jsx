@@ -10,6 +10,7 @@ import { ordersAPI, customersAPI, designersAPI, tokensAPI, productsAPI } from '@
 import { notifyOrderEvent } from '@/services/notifications';
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import ProductPicker from '@/components/shared/ProductPicker';
+import ProductQuickCreate from '@/components/shared/ProductQuickCreate';
 import { ORDER_STATUS } from '@/utils/constants';
 import { formatCurrency } from '@/utils/helpers';
 import { catalogFieldsForOrderLine } from '@/utils/productImage';
@@ -22,6 +23,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 const emptyProduct = () => ({
   _key: `p_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
   productId: '',
+  variationId: '',
+  variationName: '',
   name: '',
   quantity: 1,
   rate: 0,
@@ -75,6 +78,7 @@ const OrderForm = () => {
   const [addDesignerOpen, setAddDesignerOpen] = useState(false);
   const [newDesigner, setNewDesigner] = useState({ name: '', phone: '', email: '' });
   const [createdInfo, setCreatedInfo] = useState(null);
+  const [quickProduct, setQuickProduct] = useState({ open: false, index: -1, name: '' });
 
   const fetchCustomers = useCallback(async () => {
     try {
@@ -262,7 +266,9 @@ const OrderForm = () => {
       return;
     }
     const productId = typeof productOrId === 'object' ? productOrId.id : productOrId;
-    const p = catalog.find((x) => String(x.id) === String(productId));
+    const p = (typeof productOrId === 'object' && productOrId.id)
+      ? productOrId
+      : catalog.find((x) => String(x.id) === String(productId));
     if (!p) return;
     const fields = catalogFieldsForOrderLine(p);
     setFormData((prev) => {
@@ -280,8 +286,18 @@ const OrderForm = () => {
     });
   };
 
-  const goAddProduct = () => {
-    navigate('/warehouse/products?new=1');
+  const applyVariation = (index, product, variation) => {
+    const fields = catalogFieldsForOrderLine(product, variation);
+    setFormData((prev) => ({
+      ...prev,
+      products: prev.products.map((line, i) => (
+        i === index ? { ...line, ...fields, _key: line._key, quantity: line.quantity || 1 } : line
+      )),
+    }));
+  };
+
+  const goAddProduct = (index = -1, name = '') => {
+    setQuickProduct({ open: true, index, name });
   };
 
   const lineHasCatalogProduct = (line) => Boolean(catalogValueFor(line));
@@ -327,11 +343,14 @@ const OrderForm = () => {
         const service = isServiceLine(p, catalog);
         return {
           productId: p.productId || '',
+          variationId: p.variationId || '',
+          variationName: p.variationName || '',
           name: p.name || '',
           quantity: service ? 1 : (Number(p.quantity) || 0),
           rate: Number(p.rate) || 0,
           size: service ? '' : (p.size || ''),
           material: service ? '' : (p.material || ''),
+          sku: p.sku || '',
           notes: service ? (p.description || p.notes || '') : (p.notes || ''),
           description: service ? (p.description || p.notes || '') : '',
           productType: service ? 'Service' : 'Product',
@@ -426,8 +445,22 @@ const OrderForm = () => {
           trackingNumber: data.trackingNumber || created.data?.trackingNumber || '',
           invoiceNumber: created.data?.invoiceNumber || '',
         });
-        await notifyOrderEvent({ event: 'created', order: data, sendEmail: false });
-        toast.message('WhatsApp opened — tap Send to notify customer');
+        await notifyOrderEvent({
+          event: Number(data.advancePayment || 0) > 0 ? 'payment_received' : 'created',
+          order: data,
+          payment: Number(data.advancePayment || 0) > 0 ? {
+            amount: data.advancePayment,
+            method: 'Cash',
+            balanceDue: data.balanceAmount,
+            customerPhone: data.customerPhone,
+            customerName: data.customerName,
+            reference: data.orderId,
+          } : null,
+          sendEmail: false,
+        });
+        toast.message(Number(data.advancePayment || 0) > 0
+          ? 'WhatsApp opened with order + advance in one message — tap Send'
+          : 'WhatsApp opened — tap Send to notify customer');
         const gasEmail = created.data?._notifications?.email;
         if (gasEmail?.ok === false) {
           toast.error(gasEmail.error || 'Order email failed — authorize Mail in Apps Script as amazonprinting@gmail.com');
@@ -712,11 +745,33 @@ const OrderForm = () => {
                       value={catalogValueFor(product) || ''}
                       selectedName={product.name}
                       onSelect={(p) => pickProduct(index, p)}
+                      onAddNew={(name) => goAddProduct(index, name)}
+                      allowCreate
                       label="Product * (type to search)"
                       placeholder="Type any word to find product…"
                       testId={`product-select-${index}`}
                       required
                     />
+                    {(() => {
+                      const picked = catalog.find((x) => String(x.id) === String(product.productId || catalogValueFor(product)));
+                      const vars = Array.isArray(picked?.variations) ? picked.variations : [];
+                      if (!vars.length) return null;
+                      return (
+                        <select
+                          className="mt-1 h-9 w-full rounded-md border px-2 text-sm"
+                          value={product.variationId || ''}
+                          onChange={(e) => applyVariation(index, picked, vars.find((v) => String(v.id) === e.target.value) || null)}
+                        >
+                          <option value="">Select variation</option>
+                          {vars.map((v) => (
+                            <option key={v.id} value={v.id}>
+                              {v.name || [v.size, v.color, v.material].filter(Boolean).join(' / ') || v.sku}
+                              {v.price ? ` · Rs ${v.price}` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      );
+                    })()}
                     {!lineHasCatalogProduct(product) && (
                       <p className="text-[11px] text-red-600 mt-1">Product select karna lazmi hai</p>
                     )}
@@ -886,7 +941,10 @@ const OrderForm = () => {
               className="text-orange-700 border-orange-200"
               data-testid="print-created-order-slip"
               onClick={async () => {
-                const printed = await printOrderBookSlip(createdInfo, { company });
+                const printed = await printOrderBookSlip(createdInfo, {
+                  company,
+                  includePayment: Number(createdInfo?.advancePayment || 0) > 0,
+                });
                 if (!printed?.ok) toast.error('Print dialog blocked — allow printing for order slip');
                 else toast.message('Customer order slip sent to POS printer');
               }}
@@ -899,6 +957,16 @@ const OrderForm = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ProductQuickCreate
+        open={quickProduct.open}
+        initialName={quickProduct.name}
+        onOpenChange={(open) => setQuickProduct((q) => ({ ...q, open }))}
+        onCreated={(created) => {
+          setCatalog((prev) => [created, ...prev.filter((p) => p.id !== created.id)]);
+          if (quickProduct.index >= 0) pickProduct(quickProduct.index, created);
+        }}
+      />
     </div>
   );
 };

@@ -49,7 +49,14 @@ export function isBookingOrder(order) {
 export function isOpenOrder(order) {
   if (!isBookingOrder(order)) return false;
   const s = String(order?.status || '').trim().toLowerCase();
-  return OPEN_ORDER_STATUSES.some((st) => st.toLowerCase() === s);
+  if (OPEN_ORDER_STATUSES.some((st) => st.toLowerCase() === s)) return true;
+  const delivered = s === 'delivered' || s === 'complete' || s === 'completed';
+  if (!delivered) return false;
+  const total = Number(order?.totalAmount) || 0;
+  const advance = Number(order?.advancePayment) || 0;
+  const stored = Number(order?.balanceAmount);
+  const due = Number.isFinite(stored) && stored >= 0 ? stored : Math.max(0, total - advance);
+  return due > 0.009;
 }
 
 /** Job has not moved into production yet — keep these at the top of the list. */

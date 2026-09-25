@@ -13,7 +13,7 @@ function escapeHtml(value) {
  * Colour 80mm POS-printer slip for a booked order.
  * Tracking + website/verify QRs. No rates, totals, or payment.
  */
-export async function printOrderBookSlip(order = {}, { company = {} } = {}) {
+export async function printOrderBookSlip(order = {}, { company = {}, includePayment = false } = {}) {
   const website = slipWebsiteUrl(company);
   const code = order.orderId || order.id || '';
   const tracking = order.trackingNumber || code;
@@ -29,12 +29,20 @@ export async function printOrderBookSlip(order = {}, { company = {} } = {}) {
     code: tracking || code,
   });
   const qrs = await buildSlipQrs({ company, verifyUrl });
-  const rows = (Array.isArray(order.products) ? order.products : [])
+  const products = Array.isArray(order.products) ? order.products : [];
+  const total = products.reduce((s, p) => s + (Number(p.quantity) || 0) * (Number(p.rate) || 0), 0)
+    || Number(order.totalAmount || 0);
+  const advance = Number(order.advancePayment || 0);
+  const balance = Math.max(0, Number(order.balanceAmount != null ? order.balanceAmount : (total - advance)));
+  const showPay = includePayment || advance > 0;
+  const rows = products
     .map((p) => {
-      const extra = [p.size, p.material].filter(Boolean).join(' · ');
+      const extra = [p.variationName, p.size, p.material].filter(Boolean).join(' · ');
+      const amount = (Number(p.quantity) || 0) * (Number(p.rate) || 0);
       return `<tr>
         <td>${escapeHtml(p.name || '')}${extra ? `<div class="extra">${escapeHtml(extra)}</div>` : ''}</td>
         <td class="r">${escapeHtml(p.quantity || 0)}</td>
+        ${showPay ? `<td class="r">${escapeHtml(Number(p.rate || 0).toFixed(0))}</td><td class="r">${escapeHtml(amount.toFixed(0))}</td>` : ''}
       </tr>`;
     })
     .join('');
@@ -97,7 +105,7 @@ export async function printOrderBookSlip(order = {}, { company = {} } = {}) {
       <p>${escapeHtml(company.address || 'King Road, Mandi Bahauddin')}</p>
       <p>${escapeHtml(company.phone || '')} · ${escapeHtml(website.replace(/^https?:\/\//, ''))}</p>
     </div>
-    <div class="banner">ORDER BOOKED</div>
+    <div class="banner">${showPay ? 'ORDER + ADVANCE' : 'ORDER BOOKED'}</div>
     <div class="pad">
       <div class="track">
         <div class="lbl">Tracking number</div>
@@ -109,13 +117,16 @@ export async function printOrderBookSlip(order = {}, { company = {} } = {}) {
       <div class="meta">Booked: <span>${escapeHtml(order.date || new Date().toISOString().slice(0, 10))}</span></div>
       ${order.deliveryDate ? `<div class="meta">Delivery: <span>${escapeHtml(order.deliveryDate)}</span></div>` : ''}
       <table>
-        <thead><tr><th>Item</th><th class="r">Qty</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="2">No items</td></tr>'}</tbody>
+        <thead><tr><th>Item</th><th class="r">Qty</th>${showPay ? '<th class="r">Rate</th><th class="r">Amt</th>' : ''}</tr></thead>
+        <tbody>${rows || `<tr><td colspan="${showPay ? 4 : 2}">No items</td></tr>`}</tbody>
       </table>
+      ${showPay ? `<div class="meta">Total: <span>${escapeHtml(total.toFixed(0))}</span></div>
+      <div class="meta">Advance received: <span>${escapeHtml(advance.toFixed(0))}</span></div>
+      <div class="meta">Balance: <span>${escapeHtml(balance.toFixed(0))}</span></div>` : ''}
       ${qrs.html}
       ${barcodeBlock(tracking || code || 'AMZ', { height: 34 })}
       <div class="thanks">Scan QR to track this order</div>
-      <div class="foot">Customer copy · No payment on this slip</div>
+      <div class="foot">${showPay ? 'Customer copy · Combined order + payment' : 'Customer copy · No payment on this slip'}</div>
     </div>
     ${printOnLoadScript(700)}
     </body></html>`;

@@ -26,6 +26,7 @@ export const ordersAPI = {
   duplicate: (id) => gasRequest('POST', `/orders/${id}/duplicate`, withToken()),
   updateStatus: (id, status) => gasRequest('PATCH', `/orders/${id}/status`, withToken({ data: { status } })),
   pay: (id, data) => gasRequest('POST', `/orders/${id}/payment`, withToken({ data })),
+  createInvoice: (id) => gasRequest('POST', `/orders/${id}/invoice`, withToken({ data: {} })),
 };
 
 export const customersAPI = {
@@ -36,6 +37,7 @@ export const customersAPI = {
   delete: (id) => gasRequest('DELETE', `/customers/${id}`, withToken()),
   getLedger: (id) => gasRequest('GET', `/customers/${id}/ledger`, withToken()),
   recordPayment: (id, data) => gasRequest('POST', `/customers/${id}/payment`, withToken({ data })),
+  allocate: (id, data) => gasRequest('POST', `/customers/${id}/allocate`, withToken({ data })),
   block: (id, data) => gasRequest('POST', `/customers/${id}/block`, withToken({ data })),
   unblock: (id) => gasRequest('POST', `/customers/${id}/unblock`, withToken()),
   updateStage: (id, stage) => gasRequest('PUT', `/customers/${id}/stage`, withToken({ data: { stage } })),

@@ -341,6 +341,7 @@ function collectLineQtys(lines) {
     if (!(qty > 0)) return;
     list.push({
       id: String(p.productId || p.product_id || '').trim(),
+      variationId: String(p.variationId || p.variation_id || '').trim(),
       name: String(p.name || '').trim().toLowerCase(),
       qty,
     });
@@ -366,7 +367,7 @@ async function loadInventoryPolicy() {
 async function syncProductStock(oldLines, newLines) {
   const policy = await loadInventoryPolicy();
   if (!policy.track) return;
-  const catalog = await dbSelectSafe('products', 'id,name,stock,product_type,category,track_inventory');
+  const catalog = await dbSelectSafe('products', 'id,name,stock,product_type,category,track_inventory,variations');
   const rows = catalog || [];
   const findRow = (line) => {
     if (line.id) {
@@ -405,6 +406,30 @@ async function syncProductStock(oldLines, newLines) {
     const { error } = await supabase.from('products').update({ stock: stored }).eq('id', pid);
     if (error) throw error;
     row.stock = stored;
+  }
+
+  const varDelta = new Map();
+  collectLineQtys(oldLines).forEach((line) => {
+    if (!line.variationId) return;
+    const key = `${line.id}::${line.variationId}`;
+    varDelta.set(key, (varDelta.get(key) || 0) - line.qty);
+  });
+  collectLineQtys(newLines).forEach((line) => {
+    if (!line.variationId) return;
+    const key = `${line.id}::${line.variationId}`;
+    varDelta.set(key, (varDelta.get(key) || 0) + line.qty);
+  });
+  for (const [key, delta] of varDelta.entries()) {
+    if (!delta) continue;
+    const [pid, variationId] = key.split('::');
+    const row = rows.find((r) => r.id === pid);
+    if (!row) continue;
+    const variations = Array.isArray(row.variations) ? row.variations.map((v) => ({ ...v })) : [];
+    const idx = variations.findIndex((v) => String(v.id) === String(variationId));
+    if (idx < 0) continue;
+    const have = num(variations[idx].stock);
+    variations[idx].stock = Math.max(0, have - delta);
+    await supabase.from('products').update({ variations }).eq('id', pid);
   }
 }
 
@@ -450,7 +475,6 @@ async function findOrCreateInvoiceForOrder(order) {
     return { ...unpaid, order_ids: ids, order_id: ids[0] || unpaid.order_id };
   }
   const total = num(order.total_amount);
-  const paid = num(order.advance_payment);
   const row = {
     id: id('inv'),
     invoice_no: `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`,
@@ -470,14 +494,42 @@ async function findOrCreateInvoiceForOrder(order) {
     discount: 0,
     previous_balance: 0,
     total,
-    paid,
-    status: invoiceStatusFromPaid(total, paid),
+    paid: 0,
+    status: invoiceStatusFromPaid(total, 0),
     notes: '',
     share_token: `share_${Date.now().toString(36)}`,
     payment_history: [],
   };
   await supabase.from('invoices').insert(row);
   return row;
+}
+
+async function allocateAdvanceOntoInvoice(order, invoice) {
+  const advance = num(order.advance_payment);
+  const paid = num(invoice.paid);
+  const need = Math.max(0, advance - paid);
+  if (!(need > 0.009)) return invoice;
+  const history = Array.isArray(invoice.payment_history) ? invoice.payment_history : [];
+  const already = history.some((h) => /advance/i.test(String(h.notes || '')) && num(h.amount) === need);
+  if (already) return invoice;
+  const result = await recordInvoicePayment(invoice.id, {
+    amount: need,
+    method: 'Cash',
+    notes: `Advance allocated from order ${order.order_id || order.id}`,
+    orderId: order.order_id || order.id,
+    skipOrderSnapshot: true,
+  });
+  return result.invoice ? {
+    ...invoice,
+    id: result.invoice.id || invoice.id,
+    paid: result.invoice.paidAmount != null ? result.invoice.paidAmount : (paid + need),
+    invoice_no: result.invoice.invoiceNumber || invoice.invoice_no,
+  } : invoice;
+}
+
+async function ensureOrderInvoice(order) {
+  const invoice = await findOrCreateInvoiceForOrder(order);
+  return allocateAdvanceOntoInvoice(order, invoice);
 }
 
 async function recordInvoicePayment(invoiceId, body = {}, user) {
@@ -1480,34 +1532,93 @@ async function dispatch(req, res) {
         if (!customer) return sendError(res, 'Customer not found', 404);
         const amount = num(body.amount);
         if (!(amount > 0)) return sendError(res, 'Enter a valid payment amount', 400);
-        const { data: invoices } = await supabase.from('invoices').select('*').eq('customer_id', cid);
-        const open = (invoices || [])
-          .filter((inv) => num(inv.total) - num(inv.paid) > 0.009)
-          .sort((a, b) => String(a.date).localeCompare(String(b.date)));
-        if (!open.length) {
-          await supabase.from('customers').update({
-            credit_balance: num(customer.credit_balance) + amount,
-          }).eq('id', cid);
-          const payRow = {
-            id: id('pay'),
-            date: body.date || today(),
-            type: 'inflow',
-            category: 'Customer Credit',
-            ref_id: customer.id,
-            customer_name: customer.name,
-            customer_id: customer.id,
-            party_phone: customer.phone,
-            amount,
-            method: body.method || 'Cash',
-            notes: body.notes || 'Unallocated customer payment',
-            balance_due: 0,
-            total_amount: amount,
-          };
-          await supabase.from('payments').insert(payRow);
-          return send(res, { customer: mapCustomer({ ...customer, credit_balance: num(customer.credit_balance) + amount }), payment: mapPayment(payRow) });
+        const invoiceRef = body.invoiceId || body.invoice_id || body.linkedInvoiceId || '';
+        if (invoiceRef) {
+          const result = await recordInvoicePayment(invoiceRef, { ...body, amount }, user);
+          return send(res, result);
         }
-        const result = await recordInvoicePayment(open[0].id, { ...body, amount }, user);
-        return send(res, result);
+        await supabase.from('customers').update({
+          credit_balance: num(customer.credit_balance) + amount,
+        }).eq('id', cid);
+        const payRow = {
+          id: id('pay'),
+          date: body.date || today(),
+          type: 'inflow',
+          category: 'Customer Credit',
+          ref_id: customer.id,
+          customer_name: customer.name,
+          customer_id: customer.id,
+          party_phone: customer.phone,
+          amount,
+          method: body.method || 'Cash',
+          notes: body.notes || 'Unallocated customer payment',
+          balance_due: amount,
+          total_amount: amount,
+        };
+        await supabase.from('payments').insert(payRow);
+        return send(res, {
+          customer: mapCustomer({ ...customer, credit_balance: num(customer.credit_balance) + amount }),
+          payment: mapPayment(payRow),
+          unallocated: true,
+        });
+      }
+      if (parts[2] === 'allocate' && method === 'POST') {
+        const { data: customer } = await supabase.from('customers').select('*').eq('id', cid).maybeSingle();
+        if (!customer) return sendError(res, 'Customer not found', 404);
+        const allocations = Array.isArray(body.allocations) ? body.allocations : [];
+        if (!allocations.length) return sendError(res, 'Select at least one invoice to allocate', 400);
+        let { data: payment } = body.paymentId
+          ? await supabase.from('payments').select('*').eq('id', body.paymentId).maybeSingle()
+          : { data: null };
+        if (body.paymentId && !payment) return sendError(res, 'Payment not found', 404);
+        const remainingStart = payment ? num(payment.balance_due != null ? payment.balance_due : payment.amount) : num(customer.credit_balance);
+        const wanted = allocations.reduce((s, a) => s + num(a.amount), 0);
+        if (wanted > remainingStart + 0.009) return sendError(res, 'Allocated amount exceeds available payment', 400);
+        const results = [];
+        let remaining = remainingStart;
+        for (const item of allocations) {
+          const amt = num(item.amount);
+          if (!(amt > 0)) continue;
+          const { data: inv } = await supabase.from('invoices').select('*').eq('id', item.invoiceId || item.invoice_id).maybeSingle();
+          if (!inv || String(inv.customer_id) !== String(cid)) return sendError(res, 'Invoice does not belong to this customer', 400);
+          const due = Math.max(0, num(inv.total) - num(inv.paid));
+          const use = Math.min(amt, due, remaining);
+          if (!(use > 0)) continue;
+          const history = Array.isArray(inv.payment_history) ? [...inv.payment_history] : [];
+          const payId = id('pay');
+          history.push({
+            id: payId,
+            date: today(),
+            amount: use,
+            applied: use,
+            extra: 0,
+            method: (payment && payment.method) || 'Advance',
+            notes: `Allocated from unallocated payment${payment ? ` ${payment.id}` : ''}`,
+            locked: true,
+          });
+          const paidAfter = num(inv.paid) + use;
+          await supabase.from('invoices').update({
+            paid: paidAfter,
+            status: invoiceStatusFromPaid(num(inv.total), paidAfter),
+            payment_history: history,
+          }).eq('id', inv.id);
+          remaining -= use;
+          results.push({ invoiceId: inv.id, invoiceNo: inv.invoice_no, allocated: use });
+        }
+        if (payment) {
+          await supabase.from('payments').update({
+            balance_due: remaining,
+            notes: `${payment.notes || 'Unallocated customer payment'} · allocated ${Number(remainingStart - remaining).toFixed(0)}`,
+          }).eq('id', payment.id);
+        }
+        const creditAfter = Math.max(0, num(customer.credit_balance) - (remainingStart - remaining));
+        await supabase.from('customers').update({ credit_balance: creditAfter }).eq('id', cid);
+        return send(res, {
+          ok: true,
+          allocations: results,
+          remaining,
+          creditBalance: creditAfter,
+        });
       }
       if (parts[2] === 'ledger' && method === 'GET') {
         const { data: customer } = await supabase.from('customers').select('*').eq('id', cid).maybeSingle();
@@ -1913,8 +2024,20 @@ async function dispatch(req, res) {
           try { await syncProductStock(row.products, []); } catch { /* keep original insert error */ }
           throw error;
         }
+        if (docType !== 'pos' && num(row.advance_payment) > 0) {
+          try {
+            const inv = await ensureOrderInvoice(row);
+            row._invoiceNo = inv.invoice_no || inv.invoiceNumber;
+            row._invoiceId = inv.id;
+          } catch (invErr) {
+            row._invoiceError = invErr.message || 'Could not link invoice';
+          }
+        }
         const mapped = await withInvoiceMeta(mapOrder(row));
         mapped.creditApplied = num(body.applyCredit);
+        if (row._invoiceError) mapped._invoiceError = row._invoiceError;
+        if (row._invoiceNo) mapped.invoiceNumber = row._invoiceNo;
+        if (row._invoiceId) mapped.invoiceId = row._invoiceId;
         return send(res, mapped);
       }
     }
@@ -1935,6 +2058,17 @@ async function dispatch(req, res) {
     async function handleOrderByRow(existing, action, method, body, res) {
       if (action === 'status' && (method === 'PATCH' || method === 'POST')) {
         const status = body.status || existing.status;
+        if (/^delivered$/i.test(String(status))) {
+          const { data: invoices } = await supabase.from('invoices').select('id,order_id,order_ids');
+          const keys = [existing.order_id, existing.id].filter(Boolean).map(String);
+          const hasInv = (invoices || []).some((row) => {
+            const ids = collectOrderIds({}, row);
+            return keys.some((k) => ids.includes(k) || String(row.order_id) === k);
+          });
+          if (!hasInv) {
+            return sendError(res, 'Generate the invoice before marking this order Delivered', 400);
+          }
+        }
         const hist = Array.isArray(existing.status_history) ? [...existing.status_history] : [];
         hist.push({ status, at: `${today()} ${nowTime()}`, note: 'Status update' });
         const wasCancelled = isCancelledStatus(existing.status);
@@ -1953,11 +2087,22 @@ async function dispatch(req, res) {
         await supabase.from('orders').insert(copy);
         return send(res, mapOrder(copy));
       }
+      if (action === 'invoice' && method === 'POST') {
+        if (String(existing.doc_type || '').toLowerCase() === 'quotation') {
+          return sendError(res, 'Quotations are estimates only. Convert to an order before creating an invoice.', 400);
+        }
+        const inv = await ensureOrderInvoice(existing);
+        return send(res, await withInvoiceMeta(mapOrder(existing), inv));
+      }
       if (action === 'payment' && method === 'POST') {
         if (String(existing.doc_type || '').toLowerCase() === 'quotation') {
           return sendError(res, 'Quotations are estimates only. Convert to an order before recording payment.', 400);
         }
-        const invoiceForPay = await findOrCreateInvoiceForOrder(existing);
+        const invoiceForPay = await ensureOrderInvoice(existing);
+        const extra = num(body.amount);
+        if (!(extra > 0)) {
+          return send(res, { invoice: mapInvoice(invoiceForPay), order: await withInvoiceMeta(mapOrder(existing)) });
+        }
         const invPayResult = await recordInvoicePayment(invoiceForPay.id, {
           ...body,
           orderId: existing.order_id || existing.id,
@@ -2058,13 +2203,24 @@ async function dispatch(req, res) {
           discount: num(body.discount),
           previous_balance: num(body.previousBalance),
           total: num(body.totalAmount != null ? body.totalAmount : body.total),
-          paid: cashPaid,
+          paid: 0,
           status: body.status || 'Unpaid',
           notes: body.notes || '',
           share_token: body.shareToken || `share_${Date.now().toString(36)}`,
           payment_history: [],
         };
         await supabase.from('invoices').insert(row);
+        if (cashPaid > 0) {
+          await recordInvoicePayment(row.id, {
+            amount: cashPaid,
+            method: body.method || 'Cash',
+            notes: body.notes || `Payment recorded with invoice ${row.invoice_no}`,
+            orderId: row.order_id,
+            skipOrderSnapshot: true,
+          }, user);
+          row.paid = cashPaid;
+          row.status = invoiceStatusFromPaid(num(row.total), cashPaid);
+        }
         const applyWanted = num(body.applyCredit != null ? body.applyCredit : body.creditApplied);
         if (applyWanted > 0 && row.customer_id) {
           const due = Math.max(0, num(row.total) + num(row.previous_balance) - num(row.paid));

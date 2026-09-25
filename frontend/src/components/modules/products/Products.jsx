@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
-import { productsAPI, designersAPI, settingsAPI } from '@/services/api';
+import { productsAPI, settingsAPI } from '@/services/api';
 import { formatCurrency } from '@/utils/helpers';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
@@ -36,8 +36,13 @@ const MATERIALS = DEFAULT_PRODUCT_MATERIALS;
 const emptyVariation = () => ({
   id: `var_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
   name: '',
+  size: '',
+  color: '',
+  material: '',
   price: '',
   sku: '',
+  stock: '',
+  image: '',
 });
 
 const emptyProduct = {
@@ -54,7 +59,6 @@ const emptyProduct = {
   minQuantity: 1,
   stock: 0,
   trackInventory: true,
-  designer: '',
   image: '',
   images: [],
   active: true,
@@ -75,7 +79,6 @@ function isCatalogReady(product) {
 const Products = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
-  const [designers, setDesigners] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState({ field: 'name', dir: 'asc' });
@@ -128,19 +131,9 @@ const Products = () => {
     }).catch(() => {});
   }, []);
 
-  const fetchDesigners = useCallback(async () => {
-    try {
-      const response = await designersAPI.getAll();
-      setDesigners(response.data || []);
-    } catch {
-      setDesigners([]);
-    }
-  }, []);
-
   useEffect(() => {
     fetchProducts();
-    fetchDesigners();
-  }, [fetchProducts, fetchDesigners]);
+  }, [fetchProducts]);
 
   const filteredProducts = products.filter((p) => {
     const matchSearch = !search || p.name?.toLowerCase().includes(search.toLowerCase());
@@ -179,8 +172,13 @@ const Products = () => {
       ? product.variations.map((v, i) => ({
           id: v.id || `var_${i + 1}`,
           name: v.name || '',
+          size: v.size || '',
+          color: v.color || '',
+          material: v.material || '',
           price: v.price != null && v.price !== '' ? String(v.price) : '',
           sku: v.sku || '',
+          stock: v.stock != null && v.stock !== '' ? String(v.stock) : '',
+          image: v.image || '',
         }))
       : [];
     setFormData({
@@ -191,7 +189,6 @@ const Products = () => {
       productType: product.productType || 'Product',
       description: product.description || '',
       fullDescription: product.fullDescription || '',
-      designer: product.designer || '',
       stock: Number(product.stock ?? 0) || 0,
       trackInventory: tracksInventory(product),
       images: productImagesList(product),
@@ -300,11 +297,16 @@ const Products = () => {
       const variations = (formData.variations || [])
         .map((v, i) => ({
           id: v.id || `var_${i + 1}`,
-          name: String(v.name || '').trim(),
+          name: String(v.name || [v.size, v.color, v.material].filter(Boolean).join(' / ')).trim(),
+          size: String(v.size || '').trim(),
+          color: String(v.color || '').trim(),
+          material: String(v.material || '').trim(),
           price: v.price === '' || v.price == null ? null : Number(v.price),
           sku: String(v.sku || '').trim(),
+          stock: v.stock === '' || v.stock == null ? 0 : Math.max(0, Number(v.stock) || 0),
+          image: String(v.image || '').trim(),
         }))
-        .filter((v) => v.name);
+        .filter((v) => v.name || v.size || v.color || v.sku);
       const salePrice = Number(formData.salePrice) > 0 ? Number(formData.salePrice) : 0;
       const images = fitImagesForSheets(formData.images || []);
       const ready = isCatalogReady({ ...formData, images });
@@ -326,7 +328,6 @@ const Products = () => {
             unit: 'service',
             material: '',
             size: '',
-            designer: '',
             minQuantity: 1,
             stock: 0,
             trackInventory: false,
@@ -352,7 +353,6 @@ const Products = () => {
             minQuantity: formData.minQuantity || 1,
             stock: Math.max(0, Math.floor(Number(formData.stock) || 0)),
             trackInventory: formData.trackInventory !== false,
-            designer: formData.designer || '',
             images,
             active: formData.active !== false,
             status: formData.active === false ? 'Inactive' : 'Active',
@@ -775,6 +775,7 @@ const Products = () => {
               />
             </div>
 
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Basic information</p>
             <div>
               <Label htmlFor="name">{isService ? 'Service name *' : 'Product name *'}</Label>
               <Input
@@ -864,18 +865,6 @@ const Products = () => {
                     <SelectTrigger data-testid="product-category-select"><SelectValue placeholder="Category" /></SelectTrigger>
                     <SelectContent>
                       {catalogOptions.categories.map((cat) => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Designer</Label>
-                  <Select value={formData.designer || undefined} onValueChange={(v) => setFormData({ ...formData, designer: v === 'none' ? '' : v })}>
-                    <SelectTrigger><SelectValue placeholder="Designer" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      {designers.map((d) => (
-                        <SelectItem key={d.id || d.name} value={d.name || d.id}>{d.name || d.id}</SelectItem>
-                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -984,7 +973,7 @@ const Products = () => {
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <Label className="text-sm font-semibold">Variations</Label>
-                  <p className="text-[11px] text-gray-500">e.g. A4 Matte, A3 Gloss — optional price override</p>
+                  <p className="text-[11px] text-gray-500">Size, color, material, price, SKU, and stock — used in orders, POS, and price tags.</p>
                 </div>
                 <Button
                   type="button"
@@ -1000,13 +989,13 @@ const Products = () => {
                 </Button>
               </div>
               {(formData.variations || []).length === 0 ? (
-                <p className="text-xs text-gray-500">No variations — base price is used.</p>
+                <p className="text-xs text-gray-500">No variations — base price and stock are used.</p>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {(formData.variations || []).map((v, idx) => (
-                    <div key={v.id || idx} className="grid grid-cols-12 gap-2 items-end">
-                      <div className="col-span-5">
-                        <Label className="text-[11px]">Name</Label>
+                    <div key={v.id || idx} className="rounded-lg border bg-slate-50/70 p-3 grid grid-cols-2 md:grid-cols-6 gap-2 items-end">
+                      <div className="md:col-span-2">
+                        <Label className="text-[11px]">Label</Label>
                         <Input
                           value={v.name}
                           placeholder="A4 / Matte"
@@ -1017,8 +1006,42 @@ const Products = () => {
                           })}
                         />
                       </div>
-                      <div className="col-span-3">
-                        <Label className="text-[11px]">Price (optional)</Label>
+                      <div>
+                        <Label className="text-[11px]">Size</Label>
+                        <Input
+                          value={v.size}
+                          placeholder="A4"
+                          onChange={(e) => setFormData((prev) => {
+                            const variations = [...(prev.variations || [])];
+                            variations[idx] = { ...variations[idx], size: e.target.value };
+                            return { ...prev, variations };
+                          })}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[11px]">Color</Label>
+                        <Input
+                          value={v.color}
+                          onChange={(e) => setFormData((prev) => {
+                            const variations = [...(prev.variations || [])];
+                            variations[idx] = { ...variations[idx], color: e.target.value };
+                            return { ...prev, variations };
+                          })}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[11px]">Material</Label>
+                        <Input
+                          value={v.material}
+                          onChange={(e) => setFormData((prev) => {
+                            const variations = [...(prev.variations || [])];
+                            variations[idx] = { ...variations[idx], material: e.target.value };
+                            return { ...prev, variations };
+                          })}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[11px]">Price</Label>
                         <Input
                           type="number"
                           min="0"
@@ -1032,11 +1055,10 @@ const Products = () => {
                           })}
                         />
                       </div>
-                      <div className="col-span-3">
+                      <div>
                         <Label className="text-[11px]">SKU</Label>
                         <Input
                           value={v.sku}
-                          placeholder="Optional"
                           onChange={(e) => setFormData((prev) => {
                             const variations = [...(prev.variations || [])];
                             variations[idx] = { ...variations[idx], sku: e.target.value };
@@ -1044,7 +1066,32 @@ const Products = () => {
                           })}
                         />
                       </div>
-                      <div className="col-span-1">
+                      <div>
+                        <Label className="text-[11px]">Stock</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={v.stock}
+                          onChange={(e) => setFormData((prev) => {
+                            const variations = [...(prev.variations || [])];
+                            variations[idx] = { ...variations[idx], stock: e.target.value };
+                            return { ...prev, variations };
+                          })}
+                        />
+                      </div>
+                      <div className="md:col-span-4">
+                        <Label className="text-[11px]">Image URL (optional)</Label>
+                        <Input
+                          value={v.image}
+                          placeholder="https://…"
+                          onChange={(e) => setFormData((prev) => {
+                            const variations = [...(prev.variations || [])];
+                            variations[idx] = { ...variations[idx], image: e.target.value };
+                            return { ...prev, variations };
+                          })}
+                        />
+                      </div>
+                      <div>
                         <Button
                           type="button"
                           size="icon"

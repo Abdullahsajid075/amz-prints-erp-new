@@ -76,7 +76,7 @@ function navigateWindow(win, href) {
  * User only needs to tap Send.
  * @param {string} phone
  * @param {string} text
- * @param {{ pendingWindow?: Window|null }} [opts] — window opened during user click (survives async)
+ * @param {{ pendingWindow?: Window|null, skipCopy?: boolean }} [opts]
  */
 export function openWhatsAppChat(phone, text, opts = {}) {
   const urls = buildWhatsAppAppUrl(phone, text);
@@ -87,7 +87,7 @@ export function openWhatsAppChat(phone, text, opts = {}) {
     return { ok: false, reason: 'missing_phone' };
   }
 
-  copyText(text);
+  if (!opts.skipCopy) copyText(text);
 
   if (opts.pendingWindow && !opts.pendingWindow.closed) {
     if (navigateWindow(opts.pendingWindow, urls.deepLink) || navigateWindow(opts.pendingWindow, urls.waMe)) {
