@@ -27,10 +27,9 @@ $track_url = function_exists( 'amz_prints_customer_is_logged_in' ) && amz_prints
 	: home_url( '/customer-login/?redirect=' . rawurlencode( home_url( '/my-account/#track' ) ) );
 
 $hero_id  = absint( amz_prints_mod( 'amz_hero_image', 0 ) );
-$hero_url = $hero_id ? wp_get_attachment_image_url( $hero_id, 'full' ) : '';
-if ( ! $hero_url && function_exists( 'amz_prints_home_banners' ) ) {
-	$banner_fallback = amz_prints_home_banners();
-	$hero_url        = ! empty( $banner_fallback[0]['url'] ) ? $banner_fallback[0]['url'] : '';
+$hero_url = $hero_id ? wp_get_attachment_image_url( $hero_id, 'amz-hero' ) : '';
+if ( ! $hero_url ) {
+	$hero_url = 'https://images.unsplash.com/photo-1562564055-71e051d33c19?auto=format&fit=crop&w=1800&q=80';
 }
 $strip   = function_exists( 'amz_prints_running_strip_items' ) ? amz_prints_running_strip_items() : array( $company );
 $strip_loop = array_merge( $strip, $strip );
@@ -50,16 +49,22 @@ $photo_products = array_merge( $photo_products, $photo_rest );
 $photo_loop = $photo_products ? array_merge( $photo_products, $photo_products ) : array();
 ?>
 
-<section class="amz-stage" aria-label="<?php echo esc_attr( $headline ); ?>">
-	<div class="amz-stage__copy">
-		<p class="amz-stage__brand"><?php echo esc_html( $company ); ?></p>
-		<h1><?php echo esc_html( $headline ); ?></h1>
-		<p><?php echo esc_html( $sub ); ?></p>
+<section class="land-hero" aria-label="<?php echo esc_attr( $headline ); ?>">
+	<div class="land-hero__photo" style="background-image:url('<?php echo esc_url( $hero_url ); ?>')"></div>
+	<div class="land-hero__wash" aria-hidden="true"></div>
+	<div class="land-hero__inner">
+		<div class="land-hero__copy">
+			<p class="land-hero__brand"><?php echo esc_html( $company ); ?></p>
+			<p class="land-hero__legal"><?php echo esc_html( $legal ); ?></p>
+			<h1><?php echo esc_html( $headline ); ?></h1>
+			<p class="land-hero__sub"><?php echo esc_html( $sub ); ?></p>
+			<div class="land-hero__actions">
+				<a class="btn btn--primary btn--lg" href="<?php echo esc_url( home_url( '/products/' ) ); ?>"><?php esc_html_e( 'Shop products', 'amz-prints' ); ?></a>
+				<a class="btn btn--ghost btn--lg" href="<?php echo esc_url( home_url( '/quote/' ) ); ?>"><?php esc_html_e( 'Get a quote', 'amz-prints' ); ?></a>
+			</div>
+		</div>
 	</div>
-	<div class="amz-hero"<?php echo $hero_url ? ' style="background-image:url(\'' . esc_url( $hero_url ) . '\')"' : ''; ?>>
-		<span class="amz-hero__dots" aria-hidden="true"></span>
-		<span class="amz-hero__lines" aria-hidden="true"></span>
-	</div>
+</section>
 	<?php if ( $photo_loop ) : ?>
 		<div class="amz-prodrail" aria-label="<?php esc_attr_e( 'Products with photos', 'amz-prints' ); ?>">
 			<div class="amz-prodrail__track">
@@ -73,7 +78,6 @@ $photo_loop = $photo_products ? array_merge( $photo_products, $photo_products ) 
 			</div>
 		</div>
 	<?php endif; ?>
-</section>
 
 <div class="amz-marquee amz-marquee--ink" aria-hidden="true">
 	<div class="amz-marquee__track">

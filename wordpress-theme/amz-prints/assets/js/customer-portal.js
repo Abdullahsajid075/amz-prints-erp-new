@@ -243,9 +243,13 @@
     var redirect = (redirectField && redirectField.value) || '';
     var isSignup = currentTab === 'register';
     msg(out, isSignup ? 'Google verified. Creating your account…' : 'Verifying your Google account…', false);
+    var nameField = document.querySelector('#amz-customer-register-form [name="name"]');
+    var phoneField = document.querySelector('#amz-customer-register-form [name="phone"]');
     post('amz_prints_customer_google', {
       id_token: pendingGoogleCredential,
       create_if_missing: isSignup ? '1' : '',
+      name: nameField ? nameField.value : '',
+      phone: phoneField ? phoneField.value : '',
       redirect: redirect
     }).then(function (res) {
       if (!res || !res.success) {
