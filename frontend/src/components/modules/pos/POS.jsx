@@ -319,7 +319,7 @@ const POS = () => {
       printReceipt(sale);
     } catch (err) {
       console.error(err);
-      toast.error('Checkout failed');
+      toast.error(err.response?.data?.message || 'Checkout failed');
     } finally {
       setCheckingOut(false);
     }
