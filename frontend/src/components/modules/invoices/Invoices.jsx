@@ -77,6 +77,11 @@ const Invoices = () => {
     status: (inv) => inv.status || '',
   }), invoicePendingScore), [filtered, sort]);
 
+  const { activeInvoices, settledInvoices } = useMemo(() => ({
+    activeInvoices: sorted.filter((inv) => invoiceBalance(inv) > 0.009 || invoicePendingScore(inv)),
+    settledInvoices: sorted.filter((inv) => !(invoiceBalance(inv) > 0.009 || invoicePendingScore(inv))),
+  }), [sorted]);
+
   const copyShareLink = (invoice) => {
     if (!invoice.shareToken) {
       toast.error('Share link not ready yet');
@@ -322,8 +327,8 @@ const Invoices = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>All Invoices</CardTitle>
-          <p className="text-xs text-gray-500 font-normal mt-1">Unpaid and partial invoices stay at the top</p>
+          <CardTitle>Open invoices ({activeInvoices.length})</CardTitle>
+          <p className="text-xs text-gray-500 font-normal mt-1">Unpaid and partial invoices as cards</p>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -337,9 +342,11 @@ const Invoices = () => {
                 Create Invoice
               </Button>
             </div>
+          ) : activeInvoices.length === 0 ? (
+            <p className="text-center py-6 text-gray-500 text-sm">No open invoices.</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-              {sorted.map(invoice => (
+              {activeInvoices.map(invoice => (
                 <div
                   key={invoice.id}
                   className={`group relative bg-white border rounded-xl p-3.5 hover:shadow-md hover:border-orange-200 transition-all ${
@@ -413,6 +420,45 @@ const Invoices = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Settled invoices ({settledInvoices.length})</CardTitle>
+          <p className="text-xs text-gray-500 font-normal mt-1">Paid and closed invoices</p>
+        </CardHeader>
+        <CardContent>
+          {settledInvoices.length === 0 ? (
+            <p className="text-center py-6 text-gray-500 text-sm">No settled invoices yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-gray-50">
+                    <th className="text-left py-2 px-3 text-xs uppercase font-semibold text-gray-600">Invoice</th>
+                    <th className="text-left py-2 px-3 text-xs uppercase font-semibold text-gray-600">Customer</th>
+                    <th className="text-right py-2 px-3 text-xs uppercase font-semibold text-gray-600">Amount</th>
+                    <th className="text-left py-2 px-3 text-xs uppercase font-semibold text-gray-600">Status</th>
+                    <th className="text-right py-2 px-3 text-xs uppercase font-semibold text-gray-600">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {settledInvoices.map((invoice) => (
+                    <tr key={invoice.id} className="border-b hover:bg-orange-50/40">
+                      <td className="py-2.5 px-3 font-semibold">{invoice.invoiceNumber}</td>
+                      <td className="py-2.5 px-3 truncate max-w-[180px]">{invoice.customerName}</td>
+                      <td className="py-2.5 px-3 text-right">{formatCurrency(invoice.totalAmount)}</td>
+                      <td className="py-2.5 px-3"><Badge className={getStatusBadge(invoice.status)}>{invoice.status}</Badge></td>
+                      <td className="py-2.5 px-3 text-right">
+                        <Button size="sm" variant="ghost" onClick={() => navigate(`/invoices/${invoice.id}`)}>View</Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </CardContent>

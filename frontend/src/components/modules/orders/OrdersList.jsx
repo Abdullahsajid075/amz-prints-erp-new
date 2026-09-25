@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { ordersAPI, invoicesAPI, settingsAPI } from '@/services/api';
+import { ordersAPI, settingsAPI } from '@/services/api';
 import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
 import { documentFileName } from '@/utils/printHelpers';
 import { printOrderBookSlip } from '@/utils/orderBookSlip';
@@ -154,7 +154,7 @@ const OrdersList = () => {
       sortedOrders.filter(isOpenOrder),
       (o) => (isNotStartedOrder(o) ? 1 : 0)
     );
-    const co = sortedOrders.filter((o) => COMPLETED_STATUSES.includes(o.status));
+    const co = sortedOrders.filter((o) => !isOpenOrder(o) && (COMPLETED_STATUSES.includes(o.status) || /cancel/i.test(String(o.status || ''))));
     return { inProgress: ip, completed: co };
   }, [sortedOrders]);
 
@@ -193,6 +193,10 @@ const OrdersList = () => {
 
   const changeOrderStatus = async (order, status) => {
     if (!order?.id || String(order.status) === String(status)) return;
+    if (/^delivered$/i.test(String(status)) && !order.invoiceId) {
+      toast.error('Generate the invoice before marking this order Delivered');
+      return;
+    }
     setStatusBusyId(order.id);
     try {
       const res = await ordersAPI.updateStatus(order.id, status);
@@ -507,35 +511,15 @@ const OrdersList = () => {
       return;
     }
     try {
-      const res = await ordersAPI.getById(order.id);
-      const full = res.data;
-      const items = (full.products || []).map(p => ({
-        name: p.name, quantity: p.quantity, rate: p.rate, size: p.size, material: p.material
-      }));
-      const subtotal = items.reduce((s, i) => s + (i.quantity * i.rate), 0);
-      const inv = {
-        invoiceNumber: `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`,
-        orderId: full.orderId,
-        orderIds: full.orderId ? [full.orderId] : [],
-        customerId: full.customerId || '',
-        customerName: full.customerName,
-        customerEmail: full.customerEmail,
-        customerPhone: full.customerPhone,
-        customerAddress: full.customerAddress,
-        date: new Date().toISOString().split('T')[0],
-        dueDate: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
-        items,
-        subtotal,
-        tax: 0, taxRate: 0, discount: 0, previousBalance: 0,
-        totalAmount: subtotal,
-        paidAmount: full.advancePayment || 0,
-        status: (full.advancePayment || 0) >= subtotal ? 'Paid' : (full.advancePayment || 0) > 0 ? 'Partial' : 'Unpaid',
-        notes: `Auto-generated from order ${full.orderId}`
-      };
-      const created = await invoicesAPI.create(inv);
-      toast.success(`Invoice ${inv.invoiceNumber} generated`);
-      navigate(`/invoices/${created.data.id}`);
-    } catch (err) { console.error(err); toast.error('Failed to generate invoice'); }
+      const created = await ordersAPI.createInvoice(order.id);
+      const data = created.data || {};
+      toast.success(`Invoice ${data.invoiceNumber || ''} generated — advance allocated once`);
+      if (data.invoiceId) navigate(`/invoices/${data.invoiceId}`);
+      else fetchOrders();
+    } catch (err) {
+      console.error(err);
+      toast.error(err?.response?.data?.message || 'Failed to generate invoice');
+    }
   };
 
   const renderCard = (order) => (

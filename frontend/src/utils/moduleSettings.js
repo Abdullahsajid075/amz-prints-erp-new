@@ -45,9 +45,36 @@ function asObject(raw) {
 
 function asStringList(value, fallback) {
   if (Array.isArray(value) && value.length) {
-    return value.map((v) => String(v || '').trim()).filter(Boolean);
+    return value.map((v) => {
+      if (v && typeof v === 'object') return String(v.name || '').trim();
+      return String(v || '').trim();
+    }).filter(Boolean);
   }
   return [...fallback];
+}
+
+export function normalizeCatalogItems(value, fallback = []) {
+  const raw = Array.isArray(value) && value.length ? value : fallback;
+  const seen = new Set();
+  const out = [];
+  raw.forEach((item) => {
+    const name = typeof item === 'string' ? item.trim() : String(item?.name || '').trim();
+    if (!name) return;
+    const key = name.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({
+      name,
+      active: typeof item === 'object' ? item.active !== false : true,
+    });
+  });
+  return out;
+}
+
+export function activeCatalogNames(items, fallback = []) {
+  const list = normalizeCatalogItems(items, fallback);
+  const active = list.filter((i) => i.active !== false).map((i) => i.name);
+  return active.length ? active : [...fallback];
 }
 
 export function mergeInventorySettings(api = {}) {
@@ -59,8 +86,10 @@ export function mergeInventorySettings(api = {}) {
     allowNegativeStock: !!(inv.allowNegativeStock ?? prod.allowNegativeStock),
     deductOnSale: inv.deductOnSale !== false,
     defaultLowStock: Number(inv.defaultLowStock != null ? inv.defaultLowStock : 5) || 5,
-    categories: asStringList(inv.categories || prod.categories, DEFAULT_PRODUCT_CATEGORIES),
-    materials: asStringList(inv.materials || prod.materials, DEFAULT_PRODUCT_MATERIALS),
+    categories: activeCatalogNames(inv.categories || prod.categories, DEFAULT_PRODUCT_CATEGORIES),
+    materials: activeCatalogNames(inv.materials || prod.materials, DEFAULT_PRODUCT_MATERIALS),
+    categoryItems: normalizeCatalogItems(inv.categoryItems || inv.categories || prod.categories, DEFAULT_PRODUCT_CATEGORIES),
+    materialItems: normalizeCatalogItems(inv.materialItems || inv.materials || prod.materials, DEFAULT_PRODUCT_MATERIALS),
   };
 }
 

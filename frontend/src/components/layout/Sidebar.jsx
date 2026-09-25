@@ -20,8 +20,6 @@ const menuGroups = [
     label: null,
     items: [
       { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', module: 'dashboard', testId: 'nav-dashboard' },
-      { icon: ListTodo, label: 'Internal Tasks', path: '/tasks', module: 'tasks', testId: 'nav-tasks' },
-      { icon: Megaphone, label: 'Broadcasts', path: '/broadcasts', module: 'broadcasts', testId: 'nav-broadcasts' },
     ],
   },
   {
@@ -76,6 +74,14 @@ const menuGroups = [
         ],
       },
       { icon: Calculator, label: 'Cost Calculator', path: '/calculator', module: 'calculator', testId: 'nav-calculator' },
+    ],
+  },
+  {
+    id: 'comms',
+    label: null,
+    items: [
+      { icon: ListTodo, label: 'Internal Tasks', path: '/tasks', module: 'tasks', testId: 'nav-tasks' },
+      { icon: Megaphone, label: 'Broadcasts', path: '/broadcasts', module: 'broadcasts', testId: 'nav-broadcasts' },
     ],
   },
   {

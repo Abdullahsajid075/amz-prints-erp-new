@@ -172,16 +172,28 @@ export function fitImagesForSheets(images) {
 }
 
 /** Strip catalog-only fields before saving onto order/invoice line items */
-export function catalogFieldsForOrderLine(product = {}) {
+export function catalogFieldsForOrderLine(product = {}, variation = null) {
   const type = product.productType || product.product_type || 'Product';
   const isService = String(type).toLowerCase() === 'service';
+  const varPrice = variation && variation.price != null && variation.price !== ''
+    ? Number(variation.price)
+    : null;
+  const rate = (Number.isFinite(varPrice) && varPrice > 0)
+    ? varPrice
+    : (Number(product.salePrice || product.sale_price || 0) > 0
+      ? Number(product.salePrice || product.sale_price)
+      : Number(product.rate ?? product.basePrice ?? 0) || 0);
+  const varName = variation ? (variation.name || [variation.size, variation.color, variation.material].filter(Boolean).join(' / ')) : '';
   return {
     productId: String(product.id || product.productId || ''),
-    name: product.name || '',
+    variationId: variation?.id || '',
+    variationName: varName,
+    name: varName ? `${product.name || ''} — ${varName}` : (product.name || ''),
     quantity: 1,
-    rate: Number(product.rate ?? product.basePrice ?? 0) || 0,
-    size: isService ? '' : (product.size || ''),
-    material: isService ? '' : (product.material || ''),
+    rate,
+    size: isService ? '' : (variation?.size || product.size || ''),
+    material: isService ? '' : (variation?.material || product.material || ''),
+    sku: variation?.sku || product.sku || '',
     notes: isService ? (product.description || '') : '',
     productType: isService ? 'Service' : 'Product',
     description: isService ? (product.description || '') : '',

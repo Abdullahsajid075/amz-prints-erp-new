@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { paymentsAPI, settingsAPI, customersAPI, expensesAPI, ordersAPI, invoicesAPI } from '@/services/api';
 import { clearGasCache } from '@/services/gasClient';
 import { notifyPaymentEvent, printPaymentSlip, openBlankWhatsAppTab } from '@/services/notifications';
@@ -78,6 +78,13 @@ function normalizePayment(p = {}) {
   };
 }
 
+function invoiceDue(inv) {
+  const total = Number(inv.totalAmount ?? inv.total ?? 0);
+  const paid = Number(inv.paidAmount ?? inv.paid ?? 0);
+  if (inv.balanceAmount != null) return Math.max(0, Number(inv.balanceAmount));
+  return Math.max(0, total - paid);
+}
+
 function matchRef(row, needle) {
   const n = String(needle || '').trim().toLowerCase();
   if (!n) return false;
@@ -101,11 +108,19 @@ const Payments = () => {
   const [formData, setFormData] = useState(empty);
   const [saving, setSaving] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
+  const [invoices, setInvoices] = useState([]);
+  const [allocPay, setAllocPay] = useState(null);
+  const [allocRows, setAllocRows] = useState([]);
+  const [allocSaving, setAllocSaving] = useState(false);
 
   const loadCustomers = useCallback(async () => {
     try {
-      const res = await customersAPI.getAll();
-      setCustomers(Array.isArray(res.data) ? res.data : []);
+      const [custRes, invRes] = await Promise.all([
+        customersAPI.getAll(),
+        invoicesAPI.getAll().catch(() => ({ data: [] })),
+      ]);
+      setCustomers(Array.isArray(custRes.data) ? custRes.data : []);
+      setInvoices(Array.isArray(invRes.data) ? invRes.data : []);
     } catch (err) {
       console.error(err);
     }
@@ -460,6 +475,55 @@ const Payments = () => {
     else toast.error('Could not open WhatsApp');
   };
 
+  const unallocated = payments.filter((p) => (
+    String(p.category || '') === 'Customer Credit'
+    && Number(p.balanceDue || p.amount || 0) > 0.009
+    && String(p.type) === 'inflow'
+  ));
+
+  const openAllocate = (payment) => {
+    const openInv = invoices.filter((inv) => (
+      String(inv.customerId) === String(payment.customerId)
+      && invoiceDue(inv) > 0.009
+    ));
+    setAllocPay(payment);
+    setAllocRows(openInv.map((inv) => ({
+      invoiceId: inv.id,
+      invoiceNumber: inv.invoiceNumber,
+      due: invoiceDue(inv),
+      amount: '',
+    })));
+  };
+
+  const saveAllocate = async () => {
+    if (!allocPay) return;
+    const allocations = allocRows
+      .map((row) => ({ invoiceId: row.invoiceId, amount: Number(row.amount) || 0 }))
+      .filter((row) => row.amount > 0);
+    if (!allocations.length) {
+      toast.error('Enter at least one allocation amount');
+      return;
+    }
+    const total = allocations.reduce((s, a) => s + a.amount, 0);
+    const available = Number(allocPay.balanceDue || allocPay.amount || 0);
+    if (total > available + 0.009) {
+      toast.error('Allocated amount cannot exceed the available payment');
+      return;
+    }
+    setAllocSaving(true);
+    try {
+      await customersAPI.allocate(allocPay.customerId, { paymentId: allocPay.id, allocations });
+      toast.success('Payment allocated to invoice(s)');
+      setAllocPay(null);
+      loadPayments();
+      loadCustomers();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Allocation failed');
+    } finally {
+      setAllocSaving(false);
+    }
+  };
+
   const handleDelete = async (id) => {
     if (window.confirm('Delete this payment record?')) {
       try { await paymentsAPI.delete(id); toast.success('Payment deleted'); loadPayments(); }
@@ -479,6 +543,21 @@ const Payments = () => {
           </Button>
         )}
       />
+
+      {unallocated.length > 0 && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-2" data-testid="unallocated-payments">
+          <h2 className="font-semibold text-amber-900">Unallocated customer payments</h2>
+          <p className="text-xs text-amber-800">These amounts are on the customer ledger but not yet applied to an invoice.</p>
+          {unallocated.map((p) => (
+            <div key={p.id} className="flex flex-wrap items-center gap-2 bg-white rounded-xl border px-3 py-2 text-sm">
+              <span className="font-semibold flex-1">{p.party || 'Customer'}</span>
+              <span>{formatCurrency(p.balanceDue || p.amount)} · {p.method} · {formatDate(p.date)}</span>
+              <span className="text-xs text-slate-500">{p.reference || p.id}</span>
+              <Button size="sm" onClick={() => openAllocate(p)}>Allocate</Button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="erp-kpi flex items-center gap-3">
@@ -700,6 +779,44 @@ const Payments = () => {
               <Button type="submit" style={{ backgroundColor: '#ff6d00' }} className="text-white" disabled={saving} data-testid="save-payment-button"><Save className="h-4 w-4 mr-1" />{saving ? 'Saving...' : editing ? 'Update' : 'Record'}</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!allocPay} onOpenChange={(open) => { if (!open) setAllocPay(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Allocate payment</DialogTitle>
+            <DialogDescription>
+              {allocPay?.party} · available {formatCurrency(allocPay?.balanceDue || allocPay?.amount || 0)}
+              {allocPay?.date ? ` · ${formatDate(allocPay.date)}` : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+            {allocRows.length === 0 ? (
+              <p className="text-sm text-slate-500">This customer has no open invoices.</p>
+            ) : allocRows.map((row, idx) => (
+              <div key={row.invoiceId} className="grid grid-cols-3 gap-2 items-end text-sm">
+                <div className="col-span-2">
+                  <p className="font-medium">{row.invoiceNumber}</p>
+                  <p className="text-xs text-slate-500">Due {formatCurrency(row.due)}</p>
+                </div>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={row.amount}
+                  placeholder="0"
+                  onChange={(e) => setAllocRows((list) => list.map((r, i) => (i === idx ? { ...r, amount: e.target.value } : r)))}
+                />
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAllocPay(null)}>Cancel</Button>
+            <Button className="text-white" style={{ backgroundColor: '#ff6d00' }} disabled={allocSaving} onClick={saveAllocate}>
+              {allocSaving ? 'Saving…' : 'Allocate'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

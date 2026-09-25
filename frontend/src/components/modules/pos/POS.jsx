@@ -19,7 +19,7 @@ import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, getUserDisplayName } from '@/context/AuthContext';
-import { productImageSrc } from '@/utils/productImage';
+import { productImageSrc, catalogFieldsForOrderLine } from '@/utils/productImage';
 import { isServiceItem, tracksInventory } from '@/utils/inventoryTrack';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
@@ -69,6 +69,7 @@ const POS = () => {
   const [invCfg, setInvCfg] = useState(mergeInventorySettings({}));
   const [clock, setClock] = useState(() => new Date());
   const [registerReady, setRegisterReady] = useState(false);
+  const [varPick, setVarPick] = useState(null);
 
   const loadProducts = useCallback(async () => {
     try {
@@ -187,17 +188,25 @@ const POS = () => {
     return true;
   };
 
-  const addToCart = (product) => {
+  const addToCart = (product, variation = null) => {
     if (!register.current) {
       toast.error('Pehle cash register open karein');
       setOpenDlg(true);
       return;
     }
-    const rate = Number(product.rate || product.basePrice || product.effectivePrice || 0);
+    const variations = Array.isArray(product.variations) ? product.variations : [];
+    const chosen = variation || (variations.length === 1 ? variations[0] : null);
+    if (variations.length > 1 && !variation) {
+      setVarPick(product);
+      return;
+    }
+    const fields = catalogFieldsForOrderLine(product, chosen);
+    const rate = Number(fields.rate || product.rate || product.basePrice || product.effectivePrice || 0);
+    const lineKey = `${product.id}::${chosen?.id || ''}`;
     setCart((prev) => {
-      const idx = prev.findIndex((c) => c.productId === product.id);
+      const idx = prev.findIndex((c) => `${c.productId}::${c.variationId || ''}` === lineKey);
       const nextQty = idx >= 0 ? prev[idx].quantity + 1 : 1;
-      if (!stockGuard(product, nextQty)) return prev;
+      if (!stockGuard({ ...product, stock: chosen?.stock != null ? chosen.stock : product.stock }, nextQty)) return prev;
       if (idx >= 0) {
         const next = [...prev];
         next[idx] = { ...next[idx], quantity: nextQty };
@@ -205,37 +214,45 @@ const POS = () => {
       }
       return [...prev, {
         productId: product.id,
+        variationId: chosen?.id || '',
+        variationName: fields.variationName || '',
         productType: product.productType,
         trackInventory: tracksInventory(product),
-        name: product.name,
+        name: fields.name || product.name,
         rate,
         quantity: 1,
-        size: product.size || '',
-        material: product.material || '',
-        image: productImageSrc(product),
+        size: fields.size || product.size || '',
+        material: fields.material || product.material || '',
+        sku: fields.sku || '',
+        image: chosen?.image || productImageSrc(product),
       }];
     });
+    setVarPick(null);
   };
 
-  const updateQty = (productId, delta) => {
+  const lineKeyOf = (item) => `${item.productId}::${item.variationId || ''}`;
+
+  const updateQty = (item, delta) => {
+    const key = typeof item === 'string' ? `${item}::` : lineKeyOf(item);
     setCart((prev) => prev
       .map((c) => {
-        if (c.productId !== productId) return c;
+        if (lineKeyOf(c) !== key) return c;
         const nextQty = c.quantity + delta;
-        const catalog = products.find((p) => p.id === productId);
+        const catalog = products.find((p) => p.id === c.productId);
         if (delta > 0 && catalog && !stockGuard(catalog, nextQty)) return c;
         return { ...c, quantity: nextQty };
       })
       .filter((c) => c.quantity > 0));
   };
 
-  const setQtyManual = (productId, raw) => {
+  const setQtyManual = (item, raw) => {
     const n = Math.floor(Number(raw));
     if (!Number.isFinite(n)) return;
+    const key = typeof item === 'string' ? `${item}::` : lineKeyOf(item);
     setCart((prev) => prev
       .map((c) => {
-        if (c.productId !== productId) return c;
-        const catalog = products.find((p) => p.id === productId);
+        if (lineKeyOf(c) !== key) return c;
+        const catalog = products.find((p) => p.id === c.productId);
         if (catalog && n > c.quantity && !stockGuard(catalog, n)) return c;
         return { ...c, quantity: Math.max(0, n) };
       })
@@ -365,8 +382,10 @@ const POS = () => {
     }
     setCheckingOut(true);
     try {
-      const productsPayload = cart.map(({ productId, productType, trackInventory, name, quantity, rate, size, material }) => ({
+      const productsPayload = cart.map(({ productId, variationId, variationName, productType, trackInventory, name, quantity, rate, size, material, sku }) => ({
         productId,
+        variationId,
+        variationName,
         productType,
         trackInventory: trackInventory !== false && !String(productId || '').startsWith('calc_'),
         name,
@@ -374,6 +393,7 @@ const POS = () => {
         rate,
         size,
         material,
+        sku,
       }));
       const cust = selectedCustomer || WALK_IN;
       const phoneForSale = String(waPhone || cust.phone || '').trim();
@@ -778,7 +798,7 @@ const POS = () => {
                     size="icon"
                     variant="outline"
                     className="h-10 w-10 shrink-0 font-black"
-                    onClick={() => updateQty(item.productId, -1)}
+                    onClick={() => updateQty(item, -1)}
                     data-testid={`pos-cart-minus-${item.productId}`}
                   >
                     <Minus className="h-4 w-4" />
@@ -787,7 +807,7 @@ const POS = () => {
                     type="number"
                     min="1"
                     value={item.quantity}
-                    onChange={(e) => setQtyManual(item.productId, e.target.value)}
+                    onChange={(e) => setQtyManual(item, e.target.value)}
                     className="h-10 w-16 text-center text-base font-black px-1"
                     data-testid={`pos-cart-qty-${item.productId}`}
                   />
@@ -796,7 +816,7 @@ const POS = () => {
                     size="icon"
                     className="h-10 w-10 shrink-0 text-white"
                     style={{ backgroundColor: accent }}
-                    onClick={() => updateQty(item.productId, 1)}
+                    onClick={() => updateQty(item, 1)}
                     data-testid={`pos-cart-plus-${item.productId}`}
                   >
                     <Plus className="h-4 w-4" />
@@ -1098,6 +1118,28 @@ const POS = () => {
               <Lock className="h-4 w-4 mr-1" />{regBusy ? 'Closing…' : 'Post Z-report & close'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!varPick} onOpenChange={(open) => { if (!open) setVarPick(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Choose variation</DialogTitle>
+            <DialogDescription>{varPick?.name}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            {(varPick?.variations || []).map((v) => (
+              <Button
+                key={v.id}
+                type="button"
+                variant="outline"
+                className="w-full justify-between"
+                onClick={() => addToCart(varPick, v)}
+              >
+                <span>{v.name || [v.size, v.color, v.material].filter(Boolean).join(' / ') || 'Variation'}</span>
+                <span>{v.price ? formatCurrency(v.price) : 'Base price'}</span>
+              </Button>
+            ))}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

@@ -1,4 +1,19 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCorners,
+  useDroppable,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,7 +26,7 @@ import { clearGasCache } from '@/services/gasClient';
 import { useAuth, getUserDisplayName } from '@/context/AuthContext';
 import {
   Plus, Search, Edit, Trash2, ListTodo, Clock, PlayCircle, PauseCircle,
-  CheckCircle2, XCircle, AlertTriangle,
+  CheckCircle2, XCircle, AlertTriangle, GripVertical, User,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -54,6 +69,94 @@ function isOverdue(task) {
   return d < new Date().toISOString().slice(0, 10);
 }
 
+function TaskCard({ task, onEdit, onDelete, overlay }) {
+  const style = STATUS_STYLE[task.status] || STATUS_STYLE.Pending;
+  return (
+    <article
+      className={`rounded-xl border bg-white p-3 shadow-sm ${overlay ? 'shadow-xl ring-2 ring-orange-200' : 'hover:shadow-md'}`}
+      data-testid="task-card"
+    >
+      <div className="flex items-start gap-2">
+        <GripVertical className="h-4 w-4 mt-0.5 text-slate-300 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <h3 className="font-semibold text-ink text-sm leading-snug">{task.title}</h3>
+          <div className="flex flex-wrap gap-1 mt-1.5">
+            <Badge className={PRIORITY_STYLE[task.priority] || PRIORITY_STYLE.Medium}>{task.priority}</Badge>
+            {isOverdue(task) ? <Badge className="bg-rose-600 text-white">Overdue</Badge> : null}
+          </div>
+          <p className="text-[11px] text-slate-500 mt-2 flex items-center gap-1">
+            <User className="h-3 w-3" />
+            {task.assigneeName || 'Unassigned'}
+          </p>
+          {task.deadline ? (
+            <p className="text-[11px] text-slate-500 mt-0.5">Due {ymd(task.deadline)}</p>
+          ) : null}
+          <p className="text-[10px] uppercase tracking-wide mt-1" style={{ color: style.tint }}>{task.status}</p>
+          <div className="flex gap-1 mt-2">
+            <Button type="button" size="sm" variant="ghost" className="h-7 px-2" onClick={(e) => { e.stopPropagation(); onEdit(task); }}>
+              <Edit className="h-3.5 w-3.5" />
+            </Button>
+            <Button type="button" size="sm" variant="ghost" className="h-7 px-2" onClick={(e) => { e.stopPropagation(); onDelete(task); }}>
+              <Trash2 className="h-3.5 w-3.5 text-rose-500" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function SortableTaskCard({ task, onEdit, onDelete }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: task.id,
+    data: { type: 'task', status: task.status },
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.35 : 1,
+  };
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      <TaskCard task={task} onEdit={onEdit} onDelete={onDelete} />
+    </div>
+  );
+}
+
+function StatusColumn({ status, tasks, onEdit, onDelete }) {
+  const meta = STATUS_STYLE[status];
+  const Icon = meta.icon;
+  const { setNodeRef, isOver } = useDroppable({ id: status, data: { type: 'status', status } });
+  return (
+    <section
+      className={`min-w-[240px] w-[240px] shrink-0 rounded-2xl border bg-slate-50/80 ${isOver ? 'ring-2 ring-orange-300' : ''}`}
+      data-testid={`task-column-${status.replace(/\s+/g, '-').toLowerCase()}`}
+    >
+      <header className="px-3 py-2.5 flex items-center justify-between border-b bg-white/80 rounded-t-2xl">
+        <div className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: meta.tint }} />
+          <h2 className="text-sm font-semibold">{status}</h2>
+        </div>
+        <div className="flex items-center gap-1 text-slate-500">
+          <Icon className="h-3.5 w-3.5" style={{ color: meta.tint }} />
+          <Badge variant="outline">{tasks.length}</Badge>
+        </div>
+      </header>
+      <div ref={setNodeRef} className="p-2 space-y-2 min-h-[220px]">
+        <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+          {tasks.length === 0 ? (
+            <p className="text-center py-8 text-xs text-slate-400">Drop tasks here</p>
+          ) : (
+            tasks.map((task) => (
+              <SortableTaskCard key={task.id} task={task} onEdit={onEdit} onDelete={onDelete} />
+            ))
+          )}
+        </SortableContext>
+      </div>
+    </section>
+  );
+}
+
 const Tasks = () => {
   const { user, hasFullAccess } = useAuth();
   const me = getUserDisplayName(user);
@@ -61,7 +164,6 @@ const Tasks = () => {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [employeeFilter, setEmployeeFilter] = useState('all');
   const [deadlineFilter, setDeadlineFilter] = useState('all');
@@ -69,6 +171,9 @@ const Tasks = () => {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [activeId, setActiveId] = useState(null);
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -91,21 +196,10 @@ const Tasks = () => {
 
   useEffect(() => { load(); }, [load]);
 
-  const counts = useMemo(() => {
-    const c = { total: tasks.length, overdue: 0 };
-    STATUSES.forEach((s) => { c[s] = 0; });
-    tasks.forEach((t) => {
-      c[t.status] = (c[t.status] || 0) + 1;
-      if (isOverdue(t)) c.overdue += 1;
-    });
-    return c;
-  }, [tasks]);
-
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const today = new Date().toISOString().slice(0, 10);
     return tasks.filter((t) => {
-      if (statusFilter !== 'all' && t.status !== statusFilter) return false;
       if (priorityFilter !== 'all' && t.priority !== priorityFilter) return false;
       if (employeeFilter !== 'all' && t.assigneeId !== employeeFilter) return false;
       if (deadlineFilter === 'overdue' && !isOverdue(t)) return false;
@@ -115,7 +209,27 @@ const Tasks = () => {
       return [t.title, t.description, t.assigneeName, t.priority, t.status]
         .some((v) => String(v || '').toLowerCase().includes(q));
     });
-  }, [tasks, search, statusFilter, priorityFilter, employeeFilter, deadlineFilter]);
+  }, [tasks, search, priorityFilter, employeeFilter, deadlineFilter]);
+
+  const byStatus = useMemo(() => {
+    const map = {};
+    STATUSES.forEach((s) => { map[s] = []; });
+    filtered.forEach((t) => {
+      const key = STATUSES.includes(t.status) ? t.status : 'Pending';
+      map[key].push(t);
+    });
+    return map;
+  }, [filtered]);
+
+  const counts = useMemo(() => {
+    const c = { total: tasks.length, overdue: 0 };
+    STATUSES.forEach((s) => { c[s] = 0; });
+    tasks.forEach((t) => {
+      c[t.status] = (c[t.status] || 0) + 1;
+      if (isOverdue(t)) c.overdue += 1;
+    });
+    return c;
+  }, [tasks]);
 
   const openCreate = () => {
     setEditing(null);
@@ -153,10 +267,7 @@ const Tasks = () => {
     }
     setSaving(true);
     try {
-      const body = {
-        ...form,
-        createdByName: me,
-      };
+      const body = { ...form, createdByName: me };
       if (editing) await tasksAPI.update(editing.id, body);
       else await tasksAPI.create(body);
       toast.success(editing ? 'Task updated' : 'Task created');
@@ -170,10 +281,13 @@ const Tasks = () => {
   };
 
   const changeStatus = async (task, status) => {
+    if (!task?.id || task.status === status) return;
+    const prev = task.status;
+    setTasks((list) => list.map((t) => (t.id === task.id ? { ...t, status } : t)));
     try {
       await tasksAPI.updateStatus(task.id, status);
-      setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status } : t)));
     } catch (err) {
+      setTasks((list) => list.map((t) => (t.id === task.id ? { ...t, status: prev } : t)));
       toast.error(err.response?.data?.message || 'Could not update status');
     }
   };
@@ -189,10 +303,26 @@ const Tasks = () => {
     }
   };
 
-  const isMine = (task) => {
+  const canDelete = (task) => {
     const empId = user?.employeeId || user?.employee_id || '';
-    return (empId && task.assigneeId === empId)
+    const mine = (empId && task.assigneeId === empId)
       || (me && String(task.assigneeName || '').toLowerCase() === me.toLowerCase());
+    return hasFullAccess || mine || task.createdBy === user?.id;
+  };
+
+  const activeTask = tasks.find((t) => t.id === activeId);
+
+  const onDragEnd = async (event) => {
+    setActiveId(null);
+    const { active, over } = event;
+    if (!over) return;
+    const task = tasks.find((t) => t.id === active.id);
+    if (!task) return;
+    const overStatus = over.data?.current?.status
+      || (STATUSES.includes(over.id) ? over.id : tasks.find((t) => t.id === over.id)?.status);
+    if (overStatus && overStatus !== task.status) {
+      await changeStatus(task, overStatus);
+    }
   };
 
   return (
@@ -200,7 +330,7 @@ const Tasks = () => {
       <PageHeader
         eyebrow="Operations"
         title="Internal Tasks"
-        subtitle="Assign daily work, track status, and keep deadlines visible."
+        subtitle="CRM-style board — drag cards to update status instantly."
         testId="tasks-header"
         actions={(
           <Button onClick={openCreate} data-testid="task-new">
@@ -214,20 +344,13 @@ const Tasks = () => {
           const meta = STATUS_STYLE[s];
           const Icon = meta.icon;
           return (
-            <button
-              key={s}
-              type="button"
-              onClick={() => setStatusFilter(statusFilter === s ? 'all' : s)}
-              className={`erp-kpi text-left ${statusFilter === s ? 'ring-2 ring-offset-1' : ''}`}
-              style={statusFilter === s ? { ringColor: meta.tint } : undefined}
-              data-testid={`task-kpi-${s.replace(/\s+/g, '-').toLowerCase()}`}
-            >
+            <div key={s} className="erp-kpi text-left">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] uppercase tracking-wide text-slate-500">{s}</span>
                 <Icon className="h-4 w-4" style={{ color: meta.tint }} />
               </div>
               <p className="text-2xl font-bold mt-1" style={{ color: meta.tint }}>{counts[s] || 0}</p>
-            </button>
+            </div>
           );
         })}
         <button
@@ -264,55 +387,37 @@ const Tasks = () => {
         </select>
       </div>
 
-      <div className="erp-panel overflow-hidden">
-        {loading ? (
-          <p className="p-8 text-center text-slate-500">Loading tasks…</p>
-        ) : !filtered.length ? (
-          <div className="p-10 text-center text-slate-500">
-            <ListTodo className="h-10 w-10 mx-auto mb-2 opacity-40" />
-            <p>No tasks match these filters.</p>
+      {loading ? (
+        <p className="p-8 text-center text-slate-500">Loading tasks…</p>
+      ) : !filtered.length ? (
+        <div className="erp-panel p-10 text-center text-slate-500">
+          <ListTodo className="h-10 w-10 mx-auto mb-2 opacity-40" />
+          <p>No tasks match these filters.</p>
+        </div>
+      ) : (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={(e) => setActiveId(e.active.id)}
+          onDragEnd={onDragEnd}
+          onDragCancel={() => setActiveId(null)}
+        >
+          <div className="flex gap-3 overflow-x-auto pb-4" data-testid="task-board">
+            {STATUSES.map((status) => (
+              <StatusColumn
+                key={status}
+                status={status}
+                tasks={byStatus[status] || []}
+                onEdit={openEdit}
+                onDelete={(task) => { if (canDelete(task)) remove(task); else toast.error('You can only delete your own tasks'); }}
+              />
+            ))}
           </div>
-        ) : (
-          <div className="divide-y">
-            {filtered.map((task) => {
-              const style = STATUS_STYLE[task.status] || STATUS_STYLE.Pending;
-              return (
-                <article key={task.id} className="p-4 flex flex-col md:flex-row md:items-start gap-3" data-testid="task-row">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-semibold text-ink">{task.title}</h3>
-                      <Badge className={`${style.bg} border`}>{task.status}</Badge>
-                      <Badge className={PRIORITY_STYLE[task.priority] || PRIORITY_STYLE.Medium}>{task.priority}</Badge>
-                      {isOverdue(task) ? <Badge className="bg-rose-600 text-white">Overdue</Badge> : null}
-                      {isMine(task) ? <Badge variant="outline">Assigned to you</Badge> : null}
-                    </div>
-                    {task.description ? <p className="text-sm text-slate-600 mt-1 whitespace-pre-wrap">{task.description}</p> : null}
-                    <p className="text-xs text-slate-500 mt-2">
-                      {task.assigneeName || 'Unassigned'}
-                      {task.deadline ? ` · Due ${ymd(task.deadline)}` : ''}
-                      {task.createdByName ? ` · By ${task.createdByName}` : ''}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 shrink-0">
-                    <select
-                      className="h-9 rounded-md border px-2 text-sm"
-                      value={task.status}
-                      onChange={(e) => changeStatus(task, e.target.value)}
-                      data-testid="task-status"
-                    >
-                      {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                    <Button size="sm" variant="ghost" onClick={() => openEdit(task)}><Edit className="h-4 w-4" /></Button>
-                    {(hasFullAccess || isMine(task) || task.createdBy === user?.id) ? (
-                      <Button size="sm" variant="ghost" onClick={() => remove(task)}><Trash2 className="h-4 w-4 text-rose-500" /></Button>
-                    ) : null}
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        )}
-      </div>
+          <DragOverlay>
+            {activeTask ? <div className="w-[228px]"><TaskCard task={activeTask} onEdit={() => {}} onDelete={() => {}} overlay /></div> : null}
+          </DragOverlay>
+        </DndContext>
+      )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-lg">

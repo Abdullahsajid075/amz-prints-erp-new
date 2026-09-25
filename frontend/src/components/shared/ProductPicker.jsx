@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { productMatchesQuery } from '@/utils/productSearch';
-import { Search, ChevronDown, X } from 'lucide-react';
+import { Search, ChevronDown, X, Plus } from 'lucide-react';
 
 /**
  * Type-to-filter catalog picker — every word in the query must match.
@@ -17,6 +17,8 @@ export default function ProductPicker({
   testId = 'product-select',
   required = false,
   filterFn,
+  onAddNew,
+  allowCreate = false,
 }) {
   const [query, setQuery] = useState('');
   const [listOpen, setListOpen] = useState(false);
@@ -99,6 +101,20 @@ export default function ProductPicker({
       </div>
       {listOpen && (
         <div className="absolute z-50 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+          {allowCreate || onAddNew ? (
+            <button
+              type="button"
+              className="w-full text-left px-3 py-2.5 text-sm font-semibold border-b hover:bg-orange-50 flex items-center gap-2 text-orange-700"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                setListOpen(false);
+                onAddNew?.(query.trim());
+              }}
+            >
+              <Plus className="h-4 w-4" />
+              Add new product{query.trim() ? ` “${query.trim()}”` : ''}
+            </button>
+          ) : null}
           {filtered.map((p) => {
             const isSvc = String(p.productType || '').toLowerCase() === 'service';
             return (
