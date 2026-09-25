@@ -14,6 +14,8 @@ import ProductQuickCreate from '@/components/shared/ProductQuickCreate';
 import { ORDER_STATUS } from '@/utils/constants';
 import { formatCurrency } from '@/utils/helpers';
 import { catalogFieldsForOrderLine } from '@/utils/productImage';
+import { tracksInventory } from '@/utils/inventoryTrack';
+import { productStock } from '@/utils/purchaseNeeds';
 import { useBrand } from '@/context/BrandContext';
 import { printOrderBookSlip } from '@/utils/orderBookSlip';
 import { Plus, Trash2, Save, ArrowLeft, ClipboardList, PackagePlus, AlertTriangle, Wallet, Receipt } from 'lucide-react';
@@ -341,12 +343,17 @@ const OrderForm = () => {
 
       const cleanProducts = formData.products.map((p) => {
         const service = isServiceLine(p, catalog);
+        const product = catalog.find((x) => String(x.id) === String(p.productId || ''));
+        const qty = service ? 1 : (Number(p.quantity) || 0);
+        const stock = product ? productStock(product, p.variationId) : 0;
+        const tracked = product && !service && tracksInventory(product);
+        const backorder = tracked ? (stock <= 0 ? qty : Math.max(0, qty - stock)) : 0;
         return {
           productId: p.productId || '',
           variationId: p.variationId || '',
           variationName: p.variationName || '',
           name: p.name || '',
-          quantity: service ? 1 : (Number(p.quantity) || 0),
+          quantity: qty,
           rate: Number(p.rate) || 0,
           size: service ? '' : (p.size || ''),
           material: service ? '' : (p.material || ''),
@@ -354,9 +361,13 @@ const OrderForm = () => {
           notes: service ? (p.description || p.notes || '') : (p.notes || ''),
           description: service ? (p.description || p.notes || '') : '',
           productType: service ? 'Service' : 'Product',
-          // never persist catalog photo onto order lines
+          backorder,
         };
       });
+      const shortLines = cleanProducts.filter((p) => (Number(p.backorder) || 0) > 0);
+      if (shortLines.length) {
+        toast.message(`${shortLines.map((p) => p.name).join(', ')} stock short — order book ho jayega. Acknowledgments → Need to purchase.`);
+      }
 
       const totalAmount = cleanProducts.reduce((t, p) => t + (p.quantity * p.rate), 0);
       const advancePayment = Number(formData.advancePayment) || 0;

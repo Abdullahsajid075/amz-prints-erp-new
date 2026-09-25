@@ -14,6 +14,7 @@ export const APP_MODULES = [
   { key: 'hr', label: 'HR' },
   { key: 'tasks', label: 'Internal Tasks', always: true },
   { key: 'broadcasts', label: 'Broadcasts', always: true },
+  { key: 'acknowledgments', label: 'Acknowledgments', always: true },
   { key: 'calculator', label: 'Cost Calculator' },
   { key: 'accounts', label: 'Accounts' },
   { key: 'vendors', label: 'Vendors' },
@@ -61,7 +62,7 @@ export function canAccessModule(user, moduleKey) {
   if (!user || !moduleKey) return false;
   const key = String(moduleKey).trim().toLowerCase();
   if (!key) return false;
-  if (key === 'dashboard' || key === 'tasks' || key === 'broadcasts') return true;
+  if (key === 'dashboard' || key === 'tasks' || key === 'broadcasts' || key === 'acknowledgments') return true;
   if (hasFullAccess(user)) return true;
   if (key === 'settings') return false;
 
@@ -97,6 +98,7 @@ export function moduleForPath(pathname) {
   if (path.startsWith('/hr') || path.startsWith('/employees') || path.startsWith('/designers')) return 'hr';
   if (path.startsWith('/tasks')) return 'tasks';
   if (path.startsWith('/broadcasts') || path.startsWith('/announcements')) return 'broadcasts';
+  if (path.startsWith('/acknowledgments') || path.startsWith('/acknowledgements')) return 'acknowledgments';
   if (path.startsWith('/calculator')) return 'calculator';
   if (path.startsWith('/accounts/vendors') || path === '/vendors') return 'vendors';
   if (path.startsWith('/accounts') || path.startsWith('/payments') || path.startsWith('/expenses')) {
