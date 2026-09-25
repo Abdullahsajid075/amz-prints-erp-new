@@ -3076,7 +3076,11 @@ function handlePublicCustomer_(path, method, body) {
     var gEmail = resolveGooglePortalEmail_(body);
     var cust = findCustomerByEmail_(gEmail);
     if (!cust) {
-      if (body.createIfMissing) {
+      var shouldCreate = body.createIfMissing !== false
+        && body.createIfMissing !== 0
+        && String(body.createIfMissing).toLowerCase() !== 'false'
+        && String(body.createIfMissing) !== '0';
+      if (shouldCreate) {
         var gName = String(body.name || '').trim() || gEmail.split('@')[0];
         var gPass = Utilities.getUuid().replace(/-/g, '').slice(0, 12);
         var created = createPublicCustomerAccount_({

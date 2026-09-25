@@ -451,7 +451,7 @@ async function dispatch(req, res) {
             assertPortalKey(body.portalKey);
             const email = String(body.email || '').trim().toLowerCase();
             if (!email || !email.includes('@')) throw new Error('Valid email required');
-            return { email, name: '' };
+            return { email, name: String(body.name || '') };
           }
           return verifyGoogle(body.idToken || body.credential || '');
         };
@@ -580,7 +580,11 @@ async function dispatch(req, res) {
             const { data: rows } = await supabase.from('customers').select('*').ilike('email', g.email).limit(5);
             let customer = (rows || []).find((c) => String(c.email || '').trim().toLowerCase() === g.email);
             if (!customer) {
-              if (body.createIfMissing) {
+              const shouldCreate = body.createIfMissing !== false
+                && body.createIfMissing !== 0
+                && String(body.createIfMissing).toLowerCase() !== 'false'
+                && String(body.createIfMissing) !== '0';
+              if (shouldCreate) {
                 const name = String(body.name || g.name || g.email.split('@')[0]).trim();
                 const password = `g_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
                 const customerId = id('cust');
