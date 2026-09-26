@@ -87,7 +87,7 @@ export function openWhatsAppChat(phone, text, opts = {}) {
     return { ok: false, reason: 'missing_phone' };
   }
 
-  if (!opts.skipCopy) copyText(text);
+  if (opts.copy === true) copyText(text);
 
   if (opts.pendingWindow && !opts.pendingWindow.closed) {
     if (navigateWindow(opts.pendingWindow, urls.deepLink) || navigateWindow(opts.pendingWindow, urls.waMe)) {

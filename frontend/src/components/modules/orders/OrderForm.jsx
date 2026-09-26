@@ -336,7 +336,7 @@ const OrderForm = () => {
       return;
     }
     if (/^delivered$/i.test(String(formData.status || '')) && !linkedInvoiceId) {
-      toast.error('Pehle invoice banao — Delivered sirf invoiced orders pe allowed hai');
+      toast.error('Invoice Required: Please generate the invoice before delivering this order.');
       return;
     }
 
@@ -657,9 +657,9 @@ const OrderForm = () => {
                         <SelectItem
                           key={status}
                           value={status}
-                          disabled={status === ORDER_STATUS.DELIVERED && !linkedInvoiceId}
+                          disabled={(status === ORDER_STATUS.DELIVERED || status === ORDER_STATUS.CLOSED) && !linkedInvoiceId}
                         >
-                          {status === ORDER_STATUS.DELIVERED && !linkedInvoiceId
+                          {(status === ORDER_STATUS.DELIVERED || status === ORDER_STATUS.CLOSED) && !linkedInvoiceId
                             ? 'Delivered (invoice required)'
                             : status}
                         </SelectItem>

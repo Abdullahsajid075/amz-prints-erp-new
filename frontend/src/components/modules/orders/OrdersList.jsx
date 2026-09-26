@@ -12,6 +12,7 @@ import { formatCurrency, formatDate, getStatusColor, invoiceBalanceDue } from '@
 import { documentFileName } from '@/utils/printHelpers';
 import { printOrderBookSlip } from '@/utils/orderBookSlip';
 import { ORDER_STATUS, isOpenOrder, isNotStartedOrder, isSettledOrderStatus } from '@/utils/constants';
+import { INVOICE_REQUIRED_MESSAGE, canManuallyDeliver, orderHasInvoice, isReadyForDeliveryStatus } from '@/utils/deliveryRules';
 import { sortBy, pinFirst } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
 import PageHeader from '@/components/shared/PageHeader';
@@ -30,7 +31,7 @@ const ORDER_SORT_OPTS = [
   { value: 'totalAmount', label: 'Amount' },
 ];
 
-const COMPLETED_STATUSES = ['Delivered', 'Cancelled'];
+const COMPLETED_STATUSES = ['Delivered', 'Closed', 'Cancelled'];
 
 const isLockedOrder = (order) => /^(delivered|completed|complete)$/i.test(String(order?.status || ''));
 
@@ -196,9 +197,12 @@ const OrdersList = () => {
 
   const changeOrderStatus = async (order, status) => {
     if (!order?.id || String(order.status) === String(status)) return;
-    if (/^delivered$/i.test(String(status)) && !order.invoiceId) {
-      toast.error('Generate the invoice before marking this order Delivered');
-      return;
+    if (/^delivered$/i.test(String(status)) || /^closed$/i.test(String(status))) {
+      const gate = canManuallyDeliver(order);
+      if (!gate.ok) {
+        toast.error(gate.message || INVOICE_REQUIRED_MESSAGE);
+        return;
+      }
     }
     setStatusBusyId(order.id);
     try {
@@ -225,6 +229,44 @@ const OrdersList = () => {
     }
   };
 
+  const confirmManualDeliver = async (order) => {
+    const gate = canManuallyDeliver(order);
+    if (!gate.ok) {
+      toast.error(gate.message || INVOICE_REQUIRED_MESSAGE);
+      return;
+    }
+    if (gate.already) {
+      toast.message('This order is already delivered');
+      return;
+    }
+    if (!window.confirm(`Confirm delivery of ${order.orderId || order.id}? This will mark the order Delivered and Closed.`)) {
+      return;
+    }
+    setStatusBusyId(order.id);
+    try {
+      const res = await ordersAPI.deliver(order.id).catch(() => ordersAPI.updateStatus(order.id, ORDER_STATUS.DELIVERED));
+      const updated = res.data || { ...order, status: ORDER_STATUS.DELIVERED };
+      setOrders((prev) => prev.map((o) => (String(o.id) === String(order.id) ? { ...o, ...updated, status: updated.status || ORDER_STATUS.DELIVERED } : o)));
+      if (viewOrder && String(viewOrder.id) === String(order.id)) {
+        setViewOrder((prev) => ({ ...prev, ...updated, status: updated.status || ORDER_STATUS.DELIVERED }));
+      }
+      toast.success(`${order.orderId || 'Order'} delivered and closed`);
+      if (updated.customerPhone || order.customerPhone) {
+        await notifyOrderEvent({
+          event: 'status',
+          order: { ...order, ...updated, status: ORDER_STATUS.DELIVERED },
+          openWhatsApp: true,
+          sendEmail: false,
+        });
+      }
+      fetchOrders();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || INVOICE_REQUIRED_MESSAGE);
+    } finally {
+      setStatusBusyId('');
+    }
+  };
+
   const StatusSelect = ({ order, compact }) => (
     <Select
       value={order.status || ORDER_STATUS.RECEIVED}
@@ -242,9 +284,11 @@ const OrdersList = () => {
           <SelectItem
             key={s}
             value={s}
-            disabled={s === ORDER_STATUS.DELIVERED && !order.invoiceId}
+            disabled={(s === ORDER_STATUS.DELIVERED || s === ORDER_STATUS.CLOSED) && !orderHasInvoice(order)}
           >
-            {s === ORDER_STATUS.DELIVERED && !order.invoiceId ? 'Delivered (invoice required)' : s}
+            {(s === ORDER_STATUS.DELIVERED || s === ORDER_STATUS.CLOSED) && !orderHasInvoice(order)
+              ? 'Delivered (invoice required)'
+              : s}
           </SelectItem>
         ))}
       </SelectContent>
@@ -526,9 +570,9 @@ const OrdersList = () => {
     try {
       const created = await ordersAPI.createInvoice(order.id);
       const data = created.data || {};
-      toast.success(`Invoice ${data.invoiceNumber || ''} generated — advance allocated once`);
+      toast.success(`Invoice ${data.invoiceNumber || data.invoiceId || ''} generated. Order is eligible for delivery — it was not marked Delivered.`);
+      fetchOrders();
       if (data.invoiceId) navigate(`/invoices/${data.invoiceId}`);
-      else fetchOrders();
     } catch (err) {
       console.error(err);
       toast.error(err?.response?.data?.message || 'Failed to generate invoice');
@@ -622,9 +666,22 @@ const OrdersList = () => {
             <Button size="sm" className="flex-1 text-white text-xs h-8 rounded-lg shadow-sm" style={{ backgroundColor: '#ff6d00' }} onClick={() => handleView(order.id)} data-testid={`view-order-${order.id}`}>
               <Eye className="h-3 w-3 mr-1" />View
             </Button>
-            {order.status === 'Ready' && (
+            {isReadyForDeliveryStatus(order.status) && (
               <Button size="icon" variant="outline" className="h-8 w-8 rounded-lg bg-white/50" title="Delivery Slip" onClick={() => navigate(`/orders/${order.id}/delivery-slip`)} data-testid={`delivery-slip-${order.id}`}>
                 <Truck className="h-3.5 w-3.5" style={{ color: '#ff6d00' }} />
+              </Button>
+            )}
+            {!isLockedOrder(order) && (
+              <Button
+                size="sm"
+                className="h-8 px-2 text-[11px] font-semibold rounded-lg text-white"
+                style={{ backgroundColor: orderHasInvoice(order) ? '#0747a3' : '#94a3b8' }}
+                title={orderHasInvoice(order) ? 'Manually confirm delivery' : INVOICE_REQUIRED_MESSAGE}
+                disabled={!!statusBusyId}
+                onClick={() => confirmManualDeliver(order)}
+                data-testid={`deliver-order-${order.id}`}
+              >
+                <Truck className="h-3 w-3 mr-1" />Deliver
               </Button>
             )}
             {order.invoiceId ? (
@@ -764,7 +821,7 @@ const OrdersList = () => {
       <Card>
         <CardHeader className="py-3">
           <CardTitle className="text-sm uppercase tracking-wider text-gray-700 font-semibold">Completed & Cancelled ({completed.length})</CardTitle>
-          <p className="text-[11px] text-gray-500 font-normal mt-1">Delivered orders (invoice wali) cards se nikal kar yahan list me aati hain.</p>
+          <p className="text-[11px] text-gray-500 font-normal mt-1">Only manually delivered or cancelled jobs appear here. An invoice makes a job eligible — it does not move it here.</p>
         </CardHeader>
         <CardContent>
           {completed.length === 0 ? (
@@ -966,9 +1023,19 @@ const OrdersList = () => {
                   <Receipt className="h-4 w-4 mr-1" />Customer slip
                 </Button>
                 <Button variant="outline" onClick={() => handlePrint(viewOrder)}><Printer className="h-4 w-4 mr-1" />Print</Button>
-                {viewOrder.status === 'Ready' && (
+                {isReadyForDeliveryStatus(viewOrder.status) && (
                   <Button variant="outline" onClick={() => { setViewOpen(false); navigate(`/orders/${viewOrder.id}/delivery-slip`); }}>
                     <Truck className="h-4 w-4 mr-1" />Delivery Slip
+                  </Button>
+                )}
+                {!isLockedOrder(viewOrder) && (
+                  <Button
+                    className="text-white"
+                    style={{ backgroundColor: orderHasInvoice(viewOrder) ? '#0747a3' : '#94a3b8' }}
+                    onClick={() => confirmManualDeliver(viewOrder)}
+                    data-testid="deliver-from-dialog-button"
+                  >
+                    <Truck className="h-4 w-4 mr-1" />Deliver
                   </Button>
                 )}
                 {needsDesignDocsReminder(viewOrder) && (

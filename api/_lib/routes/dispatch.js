@@ -27,6 +27,19 @@ const {
   isCancelledStatus,
   purchaseOutstanding,
 } = require('../lib/ledger');
+const {
+  INVOICE_REQUIRED_MESSAGE,
+  INVOICE_ELIGIBLE_NOTE,
+  MANUAL_DELIVER_NOTE,
+  RESTORE_NOTE,
+  REOPEN_NOTE,
+  classifyIncorrectDelivery,
+  buildHistoryEntry,
+  appendAdminReviewRemark,
+  canDeliverOrder,
+  isDeliveredStatus,
+  isPosOrder,
+} = require('../lib/deliveryWorkflow');
 
 function expenseIsApproved(row) {
   if (!row) return false;
@@ -492,18 +505,161 @@ async function withInvoiceMeta(apiOrder) {
   return apiOrder;
 }
 
-async function markLinkedOrdersDelivered(invoice) {
+async function markOrdersEligibleForDelivery(invoice, user) {
   if (!invoice) return;
   const ids = collectOrderIds({}, invoice);
   for (const key of ids) {
     if (!key) continue;
     const order = await loadOrderByRef(key);
     if (!order || isCancelledStatus(order.status)) continue;
-    if (/^delivered$/i.test(String(order.status))) continue;
     const hist = Array.isArray(order.status_history) ? [...order.status_history] : [];
-    hist.push({ status: 'Delivered', at: `${today()} ${nowTime()}`, note: 'Invoice linked — marked Delivered' });
-    await supabase.from('orders').update({ status: 'Delivered', status_history: hist }).eq('id', order.id);
+    const already = hist.some((h) => String(h.note || '') === INVOICE_ELIGIBLE_NOTE);
+    if (already) continue;
+    hist.push(buildHistoryEntry({
+      status: order.status,
+      at: `${today()} ${nowTime()}`,
+      note: INVOICE_ELIGIBLE_NOTE,
+      previousStatus: order.status,
+      by: userLabel(user),
+      process: 'invoice',
+    }));
+    await supabase.from('orders').update({ status_history: hist }).eq('id', order.id);
   }
+}
+
+async function confirmManualDelivery(order, user) {
+  if (!order) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
+  if (isPosOrder(order)) {
+    return order;
+  }
+  const holder = await findInvoiceHoldingOrder(order);
+  const gate = canDeliverOrder({
+    hasInvoice: !!holder,
+    status: order.status,
+    docType: order.doc_type,
+    remarks: order.remarks,
+  });
+  if (!gate.ok) {
+    throw Object.assign(new Error(gate.message || INVOICE_REQUIRED_MESSAGE), { statusCode: 400 });
+  }
+  if (gate.already) return order;
+  const hist = Array.isArray(order.status_history) ? [...order.status_history] : [];
+  const at = `${today()} ${nowTime()}`;
+  hist.push(buildHistoryEntry({
+    status: 'Delivered',
+    at,
+    note: MANUAL_DELIVER_NOTE,
+    previousStatus: order.status,
+    by: userLabel(user),
+    process: 'manual-delivery',
+  }));
+  hist.push(buildHistoryEntry({
+    status: 'Closed',
+    at,
+    note: 'Closed after delivery',
+    previousStatus: 'Delivered',
+    by: userLabel(user),
+    process: 'manual-delivery',
+  }));
+  await supabase.from('orders').update({ status: 'Delivered', status_history: hist }).eq('id', order.id);
+  const { data } = await supabase.from('orders').select('*').eq('id', order.id).maybeSingle();
+  return data || { ...order, status: 'Delivered', status_history: hist };
+}
+
+async function restoreIncorrectDeliveries(user) {
+  const fs = require('fs');
+  const path = require('path');
+  const { data: orders } = await supabase.from('orders').select('*');
+  const { data: invoices } = await supabase.from('invoices').select('id,order_id,order_ids');
+  const backup = [];
+  for (const order of (orders || [])) {
+    if (!isDeliveredStatus(order.status) && !/^delivered$/i.test(String(order.status))) continue;
+    const keys = [order.order_id, order.id].filter(Boolean).map(String);
+    const hasInvoice = (invoices || []).some((inv) => {
+      const ids = collectOrderIds({}, inv).map(String);
+      return keys.some((k) => ids.includes(k) || String(inv.order_id) === k);
+    });
+    const decision = classifyIncorrectDelivery(order, { hasInvoice });
+    backup.push({
+      id: order.id,
+      orderId: order.order_id,
+      status: order.status,
+      remarks: order.remarks || '',
+      status_history: order.status_history,
+      hasInvoice,
+      decision,
+    });
+  }
+  try {
+    const dir = path.join(__dirname, '../../../.restore-backups');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, `orders-delivery-${Date.now()}.json`), JSON.stringify({
+      at: new Date().toISOString(),
+      by: userLabel(user) || 'system',
+      backup,
+    }));
+  } catch (err) {
+    console.error('restore backup write failed', err.message);
+  }
+
+  const restored = [];
+  const flagged = [];
+  const skipped = [];
+  for (const snapshot of backup) {
+    const order = (orders || []).find((o) => o.id === snapshot.id);
+    const decision = snapshot.decision;
+    if (!order || decision.action === 'skip' || decision.action === 'keep') {
+      skipped.push({ id: snapshot.id, orderId: snapshot.orderId, reason: decision.reason });
+      continue;
+    }
+    const hist = Array.isArray(order.status_history) ? [...order.status_history] : [];
+    const at = `${today()} ${nowTime()}`;
+    if (decision.action === 'restore' || decision.action === 'reopen-ready') {
+      const nextStatus = decision.restoreTo || 'Ready';
+      hist.push(buildHistoryEntry({
+        status: nextStatus,
+        at,
+        note: decision.action === 'reopen-ready' ? REOPEN_NOTE : RESTORE_NOTE,
+        previousStatus: order.status,
+        by: userLabel(user) || 'system',
+        process: 'restore-auto-delivery',
+      }));
+      await supabase.from('orders').update({
+        status: nextStatus,
+        status_history: hist,
+      }).eq('id', order.id);
+      restored.push({
+        id: order.id,
+        orderId: order.order_id,
+        from: order.status,
+        to: nextStatus,
+        reason: decision.reason,
+        invoiceRequired: !!decision.invoiceRequired,
+      });
+      continue;
+    }
+    if (decision.action === 'flag') {
+      const remarks = appendAdminReviewRemark(order.remarks, decision.reason);
+      hist.push(buildHistoryEntry({
+        status: order.status,
+        at,
+        note: `${decision.reason === 'genuine-no-invoice' ? 'Genuine delivery preserved' : 'ADMIN REVIEW'}: ${decision.reason}`,
+        previousStatus: order.status,
+        by: userLabel(user) || 'system',
+        process: 'restore-auto-delivery',
+      }));
+      await supabase.from('orders').update({ remarks, status_history: hist }).eq('id', order.id);
+      flagged.push({
+        id: order.id,
+        orderId: order.order_id,
+        status: order.status,
+        reason: decision.reason,
+        previousStatus: decision.previousStatus || '',
+        kept: true,
+      });
+    }
+  }
+  return { backupCount: backup.length, restored, flagged, skipped: skipped.length };
 }
 
 async function findOpenInvoiceForCustomer(order) {
@@ -561,7 +717,7 @@ async function findOrCreateInvoiceForOrder(order) {
     payment_history: [],
   };
   await supabase.from('invoices').insert(row);
-  await markLinkedOrdersDelivered(row);
+  await markOrdersEligibleForDelivery(row);
   return row;
 }
 
@@ -599,7 +755,7 @@ async function ensureOrderInvoice(order) {
       return refreshed || afterAdvance;
     }
   }
-  await markLinkedOrdersDelivered(afterAdvance);
+  await markOrdersEligibleForDelivery(afterAdvance);
   return afterAdvance;
 }
 
@@ -755,8 +911,9 @@ async function findInvoiceHoldingOrder(order, exceptId = '') {
 }
 
 async function assertOrderCanBeDelivered(order) {
+  if (isPosOrder(order)) return true;
   if (await findInvoiceHoldingOrder(order)) return true;
-  throw Object.assign(new Error('Generate the invoice before marking this order Delivered'), { statusCode: 400 });
+  throw Object.assign(new Error(INVOICE_REQUIRED_MESSAGE), { statusCode: 400 });
 }
 
 async function addOrderOntoInvoice(invoice, order) {
@@ -786,7 +943,7 @@ async function addOrderOntoInvoice(invoice, order) {
   const { data: latest } = await supabase.from('invoices').select('*').eq('id', invoice.id).maybeSingle();
   const finalInv = latest || afterAdvance || refreshed || invoice;
   await syncLinkedOrderBalances(finalInv);
-  await markLinkedOrdersDelivered(finalInv);
+  await markOrdersEligibleForDelivery(finalInv);
   return finalInv;
 }
 
@@ -835,7 +992,7 @@ async function combineOpenInvoices(ids) {
   }
   const { data } = await supabase.from('invoices').select('*').eq('id', target.id).maybeSingle();
   await syncLinkedOrderBalances(data);
-  await markLinkedOrdersDelivered(data);
+  await markOrdersEligibleForDelivery(data);
   return data;
 }
 
@@ -1141,6 +1298,35 @@ async function dispatch(req, res) {
         if (error || !data) return sendError(res, 'Invoice not found', 404);
         return send(res, mapInvoice(data));
       }
+      if (method === 'POST' && /^\/public\/track\/.+\/deliver$/.test(path)) {
+        const staffTok = token || String(req.headers?.authorization || '').replace(/^Bearer\s+/i, '').trim();
+        const staff = await validateToken(staffTok);
+        if (!staff) return sendError(res, 'Staff login required to confirm delivery', 401);
+        const tracking = decodeURIComponent(path.replace('/public/track/', '').replace(/\/deliver$/i, '')).trim().toLowerCase();
+        const { data: orders } = await supabase.from('orders').select('*');
+        const order = (orders || []).find((o) => {
+          if (String(o.doc_type || 'Order').toLowerCase() === 'quotation') return false;
+          const keys = [o.tracking_number, o.order_id, o.id, o.token_no]
+            .map((v) => String(v || '').trim().toLowerCase())
+            .filter(Boolean);
+          return keys.includes(tracking);
+        });
+        if (!order) return sendError(res, `Order not found for: ${tracking}`, 404);
+        try {
+          const delivered = await confirmManualDelivery(order, staff);
+          const mapped = await withInvoiceMeta(mapOrder(delivered));
+          return send(res, {
+            ok: true,
+            orderId: mapped.orderId,
+            status: mapped.status,
+            delivered: true,
+            closed: true,
+            invoiceNumber: mapped.invoiceNumber || '',
+          });
+        } catch (err) {
+          return sendError(res, err.message || INVOICE_REQUIRED_MESSAGE, err.statusCode || 400);
+        }
+      }
       if (method === 'GET' && path.startsWith('/public/track/')) {
         const tracking = decodeURIComponent(path.replace('/public/track/', '')).trim().toLowerCase();
         const { data: orders } = await supabase.from('orders').select('*');
@@ -1153,16 +1339,21 @@ async function dispatch(req, res) {
         });
         if (!order) return sendError(res, `Order not found for: ${tracking}`, 404);
         const api = mapOrder(order);
+        const holder = await findInvoiceHoldingOrder(order);
+        const delivered = isDeliveredStatus(api.status);
         const pipeline = ['Order Received', 'Designing', 'Proof Approval', 'Printing', 'Finishing', 'Packing', 'Ready', 'Delivered'];
         const status = String(api.status || '');
-        const cancelled = status.toLowerCase() === 'cancelled';
+        const cancelled = /cancel/i.test(status);
         let idx = cancelled ? -1 : pipeline.indexOf(status);
+        if (idx < 0 && /ready/i.test(status)) idx = pipeline.indexOf('Ready');
+        if (idx < 0 && delivered) idx = pipeline.indexOf('Delivered');
         const timeline = pipeline.map((s, i) => ({
           status: s,
           done: !cancelled && idx >= 0 && i <= idx,
-          current: !cancelled && s === status,
+          current: !cancelled && (s === status || (s === 'Ready' && /ready/i.test(status)) || (s === 'Delivered' && delivered && i === idx)),
         }));
         return send(res, {
+          id: api.id,
           orderId: api.orderId,
           trackingNumber: api.trackingNumber || api.orderId,
           status: api.status,
@@ -1171,6 +1362,10 @@ async function dispatch(req, res) {
           products: (api.products || []).map((p) => ({ name: p.name || '' })).filter((p) => p.name),
           timeline,
           trackCode: api.trackingNumber || api.orderId || api.id,
+          hasInvoice: !!holder,
+          invoiceRequired: !holder && !cancelled && !delivered,
+          invoiceRequiredMessage: INVOICE_REQUIRED_MESSAGE,
+          canDeliver: !!holder && !cancelled && !delivered,
           companyNote: 'For questions, contact Amazon Printing Services with your Order ID.',
         });
       }
@@ -1398,7 +1593,19 @@ async function dispatch(req, res) {
             creditBalance: led.creditBalance,
           },
           ledger: led,
-          orders: relatedOrders.map(mapOrder),
+          orders: relatedOrders.map((o) => {
+            const api = mapOrder(o);
+            const keys = [o.order_id, o.id].filter(Boolean).map(String);
+            const inv = (relatedInvoices || []).find((row) => {
+              const ids = collectOrderIds({}, row);
+              return keys.some((k) => ids.includes(k) || String(row.order_id) === k);
+            });
+            api.hasInvoice = !!inv;
+            api.invoiceId = inv ? (inv.id || '') : '';
+            api.invoiceNumber = inv ? (inv.invoice_no || '') : '';
+            api.invoiceRequired = !inv && !isDeliveredStatus(api.status) && !isCancelledStatus(api.status);
+            return api;
+          }),
           invoices: relatedInvoices.map(mapInvoice),
           payments: relatedPayments.map(mapPayment),
           portalUrl: `/portal?c=${encodeURIComponent(me.id)}`,
@@ -2376,8 +2583,8 @@ async function dispatch(req, res) {
             row.remarks = `${row.remarks || ''}${row.remarks ? ' | ' : ''}Advance applied ${adv.applied}`.trim();
           }
         }
-        if (docType !== 'pos' && /^delivered$/i.test(String(row.status))) {
-          return sendError(res, 'Generate the invoice before marking this order Delivered', 400);
+        if (docType !== 'pos' && isDeliveredStatus(row.status)) {
+          return sendError(res, INVOICE_REQUIRED_MESSAGE, 400);
         }
         if (docType !== 'pos' && num(row.advance_payment) > 0) {
           return sendError(res, 'Create the invoice before recording an advance payment', 400);
@@ -2397,6 +2604,12 @@ async function dispatch(req, res) {
       }
     }
 
+    if (path === '/orders/restore-auto-deliveries' && method === 'POST') {
+      if (!isAdminRole(user)) return sendError(res, 'Only an administrator can restore auto-delivered orders', 403);
+      const result = await restoreIncorrectDeliveries(user);
+      return send(res, { ok: true, ...result });
+    }
+
     if (path.startsWith('/orders/')) {
       const oid = path.split('/')[2];
       const action = path.split('/')[3];
@@ -2413,15 +2626,23 @@ async function dispatch(req, res) {
     async function handleOrderByRow(existing, action, method, body, res) {
       if (action === 'status' && (method === 'PATCH' || method === 'POST')) {
         const status = body.status || existing.status;
-        if (/^delivered$/i.test(String(status))) {
+        if (isDeliveredStatus(status) || /^closed$/i.test(String(status))) {
           try {
-            await assertOrderCanBeDelivered(existing);
+            const delivered = await confirmManualDelivery(existing, user);
+            return send(res, await withInvoiceMeta(mapOrder(delivered)));
           } catch (err) {
             return sendError(res, err.message, err.statusCode || 400);
           }
         }
         const hist = Array.isArray(existing.status_history) ? [...existing.status_history] : [];
-        hist.push({ status, at: `${today()} ${nowTime()}`, note: 'Status update' });
+        hist.push(buildHistoryEntry({
+          status,
+          at: `${today()} ${nowTime()}`,
+          note: 'Status update',
+          previousStatus: existing.status,
+          by: userLabel(user),
+          process: 'status-update',
+        }));
         const wasCancelled = isCancelledStatus(existing.status);
         const nowCancelled = isCancelledStatus(status);
         const statusIsPos = String(existing.doc_type || '').toLowerCase() === 'pos';
@@ -2429,7 +2650,15 @@ async function dispatch(req, res) {
         if (wasCancelled && !nowCancelled) await persistOrderStock(existing, { isPos: statusIsPos, oldLines: [] });
         await supabase.from('orders').update({ status, status_history: hist }).eq('id', existing.id);
         const { data } = await supabase.from('orders').select('*').eq('id', existing.id).maybeSingle();
-        return send(res, mapOrder(data));
+        return send(res, await withInvoiceMeta(mapOrder(data)));
+      }
+      if (action === 'deliver' && (method === 'PATCH' || method === 'POST')) {
+        try {
+          const delivered = await confirmManualDelivery(existing, user);
+          return send(res, await withInvoiceMeta(mapOrder(delivered)));
+        } catch (err) {
+          return sendError(res, err.message, err.statusCode || 400);
+        }
       }
       if (action === 'duplicate' && method === 'POST') {
         const copy = orderFromBody({ ...mapOrder(existing), id: undefined, orderId: undefined }, {});
@@ -2444,7 +2673,9 @@ async function dispatch(req, res) {
           return sendError(res, 'Quotations are estimates only. Convert to an order before creating an invoice.', 400);
         }
         const inv = await ensureOrderInvoice(existing);
-        return send(res, await withInvoiceMeta(mapOrder(existing), inv));
+        await markOrdersEligibleForDelivery(inv, user);
+        const { data: refreshed } = await supabase.from('orders').select('*').eq('id', existing.id).maybeSingle();
+        return send(res, await withInvoiceMeta(mapOrder(refreshed || existing)));
       }
       if (action === 'payment' && method === 'POST') {
         if (String(existing.doc_type || '').toLowerCase() === 'quotation') {
@@ -2469,9 +2700,12 @@ async function dispatch(req, res) {
         const row = orderFromBody(body, existing);
         row.id = existing.id;
         if (!row.order_id) row.order_id = existing.order_id;
-        if (/^delivered$/i.test(String(row.status))) {
+        if (isDeliveredStatus(row.status) || /^closed$/i.test(String(row.status))) {
           try {
             await assertOrderCanBeDelivered(existing);
+            const delivered = await confirmManualDelivery({ ...existing, ...row, status: existing.status, status_history: existing.status_history }, user);
+            row.status = delivered.status || 'Delivered';
+            row.status_history = delivered.status_history || existing.status_history;
           } catch (err) {
             return sendError(res, err.message, err.statusCode || 400);
           }
@@ -2608,7 +2842,7 @@ async function dispatch(req, res) {
             await supabase.from('invoices').update({ paid: row.paid, status: row.status }).eq('id', row.id);
           }
         }
-        await markLinkedOrdersDelivered(row);
+        await markOrdersEligibleForDelivery(row, user);
         return send(res, mapInvoice(row));
       }
       if (path === '/invoices/combine' && method === 'POST') {

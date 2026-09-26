@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Menu, LogOut, Settings } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import NotificationBell from '@/components/layout/NotificationBell';
 
 const TITLE_MAP = [
   { match: '/dashboard', title: 'Dashboard' },
@@ -117,6 +118,7 @@ const Navbar = ({ toggleSidebar }) => {
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
+          <NotificationBell />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button

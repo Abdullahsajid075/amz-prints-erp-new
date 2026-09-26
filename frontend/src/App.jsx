@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from '@/context/AuthContext';
 import { BrandProvider } from '@/context/BrandContext';
 import { Toaster } from '@/components/ui/sonner';
+import { NotificationProvider } from '@/context/NotificationCenter';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Login from '@/components/modules/auth/Login';
 import MainLayout from '@/components/layout/MainLayout';
@@ -52,10 +53,12 @@ function AuthenticatedApp() {
   return (
     <BrandProvider>
       <AuthProvider>
-        <ProtectedRoute>
-          <MainLayout />
-        </ProtectedRoute>
-        <Toaster position="top-right" richColors closeButton />
+        <NotificationProvider>
+          <ProtectedRoute>
+            <MainLayout />
+          </ProtectedRoute>
+          <Toaster position="top-right" richColors closeButton />
+        </NotificationProvider>
       </AuthProvider>
     </BrandProvider>
   );

@@ -26,6 +26,8 @@ export const ordersAPI = {
   delete: (id) => gasRequest('DELETE', `/orders/${id}`, withToken()),
   duplicate: (id) => gasRequest('POST', `/orders/${id}/duplicate`, withToken()),
   updateStatus: (id, status) => gasRequest('PATCH', `/orders/${id}/status`, withToken({ data: { status } })),
+  deliver: (id) => gasRequest('POST', `/orders/${id}/deliver`, withToken({ data: {} })),
+  restoreAutoDeliveries: () => gasRequest('POST', '/orders/restore-auto-deliveries', withToken({ data: {} })),
   pay: (id, data) => gasRequest('POST', `/orders/${id}/payment`, withToken({ data })),
   createInvoice: (id) => gasRequest('POST', `/orders/${id}/invoice`, withToken({ data: {} })),
   addToInvoice: (id, invoiceId) => invoicesAPI.addOrder(invoiceId, { orderId: id }),
@@ -227,6 +229,9 @@ export const notificationsAPI = {
 export const trackPublic = (id) =>
   gasRequest('GET', `/public/track/${encodeURIComponent(String(id || '').trim())}`);
 
+export const trackDeliverPublic = (id) =>
+  gasRequest('POST', `/public/track/${encodeURIComponent(String(id || '').trim())}/deliver`, withToken({ data: {} }));
+
 export const verifyPublic = (id) =>
   gasRequest('GET', `/public/verify/${encodeURIComponent(String(id || '').trim())}`);
 
@@ -269,6 +274,7 @@ export default {
   posRegisterAPI,
   notificationsAPI,
   trackPublic,
+  trackDeliverPublic,
   verifyEmployeePublic,
   portalAPI,
 };

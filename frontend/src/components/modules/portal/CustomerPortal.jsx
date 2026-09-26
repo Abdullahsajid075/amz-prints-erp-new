@@ -10,7 +10,8 @@ import { portalAPI } from '@/services/api';
 import { useBrand } from '@/context/BrandContext';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 import { customerPortalUrl, downloadDataUrl, canvasPngDataUrl, printCustomerCard } from '@/utils/customerDocuments';
-import { IdCard, QrCode, LogOut, Download, BookOpen, Shield } from 'lucide-react';
+import { IdCard, QrCode, LogOut, Download, BookOpen, Shield, Package } from 'lucide-react';
+import { INVOICE_REQUIRED_MESSAGE } from '@/utils/deliveryRules';
 import { toast } from 'sonner';
 
 const TOKEN_KEY = 'amz_customer_portal_token';
@@ -212,6 +213,32 @@ export default function CustomerPortal() {
                 ))}
               </tbody>
             </table>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle className="text-base flex items-center gap-2"><Package className="h-4 w-4" />Orders</CardTitle></CardHeader>
+          <CardContent>
+            {(data?.orders || []).length === 0 ? (
+              <p className="text-sm text-slate-500">No orders yet.</p>
+            ) : (
+              <ul className="space-y-3 text-sm">
+                {(data.orders || []).map((o) => (
+                  <li key={o.id || o.orderId} className="border-b border-slate-100 pb-3" data-testid="portal-order-row">
+                    <div className="flex justify-between gap-3">
+                      <div>
+                        <p className="font-semibold">{o.orderId || o.id}</p>
+                        <p className="text-xs text-slate-500">{formatDate(o.date)} · {o.status || '—'}</p>
+                      </div>
+                      <Badge className="shrink-0">{o.status || 'Open'}</Badge>
+                    </div>
+                    {o.invoiceRequired && (
+                      <p className="text-xs text-amber-800 mt-1">{INVOICE_REQUIRED_MESSAGE}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
           </CardContent>
         </Card>
 

@@ -3,11 +3,13 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { trackPublic } from '@/services/api';
+import { trackPublic, trackDeliverPublic } from '@/services/api';
+import { tokenStorage } from '@/services/tokenStorage';
+import { INVOICE_REQUIRED_MESSAGE } from '@/utils/deliveryRules';
 import { getStatusColor } from '@/utils/helpers';
 import { useBrand } from '@/context/BrandContext';
 import {
-  Search, Package, CheckCircle2, Circle, RefreshCw, Hash, User,
+  Search, Package, CheckCircle2, Circle, RefreshCw, Hash, User, Truck,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -26,6 +28,8 @@ const PublicOrderTracking = () => {
   const [loading, setLoading] = useState(Boolean(routeCode));
   const [error, setError] = useState('');
   const [searched, setSearched] = useState(false);
+  const [delivering, setDelivering] = useState(false);
+  const staffLoggedIn = Boolean(tokenStorage.getToken());
 
   const companyName = company?.name || 'Amazon Printing Services';
 
@@ -74,6 +78,31 @@ const PublicOrderTracking = () => {
       return;
     }
     navigate(`/track/${encodeURIComponent(code)}`);
+  };
+
+  const confirmWebsiteDelivery = async () => {
+    if (!order) return;
+    if (!staffLoggedIn) {
+      toast.error('Staff login required to confirm delivery');
+      return;
+    }
+    if (order.invoiceRequired || !order.hasInvoice) {
+      toast.error(order.invoiceRequiredMessage || INVOICE_REQUIRED_MESSAGE);
+      return;
+    }
+    if (!window.confirm(`Confirm delivery of ${order.orderId || 'this order'}?`)) return;
+    setDelivering(true);
+    try {
+      const code = order.trackCode || order.trackingNumber || order.orderId || routeCode;
+      const res = await trackDeliverPublic(code);
+      const data = res.data || {};
+      toast.success(`${data.orderId || order.orderId} delivered and closed`);
+      await lookup(code);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || INVOICE_REQUIRED_MESSAGE);
+    } finally {
+      setDelivering(false);
+    }
   };
 
   const timeline = useMemo(() => {
@@ -175,6 +204,26 @@ const PublicOrderTracking = () => {
                   </Badge>
                 </div>
               </div>
+
+              {order.invoiceRequired && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" data-testid="track-invoice-required">
+                  {order.invoiceRequiredMessage || INVOICE_REQUIRED_MESSAGE}
+                </div>
+              )}
+
+              {staffLoggedIn && !order.cancelled && !/delivered|closed/i.test(String(order.status || '')) && (
+                <Button
+                  type="button"
+                  className="text-white"
+                  style={{ backgroundColor: order.hasInvoice ? accent : '#94a3b8' }}
+                  disabled={delivering}
+                  onClick={confirmWebsiteDelivery}
+                  data-testid="track-deliver-button"
+                >
+                  <Truck className="h-4 w-4 mr-1" />
+                  {delivering ? 'Confirming…' : 'Confirm delivery'}
+                </Button>
+              )}
 
               <div>
                 <p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold mb-2 flex items-center gap-1">
