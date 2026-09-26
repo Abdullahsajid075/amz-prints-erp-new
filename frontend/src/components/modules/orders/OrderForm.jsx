@@ -74,6 +74,7 @@ const OrderForm = () => {
   const [pageLoading, setPageLoading] = useState(isEdit);
   const [prefilled, setPrefilled] = useState(false);
   const [originalStatus, setOriginalStatus] = useState('');
+  const [linkedInvoiceId, setLinkedInvoiceId] = useState('');
   const [originalAdvance, setOriginalAdvance] = useState(0);
   const [loaded, setLoaded] = useState(!isEdit);
   const [applyCredit, setApplyCredit] = useState(0);
@@ -163,6 +164,7 @@ const OrderForm = () => {
         deliveryAddress: o.deliveryAddress || o.customerAddress || '',
       });
       setOriginalStatus(o.status || ORDER_STATUS.RECEIVED);
+      setLinkedInvoiceId(o.invoiceId || '');
       setOriginalAdvance(Number(o.advancePayment) || 0);
       setLoaded(true);
     } catch (error) {
@@ -331,6 +333,10 @@ const OrderForm = () => {
     }
     if (isEdit && !orderId) {
       toast.error('Missing order id — refresh and try again (will not create duplicate)');
+      return;
+    }
+    if (/^delivered$/i.test(String(formData.status || '')) && !linkedInvoiceId) {
+      toast.error('Pehle invoice banao — Delivered sirf invoiced orders pe allowed hai');
       return;
     }
 
@@ -648,7 +654,15 @@ const OrderForm = () => {
                     <SelectTrigger data-testid="status-select"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {Object.values(ORDER_STATUS).map((status) => (
-                        <SelectItem key={status} value={status}>{status}</SelectItem>
+                        <SelectItem
+                          key={status}
+                          value={status}
+                          disabled={status === ORDER_STATUS.DELIVERED && !linkedInvoiceId}
+                        >
+                          {status === ORDER_STATUS.DELIVERED && !linkedInvoiceId
+                            ? 'Delivered (invoice required)'
+                            : status}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

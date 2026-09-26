@@ -718,6 +718,11 @@ async function findInvoiceHoldingOrder(order, exceptId = '') {
   }) || null;
 }
 
+async function assertOrderCanBeDelivered(order) {
+  if (await findInvoiceHoldingOrder(order)) return true;
+  throw Object.assign(new Error('Generate the invoice before marking this order Delivered'), { statusCode: 400 });
+}
+
 async function addOrderOntoInvoice(invoice, order) {
   const oid = order.order_id || order.id;
   const existingIds = collectOrderIds({}, invoice).map(String);
@@ -2317,6 +2322,9 @@ async function dispatch(req, res) {
             row.remarks = `${row.remarks || ''}${row.remarks ? ' | ' : ''}Advance applied ${adv.applied}`.trim();
           }
         }
+        if (docType !== 'pos' && /^delivered$/i.test(String(row.status))) {
+          return sendError(res, 'Generate the invoice before marking this order Delivered', 400);
+        }
         await persistOrderStock(row, { isPos: docType === 'pos' });
         const { error } = await supabase.from('orders').insert(row);
         if (error) {
@@ -2358,14 +2366,10 @@ async function dispatch(req, res) {
       if (action === 'status' && (method === 'PATCH' || method === 'POST')) {
         const status = body.status || existing.status;
         if (/^delivered$/i.test(String(status))) {
-          const { data: invoices } = await supabase.from('invoices').select('id,order_id,order_ids');
-          const keys = [existing.order_id, existing.id].filter(Boolean).map(String);
-          const hasInv = (invoices || []).some((row) => {
-            const ids = collectOrderIds({}, row);
-            return keys.some((k) => ids.includes(k) || String(row.order_id) === k);
-          });
-          if (!hasInv) {
-            return sendError(res, 'Generate the invoice before marking this order Delivered', 400);
+          try {
+            await assertOrderCanBeDelivered(existing);
+          } catch (err) {
+            return sendError(res, err.message, err.statusCode || 400);
           }
         }
         const hist = Array.isArray(existing.status_history) ? [...existing.status_history] : [];
@@ -2414,6 +2418,13 @@ async function dispatch(req, res) {
         const row = orderFromBody(body, existing);
         row.id = existing.id;
         if (!row.order_id) row.order_id = existing.order_id;
+        if (/^delivered$/i.test(String(row.status))) {
+          try {
+            await assertOrderCanBeDelivered(existing);
+          } catch (err) {
+            return sendError(res, err.message, err.statusCode || 400);
+          }
+        }
         if (!isCancelledStatus(existing.status) && String(existing.doc_type || '').toLowerCase() !== 'quotation') {
           const putIsPos = String(row.doc_type || existing.doc_type || '').toLowerCase() === 'pos';
           if (isCancelledStatus(row.status)) {
