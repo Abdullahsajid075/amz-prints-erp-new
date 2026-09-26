@@ -110,6 +110,14 @@ export const reportsAPI = {
   getAll: (params) => gasRequest('GET', '/reports', withToken({ params })),
 };
 
+export const cvsAPI = {
+  getAll: (params) => gasRequest('GET', '/cvs', withToken({ params })),
+  getById: (id) => gasRequest('GET', `/cvs/${id}`, withToken()),
+  create: (data) => gasRequest('POST', '/cvs', withToken({ data })),
+  updateStatus: (id, status) => gasRequest('PATCH', `/cvs/${id}/status`, withToken({ data: { status } })),
+  delete: (id) => gasRequest('DELETE', `/cvs/${id}`, withToken()),
+};
+
 export const paymentsAPI = {
   getAll: (params) => gasRequest('GET', '/payments', withToken({ params })),
   create: (data) => gasRequest('POST', '/payments', withToken({ data })),

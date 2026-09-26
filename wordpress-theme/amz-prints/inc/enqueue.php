@@ -102,6 +102,7 @@ function amz_prints_enqueue_assets() {
 		'ajaxUrl'   => admin_url( 'admin-ajax.php' ),
 		'nonce'     => wp_create_nonce( 'amz_ai_chat' ),
 		'leadNonce' => wp_create_nonce( 'amz_prints_lead' ),
+		'cvNonce'   => wp_create_nonce( 'amz_prints_cv' ),
 		'homeUrl'   => home_url( '/' ),
 		'lang'      => 'en',
 		'wa'        => array(
