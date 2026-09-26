@@ -17,12 +17,11 @@ $cta2     = amz_t( 'view_services' );
 $hero_keys = array( 'amz_hero_image', 'amz_hero_image_2', 'amz_hero_image_3', 'amz_hero_image_4', 'amz_hero_image_5', 'amz_hero_image_6' );
 $hero_imgs = array();
 foreach ( $hero_keys as $key ) {
-	$id = absint( amz_prints_mod( $key, 0 ) );
-	if ( $id ) {
-		$url = wp_get_attachment_image_url( $id, 'amz-hero' );
-		if ( $url ) {
-			$hero_imgs[] = $url;
-		}
+	$url = function_exists( 'amz_prints_media_url' )
+		? amz_prints_media_url( amz_prints_mod( $key, '' ), 'amz-hero' )
+		: '';
+	if ( $url ) {
+		$hero_imgs[] = $url;
 	}
 }
 $defaults = array(

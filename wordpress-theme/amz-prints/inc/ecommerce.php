@@ -145,7 +145,11 @@ function amz_prints_popup_should_show() {
 	if ( ! amz_prints_mod( 'amz_popup_enabled', false ) ) {
 		return false;
 	}
-	if ( ! absint( amz_prints_mod( 'amz_popup_image', 0 ) ) ) {
+	$popup_img = amz_prints_mod( 'amz_popup_image', 0 );
+	$has_img   = function_exists( 'amz_prints_media_url' )
+		? (bool) amz_prints_media_url( $popup_img, 'full' )
+		: (bool) absint( $popup_img );
+	if ( ! $has_img ) {
 		return false;
 	}
 	$pages = strtolower( trim( (string) amz_prints_mod( 'amz_popup_pages', 'home' ) ) );

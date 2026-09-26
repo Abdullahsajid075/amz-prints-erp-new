@@ -157,7 +157,7 @@ function mapInvoice(row) {
 
 function mapEmployee(row) {
   if (!row) return null;
-  const photo = row.photo || row.image || '';
+  const photo = customerPhoto(row);
   return {
     id: row.id,
     employeeCode: row.employee_code || '',

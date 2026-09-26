@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { employeesAPI } from '@/services/api';
 import { clearGasCache } from '@/services/gasClient';
-import { compressImageFile } from '@/utils/productImage';
+import { compressPortraitFile } from '@/utils/productImage';
 import {
   printEmployeeCard,
   printEmployeeBadge,
@@ -194,9 +194,9 @@ const Employees = () => {
     if (!file) return;
     setImageBusy(true);
     try {
-      const dataUrl = await compressImageFile(file);
+      const dataUrl = await compressPortraitFile(file);
       setForm((prev) => ({ ...prev, photo: dataUrl }));
-      toast.success('Photo ready');
+      toast.success('Photo ready for ID / CV card');
     } catch (err) {
       toast.error(err.message || 'Photo failed');
     } finally {

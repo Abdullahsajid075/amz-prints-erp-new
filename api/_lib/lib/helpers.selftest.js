@@ -17,6 +17,8 @@ assert(!isListedOnWebsite({ ...readyMug, showOnWebsite: false }), 'hidden when s
 assert(!isListedOnWebsite({ ...readyMug, show_on_website: false }), 'hidden when db flag off');
 assert(!isListedOnWebsite({ ...readyMug, active: false }), 'hidden when inactive');
 assert(!isListedOnWebsite({ name: 'Mug', description: 'Photo mug', images: [] }), 'hidden when incomplete');
+const { customerPhoto } = require('./helpers');
+assert(customerPhoto({ notes: 'x\n[[AMZ_DP]]data:image/png;base64,abc[[/AMZ_DP]]' }).includes('data:image'), 'photo from notes');
 assert(collectOrderIds({ orderIds: ['ORD-1'], orderId: 'ORD-2' }, {}).join() === 'ORD-1,ORD-2', 'order ids');
 assert(invoiceStatusFromPaid(100, 0) === 'Unpaid', 'unpaid');
 assert(invoiceStatusFromPaid(100, 40) === 'Partial', 'partial');

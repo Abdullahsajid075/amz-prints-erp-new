@@ -95,6 +95,37 @@ function amz_prints_mod( $key, $default = '' ) {
 }
 
 /**
+ * Customizer image: attachment ID or raw URL (Media Control sometimes stores a URL).
+ *
+ * @param mixed $value Attachment ID or URL.
+ * @return string Image URL or empty.
+ */
+function amz_prints_media_url( $value, $size = 'full' ) {
+	if ( is_numeric( $value ) && (int) $value > 0 ) {
+		$url = wp_get_attachment_image_url( (int) $value, $size );
+		return $url ? $url : '';
+	}
+	$raw = trim( (string) $value );
+	if ( $raw && preg_match( '#^https?://#i', $raw ) ) {
+		return $raw;
+	}
+	return '';
+}
+
+/**
+ * Accept attachment ID or https URL from Customizer media/image controls.
+ *
+ * @param mixed $value Incoming setting.
+ * @return int|string
+ */
+function amz_prints_sanitize_media( $value ) {
+	if ( is_numeric( $value ) ) {
+		return absint( $value );
+	}
+	return esc_url_raw( (string) $value );
+}
+
+/**
  * Output inline CSS variables from Customizer
  */
 function amz_prints_custom_css_vars() {
