@@ -23,8 +23,12 @@ function websiteCatalogSyncScript() {
     return images.some(realPhoto) && desc.length >= 3;
   }
 
+  function listed(p) {
+    return ready(p) && p.showOnWebsite !== false;
+  }
+
   function apply(products) {
-    products = (products || []).filter(ready);
+    products = (products || []).filter(listed);
     var allow = {};
     products.forEach(function (p) {
       allow[String(p.id || '').toLowerCase()] = p;

@@ -123,7 +123,7 @@ const Inventory = () => {
             <p className="text-gray-600 mt-1">Stocked products only. Services and items with Track inventory off are not listed. Reserved uses open order qty.</p>
           </div>
           <Button asChild variant="outline">
-            <Link to="/warehouse/inventory/settings"><Settings className="h-4 w-4 mr-1" />Inventory settings</Link>
+            <Link to="/warehouse/inventory/settings"><Settings className="h-4 w-4 mr-1" />Product settings</Link>
           </Button>
         </div>
       </div>

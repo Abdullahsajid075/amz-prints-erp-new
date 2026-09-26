@@ -35,7 +35,7 @@ export function openPrintWindow(html, { width = 360, height = 640 } = {}) {
  * Print HTML without a popup tab — hidden iframe (works when popups are blocked).
  * Prefer this for payment slips after async API calls.
  */
-export function printHtml(html, { fallbackPopup = true, width = 360, height = 640 } = {}) {
+export function printHtml(html, { fallbackPopup = true, width = 360, height = 640, autoPrint = false } = {}) {
   try {
     if (typeof document === 'undefined') {
       return fallbackPopup ? openPrintWindow(html, { width, height }) : { ok: false, reason: 'no_document' };
@@ -53,6 +53,13 @@ export function printHtml(html, { fallbackPopup = true, width = 360, height = 64
     doc.open();
     doc.write(html);
     doc.close();
+    if (autoPrint) {
+      const trigger = () => {
+        try { iframe.contentWindow?.focus(); iframe.contentWindow?.print(); } catch { /* ignore */ }
+      };
+      iframe.onload = () => setTimeout(trigger, 350);
+      setTimeout(trigger, 700);
+    }
     // Cleanup after print dialog (html may also call print via printOnLoadScript)
     setTimeout(() => {
       try { iframe.remove(); } catch { /* ignore */ }

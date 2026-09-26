@@ -9,7 +9,7 @@
     "dev": "node --watch server.js",
     "migrate:seed": "node _lib/scripts/seed-admin.js",
     "migrate:gas": "node _lib/scripts/migrate-from-gas.js",
-    "test": "node _lib/lib/helpers.selftest.js && node _lib/scripts/test-ledger.js && node _lib/lib/deliveryWorkflow.selftest.js && node _lib/lib/deliveryScenarios.selftest.js"
+    "test": "node _lib/lib/helpers.selftest.js && node _lib/scripts/test-ledger.js && node _lib/lib/deliveryWorkflow.selftest.js && node _lib/lib/deliveryScenarios.selftest.js && node _lib/lib/mapToken.selftest.js"
   },
   "engines": {
     "node": ">=18"

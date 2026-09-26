@@ -288,6 +288,7 @@ function mapUser(row, includePassword = false) {
 
 function mapToken(t) {
   if (!t) return null;
+  const status = t.token_status || t.status || t.tokenStatus || 'Waiting';
   return {
     id: t.id,
     tokenNo: t.token_no,
@@ -298,7 +299,8 @@ function mapToken(t) {
     customerPhone: t.customer_phone,
     service: t.service,
     serviceNote: t.service_note,
-    tokenStatus: t.token_status,
+    status,
+    tokenStatus: status,
     calledAt: t.called_at,
     orderId: t.order_id,
     notes: t.notes,
