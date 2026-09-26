@@ -1,0 +1,43 @@
+/**
+ * Elementor page styles — inherit theme fonts & colors
+ */
+
+.studio-elementor-content,
+.studio-full-width {
+  width: 100%;
+  overflow-x: hidden;
+}
+
+.studio-elementor-content .elementor-widget-heading .elementor-heading-title {
+  font-family: var(--font-display, 'Playfair Display', serif);
+  color: var(--color-text, #1A1A1A);
+}
+
+.studio-elementor-content .elementor-widget-text-editor {
+  font-family: var(--font-body, 'Source Serif 4', serif);
+  color: var(--color-text-muted, #5C5C5C);
+}
+
+.studio-elementor-content .elementor-button {
+  font-family: var(--font-body, 'Source Serif 4', serif);
+  border-radius: 0;
+}
+
+.studio-elementor-content .elementor-section.elementor-section-boxed > .elementor-container {
+  max-width: 1280px;
+}
+
+.elementor-widget-studio_hero,
+.elementor-widget-studio_marquee,
+.elementor-widget-studio_portfolio,
+.elementor-widget-studio_about,
+.elementor-widget-studio_contact,
+.elementor-widget-studio_design_system,
+.elementor-widget-studio_floating_contact {
+  width: 100%;
+}
+
+.elementor-widget-studio_floating_contact .floating-contact {
+  position: fixed;
+  z-index: 9999;
+}
