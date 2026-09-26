@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AMZ_PRINTS_VERSION', '3.26.0' );
+define( 'AMZ_PRINTS_VERSION', '3.26.1' );
 
 /**
  * Every site email is sent from the company mailbox.
@@ -392,7 +392,7 @@ add_action( 'after_switch_theme', 'amz_prints_after_switch' );
  * Create missing pages on upgrade (fixes Services 404 without re-activating theme)
  */
 function amz_prints_maybe_upgrade_pages() {
-	if ( get_option( 'amz_prints_pages_ver' ) === '3.26.0' ) {
+	if ( get_option( 'amz_prints_pages_ver' ) === '3.26.1' ) {
 		return;
 	}
 	amz_prints_ensure_pages();
@@ -406,7 +406,7 @@ function amz_prints_maybe_upgrade_pages() {
 	}
 	delete_transient( 'amz_prints_erp_products_v3' );
 	delete_transient( 'amz_prints_erp_products_v4' );
-	update_option( 'amz_prints_pages_ver', '3.26.0' );
+	update_option( 'amz_prints_pages_ver', '3.26.1' );
 }
 add_action( 'init', 'amz_prints_maybe_upgrade_pages', 20 );
 
