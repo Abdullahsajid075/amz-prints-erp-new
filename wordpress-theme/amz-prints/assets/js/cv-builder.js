@@ -27,7 +27,7 @@
   };
 
   var SECTIONS = [
-    { id: 'photo', label: 'Profile Picture', type: 'photo', on: true, locked: true },
+    { id: 'photo', label: 'Profile Picture', type: 'photo', on: true },
     { id: 'personal', label: 'Personal Information', type: 'personal', on: true, locked: true },
     { id: 'summary', label: 'Professional Summary', type: 'text', on: true, placeholder: 'A short career overview (3–5 lines).' },
     { id: 'contact', label: 'Contact Information', type: 'contact', on: true },
@@ -131,6 +131,7 @@
   var pendingPhoto = null;
   var pendingPhotoUrl = '';
   var photoSeq = 0;
+  var photoRemoved = false;
 
   function httpPhoto(value) {
     return value && /^https?:\/\//i.test(value) ? value : '';
@@ -175,7 +176,6 @@
 
   function pushServer(clearing) {
     if (!window.amzCv || !amzCv.ajaxUrl) return Promise.resolve(false);
-    if (!clearing && !state.photo && !pendingPhoto) return Promise.resolve(false);
     setStatus(clearing ? 'Clearing…' : 'Saving…');
     var seq = photoSeq;
     var payload = JSON.parse(JSON.stringify(state));
@@ -186,19 +186,24 @@
     body.append('state', JSON.stringify(payload));
     body.append('html', clearing ? '' : pagesHtml());
     if (clearing) body.append('clear', '1');
+    if (!clearing && photoRemoved) body.append('remove_photo', '1');
     if (!clearing && pendingPhoto) body.append('photo', pendingPhoto, 'cv-photo.jpg');
     return fetch(amzCv.ajaxUrl, { method: 'POST', credentials: 'same-origin', body: body })
       .then(function (r) { return r.json(); })
       .then(function (res) {
         if (seq !== photoSeq) return false;
         if (res && res.success) {
-          if (!clearing && res.data && res.data.photoUrl && (pendingPhoto || !httpPhoto(state.photo))) {
+          if (!clearing && photoRemoved) {
+            photoRemoved = false;
+            releasePendingPhoto();
+            state.photo = '';
+          } else if (!clearing && res.data && res.data.photoUrl && (pendingPhoto || !httpPhoto(state.photo))) {
             releasePendingPhoto();
             state.photo = res.data.photoUrl;
-            state.enabled.photo = true;
             renderForm();
             renderPreview();
           }
+          if (!clearing) photoRemoved = false;
           if (!clearing && res.data && res.data.photoUrl && httpPhoto(state.photo)) {
             try {
               var copy = JSON.parse(JSON.stringify(state));
@@ -246,7 +251,7 @@
   function sectionHead(def) {
     var tog = def.locked
       ? '<span class="cv-toggle">Always on</span>'
-      : '<label class="cv-toggle"><input type="checkbox" data-enable="' + def.id + '"' + (state.enabled[def.id] ? ' checked' : '') + '> Include</label>';
+      : '<label class="cv-toggle"><input type="checkbox" data-enable="' + def.id + '"' + (state.enabled[def.id] ? ' checked' : '') + '> ' + (def.id === 'photo' ? 'Show on CV' : 'Include') + '</label>';
     return '<div class="cv-editor-head"><h3>' + esc(def.label) + '</h3>' + tog + '</div>';
   }
 
@@ -276,7 +281,9 @@
     SECTIONS.forEach(function (def) {
       html += '<div class="cv-editor-block" data-sec="' + def.id + '">' + sectionHead(def);
       if (!state.enabled[def.id] && !def.locked) {
-        html += '<p class="form-note" style="margin:0">Turn on to add this to your CV.</p></div>';
+        html += '<p class="form-note" style="margin:0">' + (def.id === 'photo'
+          ? 'Photo is hidden on this CV. Turn on Show on CV if you want a picture.'
+          : 'Turn on to add this to your CV.') + '</p></div>';
         return;
       }
       if (def.type === 'photo') {
@@ -284,9 +291,9 @@
         html += state.photo
           ? '<img class="cv-photo-preview" alt="Profile" src="' + state.photo + '">'
           : '<div class="cv-photo-preview" aria-hidden="true"></div>';
-        html += '<div class="cv-photo-actions"><label class="cv-field" style="margin:0"><span>Photo (required)</span><input type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" data-photo class="cv-file-input"></label>';
+        html += '<div class="cv-photo-actions"><label class="cv-field" style="margin:0"><span>Photo</span><input type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" data-photo="1" class="cv-file-input"></label>';
         if (state.photo) html += '<button type="button" class="btn btn--ghost btn--sm" data-photo-remove>Remove photo</button>';
-        html += '<p class="form-note" style="margin:0">Choose a JPG, PNG, or WebP from your gallery. The photo is saved on your CV.</p></div></div>';
+        html += '<p class="form-note" style="margin:0">Choose a JPG, PNG, or WebP. Use Show on CV to keep the picture on the CV or hide it.</p></div></div>';
       } else if (def.type === 'personal') {
         html += input('personal.fullName', 'Full name');
         html += input('personal.title', 'Professional title', 'text', 'placeholder="e.g. Graphic Designer"');
@@ -411,11 +418,10 @@
       renderForm();
       renderPreview();
     }
-    if (t.getAttribute('data-photo')) {
+    if (t.hasAttribute('data-photo')) {
       var file = t.files && t.files[0];
       if (!file) return;
       setPhotoFromFile(file);
-      t.value = '';
     }
   });
   editor.addEventListener('click', function (e) {
@@ -442,6 +448,7 @@
     }
     if (btn.hasAttribute('data-photo-remove')) {
       photoSeq += 1;
+      photoRemoved = true;
       releasePendingPhoto();
       state.photo = '';
       try { localStorage.removeItem(STORAGE + '_photo'); } catch (err) { /* ignore */ }
@@ -494,9 +501,9 @@
   function identityHtml() {
     var name = state.personal.fullName || 'Your Name';
     var title = state.personal.title || 'Professional title';
-    var photo = state.photo
+    var photo = (on('photo') && state.photo)
       ? '<img class="cv-photo" alt="" src="' + state.photo + '">'
-      : '<div class="cv-photo" aria-hidden="true"></div>';
+      : '';
     var contacts = on('contact')
       ? '<div class="cv-contact-wrap">' + contactLines().map(function (l) { return '<div class="cv-contact-line">' + esc(l) + '</div>'; }).join('') + '</div>'
       : '';
@@ -679,6 +686,7 @@
         alert('Could not process that image. Try another JPG or PNG.');
         return;
       }
+      photoRemoved = false;
       releasePendingPhoto();
       pendingPhoto = blob;
       pendingPhotoUrl = URL.createObjectURL(blob);
@@ -707,6 +715,7 @@
 
   function setPhotoFromFile(file) {
     if (!file) return;
+    setStatus('Reading photo…');
     var name = String(file.name || '').toLowerCase();
     var type = String(file.type || '').toLowerCase();
     if (/heic|heif/.test(type) || /\.heic$|\.heif$/.test(name)) {
@@ -731,17 +740,6 @@
       return;
     }
     readPhotoWithImage(file);
-  }
-
-  function requirePhoto() {
-    if (state.photo) return true;
-    alert('Upload a photo first. The photo must appear on the CV before you can save, print, or download it.');
-    var input = document.querySelector('[data-photo]');
-    if (input) {
-      input.scrollIntoView({ block: 'center' });
-      input.focus();
-    }
-    return false;
   }
 
   editor.addEventListener('dragover', function (e) {
@@ -838,15 +836,12 @@
     btn.addEventListener('click', function () {
       var act = btn.getAttribute('data-cv-action');
       if (act === 'save') {
-        if (!requirePhoto()) return;
         pushServer(false);
       }
       if (act === 'print') {
-        if (!requirePhoto()) return;
         pushServer(false).then(function (ok) { if (ok) doPrint(); });
       }
       if (act === 'download') {
-        if (!requirePhoto()) return;
         pushServer(false).then(function (ok) { if (ok) doDownloadPdf(); });
       }
       if (act === 'preview') {

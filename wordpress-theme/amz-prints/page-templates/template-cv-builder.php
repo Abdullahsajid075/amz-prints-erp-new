@@ -26,7 +26,7 @@ get_header();
 		<div class="cv-portal__bar-copy">
 			<p class="cv-portal__free"><?php esc_html_e( 'Free service', 'amz-prints' ); ?></p>
 			<h1><?php esc_html_e( 'Create Free CV', 'amz-prints' ); ?></h1>
-			<p><?php esc_html_e( 'Upload your photo, fill the CV, and it stays on this account. You can update or download it any time. A photo is required.', 'amz-prints' ); ?></p>
+			<p><?php esc_html_e( 'Fill the CV and it stays on this account. Use Show on CV if you want a photo, or leave it off.', 'amz-prints' ); ?></p>
 		</div>
 		<div class="cv-portal__bar-actions">
 			<span class="cv-page-pill" data-cv-pagecount><?php esc_html_e( '1 page', 'amz-prints' ); ?></span>

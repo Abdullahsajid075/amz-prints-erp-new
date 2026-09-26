@@ -1580,10 +1580,13 @@ function amz_prints_ajax_save_cv() {
 		if ( '' === $incoming && is_array( $existing ) ) {
 			$incoming = (string) ( $existing['photo'] ?? '' );
 		}
+		$remove_photo = isset( $_POST['remove_photo'] ) && '1' === (string) wp_unslash( $_POST['remove_photo'] );
 		if ( $uploaded ) {
 			$photo = $uploaded;
+		} elseif ( $remove_photo ) {
+			$photo = '';
 		} elseif ( '' === $incoming ) {
-			wp_send_json_error( array( 'message' => __( 'Upload a photo before saving the CV.', 'amz-prints' ) ), 400 );
+			$photo = '';
 		} else {
 			$stored = amz_prints_customer_cv_store_photo( $email, $incoming );
 			if ( is_wp_error( $stored ) ) {
