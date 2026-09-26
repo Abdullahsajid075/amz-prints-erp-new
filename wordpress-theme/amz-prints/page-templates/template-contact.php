@@ -80,8 +80,7 @@ get_header();
 							<span>Message</span>
 							<textarea name="message" rows="5" required></textarea>
 						</label>
-						<button type="submit" class="btn btn--primary btn--lg">Send on WhatsApp</button>
-						<p class="form-note">Saved as a CRM Lead in ERP, then opens WhatsApp with REQUIRED INFO header.</p>
+						<button type="submit" class="btn btn--primary btn--lg"><?php esc_html_e( 'Send on WhatsApp', 'amz-prints' ); ?></button>
 					</form>
 					<?php
 				}

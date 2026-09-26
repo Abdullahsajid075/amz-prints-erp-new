@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AMZ_PRINTS_VERSION', '3.22.0' );
+define( 'AMZ_PRINTS_VERSION', '3.23.0' );
 
 /**
  * Avoid long Hostinger CDN HTML cache hiding theme updates.
@@ -19,11 +19,20 @@ function amz_prints_nocache_html_headers() {
 		return;
 	}
 	// HTML pages should revalidate quickly after theme publishes.
-	header( 'Cache-Control: no-cache, no-store, must-revalidate, max-age=0', true );
+	if ( ! defined( 'DONOTCACHEPAGE' ) ) {
+		define( 'DONOTCACHEPAGE', true );
+	}
+	$uri     = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '';
+	$private = is_page( array( 'my-account', 'customer-login', 'customer-signup', 'cart', 'checkout' ) )
+		|| (bool) preg_match( '#/(my-account|customer-login|customer-signup|cart|checkout)(/|$|\?)#', $uri );
+	header( 'Cache-Control: ' . ( $private ? 'private, no-store, no-cache, must-revalidate, max-age=0' : 'no-cache, no-store, must-revalidate, max-age=0' ), true );
 	header( 'Pragma: no-cache', true );
 	header( 'Expires: 0', true );
 	header( 'CDN-Cache-Control: no-store', true );
 	header( 'Cloudflare-CDN-Cache-Control: no-store', true );
+	if ( $private ) {
+		header( 'Vary: Cookie', false );
+	}
 }
 add_action( 'template_redirect', 'amz_prints_nocache_html_headers', 0 );
 
@@ -362,7 +371,7 @@ add_action( 'after_switch_theme', 'amz_prints_after_switch' );
  * Create missing pages on upgrade (fixes Services 404 without re-activating theme)
  */
 function amz_prints_maybe_upgrade_pages() {
-	if ( get_option( 'amz_prints_pages_ver' ) === '3.22.0' ) {
+	if ( get_option( 'amz_prints_pages_ver' ) === '3.23.0' ) {
 		return;
 	}
 	amz_prints_ensure_pages();
@@ -376,7 +385,7 @@ function amz_prints_maybe_upgrade_pages() {
 	}
 	delete_transient( 'amz_prints_erp_products_v3' );
 	delete_transient( 'amz_prints_erp_products_v4' );
-	update_option( 'amz_prints_pages_ver', '3.22.0' );
+	update_option( 'amz_prints_pages_ver', '3.23.0' );
 }
 add_action( 'init', 'amz_prints_maybe_upgrade_pages', 20 );
 

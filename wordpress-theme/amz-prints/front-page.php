@@ -22,9 +22,7 @@ foreach ( $erp_all as $p ) {
 	}
 }
 
-$track_url = function_exists( 'amz_prints_customer_is_logged_in' ) && amz_prints_customer_is_logged_in()
-	? home_url( '/my-account/#track' )
-	: home_url( '/customer-login/?redirect=' . rawurlencode( home_url( '/my-account/#track' ) ) );
+$track_url = home_url( '/track-order/' );
 
 $slide_copy = array(
 	array(
@@ -48,7 +46,7 @@ $slide_copy = array(
 	array(
 		'kicker' => __( 'Orders', 'amz-prints' ),
 		'title'  => amz_prints_mod( 'amz_hero_title_4', 'Every job, live to track.' ),
-		'text'   => amz_prints_mod( 'amz_hero_text_4', 'Create an account, place the order, and follow design, print, and delivery.' ),
+		'text'   => amz_prints_mod( 'amz_hero_text_4', 'Place the order, then track design, print, and delivery with your order number.' ),
 		'tone'   => 'orange',
 	),
 );
@@ -130,13 +128,24 @@ $featured_services = array_slice( $catalog, 0, 4 );
 			<?php foreach ( $photo_loop as $product ) : ?>
 				<?php $rail_url = function_exists( 'amz_prints_erp_product_url' ) ? amz_prints_erp_product_url( $product['id'] ?? '' ) : home_url( '/products/' ); ?>
 				<a class="amz-prodrail__card" href="<?php echo esc_url( $rail_url ); ?>">
-					<img src="<?php echo function_exists( 'amz_prints_product_img_src' ) ? amz_prints_product_img_src( $product['image'] ) : esc_url( $product['image'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>" alt="<?php echo esc_attr( $product['name'] ); ?>">
+					<img src="<?php echo function_exists( 'amz_prints_product_img_src' ) ? amz_prints_product_img_src( $product['image'] ) : esc_url( $product['image'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>" alt="<?php echo esc_attr( $product['name'] ); ?>" loading="lazy" decoding="async" width="160" height="160">
 					<span><?php echo esc_html( $product['name'] ); ?></span>
 				</a>
 			<?php endforeach; ?>
 		</div>
 	</div>
 <?php endif; ?>
+
+<section class="cv-home-band">
+	<div class="container cv-home-band__inner">
+		<div>
+			<p class="eyebrow"><?php esc_html_e( 'Free', 'amz-prints' ); ?></p>
+			<h2><?php esc_html_e( 'Build your free CV', 'amz-prints' ); ?></h2>
+			<p><?php esc_html_e( 'Create a professional A4 resume online, then print it with us if you want a finished copy.', 'amz-prints' ); ?></p>
+		</div>
+		<a class="btn btn--primary btn--lg" href="<?php echo esc_url( home_url( '/create-free-cv/' ) ); ?>"><?php esc_html_e( 'Create Free CV', 'amz-prints' ); ?></a>
+	</div>
+</section>
 
 <?php if ( $featured_products ) : ?>
 <section class="home-block">
@@ -303,7 +312,7 @@ $featured_services = array_slice( $catalog, 0, 4 );
 			</div>
 			<div class="shop-dots" data-shop-dots aria-hidden="true"></div>
 		<?php else : ?>
-			<p class="form-note"><?php esc_html_e( 'Live ERP products unavailable. Redeploy Code.gs public/products.', 'amz-prints' ); ?></p>
+			<p class="form-note"><?php esc_html_e( 'Products are updating. Please check again in a moment.', 'amz-prints' ); ?></p>
 		<?php endif; ?>
 
 		<div class="section-foot reveal" data-reveal>
@@ -318,7 +327,7 @@ $featured_services = array_slice( $catalog, 0, 4 );
 		<div>
 			<p class="eyebrow"><?php esc_html_e( 'On the main site', 'amz-prints' ); ?></p>
 			<h2><?php echo esc_html( amz_t( 'track_order' ) ); ?></h2>
-			<p><?php esc_html_e( 'Log in to see live design, printing, and delivery status for your orders.', 'amz-prints' ); ?></p>
+			<p><?php esc_html_e( 'Enter your order number and see design, printing, and delivery status. No account needed.', 'amz-prints' ); ?></p>
 		</div>
 		<div class="track-home__form">
 			<a class="btn btn--primary btn--lg btn--magnetic" href="<?php echo esc_url( $track_url ); ?>"><?php echo esc_html( amz_t( 'track_order' ) ); ?></a>
@@ -343,17 +352,6 @@ $featured_services = array_slice( $catalog, 0, 4 );
 	</div>
 </section>
 <?php endif; ?>
-
-<section class="cv-home-band">
-	<div class="container cv-home-band__inner reveal" data-reveal>
-		<div>
-			<p class="eyebrow"><?php esc_html_e( 'Free', 'amz-prints' ); ?></p>
-			<h2><?php esc_html_e( 'Build your free CV', 'amz-prints' ); ?></h2>
-			<p><?php esc_html_e( 'Create a professional A4 resume online, then print it with us if you want a finished copy.', 'amz-prints' ); ?></p>
-		</div>
-		<a class="btn btn--primary btn--lg btn--magnetic" href="<?php echo esc_url( home_url( '/create-free-cv/' ) ); ?>"><?php esc_html_e( 'Create Free CV', 'amz-prints' ); ?></a>
-	</div>
-</section>
 
 <?php if ( function_exists( 'amz_prints_catalog_promo' ) ) { amz_prints_catalog_promo( 'home' ); } ?>
 

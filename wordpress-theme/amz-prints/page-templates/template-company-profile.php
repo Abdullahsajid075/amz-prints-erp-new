@@ -24,7 +24,7 @@ $digital_hub = amz_prints_book_image( 'amz_book_digital_hub', 'https://images.un
 		<header class="book-library__head reveal" data-reveal>
 			<p class="eyebrow"><?php echo esc_html( $company ); ?></p>
 			<h1><?php esc_html_e( 'Company Profile', 'amz-prints' ); ?></h1>
-			<p><?php echo esc_html( $legal ); ?> — <?php esc_html_e( 'two editorial portrait catalogs. Open a book, flip pages, download PDF. Edit images in Customizer → A1 — Edit Books.', 'amz-prints' ); ?></p>
+			<p><?php echo esc_html( $legal ); ?> — <?php esc_html_e( 'two catalogs. Open a book, flip the pages, or download the PDF.', 'amz-prints' ); ?></p>
 		</header>
 
 		<div class="printed-books">

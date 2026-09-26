@@ -8,7 +8,6 @@
 get_header();
 
 $prefill      = isset( $_GET['service'] ) ? sanitize_text_field( wp_unslash( $_GET['service'] ) ) : '';
-$wa_img       = AMZ_PRINTS_URI . '/assets/images/required-info.png';
 $erp_products = function_exists( 'amz_prints_erp_get_products' ) ? amz_prints_erp_get_products() : array();
 $static_opts  = array(
 	'Website Development',
@@ -42,7 +41,7 @@ if ( empty( $product_names ) ) {
 	<div class="container">
 		<p class="page-hero__brand">Amazon Printings (Pvt) Ltd</p>
 		<h1><?php the_title(); ?></h1>
-		<p class="page-hero__lead">Share your project details — we save your request in CRM and open WhatsApp instantly.</p>
+		<p class="page-hero__lead"><?php esc_html_e( 'Share your project details and we will reply on WhatsApp.', 'amz-prints' ); ?></p>
 	</div>
 </section>
 
@@ -56,13 +55,10 @@ if ( empty( $product_names ) ) {
 				<li>Needed delivery date</li>
 				<li>Artwork status (ready / need design)</li>
 			</ul>
-			<p class="quote-aside__note">Submit → CRM Lead in ERP + WhatsApp with full details.</p>
-			<img class="required-info-preview" src="<?php echo esc_url( $wa_img ); ?>" width="100" height="20" alt="REQUIRED INFO">
 		</div>
 
 		<div class="quote-form-wrap reveal" data-reveal>
 			<form class="amz-form" id="amz-wa-quote-form" data-wa-form data-lead-source="website-quote">
-				<img src="<?php echo esc_url( $wa_img ); ?>" width="100" height="20" alt="REQUIRED INFO" class="required-info-preview" hidden>
 				<div class="form-row">
 					<label>
 						<span>Name</span>
@@ -109,8 +105,7 @@ if ( empty( $product_names ) ) {
 					<span>Project details</span>
 					<textarea name="details" rows="5" required placeholder="Size, colors, finishes, delivery…"></textarea>
 				</label>
-				<button type="submit" class="btn btn--primary btn--lg">Send on WhatsApp</button>
-				<p class="form-note">Saved as a CRM Lead in ERP, then opens WhatsApp with REQUIRED INFO header.</p>
+				<button type="submit" class="btn btn--primary btn--lg"><?php esc_html_e( 'Send on WhatsApp', 'amz-prints' ); ?></button>
 			</form>
 		</div>
 	</div>

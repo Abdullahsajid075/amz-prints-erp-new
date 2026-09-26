@@ -83,7 +83,7 @@
         var note = document.getElementById(exists ? 'amz-customer-login-msg' : 'amz-customer-register-msg');
         msg(note, exists
           ? 'This email already has an account. Log in — we will not create a second one.'
-          : 'No account for this email. Create one below. A matching name, email, and phone opens your existing customer record.', false);
+          : 'No account for this email. Create one with your name, mobile number, and delivery address.', false);
       }).catch(function () {
         if (btn) btn.disabled = false;
         msg(out, 'Network error. Try again.', true);
@@ -133,18 +133,44 @@
     });
   }
 
+  function validEmail(value) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+  }
+
+  function normalizePhone(value) {
+    var phone = String(value || '').replace(/[\s\-().]/g, '');
+    if (phone.indexOf('00') === 0) phone = '+' + phone.slice(2);
+    return phone;
+  }
+
+  function validPhone(value) {
+    return /^\+[1-9]\d{7,14}$/.test(normalizePhone(value));
+  }
+
   if (registerForm) {
     registerForm.addEventListener('submit', function (e) {
       e.preventDefault();
       var fd = new FormData(registerForm);
       var out = document.getElementById('amz-customer-register-msg');
       var btn = registerForm.querySelector('[type="submit"]');
+      if (!validEmail(fd.get('email'))) {
+        msg(out, 'Enter a correct email address.', true);
+        return;
+      }
+      if (!validPhone(fd.get('phone'))) {
+        msg(out, 'Enter a mobile number with country code, for example +923001234567.', true);
+        return;
+      }
+      if (String(fd.get('address') || '').trim().length < 8) {
+        msg(out, 'Enter a complete delivery address (street, area, and city).', true);
+        return;
+      }
       if (btn) btn.disabled = true;
       msg(out, 'Creating account…', false);
       post('amz_prints_customer_register', {
         name: fd.get('name') || '',
         email: fd.get('email') || '',
-        phone: fd.get('phone') || '',
+        phone: normalizePhone(fd.get('phone') || ''),
         password: fd.get('password') || '',
         address: fd.get('address') || '',
         redirect: fd.get('redirect') || ''
@@ -316,6 +342,41 @@
         } else if (tries > 40) clearInterval(t);
       }, 150);
     }
+  }
+
+  var profileForm = document.getElementById('amz-customer-profile-form');
+  if (profileForm) {
+    profileForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var fd = new FormData(profileForm);
+      var out = document.getElementById('amz-customer-profile-msg');
+      var btn = profileForm.querySelector('[type="submit"]');
+      if (!validPhone(fd.get('phone'))) {
+        msg(out, 'Enter a mobile number with country code, for example +923001234567.', true);
+        return;
+      }
+      if (String(fd.get('address') || '').trim().length < 8) {
+        msg(out, 'Enter a complete delivery address (street, area, and city).', true);
+        return;
+      }
+      if (btn) btn.disabled = true;
+      post('amz_prints_customer_profile', {
+        name: fd.get('name') || '',
+        phone: normalizePhone(fd.get('phone') || ''),
+        address: fd.get('address') || ''
+      }).then(function (res) {
+        if (btn) btn.disabled = false;
+        if (!res || !res.success) {
+          msg(out, (res && res.data && res.data.message) || 'Could not save your profile', true);
+          return;
+        }
+        msg(out, (res.data && res.data.message) || 'Profile saved.', false);
+        window.setTimeout(function () { window.location.reload(); }, 500);
+      }).catch(function () {
+        if (btn) btn.disabled = false;
+        msg(out, 'Network error. Try again.', true);
+      });
+    });
   }
 
   var logoutBtn = document.getElementById('amz-customer-logout');

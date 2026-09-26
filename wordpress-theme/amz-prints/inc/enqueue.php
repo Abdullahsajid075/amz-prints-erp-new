@@ -138,6 +138,11 @@ function amz_prints_enqueue_assets() {
 		'quoteUrl'   => home_url( '/quote/' ),
 		'cartCount'  => function_exists( 'amz_prints_cart_count' ) ? amz_prints_cart_count() : 0,
 		'loggedIn'   => function_exists( 'amz_prints_customer_is_logged_in' ) ? amz_prints_customer_is_logged_in() : false,
+		'profileComplete' => function_exists( 'amz_prints_customer_profile_is_complete' ) && amz_prints_customer_profile_is_complete(),
+		'profileUrl' => ( function_exists( 'amz_prints_customer_is_logged_in' ) && amz_prints_customer_is_logged_in() && function_exists( 'amz_prints_customer_profile_url' ) )
+			? amz_prints_customer_profile_url()
+			: ( function_exists( 'amz_prints_customer_signup_url' ) ? amz_prints_customer_signup_url() : home_url( '/customer-signup/' ) ),
+		'signupUrl'  => function_exists( 'amz_prints_customer_signup_url' ) ? amz_prints_customer_signup_url() : home_url( '/customer-signup/' ),
 		'products'   => array(),
 	) );
 }

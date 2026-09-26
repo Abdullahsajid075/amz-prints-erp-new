@@ -41,7 +41,7 @@ $pay_methods = function_exists( 'amz_prints_payment_methods' ) ? amz_prints_paym
 				<?php if ( ! $logged_in ) : ?>
 					<div class="checkout-gate">
 						<h2><?php esc_html_e( 'Login required to place order', 'amz-prints' ); ?></h2>
-						<p><?php esc_html_e( 'You can browse and fill your cart as a guest. To complete checkout, log in with your customer account.', 'amz-prints' ); ?></p>
+						<p><?php esc_html_e( 'Create an account with your email, a mobile number that includes the country code, and your delivery address. Then sign in to place the order.', 'amz-prints' ); ?></p>
 						<a class="btn btn--primary" href="<?php echo esc_url( amz_prints_customer_login_url( amz_prints_checkout_url() ) ); ?>"><?php esc_html_e( 'Log in to continue', 'amz-prints' ); ?></a>
 					</div>
 				<?php else : ?>
@@ -57,7 +57,7 @@ $pay_methods = function_exists( 'amz_prints_payment_methods' ) ? amz_prints_paym
 							</p>
 							<label>
 								<span><?php esc_html_e( 'Phone (for this order)', 'amz-prints' ); ?></span>
-								<input type="tel" name="customer_phone" value="<?php echo esc_attr( $customer['phone'] ?? '' ); ?>" required>
+								<input type="tel" name="customer_phone" value="<?php echo esc_attr( $customer['phone'] ?? '' ); ?>" required placeholder="+923001234567" inputmode="tel" autocomplete="tel">
 							</label>
 							<label>
 								<span><?php esc_html_e( 'Delivery address', 'amz-prints' ); ?></span>
@@ -87,7 +87,6 @@ $pay_methods = function_exists( 'amz_prints_payment_methods' ) ? amz_prints_paym
 									</label>
 								<?php endforeach; ?>
 							</div>
-							<p class="form-note"><?php esc_html_e( 'Bank cards are added in Appearance → Customize → Store & Checkout.', 'amz-prints' ); ?></p>
 						</div>
 
 						<div class="checkout-block checkout-policy">
@@ -111,8 +110,8 @@ $pay_methods = function_exists( 'amz_prints_payment_methods' ) ? amz_prints_paym
 						<p><strong><?php esc_html_e( 'Order ID:', 'amz-prints' ); ?></strong> <span data-success-order></span></p>
 						<p><strong><?php esc_html_e( 'Payment:', 'amz-prints' ); ?></strong> <span data-success-pay></span></p>
 						<div class="hero__actions">
-							<a class="btn btn--primary" href="<?php echo esc_url( home_url( '/my-account/' ) ); ?>"><?php esc_html_e( 'My Account', 'amz-prints' ); ?></a>
-							<a class="btn btn--ghost" href="<?php echo esc_url( home_url( '/products/' ) ); ?>"><?php esc_html_e( 'Keep shopping', 'amz-prints' ); ?></a>
+							<a class="btn btn--primary" data-success-track href="<?php echo esc_url( home_url( '/track-order/' ) ); ?>"><?php esc_html_e( 'Track this order', 'amz-prints' ); ?></a>
+							<a class="btn btn--ghost" href="<?php echo esc_url( home_url( '/my-account/' ) ); ?>"><?php esc_html_e( 'My Account', 'amz-prints' ); ?></a>
 						</div>
 					</div>
 				<?php endif; ?>

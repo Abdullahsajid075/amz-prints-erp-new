@@ -187,3 +187,93 @@ function amz_prints_track_order_from_erp( $result, $order_id, $phone = '' ) {
 	return amz_prints_map_erp_track( $raw );
 }
 add_filter( 'amz_prints_track_order', 'amz_prints_track_order_from_erp', 10, 3 );
+
+/**
+ * Find a website order by id. Does not require an account.
+ *
+ * @param string $code Order ID or tracking number.
+ * @return array|null
+ */
+function amz_prints_find_local_public_order( $code ) {
+	$code = strtolower( trim( (string) $code ) );
+	if ( '' === $code ) {
+		return null;
+	}
+	$all = get_option( 'amz_prints_customer_orders', array() );
+	if ( ! is_array( $all ) ) {
+		return null;
+	}
+	foreach ( $all as $orders ) {
+		if ( ! is_array( $orders ) ) {
+			continue;
+		}
+		foreach ( $orders as $order ) {
+			if ( ! is_array( $order ) ) {
+				continue;
+			}
+			$keys = array( $order['orderId'] ?? '', $order['trackingNumber'] ?? '', $order['id'] ?? '' );
+			foreach ( $keys as $key ) {
+				if ( $key && strtolower( trim( (string) $key ) ) === $code ) {
+					return $order;
+				}
+			}
+		}
+	}
+	return null;
+}
+
+/**
+ * Public tracking for a code. Website orders first, then the ERP track API.
+ *
+ * @param string $code Order ID or tracking number.
+ * @return array|WP_Error
+ */
+function amz_prints_public_track( $code ) {
+	$code = trim( (string) $code );
+	if ( '' === $code ) {
+		return new WP_Error( 'amz_track_empty', __( 'Enter your Order ID or Tracking Number.', 'amz-prints' ) );
+	}
+	$local = amz_prints_find_local_public_order( $code );
+	if ( $local ) {
+		$items = $local['items'] ?? array();
+		$names = array();
+		if ( is_array( $items ) ) {
+			foreach ( $items as $item ) {
+				$name = is_array( $item ) ? (string) ( $item['name'] ?? '' ) : (string) $item;
+				if ( trim( $name ) ) {
+					$names[] = trim( $name );
+				}
+			}
+		} elseif ( is_string( $items ) && trim( $items ) ) {
+			$names[] = trim( $items );
+		}
+		$order_id = (string) ( $local['orderId'] ?? $local['trackingNumber'] ?? $code );
+		$status   = (string) ( $local['status'] ?? 'Order Received' );
+		return array(
+			'order_id'        => $order_id,
+			'tracking_number' => (string) ( $local['trackingNumber'] ?? $order_id ),
+			'customer'        => (string) ( $local['name'] ?? '' ),
+			'status'          => $status,
+			'status_index'    => 0,
+			'updated'         => (string) ( $local['date'] ?? '' ),
+			'items'           => $names ? implode( ', ', $names ) : __( 'Print job', 'amz-prints' ),
+			'products'        => $names,
+			'timeline'        => array(
+				array(
+					'status'  => $status,
+					'done'    => true,
+					'current' => true,
+				),
+			),
+			'cancelled'       => false,
+			'message'         => '',
+			'demo'            => false,
+			'source'          => 'website',
+		);
+	}
+	$raw = amz_prints_erp_fetch_track( $code );
+	if ( is_wp_error( $raw ) ) {
+		return $raw;
+	}
+	return amz_prints_map_erp_track( $raw );
+}

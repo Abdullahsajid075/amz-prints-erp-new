@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-const AMZ_PRINTS_CUSTOMER_COOKIE = 'amz_customer_token';
+const AMZ_PRINTS_CUSTOMER_COOKIE = 'amz_cust';
 
 /**
  * Start session early for portal flash messages.
@@ -35,8 +35,27 @@ function amz_prints_customer_is_logged_in() {
 	return (bool) amz_prints_customer_token();
 }
 
+function amz_prints_customer_cookie_paths() {
+	$paths = array( '/', (string) COOKIEPATH, (string) SITECOOKIEPATH );
+	return array_values( array_unique( array_filter( $paths ) ) );
+}
+
+function amz_prints_customer_expire_cookie( $name ) {
+	foreach ( amz_prints_customer_cookie_paths() as $path ) {
+		setcookie( $name, '', array(
+			'expires'  => time() - HOUR_IN_SECONDS,
+			'path'     => $path,
+			'secure'   => is_ssl(),
+			'httponly' => true,
+			'samesite' => 'Lax',
+		) );
+	}
+	unset( $_COOKIE[ $name ] );
+}
+
 function amz_prints_customer_set_token( $token ) {
 	$token = (string) $token;
+	amz_prints_customer_expire_cookie( 'amz_customer_token' );
 	$expire = time() + WEEK_IN_SECONDS;
 	setcookie( AMZ_PRINTS_CUSTOMER_COOKIE, $token, array(
 		'expires'  => $expire,
@@ -49,14 +68,8 @@ function amz_prints_customer_set_token( $token ) {
 }
 
 function amz_prints_customer_clear_token() {
-	setcookie( AMZ_PRINTS_CUSTOMER_COOKIE, '', array(
-		'expires'  => time() - HOUR_IN_SECONDS,
-		'path'     => '/',
-		'secure'   => is_ssl(),
-		'httponly' => true,
-		'samesite' => 'Lax',
-	) );
-	unset( $_COOKIE[ AMZ_PRINTS_CUSTOMER_COOKIE ] );
+	amz_prints_customer_expire_cookie( AMZ_PRINTS_CUSTOMER_COOKIE );
+	amz_prints_customer_expire_cookie( 'amz_customer_token' );
 }
 
 function amz_prints_customer_login_url( $redirect = '' ) {
@@ -69,6 +82,92 @@ function amz_prints_customer_login_url( $redirect = '' ) {
 
 function amz_prints_customer_account_url() {
 	return home_url( '/my-account/' );
+}
+
+function amz_prints_customer_signup_url( $redirect = '' ) {
+	$url = home_url( '/customer-signup/' );
+	if ( $redirect ) {
+		$url = add_query_arg( 'redirect', rawurlencode( $redirect ), $url );
+	}
+	return $url;
+}
+
+function amz_prints_customer_profile_url() {
+	return home_url( '/my-account/#profile' );
+}
+
+function amz_prints_customer_normalize_phone( $phone ) {
+	$phone = preg_replace( '/[\s\-().]/', '', trim( (string) $phone ) );
+	if ( 0 === strpos( $phone, '00' ) ) {
+		$phone = '+' . substr( $phone, 2 );
+	}
+	return $phone;
+}
+
+function amz_prints_customer_phone_error( $phone ) {
+	$phone = amz_prints_customer_normalize_phone( $phone );
+	if ( ! preg_match( '/^\+[1-9]\d{7,14}$/', $phone ) ) {
+		return __( 'Enter a mobile number with country code, for example +923001234567.', 'amz-prints' );
+	}
+	return '';
+}
+
+function amz_prints_customer_address_error( $address ) {
+	$address = trim( preg_replace( '/\s+/', ' ', (string) $address ) );
+	if ( strlen( $address ) < 8 ) {
+		return __( 'Enter a complete delivery address (street, area, and city).', 'amz-prints' );
+	}
+	return '';
+}
+
+/**
+ * Name, email, country-code phone, and delivery address.
+ *
+ * @return array|WP_Error
+ */
+function amz_prints_customer_validate_identity( $name, $email, $phone, $address, $require_address = true ) {
+	$name    = trim( (string) $name );
+	$email   = strtolower( sanitize_email( (string) $email ) );
+	$phone   = amz_prints_customer_normalize_phone( $phone );
+	$address = trim( (string) $address );
+	if ( strlen( $name ) < 2 ) {
+		return new WP_Error( 'amz_name', __( 'Enter your full name.', 'amz-prints' ) );
+	}
+	if ( ! is_email( $email ) || ! preg_match( '/^[^\s@]+@[^\s@]+\.[^\s@]+$/', $email ) ) {
+		return new WP_Error( 'amz_email', __( 'Enter a correct email address.', 'amz-prints' ) );
+	}
+	$phone_error = amz_prints_customer_phone_error( $phone );
+	if ( $phone_error ) {
+		return new WP_Error( 'amz_phone', $phone_error );
+	}
+	if ( $require_address ) {
+		$address_error = amz_prints_customer_address_error( $address );
+		if ( $address_error ) {
+			return new WP_Error( 'amz_address', $address_error );
+		}
+	}
+	return array(
+		'name'    => $name,
+		'email'   => $email,
+		'phone'   => $phone,
+		'address' => $address,
+	);
+}
+
+function amz_prints_customer_profile_is_complete( $customer = null ) {
+	if ( ! is_array( $customer ) ) {
+		$token = amz_prints_customer_token();
+		$local = $token ? amz_prints_local_session_customer( $token ) : null;
+		$customer = ( is_array( $local ) && ! empty( $local['customer'] ) ) ? $local['customer'] : array();
+	}
+	$checked = amz_prints_customer_validate_identity(
+		$customer['name'] ?? '',
+		$customer['email'] ?? '',
+		$customer['phone'] ?? '',
+		$customer['address'] ?? '',
+		true
+	);
+	return ! is_wp_error( $checked );
 }
 
 /**
@@ -121,7 +220,7 @@ function amz_prints_verify_google_id_token( $id_token ) {
 	$expected_aud = trim( (string) amz_prints_mod( 'amz_google_client_id', '' ) );
 	$aud          = (string) ( $body['aud'] ?? '' );
 	if ( $expected_aud && $aud && $aud !== $expected_aud ) {
-		return new WP_Error( 'amz_google_aud', __( 'Google Client ID mismatch. Check Customizer → Customer Portal.', 'amz-prints' ) );
+		return new WP_Error( 'amz_google_aud', __( 'Google sign-in could not be verified. Try again.', 'amz-prints' ) );
 	}
 
 	return array(
@@ -213,7 +312,7 @@ function amz_prints_customer_matching_erp_token( $email, $result ) {
 		return '';
 	}
 	$api_email = strtolower( trim( (string) ( $result['customer']['email'] ?? '' ) ) );
-	if ( $api_email && $api_email !== strtolower( trim( (string) $email ) ) ) {
+	if ( ! $api_email || $api_email !== strtolower( trim( (string) $email ) ) ) {
 		return '';
 	}
 	return (string) $result['token'];
@@ -362,36 +461,62 @@ function amz_prints_customer_orders_for( $email ) {
 
 function amz_prints_customer_fetch_session() {
 	$token = amz_prints_customer_token();
-	if ( ! $token ) {
+	if ( ! $token || 0 !== strpos( (string) $token, 'amzlocal.' ) ) {
+		if ( $token ) {
+			amz_prints_customer_clear_token();
+		}
 		return new WP_Error( 'amz_customer_auth', __( 'Please log in.', 'amz-prints' ) );
 	}
 	$local = amz_prints_local_session_customer( $token );
-	if ( $local ) {
-		$email = strtolower( (string) ( $local['customer']['email'] ?? '' ) );
-		$local['orders'] = amz_prints_customer_orders_for( $email );
-		return $local;
-	}
-	$result = amz_prints_customer_api( '/public/customer/session', array( 'token' => $token ) );
-	if ( is_wp_error( $result ) ) {
-		$snap = amz_prints_portal_snapshot( $token );
-		$msg  = $result->get_error_message();
-		if ( $snap && ( false !== stripos( $msg, 'not found' ) || false !== stripos( $msg, 'session' ) ) ) {
-			$email = strtolower( (string) ( $snap['customer']['email'] ?? '' ) );
-			$snap['orders'] = amz_prints_customer_orders_for( $email );
-			return $snap;
-		}
+	if ( ! $local ) {
 		amz_prints_customer_clear_token();
-		return $result;
+		return new WP_Error( 'amz_customer_auth', __( 'Please log in again.', 'amz-prints' ) );
 	}
-	if ( ! empty( $result['customer'] ) && is_array( $result['customer'] ) ) {
-		amz_prints_remember_portal_session( $token, $result['customer'] );
-		$email = strtolower( (string) ( $result['customer']['email'] ?? '' ) );
-		$mine  = amz_prints_customer_orders_for( $email );
-		if ( $mine ) {
-			$result['orders'] = array_merge( $mine, isset( $result['orders'] ) && is_array( $result['orders'] ) ? $result['orders'] : array() );
+	$email = strtolower( trim( (string) ( $local['customer']['email'] ?? '' ) ) );
+	$row   = $email ? amz_prints_local_customer_get( $email ) : null;
+	if ( ! is_array( $row ) || strtolower( trim( (string) ( $row['email'] ?? '' ) ) ) !== $email ) {
+		amz_prints_customer_clear_token();
+		return new WP_Error( 'amz_customer_auth', __( 'Please log in again.', 'amz-prints' ) );
+	}
+	$local['customer']['name']       = (string) ( $row['name'] ?? '' );
+	$local['customer']['email']      = $email;
+	$local['customer']['phone']      = (string) ( $row['phone'] ?? '' );
+	$local['customer']['address']    = (string) ( $row['address'] ?? '' );
+	$local['customer']['cardNumber'] = 'AMZ-' . strtoupper( substr( md5( $email ), 0, 6 ) );
+	$local['orders']                 = amz_prints_customer_orders_for( $email );
+	$local['invoices']               = array();
+	$local['ledger']                 = array(
+		'totalBilled'  => 0,
+		'totalPaid'    => 0,
+		'outstanding'  => 0,
+		'payments'     => array(),
+	);
+	$local['pendingPayments']        = array();
+
+	$erp = (string) ( $row['erp_token'] ?? '' );
+	if ( $erp ) {
+		$remote = amz_prints_customer_api( '/public/customer/session', array( 'token' => $erp ) );
+		if ( ! is_wp_error( $remote ) && is_array( $remote ) ) {
+			$remote_email = strtolower( trim( (string) ( $remote['customer']['email'] ?? '' ) ) );
+			if ( $remote_email === $email ) {
+				$remote_orders = isset( $remote['orders'] ) && is_array( $remote['orders'] ) ? $remote['orders'] : array();
+				$local['orders'] = array_merge( $local['orders'], $remote_orders );
+				if ( ! empty( $remote['invoices'] ) && is_array( $remote['invoices'] ) ) {
+					$local['invoices'] = $remote['invoices'];
+				}
+				if ( ! empty( $remote['ledger'] ) && is_array( $remote['ledger'] ) ) {
+					$local['ledger'] = $remote['ledger'];
+				}
+				if ( ! empty( $remote['pendingPayments'] ) && is_array( $remote['pendingPayments'] ) ) {
+					$local['pendingPayments'] = $remote['pendingPayments'];
+				}
+				if ( ! empty( $remote['discounts'] ) ) {
+					$local['discounts'] = $remote['discounts'];
+				}
+			}
 		}
 	}
-	return $result;
+	return $local;
 }
 
 /**
@@ -403,13 +528,19 @@ function amz_prints_ajax_customer_lookup() {
 	if ( ! $email || ! is_email( $email ) ) {
 		wp_send_json_error( array( 'message' => __( 'Enter a valid email address.', 'amz-prints' ) ), 400 );
 	}
+	$local = amz_prints_local_customer_get( $email );
+	if ( $local && ! empty( $local['verified'] ) && ! empty( $local['password'] ) ) {
+		wp_send_json_success( array(
+			'exists'      => true,
+			'hasPassword' => true,
+		) );
+	}
 	$result = amz_prints_customer_api( '/public/customer/lookup', array( 'email' => $email ) );
 	if ( is_wp_error( $result ) ) {
-		$err = $result->get_error_message();
-		if ( 'Not found' === $err || false !== stripos( $err, 'not found' ) ) {
-			$err = __( 'Account check is not on the ERP yet. Redeploy latest Code.gs (New version), then try again.', 'amz-prints' );
-		}
-		wp_send_json_error( array( 'message' => $err ), 400 );
+		wp_send_json_success( array(
+			'exists'      => false,
+			'hasPassword' => false,
+		) );
 	}
 	wp_send_json_success( array(
 		'exists'      => ! empty( $result['exists'] ),
@@ -429,10 +560,15 @@ function amz_prints_ajax_customer_register() {
 	$phone    = isset( $_POST['phone'] ) ? sanitize_text_field( wp_unslash( $_POST['phone'] ) ) : '';
 	$password = isset( $_POST['password'] ) ? (string) wp_unslash( $_POST['password'] ) : '';
 	$address  = isset( $_POST['address'] ) ? sanitize_textarea_field( wp_unslash( $_POST['address'] ) ) : '';
-
-	if ( ! $name || ! $email || ! $phone ) {
-		wp_send_json_error( array( 'message' => __( 'Name, email, and phone are required.', 'amz-prints' ) ), 400 );
+	$identity = amz_prints_customer_validate_identity( $name, $email, $phone, $address, true );
+	if ( is_wp_error( $identity ) ) {
+		wp_send_json_error( array( 'message' => $identity->get_error_message() ), 400 );
 	}
+	$name    = $identity['name'];
+	$email   = $identity['email'];
+	$phone   = $identity['phone'];
+	$address = $identity['address'];
+
 	if ( strlen( $password ) < 6 ) {
 		wp_send_json_error( array( 'message' => __( 'Password must be at least 6 characters.', 'amz-prints' ) ), 400 );
 	}
@@ -514,61 +650,85 @@ add_action( 'wp_ajax_nopriv_amz_prints_customer_register', 'amz_prints_ajax_cust
  */
 function amz_prints_ajax_customer_login() {
 	check_ajax_referer( 'amz_prints_customer', 'nonce' );
-	$email    = isset( $_POST['email'] ) ? sanitize_email( wp_unslash( $_POST['email'] ) ) : '';
+	$email    = isset( $_POST['email'] ) ? strtolower( sanitize_email( wp_unslash( $_POST['email'] ) ) ) : '';
 	$password = isset( $_POST['password'] ) ? (string) wp_unslash( $_POST['password'] ) : '';
+	if ( ! is_email( $email ) ) {
+		wp_send_json_error( array( 'message' => __( 'Enter a correct email address.', 'amz-prints' ) ), 400 );
+	}
+
+	$redirect = isset( $_POST['redirect'] ) ? esc_url_raw( wp_unslash( $_POST['redirect'] ) ) : '';
+	$redirect = $redirect ? wp_validate_redirect( $redirect, amz_prints_customer_account_url() ) : amz_prints_customer_account_url();
+
+	$local = amz_prints_local_customer_get( $email );
+	if ( $local && ! empty( $local['password'] ) && wp_check_password( $password, $local['password'] ) ) {
+		amz_prints_customer_sign_in_local(
+			$email,
+			array(
+				'name'    => (string) ( $local['name'] ?? '' ),
+				'phone'   => (string) ( $local['phone'] ?? '' ),
+				'address' => (string) ( $local['address'] ?? '' ),
+			)
+		);
+		wp_send_json_success( array(
+			'redirect' => $redirect,
+			'customer' => array(
+				'name'    => (string) ( $local['name'] ?? '' ),
+				'email'   => $email,
+				'phone'   => (string) ( $local['phone'] ?? '' ),
+				'address' => (string) ( $local['address'] ?? '' ),
+			),
+		) );
+	}
 
 	$result = amz_prints_customer_api( '/public/customer/login', array(
 		'email'    => $email,
 		'password' => $password,
 	) );
 	if ( is_wp_error( $result ) ) {
-		$local = amz_prints_local_customer_get( $email );
-		if ( $local && ! empty( $local['password'] ) && wp_check_password( $password, $local['password'] ) ) {
-			$token = amz_prints_local_issue_token( $email );
-			amz_prints_customer_set_token( $token );
-			amz_prints_remember_portal_session( $token, array(
-				'name'  => (string) ( $local['name'] ?? '' ),
-				'email' => $email,
-				'phone' => (string) ( $local['phone'] ?? '' ),
-			) );
-			$redirect = isset( $_POST['redirect'] ) ? esc_url_raw( wp_unslash( $_POST['redirect'] ) ) : '';
-			$redirect = $redirect ? wp_validate_redirect( $redirect, amz_prints_customer_account_url() ) : amz_prints_customer_account_url();
-			wp_send_json_success( array( 'redirect' => $redirect ) );
-		}
 		$err  = $result->get_error_message();
 		$code = '';
-		if ( false !== stripos( $err, 'please sign up' ) || false !== stripos( $err, 'no customer account' ) || false !== stripos( $err, 'not registered online' ) ) {
+		if ( false !== stripos( $err, 'please sign up' ) || false !== stripos( $err, 'no customer account' ) || false !== stripos( $err, 'not registered online' ) || 'Not found' === $err || false !== stripos( $err, 'not found' ) ) {
 			$code = 'need_signup';
-			$err  = __( 'This email is not registered for website login. Open Create an account, enter your name, phone, and a password of at least 6 characters, then log in with that same email and password.', 'amz-prints' );
+			$err  = __( 'No account for this email. Create an account with your name, email, mobile number, and delivery address.', 'amz-prints' );
 		} elseif ( false !== stripos( $err, 'invalid email' ) || false !== stripos( $err, 'invalid password' ) || false !== stripos( $err, 'invalid credential' ) ) {
-			$err = __( 'That email and password do not match. Use the password from Sign up, or press Continue with Google.', 'amz-prints' );
-		} elseif ( 'Not found' === $err || false !== stripos( $err, 'not found' ) ) {
-			$err = __( 'ERP customer login API not found. Redeploy latest Code.gs in Apps Script (Deploy → Manage deployments → New version).', 'amz-prints' );
+			$err = __( 'That email and password do not match. Use the password from Sign up.', 'amz-prints' );
 		}
 		wp_send_json_error( array( 'message' => $err, 'code' => $code ), 400 );
 	}
 	if ( empty( $result['token'] ) ) {
 		wp_send_json_error( array( 'message' => __( 'Login failed.', 'amz-prints' ) ), 400 );
 	}
-	$cust = isset( $result['customer'] ) && is_array( $result['customer'] ) ? $result['customer'] : array();
+	$cust      = isset( $result['customer'] ) && is_array( $result['customer'] ) ? $result['customer'] : array();
 	$api_email = strtolower( trim( (string) ( $cust['email'] ?? '' ) ) );
-	if ( $api_email && $api_email !== strtolower( $email ) ) {
-		$cust = array();
+	if ( $api_email !== $email ) {
+		wp_send_json_error( array(
+			'message' => __( 'This login did not match your email. Create your own account and sign in with that email.', 'amz-prints' ),
+			'code'    => 'need_signup',
+		), 400 );
 	}
-	amz_prints_customer_sign_in_local(
-		$email,
-		array(
-			'name'  => (string) ( $cust['name'] ?? '' ),
-			'phone' => (string) ( $cust['phone'] ?? '' ),
-		),
-		$password,
-		amz_prints_customer_matching_erp_token( $email, $result )
+	$profile = array(
+		'name'    => (string) ( $local['name'] ?? '' ),
+		'phone'   => (string) ( $local['phone'] ?? '' ),
+		'address' => (string) ( $local['address'] ?? '' ),
 	);
-	$redirect = isset( $_POST['redirect'] ) ? esc_url_raw( wp_unslash( $_POST['redirect'] ) ) : '';
-	$redirect = $redirect ? wp_validate_redirect( $redirect, amz_prints_customer_account_url() ) : amz_prints_customer_account_url();
+	if ( '' === trim( $profile['name'] ) ) {
+		$profile['name'] = (string) ( $cust['name'] ?? '' );
+	}
+	if ( '' === trim( $profile['phone'] ) ) {
+		$profile['phone'] = (string) ( $cust['phone'] ?? '' );
+	}
+	if ( '' === trim( $profile['address'] ) ) {
+		$profile['address'] = (string) ( $cust['address'] ?? '' );
+	}
+	amz_prints_customer_sign_in_local( $email, $profile, $password, amz_prints_customer_matching_erp_token( $email, $result ) );
 	wp_send_json_success( array(
-		'customer'  => $cust,
-		'redirect'  => $redirect,
+		'customer' => array(
+			'name'    => $profile['name'],
+			'email'   => $email,
+			'phone'   => $profile['phone'],
+			'address' => $profile['address'],
+		),
+		'redirect' => $redirect,
 	) );
 }
 add_action( 'wp_ajax_amz_prints_customer_login', 'amz_prints_ajax_customer_login' );
@@ -588,7 +748,10 @@ function amz_prints_ajax_customer_google() {
 		wp_send_json_error( array( 'message' => $google->get_error_message() ), 400 );
 	}
 
-	$phone = isset( $_POST['phone'] ) ? sanitize_text_field( wp_unslash( $_POST['phone'] ) ) : '';
+	$phone = isset( $_POST['phone'] ) ? amz_prints_customer_normalize_phone( sanitize_text_field( wp_unslash( $_POST['phone'] ) ) ) : '';
+	if ( $phone && amz_prints_customer_phone_error( $phone ) ) {
+		wp_send_json_error( array( 'message' => amz_prints_customer_phone_error( $phone ) ), 400 );
+	}
 	$gname = $google['name'] ? $google['name'] : ( isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '' );
 	$typed = isset( $_POST['password'] ) ? (string) wp_unslash( $_POST['password'] ) : '';
 	$pass  = strlen( $typed ) >= 6 ? $typed : ( strlen( $new_password ) >= 6 ? $new_password : wp_generate_password( 16, false, false ) );
@@ -763,9 +926,12 @@ function amz_prints_ajax_customer_reset_confirm() {
 	delete_transient( $key );
 	if ( ! empty( $result['token'] ) ) {
 		$reset_customer = isset( $result['customer'] ) && is_array( $result['customer'] ) ? $result['customer'] : array();
+		$saved_local    = amz_prints_local_customer_get( $email );
+		$saved_local    = is_array( $saved_local ) ? $saved_local : array();
 		amz_prints_customer_sign_in_local( $email, array(
-			'name'  => (string) ( $reset_customer['name'] ?? '' ),
-			'phone' => (string) ( $reset_customer['phone'] ?? '' ),
+			'name'    => (string) ( $saved_local['name'] ?? '' ) !== '' ? (string) $saved_local['name'] : (string) ( $reset_customer['name'] ?? '' ),
+			'phone'   => (string) ( $saved_local['phone'] ?? '' ) !== '' ? (string) $saved_local['phone'] : (string) ( $reset_customer['phone'] ?? '' ),
+			'address' => (string) ( $saved_local['address'] ?? '' ),
 		), $password, amz_prints_customer_matching_erp_token( $email, $result ) );
 	}
 	$redirect = isset( $_POST['redirect'] ) ? esc_url_raw( wp_unslash( $_POST['redirect'] ) ) : '';
@@ -790,23 +956,77 @@ add_action( 'wp_ajax_amz_prints_customer_logout', 'amz_prints_ajax_customer_logo
 add_action( 'wp_ajax_nopriv_amz_prints_customer_logout', 'amz_prints_ajax_customer_logout' );
 
 /**
- * AJAX: track order for logged-in customer only
+ * AJAX: public order tracking. No account required.
  */
 function amz_prints_ajax_customer_track() {
 	check_ajax_referer( 'amz_prints_customer', 'nonce' );
-	$token = amz_prints_customer_token();
-	if ( ! $token ) {
-		wp_send_json_error( array( 'message' => __( 'Please log in to track orders.', 'amz-prints' ) ), 401 );
-	}
-	$code = isset( $_POST['code'] ) ? sanitize_text_field( wp_unslash( $_POST['code'] ) ) : '';
-	$result = amz_prints_customer_api( '/public/customer/track', array(
-		'token' => $token,
-		'code'  => $code,
-	) );
+	$code   = isset( $_POST['code'] ) ? sanitize_text_field( wp_unslash( $_POST['code'] ) ) : '';
+	$result = function_exists( 'amz_prints_public_track' ) ? amz_prints_public_track( $code ) : new WP_Error( 'amz_track', __( 'Tracking is not available right now.', 'amz-prints' ) );
 	if ( is_wp_error( $result ) ) {
 		wp_send_json_error( array( 'message' => $result->get_error_message() ), 400 );
 	}
-	wp_send_json_success( $result );
+	$products = array();
+	foreach ( (array) ( $result['products'] ?? array() ) as $name ) {
+		$name = trim( (string) $name );
+		if ( $name ) {
+			$products[] = array( 'name' => $name );
+		}
+	}
+	wp_send_json_success( array(
+		'orderId'         => (string) ( $result['order_id'] ?? '' ),
+		'trackingNumber'  => (string) ( $result['tracking_number'] ?? '' ),
+		'status'          => (string) ( $result['status'] ?? '' ),
+		'customerName'    => (string) ( $result['customer'] ?? '' ),
+		'products'        => $products,
+		'timeline'        => isset( $result['timeline'] ) && is_array( $result['timeline'] ) ? $result['timeline'] : array(),
+	) );
 }
+
+/**
+ * AJAX: save this customer's own name, phone, and delivery address.
+ */
+function amz_prints_ajax_customer_profile() {
+	check_ajax_referer( 'amz_prints_customer', 'nonce' );
+	$session = amz_prints_customer_fetch_session();
+	if ( is_wp_error( $session ) ) {
+		wp_send_json_error( array( 'message' => __( 'Please log in again.', 'amz-prints' ) ), 401 );
+	}
+	$email = strtolower( trim( (string) ( $session['customer']['email'] ?? '' ) ) );
+	$name  = isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '';
+	$phone = isset( $_POST['phone'] ) ? sanitize_text_field( wp_unslash( $_POST['phone'] ) ) : '';
+	$address = isset( $_POST['address'] ) ? sanitize_textarea_field( wp_unslash( $_POST['address'] ) ) : '';
+	$identity = amz_prints_customer_validate_identity( $name, $email, $phone, $address, true );
+	if ( is_wp_error( $identity ) ) {
+		wp_send_json_error( array( 'message' => $identity->get_error_message() ), 400 );
+	}
+	if ( $identity['email'] !== $email ) {
+		wp_send_json_error( array( 'message' => __( 'This profile does not match the signed-in email.', 'amz-prints' ) ), 400 );
+	}
+	$row = amz_prints_local_customer_get( $email );
+	$row = is_array( $row ) ? $row : array();
+	$row['name']     = $identity['name'];
+	$row['email']    = $email;
+	$row['phone']    = $identity['phone'];
+	$row['address']  = $identity['address'];
+	$row['verified'] = true;
+	amz_prints_local_customer_save( $email, $row );
+	$token = amz_prints_customer_token();
+	amz_prints_remember_portal_session( $token, array(
+		'name'    => $row['name'],
+		'email'   => $email,
+		'phone'   => $row['phone'],
+		'address' => $row['address'],
+	) );
+	wp_send_json_success( array(
+		'message'  => __( 'Profile saved for this account.', 'amz-prints' ),
+		'customer' => array(
+			'name'    => $row['name'],
+			'email'   => $email,
+			'phone'   => $row['phone'],
+			'address' => $row['address'],
+		),
+	) );
+}
+add_action( 'wp_ajax_amz_prints_customer_profile', 'amz_prints_ajax_customer_profile' );
 add_action( 'wp_ajax_amz_prints_customer_track', 'amz_prints_ajax_customer_track' );
 add_action( 'wp_ajax_nopriv_amz_prints_customer_track', 'amz_prints_ajax_customer_track' );

@@ -49,13 +49,26 @@
   }
 
   function cartUpdate(productId, quantity, cartAction) {
+    if ((cartAction || 'set') === 'add' && !cfg.profileComplete) {
+      if (cfg.profileUrl) window.location.href = cfg.profileUrl;
+      var blocked = new Error('Complete your profile before adding to cart.');
+      blocked.code = 'profile_required';
+      return Promise.reject(blocked);
+    }
     return post('amz_prints_cart_update', {
       product_id: productId,
       quantity: quantity,
       cart_action: cartAction || 'set'
     }).then(function (res) {
       if (!res || !res.success) {
-        throw new Error((res && res.data && res.data.message) || 'Cart update failed');
+        var code = res && res.data && res.data.code;
+        var next = res && res.data && (res.data.profileUrl || res.data.loginUrl);
+        if ((code === 'profile_required' || code === 'login_required') && next) {
+          window.location.href = next;
+        }
+        var err = new Error((res && res.data && res.data.message) || 'Cart update failed');
+        err.code = code || '';
+        throw err;
       }
       updateBadge(res.data.count);
       renderTotals(res.data);
@@ -266,6 +279,7 @@
             setTimeout(function () { add.textContent = 'Add to cart'; }, 1200);
           })
           .catch(function (err) {
+            if (err && (err.code === 'profile_required' || err.code === 'login_required')) return;
             var fb = modal.querySelector('[data-pm-feedback]');
             if (fb) { fb.hidden = false; fb.textContent = err.message || 'Could not add to cart'; }
           })
@@ -303,6 +317,7 @@
           setTimeout(function () { addBtn.textContent = 'Add to cart'; }, 1200);
         })
         .catch(function (err) {
+          if (err && (err.code === 'profile_required' || err.code === 'login_required')) return;
           alert(err.message || 'Could not add to cart');
         })
         .finally(function () { addBtn.disabled = false; });
@@ -385,8 +400,8 @@
       }).then(function (res) {
         if (!res || !res.success) {
           var err = (res && res.data && res.data.message) || 'Could not place order';
-          if (res && res.data && res.data.loginUrl) {
-            window.location.href = res.data.loginUrl;
+          if (res && res.data && (res.data.profileUrl || res.data.loginUrl)) {
+            window.location.href = res.data.profileUrl || res.data.loginUrl;
             return;
           }
           throw new Error(err);
@@ -401,6 +416,8 @@
           if (sm) sm.textContent = res.data.message || 'Order placed successfully.';
           if (so) so.textContent = res.data.orderId || '';
           if (sp) sp.textContent = (res.data.paymentMethod || '') + (res.data.paymentStatus ? ' · ' + res.data.paymentStatus : '');
+          var st = ok.querySelector('[data-success-track]');
+          if (st && res.data.trackUrl) st.href = res.data.trackUrl;
         }
         updateBadge(0);
       }).catch(function (err) {

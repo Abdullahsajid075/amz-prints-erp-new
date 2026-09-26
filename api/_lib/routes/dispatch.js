@@ -611,22 +611,35 @@ async function dispatch(req, res) {
               }
               return sendError(res, 'An account already exists for this email. Please log in.', 400);
             }
-            const byPhone = await findByPhone(phone);
+            const normalizePhone = (value) => {
+              let p = String(value || '').replace(/[\s\-().]/g, '');
+              if (p.startsWith('00')) p = `+${p.slice(2)}`;
+              return p;
+            };
+            const phoneNorm = normalizePhone(phone);
+            if (!/^\+[1-9]\d{7,14}$/.test(phoneNorm)) {
+              return sendError(res, 'Enter a mobile number with country code, for example +923001234567.', 400);
+            }
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+              return sendError(res, 'Enter a correct email address.', 400);
+            }
+            if (address.trim().length < 8) {
+              return sendError(res, 'Enter a complete delivery address.', 400);
+            }
+            const byPhone = await findByPhone(phoneNorm);
             if (byPhone) {
               const pEmail = String(byPhone.email || '').trim().toLowerCase();
-              if (pEmail && pEmail !== email) {
-                return sendError(res, 'This phone is already linked to another customer account. Please log in.', 400);
+              const samePerson = namesMatch(byPhone.name, name) && (!pEmail || pEmail === email);
+              if (!samePerson) {
+                return sendError(res, 'This phone is already linked to another customer. Use your own mobile number, or log in.', 400);
               }
-              if (namesMatch(byPhone.name, name) || !pEmail) {
-                return send(res, await claimExisting(byPhone, body));
-              }
-              return sendError(res, 'This phone is already linked to another customer account. Please log in.', 400);
+              return send(res, await claimExisting(byPhone, { ...body, phone: phoneNorm, email, name, address }));
             }
             const customerId = id('cust');
             const row = {
               id: customerId,
               name,
-              phone,
+              phone: phoneNorm,
               email,
               address,
               city: '',

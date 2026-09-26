@@ -29,7 +29,7 @@ foreach ( $erp_products as $p ) {
 	<div class="container">
 		<?php if ( empty( $erp_products ) ) : ?>
 			<p class="form-note">
-				<?php esc_html_e( 'Live ERP catalog unavailable right now. Redeploy latest Code.gs (public/products) to sync ERP items.', 'amz-prints' ); ?>
+				<?php esc_html_e( 'Products are updating. Please check again in a moment.', 'amz-prints' ); ?>
 			</p>
 		<?php else : ?>
 			<nav class="shop-cats" data-shop-cats aria-label="<?php esc_attr_e( 'Product categories', 'amz-prints' ); ?>">

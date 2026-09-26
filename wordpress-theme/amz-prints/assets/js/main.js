@@ -376,11 +376,7 @@
   function buildWaMessage(form) {
     var fd = new FormData(form);
     var lines = [];
-    lines.push('REQUIRED INFO');
-    lines.push('----------------');
-    lines.push('Company: Amazon Printings (Pvt) Ltd');
-    lines.push('Source: Website Quote Form');
-    lines.push('----------------');
+    lines.push('Hello, I would like a quote.');
     lines.push('Name: ' + (fd.get('name') || ''));
     lines.push('Company: ' + (fd.get('company') || '-'));
     lines.push('Email: ' + (fd.get('email') || ''));
@@ -389,15 +385,13 @@
     lines.push('Quantity: ' + (fd.get('quantity') || '-'));
     lines.push('Needed by: ' + (fd.get('needed_by') || '-'));
     lines.push('Details: ' + (fd.get('details') || fd.get('message') || ''));
-    lines.push('----------------');
-    lines.push('Header image: ' + ((cfg.wa && cfg.wa.headerImage) ? cfg.wa.headerImage : ''));
     return lines.join('\n');
   }
 
   function openWhatsApp(text) {
     var num = (cfg.wa && cfg.wa.number) ? cfg.wa.number : '';
     if (!num) {
-      alert('Please set WhatsApp number in Theme Customizer → Company Info.');
+      alert('WhatsApp is not available right now. Please call or use the contact form.');
       return;
     }
     var url = 'https://wa.me/' + num + '?text=' + encodeURIComponent(text);
@@ -457,7 +451,7 @@
     btn.addEventListener('click', function (e) {
       e.preventDefault();
       var service = btn.getAttribute('data-wa-service') || '';
-      openWhatsApp('REQUIRED INFO\n----------------\nService inquiry: ' + service + '\nCompany: Amazon Printings (Pvt) Ltd\nPlease share package details.');
+      openWhatsApp('Hello, I would like to ask about: ' + service);
     });
   });
 

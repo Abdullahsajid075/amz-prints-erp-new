@@ -98,9 +98,6 @@ $certs = array(
 				</article>
 			<?php endforeach; ?>
 		</div>
-		<p class="cert-note reveal" data-reveal>
-			<?php esc_html_e( 'Upload your official partner certificate image in Customize → NADRA E-Services. Replace service descriptions by editing this page content anytime.', 'amz-prints' ); ?>
-		</p>
 	</div>
 </section>
 

@@ -43,8 +43,12 @@ $login_url     = $prefill ? add_query_arg( 'email', rawurlencode( $prefill ), ho
 					<input type="email" name="email" required autocomplete="email" placeholder="you@example.com" value="<?php echo esc_attr( $prefill ); ?>">
 				</label>
 				<label>
-					<span><?php esc_html_e( 'Phone', 'amz-prints' ); ?></span>
-					<input type="tel" name="phone" required autocomplete="tel" placeholder="03xx...">
+					<span><?php esc_html_e( 'Mobile number with country code', 'amz-prints' ); ?></span>
+					<input type="tel" name="phone" required autocomplete="tel" inputmode="tel" placeholder="+923001234567" pattern="^\+[1-9][0-9]{7,14}$">
+				</label>
+				<label>
+					<span><?php esc_html_e( 'Delivery address', 'amz-prints' ); ?></span>
+					<textarea name="address" required rows="3" autocomplete="street-address" placeholder="<?php esc_attr_e( 'Street, area, city', 'amz-prints' ); ?>"></textarea>
 				</label>
 				<label>
 					<span><?php esc_html_e( 'Password', 'amz-prints' ); ?></span>
@@ -58,17 +62,15 @@ $login_url     = $prefill ? add_query_arg( 'email', rawurlencode( $prefill ), ho
 				</p>
 			</form>
 
+			<?php if ( $google_client ) : ?>
 			<div class="customer-google-box" data-auth-google>
 				<div class="customer-auth-divider"><span><?php esc_html_e( 'or', 'amz-prints' ); ?></span></div>
 				<h3><?php esc_html_e( 'Continue with Google', 'amz-prints' ); ?></h3>
-				<p><?php esc_html_e( 'Press Continue with Google. You do not need to fill the form first. Google checks the email and signs you in.', 'amz-prints' ); ?></p>
-				<?php if ( $google_client ) : ?>
-					<div id="amz-google-btn" class="amz-google-btn"></div>
-					<p class="form-note" id="amz-customer-google-msg" hidden></p>
-				<?php else : ?>
-					<p class="form-note"><?php esc_html_e( 'Google sign-in needs a Client ID in Appearance → Customize → Customer Portal.', 'amz-prints' ); ?></p>
-				<?php endif; ?>
+				<p><?php esc_html_e( 'Press Continue with Google. You do not need to fill the form first. Google checks the email and signs you in. Add your mobile number and delivery address before you order.', 'amz-prints' ); ?></p>
+				<div id="amz-google-btn" class="amz-google-btn"></div>
+				<p class="form-note" id="amz-customer-google-msg" hidden></p>
 			</div>
+			<?php endif; ?>
 		</div>
 	</div>
 </section>

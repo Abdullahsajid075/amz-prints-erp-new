@@ -58,6 +58,35 @@ get_header();
 
 <section class="section">
 	<div class="container customer-account">
+		<article class="customer-panel" id="profile">
+			<h2><?php esc_html_e( 'Your details', 'amz-prints' ); ?></h2>
+			<p><?php esc_html_e( 'This account shows only the name, email, mobile number, and delivery address saved for the email you used to sign in.', 'amz-prints' ); ?></p>
+			<?php $profile_ready = function_exists( 'amz_prints_customer_profile_is_complete' ) && amz_prints_customer_profile_is_complete( $customer ); ?>
+			<?php if ( ! $profile_ready ) : ?>
+				<p class="form-note"><?php esc_html_e( 'Add a mobile number with country code and a complete delivery address before you add items to the cart.', 'amz-prints' ); ?></p>
+			<?php endif; ?>
+			<form class="amz-form" id="amz-customer-profile-form">
+				<label>
+					<span><?php esc_html_e( 'Full name', 'amz-prints' ); ?></span>
+					<input type="text" name="name" required value="<?php echo esc_attr( $name ); ?>" autocomplete="name">
+				</label>
+				<label>
+					<span><?php esc_html_e( 'Email', 'amz-prints' ); ?></span>
+					<input type="email" value="<?php echo esc_attr( $email ); ?>" readonly>
+				</label>
+				<label>
+					<span><?php esc_html_e( 'Mobile number with country code', 'amz-prints' ); ?></span>
+					<input type="tel" name="phone" required value="<?php echo esc_attr( $phone ); ?>" placeholder="+923001234567" autocomplete="tel" inputmode="tel">
+				</label>
+				<label>
+					<span><?php esc_html_e( 'Delivery address', 'amz-prints' ); ?></span>
+					<textarea name="address" required rows="3" autocomplete="street-address"><?php echo esc_textarea( (string) ( $customer['address'] ?? '' ) ); ?></textarea>
+				</label>
+				<button type="submit" class="btn btn--primary"><?php esc_html_e( 'Save profile', 'amz-prints' ); ?></button>
+				<p class="form-note" id="amz-customer-profile-msg" hidden></p>
+			</form>
+		</article>
+
 		<div class="customer-account__grid customer-account__grid--card">
 			<article class="amz-member-card" id="amz-member-card" data-card-name="<?php echo esc_attr( $name ? $name : 'customer' ); ?>">
 				<div class="amz-member-card__top">
@@ -111,7 +140,7 @@ get_header();
 		<div class="customer-account__grid">
 			<article class="customer-panel reveal" data-reveal id="track">
 				<h2><?php esc_html_e( 'Track order', 'amz-prints' ); ?></h2>
-				<p><?php esc_html_e( 'Enter an Order ID or Tracking Number from your account.', 'amz-prints' ); ?></p>
+				<p><?php esc_html_e( 'Enter an Order ID. You can also track from the Track page without signing in.', 'amz-prints' ); ?></p>
 				<form class="amz-form track-form" id="amz-customer-track-form">
 					<label>
 						<span><?php esc_html_e( 'Order ID / Tracking', 'amz-prints' ); ?></span>

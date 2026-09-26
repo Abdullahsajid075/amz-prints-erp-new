@@ -6807,3 +6807,40 @@ body.catalog-pdf-capture .catalog-page:not(.is-capturing) {
 .cv-home-band h2 { margin: 0.2rem 0 0.35rem; }
 .cv-home-band p { margin: 0; color: var(--amz-muted); max-width: 52ch; }
 
+.track-card__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.track-card h2 { margin: 0.15rem 0 0.4rem; }
+
+@media (max-width: 720px) {
+  .amz-form input,
+  .amz-form textarea,
+  .amz-form select,
+  .checkout-form input,
+  .checkout-form textarea,
+  .checkout-form select {
+    font-size: 16px;
+  }
+  .btn,
+  [data-add-to-cart],
+  [data-place-order] {
+    min-height: 44px;
+  }
+  .cv-home-band__inner .btn,
+  .track-card .btn,
+  .auth-screen .btn {
+    width: 100%;
+  }
+  .customer-account__grid,
+  .commerce-layout,
+  .track-layout,
+  .quote-layout,
+  .contact-layout {
+    grid-template-columns: 1fr;
+  }
+}
+

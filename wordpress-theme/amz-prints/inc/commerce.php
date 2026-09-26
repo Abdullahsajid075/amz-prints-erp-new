@@ -372,6 +372,22 @@ function amz_prints_ajax_cart_update() {
 		wp_send_json_error( array( 'message' => __( 'Product required.', 'amz-prints' ) ), 400 );
 	}
 
+	$adding = ( 'remove' !== $action && $qty > 0 );
+	if ( $adding && function_exists( 'amz_prints_customer_profile_is_complete' ) && ! amz_prints_customer_profile_is_complete() ) {
+		$back = wp_get_referer();
+		$back = $back ? wp_validate_redirect( $back, home_url( '/products/' ) ) : home_url( '/products/' );
+		$logged = function_exists( 'amz_prints_customer_is_logged_in' ) && amz_prints_customer_is_logged_in();
+		$url = $logged ? amz_prints_customer_profile_url() : amz_prints_customer_signup_url( $back );
+		wp_send_json_error(
+			array(
+				'message'    => __( 'Complete your profile before adding to cart: correct email, mobile number with country code, and delivery address.', 'amz-prints' ),
+				'code'       => 'profile_required',
+				'profileUrl' => $url,
+			),
+			403
+		);
+	}
+
 	$product = amz_prints_erp_find_product( $product_id );
 	if ( ! $product && 'remove' !== $action ) {
 		wp_send_json_error( array( 'message' => __( 'Product not found in ERP catalog.', 'amz-prints' ) ), 404 );
@@ -422,11 +438,21 @@ function amz_prints_ajax_place_order() {
 	if ( ! function_exists( 'amz_prints_customer_is_logged_in' ) || ! amz_prints_customer_is_logged_in() ) {
 		wp_send_json_error(
 			array(
-				'message'  => __( 'Please log in to place your order.', 'amz-prints' ),
-				'loginUrl' => amz_prints_customer_login_url( amz_prints_checkout_url() ),
-				'code'     => 'login_required',
+				'message'    => __( 'Create an account and complete your profile before placing an order.', 'amz-prints' ),
+				'profileUrl' => amz_prints_customer_signup_url( amz_prints_checkout_url() ),
+				'code'       => 'profile_required',
 			),
 			401
+		);
+	}
+	if ( function_exists( 'amz_prints_customer_profile_is_complete' ) && ! amz_prints_customer_profile_is_complete() ) {
+		wp_send_json_error(
+			array(
+				'message'    => __( 'Add your mobile number with country code and a complete delivery address before placing the order.', 'amz-prints' ),
+				'profileUrl' => amz_prints_customer_profile_url(),
+				'code'       => 'profile_required',
+			),
+			403
 		);
 	}
 
@@ -463,8 +489,14 @@ function amz_prints_ajax_place_order() {
 	if ( ! $pay_opt ) {
 		wp_send_json_error( array( 'message' => __( 'Select a valid payment method.', 'amz-prints' ) ), 400 );
 	}
-	if ( ! $address ) {
-		wp_send_json_error( array( 'message' => __( 'Delivery address is required.', 'amz-prints' ) ), 400 );
+	$phone_error = function_exists( 'amz_prints_customer_phone_error' ) ? amz_prints_customer_phone_error( $phone ) : '';
+	if ( $phone_error ) {
+		wp_send_json_error( array( 'message' => $phone_error ), 400 );
+	}
+	$phone = function_exists( 'amz_prints_customer_normalize_phone' ) ? amz_prints_customer_normalize_phone( $phone ) : $phone;
+	$address_error = function_exists( 'amz_prints_customer_address_error' ) ? amz_prints_customer_address_error( $address ) : '';
+	if ( $address_error ) {
+		wp_send_json_error( array( 'message' => $address_error ), 400 );
 	}
 
 	$items = array();
@@ -493,8 +525,16 @@ function amz_prints_ajax_place_order() {
 	$session  = function_exists( 'amz_prints_customer_fetch_session' ) ? amz_prints_customer_fetch_session() : array();
 	$customer = ( ! is_wp_error( $session ) && ! empty( $session['customer'] ) ) ? $session['customer'] : array();
 	$body['customerName']  = (string) ( $customer['name'] ?? '' );
-	$body['customerEmail'] = (string) ( $customer['email'] ?? '' );
+	$body['customerEmail'] = strtolower( (string) ( $customer['email'] ?? '' ) );
 	$body['paymentMethod'] = 'cod' === $pay_opt['type'] ? 'Cash on Delivery' : 'Online Payment';
+	if ( $body['customerEmail'] && function_exists( 'amz_prints_local_customer_get' ) ) {
+		$profile_row = amz_prints_local_customer_get( $body['customerEmail'] );
+		if ( is_array( $profile_row ) ) {
+			$profile_row['phone']   = $phone;
+			$profile_row['address'] = $address;
+			amz_prints_local_customer_save( $body['customerEmail'], $profile_row );
+		}
+	}
 
 	$result = amz_prints_erp_request( 'POST', '/public/customer/order', $body );
 	if ( is_wp_error( $result ) ) {
@@ -527,7 +567,7 @@ function amz_prints_ajax_place_order() {
 			'totalAmount'    => $cart['total'],
 			'message'        => __( 'Order placed. It is saved on this customer account.', 'amz-prints' ),
 			'accountUrl'     => home_url( '/my-account/' ),
-			'trackUrl'       => home_url( '/my-account/#track' ),
+			'trackUrl'       => home_url( '/track-order/?code=' . rawurlencode( $order_id ) ),
 		) );
 	}
 
@@ -556,7 +596,7 @@ function amz_prints_ajax_place_order() {
 			'totalAmount'     => isset( $result['totalAmount'] ) ? $result['totalAmount'] : $cart['total'],
 			'message'         => isset( $result['message'] ) ? $result['message'] : __( 'Order placed successfully.', 'amz-prints' ),
 			'accountUrl'      => home_url( '/my-account/' ),
-			'trackUrl'        => home_url( '/my-account/#track' ),
+			'trackUrl'        => $order_id ? home_url( '/track-order/?code=' . rawurlencode( $order_id ) ) : home_url( '/track-order/' ),
 		)
 	);
 }
