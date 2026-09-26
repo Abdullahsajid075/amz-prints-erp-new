@@ -19,7 +19,15 @@ get_header();
 
 $google_client = trim( (string) amz_prints_mod( 'amz_google_client_id', '' ) );
 $prefill       = isset( $_GET['email'] ) ? sanitize_email( wp_unslash( $_GET['email'] ) ) : '';
-$login_url     = $prefill ? add_query_arg( 'email', rawurlencode( $prefill ), home_url( '/customer-login/' ) ) : home_url( '/customer-login/' );
+$login_args = array();
+if ( $prefill ) {
+	$login_args['email'] = $prefill;
+}
+if ( $redirect && false === strpos( $redirect, '/my-account' ) ) {
+	$login_args['redirect'] = $redirect;
+}
+$login_url = $login_args ? add_query_arg( $login_args, home_url( '/customer-login/' ) ) : home_url( '/customer-login/' );
+$cv_gate   = ( false !== strpos( $redirect, 'create-free-cv' ) );
 ?>
 
 <section class="auth-screen auth-screen--signup">
@@ -33,6 +41,9 @@ $login_url     = $prefill ? add_query_arg( 'email', rawurlencode( $prefill ), ho
 			<form class="amz-form" id="amz-customer-register-form" data-auth-panel="register">
 				<p class="eyebrow"><?php esc_html_e( 'New customer', 'amz-prints' ); ?></p>
 				<h1><?php esc_html_e( 'Create account', 'amz-prints' ); ?></h1>
+				<?php if ( $cv_gate ) : ?>
+					<p class="form-note"><?php esc_html_e( 'Register to create your CV. It is saved on this account, and you can download or update it any time.', 'amz-prints' ); ?></p>
+				<?php endif; ?>
 				<input type="hidden" name="redirect" value="<?php echo esc_attr( $redirect ); ?>">
 				<label>
 					<span><?php esc_html_e( 'Full name', 'amz-prints' ); ?></span>

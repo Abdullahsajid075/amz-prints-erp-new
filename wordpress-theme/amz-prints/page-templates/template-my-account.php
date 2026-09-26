@@ -193,6 +193,27 @@ get_header();
 			</article>
 		</div>
 
+		<?php
+		$cv_row  = function_exists( 'amz_prints_customer_cv_get' ) ? amz_prints_customer_cv_get( $email ) : null;
+		$cv_url  = ( is_array( $cv_row ) && ! empty( $cv_row['token'] ) ) ? add_query_arg( 'amz_cv', rawurlencode( (string) $cv_row['token'] ), home_url( '/' ) ) : '';
+		$cv_edit = home_url( '/create-free-cv/' );
+		?>
+		<article class="customer-panel" id="customer-cv">
+			<h2><?php esc_html_e( "Customer's CV", 'amz-prints' ); ?></h2>
+			<?php if ( $cv_url ) : ?>
+				<p><?php esc_html_e( 'Your CV is saved on this account. Update it any time, or download it from the CV page.', 'amz-prints' ); ?></p>
+				<div class="hero__actions" style="margin-top:0.85rem">
+					<a class="btn btn--primary" href="<?php echo esc_url( $cv_edit ); ?>"><?php esc_html_e( 'Update CV', 'amz-prints' ); ?></a>
+					<a class="btn btn--ghost" href="<?php echo esc_url( $cv_url ); ?>" target="_blank" rel="noopener"><?php esc_html_e( 'View CV', 'amz-prints' ); ?></a>
+				</div>
+			<?php else : ?>
+				<p><?php esc_html_e( 'Create your CV, upload a photo, and it stays on this account so you can download or update it later.', 'amz-prints' ); ?></p>
+				<div class="hero__actions" style="margin-top:0.85rem">
+					<a class="btn btn--primary" href="<?php echo esc_url( $cv_edit ); ?>"><?php esc_html_e( 'Create Free CV', 'amz-prints' ); ?></a>
+				</div>
+			<?php endif; ?>
+		</article>
+
 		<div class="ledger-stats">
 			<div class="ledger-stat">
 				<span><?php esc_html_e( 'Billed', 'amz-prints' ); ?></span>

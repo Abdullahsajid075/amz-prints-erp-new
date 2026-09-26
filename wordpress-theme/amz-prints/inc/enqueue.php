@@ -87,6 +87,10 @@ function amz_prints_enqueue_assets() {
 		);
 		wp_enqueue_style( 'amz-prints-cv', AMZ_PRINTS_URI . '/assets/css/cv-builder.css', array( 'amz-prints-main' ), AMZ_PRINTS_VERSION );
 		wp_enqueue_script( 'amz-prints-cv', AMZ_PRINTS_URI . '/assets/js/cv-builder.js', array(), AMZ_PRINTS_VERSION, true );
+		wp_localize_script( 'amz-prints-cv', 'amzCv', array(
+			'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+			'nonce'   => wp_create_nonce( 'amz_prints_customer' ),
+		) );
 	}
 
 	$google_client = trim( (string) amz_prints_mod( 'amz_google_client_id', '' ) );

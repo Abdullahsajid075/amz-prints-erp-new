@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AMZ_PRINTS_VERSION', '3.24.0' );
+define( 'AMZ_PRINTS_VERSION', '3.25.0' );
 
 /**
  * Every site email is sent from the company mailbox.
@@ -43,8 +43,9 @@ function amz_prints_nocache_html_headers() {
 		define( 'DONOTCACHEPAGE', true );
 	}
 	$uri     = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '';
-	$private = is_page( array( 'my-account', 'customer-login', 'customer-signup', 'cart', 'checkout' ) )
-		|| (bool) preg_match( '#/(my-account|customer-login|customer-signup|cart|checkout)(/|$|\?)#', $uri );
+	$private = is_page( array( 'my-account', 'customer-login', 'customer-signup', 'cart', 'checkout', 'create-free-cv' ) )
+		|| (bool) preg_match( '#/(my-account|customer-login|customer-signup|cart|checkout|create-free-cv)(/|$|\?)#', $uri )
+		|| isset( $_GET['amz_cv'] );
 	header( 'Cache-Control: ' . ( $private ? 'private, no-store, no-cache, must-revalidate, max-age=0' : 'no-cache, no-store, must-revalidate, max-age=0' ), true );
 	header( 'Pragma: no-cache', true );
 	header( 'Expires: 0', true );
@@ -391,7 +392,7 @@ add_action( 'after_switch_theme', 'amz_prints_after_switch' );
  * Create missing pages on upgrade (fixes Services 404 without re-activating theme)
  */
 function amz_prints_maybe_upgrade_pages() {
-	if ( get_option( 'amz_prints_pages_ver' ) === '3.24.0' ) {
+	if ( get_option( 'amz_prints_pages_ver' ) === '3.25.0' ) {
 		return;
 	}
 	amz_prints_ensure_pages();
@@ -405,7 +406,7 @@ function amz_prints_maybe_upgrade_pages() {
 	}
 	delete_transient( 'amz_prints_erp_products_v3' );
 	delete_transient( 'amz_prints_erp_products_v4' );
-	update_option( 'amz_prints_pages_ver', '3.24.0' );
+	update_option( 'amz_prints_pages_ver', '3.25.0' );
 }
 add_action( 'init', 'amz_prints_maybe_upgrade_pages', 20 );
 

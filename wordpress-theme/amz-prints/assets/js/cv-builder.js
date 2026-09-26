@@ -27,7 +27,7 @@
   };
 
   var SECTIONS = [
-    { id: 'photo', label: 'Profile Picture', type: 'photo', on: true },
+    { id: 'photo', label: 'Profile Picture', type: 'photo', on: true, locked: true },
     { id: 'personal', label: 'Personal Information', type: 'personal', on: true, locked: true },
     { id: 'summary', label: 'Professional Summary', type: 'text', on: true, placeholder: 'A short career overview (3–5 lines).' },
     { id: 'contact', label: 'Contact Information', type: 'contact', on: true },
@@ -103,30 +103,94 @@
     return String(text || '').split(/[,|\n]/).map(function (s) { return s.trim(); }).filter(Boolean);
   }
 
+  function applySaved(saved) {
+    if (!saved || typeof saved !== 'object') return;
+    state = Object.assign(defaultState(), saved);
+    state.enabled = Object.assign(defaultState().enabled, saved.enabled || {});
+    state.personal = Object.assign(defaultState().personal, saved.personal || {});
+    state.contact = Object.assign(defaultState().contact, saved.contact || {});
+    if (saved.photo) state.photo = saved.photo;
+  }
+
   var state = defaultState();
   try {
-    var saved = JSON.parse(localStorage.getItem(STORAGE) || 'null');
-    if (saved && typeof saved === 'object') {
-      state = Object.assign(defaultState(), saved);
-      state.enabled = Object.assign(defaultState().enabled, saved.enabled || {});
-      state.personal = Object.assign(defaultState().personal, saved.personal || {});
-      state.contact = Object.assign(defaultState().contact, saved.contact || {});
-    }
+    applySaved(JSON.parse(localStorage.getItem(STORAGE) || 'null'));
   } catch (e) { /* ignore */ }
+  try {
+    var savedNode = document.getElementById('amz-cv-saved');
+    if (savedNode && savedNode.textContent) applySaved(JSON.parse(savedNode.textContent));
+  } catch (eSaved) { /* ignore */ }
 
   var editor = document.getElementById('cv-editor');
   var pagesHost = document.getElementById('cv-pages');
   var scaleEl = document.getElementById('cv-scale');
   var pageCountEl = document.querySelector('[data-cv-pagecount]');
 
+  var allowServer = false;
+  var saveTimer = null;
+
   function save() {
     try {
       var copy = JSON.parse(JSON.stringify(state));
-      copy.photo = '';
+      copy.photo = (state.photo && state.photo.indexOf('data:') !== 0) ? state.photo : '';
       localStorage.setItem(STORAGE, JSON.stringify(copy));
-      if (state.photo) localStorage.setItem(STORAGE + '_photo', state.photo);
+      if (state.photo && state.photo.indexOf('data:') === 0) localStorage.setItem(STORAGE + '_photo', state.photo);
       else localStorage.removeItem(STORAGE + '_photo');
     } catch (e) { /* quota */ }
+    if (allowServer) scheduleServerSave(false);
+  }
+
+  function setStatus(text) {
+    var el = document.querySelector('[data-cv-status]');
+    if (el) el.textContent = text;
+  }
+
+  function pagesHtml() {
+    var html = '';
+    if (!pagesHost) return html;
+    Array.prototype.forEach.call(pagesHost.querySelectorAll('.cv-page'), function (page) {
+      html += page.outerHTML;
+    });
+    return html;
+  }
+
+  function scheduleServerSave(immediate) {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () { pushServer(false); }, immediate ? 0 : 900);
+  }
+
+  function pushServer(clearing) {
+    if (!window.amzCv || !amzCv.ajaxUrl) return Promise.resolve(false);
+    if (!clearing && !state.photo) return Promise.resolve(false);
+    setStatus(clearing ? 'Clearing…' : 'Saving…');
+    var body = new FormData();
+    body.append('action', 'amz_prints_save_cv');
+    body.append('nonce', amzCv.nonce || '');
+    body.append('state', JSON.stringify(state));
+    body.append('html', clearing ? '' : pagesHtml());
+    if (clearing) body.append('clear', '1');
+    return fetch(amzCv.ajaxUrl, { method: 'POST', credentials: 'same-origin', body: body })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (res && res.success) {
+          if (!clearing && res.data && res.data.photoUrl && state.photo.indexOf('data:') === 0) {
+            state.photo = res.data.photoUrl;
+            try {
+              var copy = JSON.parse(JSON.stringify(state));
+              localStorage.setItem(STORAGE, JSON.stringify(copy));
+              localStorage.removeItem(STORAGE + '_photo');
+            } catch (err) { /* ignore */ }
+          }
+          setStatus(clearing ? 'Cleared' : 'Saved on your account');
+          return true;
+        }
+        setStatus((res && res.data && res.data.message) ? res.data.message : 'Could not save');
+        return false;
+      })
+      .catch(function () {
+        setStatus('Saved on this device');
+        return false;
+      });
   }
   try {
     var ph = localStorage.getItem(STORAGE + '_photo');
@@ -194,9 +258,9 @@
         html += state.photo
           ? '<img class="cv-photo-preview" alt="Profile" src="' + state.photo + '">'
           : '<div class="cv-photo-preview" aria-hidden="true"></div>';
-        html += '<div class="cv-photo-actions"><label class="btn btn--primary btn--sm" style="margin:0">Upload picture<input type="file" accept="image/*" capture="environment" data-photo class="cv-file-input"></label>';
-        if (state.photo) html += '<button type="button" class="btn btn--ghost btn--sm" data-photo-remove>Remove</button>';
-        html += '<p class="form-note" style="margin:0.4rem 0 0">JPG, PNG or WEBP. The photo appears on the CV and in the downloaded PDF.</p></div></div>';
+        html += '<div class="cv-photo-actions"><label class="cv-field" style="margin:0"><span>Photo (required)</span><input type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" data-photo class="cv-file-input"></label>';
+        if (state.photo) html += '<button type="button" class="btn btn--ghost btn--sm" data-photo-remove>Remove photo</button>';
+        html += '<p class="form-note" style="margin:0">Choose a JPG, PNG, or WebP from your gallery. The photo is saved on your CV.</p></div></div>';
       } else if (def.type === 'personal') {
         html += input('personal.fullName', 'Full name');
         html += input('personal.title', 'Professional title', 'text', 'placeholder="e.g. Graphic Designer"');
@@ -402,9 +466,9 @@
   function identityHtml() {
     var name = state.personal.fullName || 'Your Name';
     var title = state.personal.title || 'Professional title';
-    var photo = (on('photo') && state.photo)
+    var photo = state.photo
       ? '<img class="cv-photo" alt="" src="' + state.photo + '">'
-      : (on('photo') ? '<div class="cv-photo" aria-hidden="true"></div>' : '');
+      : '<div class="cv-photo" aria-hidden="true"></div>';
     var contacts = on('contact')
       ? '<div class="cv-contact-wrap">' + contactLines().map(function (l) { return '<div class="cv-contact-line">' + esc(l) + '</div>'; }).join('') + '</div>'
       : '';
@@ -486,7 +550,8 @@
     return '<article class="cv-page cv-tpl-' + esc(state.template) + '" style="--cv-accent:' + esc(state.color) + '">' +
       '<div class="cv-rail">' + rail + '</div>' +
       '<div class="cv-main">' + (compact ? '' : '<div class="cv-identity"><div class="cv-name">' + esc(state.personal.fullName || 'Your Name') + '</div></div>') +
-      mainHtml + '</div></article>';
+      mainHtml + '</div>' +
+      '<p class="cv-powered">Powered by Amazon Printing Services | www.amzprints.com | 03276650001</p></article>';
   }
 
   function renderPreview() {
@@ -544,42 +609,80 @@
     scaleEl.style.height = (pages * 1123 * s) + 'px';
   }
 
+  function applyPhotoBitmap(bitmap) {
+    var canvas = document.createElement('canvas');
+    var size = 520;
+    canvas.width = size;
+    canvas.height = size;
+    var ctx = canvas.getContext('2d');
+    var w = bitmap.width || bitmap.naturalWidth || size;
+    var h = bitmap.height || bitmap.naturalHeight || size;
+    var s = Math.min(w, h) || 1;
+    var sx = (w - s) / 2;
+    var sy = (h - s) / 2;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, size, size);
+    ctx.drawImage(bitmap, sx, sy, s, s, 0, 0, size, size);
+    if (bitmap.close) bitmap.close();
+    state.photo = canvas.toDataURL('image/jpeg', 0.86);
+    state.enabled.photo = true;
+    save();
+    renderForm();
+    renderPreview();
+  }
+
+  function readPhotoWithImage(file) {
+    var img = new Image();
+    var fr = new FileReader();
+    fr.onerror = function () { alert('Could not read that image. Try a JPG or PNG.'); };
+    fr.onload = function () {
+      img.onload = function () {
+        try { applyPhotoBitmap(img); }
+        catch (err) { alert('Could not process that image. Try another JPG or PNG.'); }
+      };
+      img.onerror = function () { alert('That file is not a JPG, PNG, or WebP photo.'); };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  }
+
   function setPhotoFromFile(file) {
     if (!file) return;
+    var name = String(file.name || '').toLowerCase();
+    var type = String(file.type || '').toLowerCase();
+    if (/heic|heif/.test(type) || /\.heic$|\.heif$/.test(name)) {
+      alert('This photo is HEIC. Export it as JPG or PNG, then upload that file.');
+      return;
+    }
+    if (type && type.indexOf('image/') !== 0) {
+      alert('Choose a JPG, PNG, or WebP photo.');
+      return;
+    }
     if (file.size > 8 * 1024 * 1024) {
       alert('Please choose a photo under 8 MB.');
       return;
     }
-    var img = new Image();
-    var fr = new FileReader();
-    fr.onerror = function () { alert('Could not read that image. Try JPG or PNG.'); };
-    fr.onload = function () {
-      img.onload = function () {
-        try {
-          var canvas = document.createElement('canvas');
-          var size = 520;
-          canvas.width = size;
-          canvas.height = size;
-          var ctx = canvas.getContext('2d');
-          var s = Math.min(img.width, img.height) || 1;
-          var sx = (img.width - s) / 2;
-          var sy = (img.height - s) / 2;
-          ctx.fillStyle = '#fff';
-          ctx.fillRect(0, 0, size, size);
-          ctx.drawImage(img, sx, sy, s, s, 0, 0, size, size);
-          state.photo = canvas.toDataURL('image/jpeg', 0.88);
-          state.enabled.photo = true;
-          save();
-          renderForm();
-          renderPreview();
-        } catch (err) {
-          alert('Could not process that image. Try another photo.');
-        }
-      };
-      img.onerror = function () { alert('That file is not a supported image.'); };
-      img.src = fr.result;
-    };
-    fr.readAsDataURL(file);
+    if (window.createImageBitmap) {
+      var opts = { imageOrientation: 'from-image' };
+      createImageBitmap(file, opts).then(applyPhotoBitmap).catch(function () {
+        createImageBitmap(file).then(applyPhotoBitmap).catch(function () {
+          readPhotoWithImage(file);
+        });
+      });
+      return;
+    }
+    readPhotoWithImage(file);
+  }
+
+  function requirePhoto() {
+    if (state.photo) return true;
+    alert('Upload a photo first. The photo must appear on the CV before you can save, print, or download it.');
+    var input = document.querySelector('[data-photo]');
+    if (input) {
+      input.scrollIntoView({ block: 'center' });
+      input.focus();
+    }
+    return false;
   }
 
   editor.addEventListener('dragover', function (e) {
@@ -675,8 +778,20 @@
   document.querySelectorAll('[data-cv-action]').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var act = btn.getAttribute('data-cv-action');
-      if (act === 'print') doPrint();
-      if (act === 'download') doDownloadPdf();
+      if (act === 'save') {
+        if (!requirePhoto()) return;
+        pushServer(false);
+      }
+      if (act === 'print') {
+        if (!requirePhoto()) return;
+        pushServer(false);
+        doPrint();
+      }
+      if (act === 'download') {
+        if (!requirePhoto()) return;
+        pushServer(false);
+        doDownloadPdf();
+      }
       if (act === 'preview') {
         var box = document.getElementById('cv-lightbox');
         var body = document.getElementById('cv-lightbox-body');
@@ -697,6 +812,7 @@
         } catch (err) { /* ignore */ }
         renderForm();
         renderPreview();
+        pushServer(true);
       }
     });
   });
@@ -709,4 +825,5 @@
 
   renderForm();
   renderPreview();
+  allowServer = true;
 })();

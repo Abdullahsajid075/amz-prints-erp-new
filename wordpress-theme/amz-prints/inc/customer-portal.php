@@ -35,6 +35,15 @@ function amz_prints_customer_is_logged_in() {
 	return (bool) amz_prints_customer_token();
 }
 
+function amz_prints_customer_current_email() {
+	$token = amz_prints_customer_token();
+	if ( ! $token ) {
+		return '';
+	}
+	$local = amz_prints_local_session_customer( $token );
+	return strtolower( trim( (string) ( $local['customer']['email'] ?? '' ) ) );
+}
+
 function amz_prints_customer_cookie_paths() {
 	$paths = array( '/', (string) COOKIEPATH, (string) SITECOOKIEPATH );
 	return array_values( array_unique( array_filter( $paths ) ) );
@@ -75,7 +84,7 @@ function amz_prints_customer_clear_token() {
 function amz_prints_customer_login_url( $redirect = '' ) {
 	$url = home_url( '/customer-login/' );
 	if ( $redirect ) {
-		$url = add_query_arg( 'redirect', rawurlencode( $redirect ), $url );
+		$url = add_query_arg( 'redirect', $redirect, $url );
 	}
 	return $url;
 }
@@ -87,7 +96,7 @@ function amz_prints_customer_account_url() {
 function amz_prints_customer_signup_url( $redirect = '' ) {
 	$url = home_url( '/customer-signup/' );
 	if ( $redirect ) {
-		$url = add_query_arg( 'redirect', rawurlencode( $redirect ), $url );
+		$url = add_query_arg( 'redirect', $redirect, $url );
 	}
 	return $url;
 }
@@ -304,7 +313,28 @@ function amz_prints_customer_sign_in_local( $email, $profile, $password = '', $e
 		'phone'   => (string) ( $row['phone'] ?? '' ),
 		'address' => (string) ( $row['address'] ?? '' ),
 	) );
+	amz_prints_customer_ensure_erp( $email );
 	return $token;
+}
+
+/**
+ * Create this website customer in the ERP if they are not there yet.
+ *
+ * @param string $email Customer email.
+ */
+function amz_prints_customer_ensure_erp( $email ) {
+	$email = strtolower( trim( (string) $email ) );
+	$row   = $email ? amz_prints_local_customer_get( $email ) : null;
+	if ( ! is_array( $row ) || ! function_exists( 'amz_prints_customer_api' ) ) {
+		return;
+	}
+	amz_prints_customer_api( '/public/customer/ensure', array(
+		'portalKey' => amz_prints_customer_portal_key(),
+		'email'     => $email,
+		'name'      => (string) ( $row['name'] ?? '' ),
+		'phone'     => (string) ( $row['phone'] ?? '' ),
+		'address'   => (string) ( $row['address'] ?? '' ),
+	) );
 }
 
 function amz_prints_customer_matching_erp_token( $email, $result ) {
@@ -1170,3 +1200,270 @@ add_action( 'wp_ajax_amz_prints_customer_profile', 'amz_prints_ajax_customer_pro
 add_action( 'wp_ajax_nopriv_amz_prints_customer_profile', 'amz_prints_ajax_customer_profile' );
 add_action( 'wp_ajax_amz_prints_customer_track', 'amz_prints_ajax_customer_track' );
 add_action( 'wp_ajax_nopriv_amz_prints_customer_track', 'amz_prints_ajax_customer_track' );
+
+/**
+ * Stored CVs, keyed by customer email.
+ *
+ * @return array<string,array<string,mixed>>
+ */
+function amz_prints_customer_cvs() {
+	$all = get_option( 'amz_prints_customer_cvs', array() );
+	return is_array( $all ) ? $all : array();
+}
+
+/**
+ * @param string $email Customer email.
+ * @return array<string,mixed>|null
+ */
+function amz_prints_customer_cv_get( $email ) {
+	$email = strtolower( trim( (string) $email ) );
+	$all   = amz_prints_customer_cvs();
+	return ( $email && isset( $all[ $email ] ) && is_array( $all[ $email ] ) ) ? $all[ $email ] : null;
+}
+
+/**
+ * @param string $token Public view token.
+ * @return array<string,mixed>|null
+ */
+function amz_prints_customer_cv_by_token( $token ) {
+	$token = (string) $token;
+	if ( strlen( $token ) < 16 ) {
+		return null;
+	}
+	foreach ( amz_prints_customer_cvs() as $row ) {
+		if ( is_array( $row ) && ! empty( $row['token'] ) && hash_equals( (string) $row['token'], $token ) ) {
+			return $row;
+		}
+	}
+	return null;
+}
+
+/**
+ * Write a CV photo from a data URL into uploads/amz-cv.
+ *
+ * @param string $email    Customer email.
+ * @param string $data_url data:image or https URL.
+ * @return string|WP_Error Public URL or error.
+ */
+function amz_prints_customer_cv_store_photo( $email, $data_url ) {
+	$data_url = (string) $data_url;
+	if ( preg_match( '#^https?://#i', $data_url ) ) {
+		return esc_url_raw( $data_url );
+	}
+	if ( ! preg_match( '#^data:image/(jpeg|jpg|png|webp);base64,#i', $data_url, $match ) ) {
+		return new WP_Error( 'amz_cv_photo', __( 'Upload a JPG, PNG, or WebP photo for the CV.', 'amz-prints' ) );
+	}
+	$comma = strpos( $data_url, ',' );
+	$raw   = ( false === $comma ) ? '' : base64_decode( substr( $data_url, $comma + 1 ), true );
+	if ( ! is_string( $raw ) || '' === $raw || strlen( $raw ) > 2 * 1024 * 1024 ) {
+		return new WP_Error( 'amz_cv_photo', __( 'That photo is too large. Use a JPG or PNG under 2 MB.', 'amz-prints' ) );
+	}
+	$ext = strtolower( $match[1] );
+	if ( 'jpeg' === $ext ) {
+		$ext = 'jpg';
+	}
+	$upload = wp_upload_dir();
+	if ( ! empty( $upload['error'] ) ) {
+		return new WP_Error( 'amz_cv_photo', __( 'Could not store the CV photo.', 'amz-prints' ) );
+	}
+	$dir = trailingslashit( $upload['basedir'] ) . 'amz-cv';
+	if ( ! wp_mkdir_p( $dir ) ) {
+		return new WP_Error( 'amz_cv_photo', __( 'Could not store the CV photo.', 'amz-prints' ) );
+	}
+	$index = $dir . '/index.php';
+	if ( ! file_exists( $index ) ) {
+		file_put_contents( $index, "<?php\n// Silence is golden.\n" );
+	}
+	$name = 'cv-' . md5( strtolower( $email ) ) . '.' . $ext;
+	foreach ( array( 'jpg', 'png', 'webp' ) as $old_ext ) {
+		$old = $dir . '/cv-' . md5( strtolower( $email ) ) . '.' . $old_ext;
+		if ( $old_ext !== $ext && file_exists( $old ) ) {
+			unlink( $old );
+		}
+	}
+	if ( false === file_put_contents( $dir . '/' . $name, $raw ) ) {
+		return new WP_Error( 'amz_cv_photo', __( 'Could not store the CV photo.', 'amz-prints' ) );
+	}
+	return trailingslashit( $upload['baseurl'] ) . 'amz-cv/' . $name . '?v=' . time();
+}
+
+/**
+ * Keep only the CV builder fields we store.
+ *
+ * @param mixed $state Raw decoded state.
+ * @return array<string,mixed>
+ */
+function amz_prints_customer_cv_clean_state( $state ) {
+	if ( ! is_array( $state ) ) {
+		return array();
+	}
+	$keep = array(
+		'template', 'color', 'photo', 'enabled', 'personal', 'summary', 'hobbies', 'contact',
+		'experience', 'internships', 'volunteer', 'education', 'skills', 'professionalSkills',
+		'technicalSkills', 'certifications', 'courses', 'awards', 'publications', 'projects',
+		'languages', 'references', 'links', 'custom',
+	);
+	$out = array();
+	foreach ( $keep as $key ) {
+		if ( array_key_exists( $key, $state ) ) {
+			$out[ $key ] = $state[ $key ];
+		}
+	}
+	return $out;
+}
+
+/**
+ * @param string $html CV page HTML.
+ * @return string
+ */
+function amz_prints_customer_cv_kses( $html ) {
+	$allowed = array(
+		'article' => array( 'class' => true, 'style' => true ),
+		'div'     => array( 'class' => true ),
+		'span'    => array( 'class' => true ),
+		'img'     => array( 'class' => true, 'alt' => true, 'src' => true ),
+		'ul'      => array( 'class' => true ),
+		'li'      => array(),
+		'strong'  => array(),
+		'em'      => array(),
+		'p'       => array( 'class' => true ),
+		'h1'      => array( 'class' => true ),
+		'h2'      => array(),
+		'h3'      => array(),
+		'section' => array( 'class' => true ),
+		'br'      => array(),
+	);
+	$html = wp_kses( (string) $html, $allowed );
+	$html = preg_replace_callback(
+		'/ style="([^"]*)"/',
+		static function ( $m ) {
+			$style = trim( (string) $m[1] );
+			if ( preg_match( '/^--cv-accent:\s*#[0-9a-fA-F]{3,8};?$/', $style ) ) {
+				return ' style="' . esc_attr( $style ) . '"';
+			}
+			return '';
+		},
+		$html
+	);
+	return is_string( $html ) ? $html : '';
+}
+
+/**
+ * Push the public CV link into the ERP customer notes as Customer's CV.
+ *
+ * @param string $email    Customer email.
+ * @param string $cv_url   Public CV URL.
+ * @param string $photo_url Photo URL.
+ */
+function amz_prints_customer_cv_push_erp( $email, $cv_url, $photo_url ) {
+	if ( ! function_exists( 'amz_prints_customer_api' ) || ! $cv_url ) {
+		return;
+	}
+	$row = amz_prints_local_customer_get( $email );
+	$row = is_array( $row ) ? $row : array();
+	amz_prints_customer_api( '/public/customer/cv', array(
+		'portalKey' => amz_prints_customer_portal_key(),
+		'email'     => $email,
+		'name'      => (string) ( $row['name'] ?? '' ),
+		'phone'     => (string) ( $row['phone'] ?? '' ),
+		'address'   => (string) ( $row['address'] ?? '' ),
+		'cvUrl'     => $cv_url,
+		'photoUrl'  => $photo_url,
+	) );
+}
+
+/**
+ * AJAX: save or update the logged-in customer's CV.
+ */
+function amz_prints_ajax_save_cv() {
+	check_ajax_referer( 'amz_prints_customer', 'nonce' );
+	$email = amz_prints_customer_current_email();
+	if ( ! $email ) {
+		wp_send_json_error( array( 'message' => __( 'Log in to save your CV.', 'amz-prints' ) ), 401 );
+	}
+	$clear = isset( $_POST['clear'] ) && '1' === (string) wp_unslash( $_POST['clear'] );
+	$raw   = isset( $_POST['state'] ) ? wp_unslash( $_POST['state'] ) : '';
+	$state = json_decode( is_string( $raw ) ? $raw : '', true );
+	$state = amz_prints_customer_cv_clean_state( $state );
+	$html  = isset( $_POST['html'] ) ? wp_unslash( $_POST['html'] ) : '';
+	$html  = is_string( $html ) ? $html : '';
+	if ( strlen( $html ) > 400000 ) {
+		$html = '';
+	}
+
+	$existing = amz_prints_customer_cv_get( $email );
+	$token    = ( is_array( $existing ) && ! empty( $existing['token'] ) ) ? (string) $existing['token'] : bin2hex( random_bytes( 16 ) );
+	$photo    = '';
+	if ( ! $clear ) {
+		$incoming = (string) ( $state['photo'] ?? '' );
+		if ( '' === $incoming && is_array( $existing ) ) {
+			$incoming = (string) ( $existing['photo'] ?? '' );
+		}
+		if ( '' === $incoming ) {
+			wp_send_json_error( array( 'message' => __( 'Upload a photo before saving the CV.', 'amz-prints' ) ), 400 );
+		}
+		$stored = amz_prints_customer_cv_store_photo( $email, $incoming );
+		if ( is_wp_error( $stored ) ) {
+			wp_send_json_error( array( 'message' => $stored->get_error_message() ), 400 );
+		}
+		$photo          = $stored;
+		$state['photo'] = $photo;
+		if ( $html && $photo ) {
+			$html = preg_replace( '#src="data:image/[^"]+"#', 'src="' . esc_url( $photo ) . '"', $html );
+		}
+		$html = amz_prints_customer_cv_kses( $html );
+	} else {
+		$state['photo'] = '';
+		$html           = '';
+	}
+
+	$all            = amz_prints_customer_cvs();
+	$all[ $email ]  = array(
+		'token'   => $token,
+		'email'   => $email,
+		'state'   => $state,
+		'html'    => $html,
+		'photo'   => $photo,
+		'updated' => time(),
+	);
+	update_option( 'amz_prints_customer_cvs', $all, false );
+
+	$cv_url = add_query_arg( 'amz_cv', rawurlencode( $token ), home_url( '/' ) );
+	if ( ! $clear ) {
+		amz_prints_customer_ensure_erp( $email );
+		amz_prints_customer_cv_push_erp( $email, $cv_url, $photo );
+	}
+	wp_send_json_success( array(
+		'message'  => $clear ? __( 'CV cleared on this account.', 'amz-prints' ) : __( 'CV saved on your account.', 'amz-prints' ),
+		'photoUrl' => $photo,
+		'cvUrl'    => $cv_url,
+	) );
+}
+add_action( 'wp_ajax_amz_prints_save_cv', 'amz_prints_ajax_save_cv' );
+add_action( 'wp_ajax_nopriv_amz_prints_save_cv', 'amz_prints_ajax_save_cv' );
+
+/**
+ * Staff and the customer open a saved CV from the ERP link.
+ */
+function amz_prints_customer_cv_public_view() {
+	if ( empty( $_GET['amz_cv'] ) ) {
+		return;
+	}
+	$token = sanitize_text_field( wp_unslash( $_GET['amz_cv'] ) );
+	$row   = amz_prints_customer_cv_by_token( $token );
+	status_header( $row ? 200 : 404 );
+	header( 'Content-Type: text/html; charset=UTF-8' );
+	header( 'Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0' );
+	header( 'X-Robots-Tag: noindex, nofollow' );
+	$css  = get_template_directory_uri() . '/assets/css/cv-builder.css?ver=' . rawurlencode( AMZ_PRINTS_VERSION );
+	$html = ( $row && ! empty( $row['html'] ) ) ? (string) $row['html'] : '<p class="cv-muted">This CV is not available.</p>';
+	echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">';
+	echo '<title>' . esc_html__( "Customer's CV", 'amz-prints' ) . '</title>';
+	echo '<link rel="stylesheet" href="' . esc_url( $css ) . '">';
+	echo '<style>body{margin:0;background:#eef2f6}.cv-public{display:grid;gap:16px;justify-items:center;padding:16px}@media print{body{background:#fff}.cv-public{padding:0;gap:0}}</style>';
+	echo '</head><body class="amz-cv-builder"><div class="cv-public">';
+	echo $html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- kses on save.
+	echo '</div></body></html>';
+	exit;
+}
+add_action( 'template_redirect', 'amz_prints_customer_cv_public_view', 2 );

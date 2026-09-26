@@ -7,6 +7,17 @@
  * @package AMZ_Prints
  */
 
+$cv_back = home_url( '/create-free-cv/' );
+if ( ! function_exists( 'amz_prints_customer_is_logged_in' ) || ! amz_prints_customer_is_logged_in() || ! amz_prints_customer_current_email() ) {
+	$login = function_exists( 'amz_prints_customer_login_url' ) ? amz_prints_customer_login_url( $cv_back ) : home_url( '/customer-login/' );
+	wp_safe_redirect( $login );
+	exit;
+}
+
+$cv_email = amz_prints_customer_current_email();
+$cv_saved = function_exists( 'amz_prints_customer_cv_get' ) ? amz_prints_customer_cv_get( $cv_email ) : null;
+$cv_state = ( is_array( $cv_saved ) && isset( $cv_saved['state'] ) && is_array( $cv_saved['state'] ) ) ? $cv_saved['state'] : null;
+
 get_header();
 ?>
 
@@ -15,10 +26,12 @@ get_header();
 		<div class="cv-portal__bar-copy">
 			<p class="cv-portal__free"><?php esc_html_e( 'Free service', 'amz-prints' ); ?></p>
 			<h1><?php esc_html_e( 'Create Free CV', 'amz-prints' ); ?></h1>
-			<p><?php esc_html_e( 'Build a professional A4 resume, pick a design, change colours, and download or print — no payment required.', 'amz-prints' ); ?></p>
+			<p><?php esc_html_e( 'Upload your photo, fill the CV, and it stays on this account. You can update or download it any time. A photo is required.', 'amz-prints' ); ?></p>
 		</div>
 		<div class="cv-portal__bar-actions">
 			<span class="cv-page-pill" data-cv-pagecount><?php esc_html_e( '1 page', 'amz-prints' ); ?></span>
+			<span class="cv-save-status" data-cv-status><?php echo $cv_state ? esc_html__( 'Saved on your account', 'amz-prints' ) : esc_html__( 'Not saved yet', 'amz-prints' ); ?></span>
+			<button type="button" class="btn btn--ghost btn--sm" data-cv-action="save"><?php esc_html_e( 'Save CV', 'amz-prints' ); ?></button>
 			<button type="button" class="btn btn--ghost btn--sm" data-cv-action="preview"><?php esc_html_e( 'Preview CV', 'amz-prints' ); ?></button>
 			<button type="button" class="btn btn--ghost btn--sm" data-cv-action="print"><?php esc_html_e( 'Print CV', 'amz-prints' ); ?></button>
 			<button type="button" class="btn btn--primary btn--sm" data-cv-action="download"><?php esc_html_e( 'Download CV', 'amz-prints' ); ?></button>
@@ -48,4 +61,7 @@ get_header();
 	</div>
 </div>
 
+<?php if ( $cv_state ) : ?>
+<script type="application/json" id="amz-cv-saved"><?php echo wp_json_encode( $cv_state, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></script>
+<?php endif; ?>
 <?php get_footer(); ?>

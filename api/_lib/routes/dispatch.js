@@ -671,6 +671,93 @@ async function dispatch(req, res) {
             });
           }
 
+          if (method === 'POST' && path === '/public/customer/ensure') {
+            assertPortalKey(body.portalKey);
+            const email = String(body.email || '').trim().toLowerCase();
+            const name = String(body.name || '').trim() || email.split('@')[0];
+            const phone = String(body.phone || '').trim();
+            const address = String(body.address || '').trim();
+            if (!email || !email.includes('@')) return sendError(res, 'Valid email is required', 400);
+            const { data: existingRows } = await supabase.from('customers').select('*').ilike('email', email).limit(5);
+            const exists = (existingRows || []).find((c) => String(c.email || '').trim().toLowerCase() === email);
+            if (exists) {
+              return send(res, { ok: true, created: false, customer: enrichPortalCustomer(exists) });
+            }
+            const customerId = id('cust');
+            const row = {
+              id: customerId,
+              name,
+              phone,
+              email,
+              address,
+              city: '',
+              notes: 'Website registration',
+              in_crm: true,
+              stage: 'lead',
+              stage_updated_at: new Date().toISOString(),
+              notify_whatsapp: true,
+              notify_email: true,
+              portal_password: '',
+            };
+            const { error } = await supabase.from('customers').insert(row);
+            if (error) return sendError(res, error.message || 'Could not create customer', 500);
+            return send(res, { ok: true, created: true, customer: enrichPortalCustomer(row) });
+          }
+
+          if (method === 'POST' && path === '/public/customer/cv') {
+            assertPortalKey(body.portalKey);
+            const email = String(body.email || '').trim().toLowerCase();
+            const name = String(body.name || '').trim();
+            const cvUrl = String(body.cvUrl || '').trim();
+            const photoUrl = String(body.photoUrl || '').trim();
+            if (!email || !email.includes('@')) return sendError(res, 'Valid email is required', 400);
+            if (!cvUrl) return sendError(res, 'CV link is required', 400);
+            const { data: existingRows } = await supabase.from('customers').select('*').ilike('email', email).limit(5);
+            let customer = (existingRows || []).find((c) => String(c.email || '').trim().toLowerCase() === email);
+            if (!customer) {
+              const customerId = id('cust');
+              const row = {
+                id: customerId,
+                name: name || email.split('@')[0],
+                phone: String(body.phone || '').trim(),
+                email,
+                address: String(body.address || '').trim(),
+                city: '',
+                notes: '',
+                in_crm: true,
+                stage: 'lead',
+                stage_updated_at: new Date().toISOString(),
+                notify_whatsapp: true,
+                notify_email: true,
+                portal_password: '',
+              };
+              const { error } = await supabase.from('customers').insert(row);
+              if (error) return sendError(res, error.message || 'Could not create customer', 500);
+              customer = row;
+            }
+            const block = [`Customer's CV`, cvUrl, photoUrl ? `Photo: ${photoUrl}` : ''].filter(Boolean).join('\n');
+            let notes = String(customer.notes || '');
+            if (notes.includes("Customer's CV")) {
+              notes = notes.replace(/Customer's CV[\s\S]*?(?=\n\n|$)/, block).trim();
+            } else {
+              notes = notes ? `${block}\n\n${notes}` : block;
+            }
+            await supabase.from('customers').update({
+              notes,
+              name: name || customer.name,
+            }).eq('id', customer.id);
+            try {
+              await supabase.from('crm_notes').insert({
+                id: id('note'),
+                customer_id: customer.id,
+                note: `Customer's CV\n${cvUrl}`,
+                created_at: new Date().toISOString(),
+                created_by: 'website',
+              });
+            } catch { /* optional */ }
+            return send(res, { ok: true, title: "Customer's CV", cvUrl });
+          }
+
           if (method === 'POST' && path === '/public/customer/login') {
             const email = String(body.email || '').trim().toLowerCase();
             const password = String(body.password || '');
