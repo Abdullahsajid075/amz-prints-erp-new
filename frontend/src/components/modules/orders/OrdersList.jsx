@@ -11,7 +11,7 @@ import { openInvoicesForCustomer } from '@/utils/invoiceOrders';
 import { formatCurrency, formatDate, getStatusColor, invoiceBalanceDue } from '@/utils/helpers';
 import { documentFileName } from '@/utils/printHelpers';
 import { printOrderBookSlip } from '@/utils/orderBookSlip';
-import { ORDER_STATUS, isOpenOrder, isNotStartedOrder } from '@/utils/constants';
+import { ORDER_STATUS, isOpenOrder, isNotStartedOrder, isSettledOrderStatus } from '@/utils/constants';
 import { sortBy, pinFirst } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
 import PageHeader from '@/components/shared/PageHeader';
@@ -157,7 +157,7 @@ const OrdersList = () => {
       sortedOrders.filter(isOpenOrder),
       (o) => (isNotStartedOrder(o) ? 1 : 0)
     );
-    const co = sortedOrders.filter((o) => !isOpenOrder(o) && (COMPLETED_STATUSES.includes(o.status) || /cancel/i.test(String(o.status || ''))));
+    const co = sortedOrders.filter((o) => !isOpenOrder(o) && (COMPLETED_STATUSES.includes(o.status) || isSettledOrderStatus(o.status)));
     return { inProgress: ip, completed: co };
   }, [sortedOrders]);
 
@@ -239,7 +239,13 @@ const OrdersList = () => {
       </SelectTrigger>
       <SelectContent>
         {Object.values(ORDER_STATUS).map((s) => (
-          <SelectItem key={s} value={s}>{s}</SelectItem>
+          <SelectItem
+            key={s}
+            value={s}
+            disabled={s === ORDER_STATUS.DELIVERED && !order.invoiceId}
+          >
+            {s === ORDER_STATUS.DELIVERED && !order.invoiceId ? 'Delivered (invoice required)' : s}
+          </SelectItem>
         ))}
       </SelectContent>
     </Select>
@@ -752,8 +758,9 @@ const OrdersList = () => {
 
       {/* Completed / cancelled orders as list */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between py-3">
+        <CardHeader className="py-3">
           <CardTitle className="text-sm uppercase tracking-wider text-gray-700 font-semibold">Completed & Cancelled ({completed.length})</CardTitle>
+          <p className="text-[11px] text-gray-500 font-normal mt-1">Delivered orders (invoice wali) cards se nikal kar yahan list me aati hain.</p>
         </CardHeader>
         <CardContent>
           {completed.length === 0 ? (
