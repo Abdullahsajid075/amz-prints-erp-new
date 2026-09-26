@@ -395,14 +395,10 @@ function amz_prints_erp_submit_cv( $payload ) {
 }
 
 /**
- * AJAX: submit completed CV to ERP (login required).
+ * AJAX: submit completed CV to ERP (public Free CV builder).
  */
 function amz_prints_ajax_submit_cv() {
 	check_ajax_referer( 'amz_prints_cv', 'nonce' );
-
-	if ( ! is_user_logged_in() ) {
-		wp_send_json_error( array( 'message' => __( 'Please log in to submit your CV.', 'amz-prints' ) ), 401 );
-	}
 
 	$raw = isset( $_POST['cv'] ) ? wp_unslash( $_POST['cv'] ) : '';
 	$data = json_decode( (string) $raw, true );
@@ -422,3 +418,4 @@ function amz_prints_ajax_submit_cv() {
 	) );
 }
 add_action( 'wp_ajax_amz_prints_submit_cv', 'amz_prints_ajax_submit_cv' );
+add_action( 'wp_ajax_nopriv_amz_prints_submit_cv', 'amz_prints_ajax_submit_cv' );

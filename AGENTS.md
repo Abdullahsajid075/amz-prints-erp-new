@@ -46,8 +46,9 @@ snapshot, so `supabase start` is fast after the first run and the seeded data su
   - Grant roles: run `GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;` and
     `GRANT ALL ON ALL TABLES/SEQUENCES/FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;`
     plus matching `ALTER DEFAULT PRIVILEGES`, then `NOTIFY pgrst, 'reload schema';`
-  - Re-seed admin + walk-in customer: `cd api && npm run migrate:seed`.
+  - Re-seed admin + walk-in customer + sample catalog products: `cd api && npm run migrate:seed`.
 - Default login seeded for the ERP: **admin / admin123**.
+- Website checkout needs rows in `products` (the seed command above inserts Visiting Cards, Letterhead, A5 Flyers, Flex Banner, Custom Mug). Apply `api/schema.sql` so `orders` has `order_source`, `payment_status`, `subtotal`, `discount_amount`, and `delivery_charges`.
 
 ### WordPress marketing site + Free CV portal (`wordpress-theme/amz-prints`)
 

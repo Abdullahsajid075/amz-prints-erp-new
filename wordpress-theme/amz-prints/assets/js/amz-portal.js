@@ -114,18 +114,41 @@
       photoInput.addEventListener('change', function () {
         var file = photoInput.files && photoInput.files[0];
         if (!file) return;
-        if (file.size > 3.5 * 1024 * 1024) {
-          alert('Image is too large. Please choose an image under 3MB.');
+        if (file.size > 8 * 1024 * 1024) {
+          alert('Image is too large. Please choose an image under 8MB.');
           photoInput.value = '';
           return;
         }
         var reader = new FileReader();
-        reader.onload = function (e) {
-          photoDataUrl = String(e.target.result || '');
+        var img = new Image();
+        function showPhoto(dataUrl) {
+          photoDataUrl = String(dataUrl || '');
           if (photoImg) { photoImg.src = photoDataUrl; photoImg.hidden = false; }
           if (photoEmpty) photoEmpty.hidden = true;
           if (photoRemove) photoRemove.hidden = false;
           if (currentStep === 3) renderPreview();
+        }
+        reader.onload = function (e) {
+          var raw = String(e.target.result || '');
+          img.onload = function () {
+            try {
+              var canvas = document.createElement('canvas');
+              var size = 360;
+              canvas.width = size;
+              canvas.height = size;
+              var ctx = canvas.getContext('2d');
+              var s = Math.min(img.width, img.height) || 1;
+              ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
+              showPhoto(canvas.toDataURL('image/jpeg', 0.78));
+            } catch (err) {
+              showPhoto(raw);
+            }
+          };
+          img.onerror = function () {
+            if (/^data:image\/(jpeg|jpg|png|webp)/i.test(raw)) showPhoto(raw);
+            else alert('Please upload a JPG, PNG, or WebP photo.');
+          };
+          img.src = raw;
         };
         reader.readAsDataURL(file);
       });

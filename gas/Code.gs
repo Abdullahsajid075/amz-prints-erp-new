@@ -3323,11 +3323,29 @@ function createPublicWebsiteOrder_(body) {
         return nameNeedle && String(p.name || '').trim().toLowerCase() === nameNeedle;
       }) || null;
     }
-    if (!prod) throw new Error('Product not found: ' + (item.name || pid || 'unknown'));
+    var postedRate = Number(item.rate != null ? item.rate : (item.price != null ? item.price : 0));
+    if (!prod) {
+      var fallbackName = String(item.name || '').trim();
+      if (!fallbackName || postedRate <= 0) {
+        throw new Error('Product not found: ' + (item.name || pid || 'unknown'));
+      }
+      lineItems.push({
+        productId: pid,
+        name: fallbackName,
+        quantity: qty,
+        rate: postedRate,
+        size: String(item.size || ''),
+        material: String(item.material || ''),
+        notes: String(item.notes || 'Website line (not in ERP catalog)'),
+      });
+      subtotal += postedRate * qty;
+      return;
+    }
     if (String(prod.status || 'Active').toLowerCase() === 'inactive') {
       throw new Error('Product unavailable: ' + (prod.name || pid));
     }
     var rate = Number(prod.rate || prod.baseprice || 0);
+    if (!(rate > 0) && postedRate > 0) rate = postedRate;
     if (rate <= 0) throw new Error('Product "' + (prod.name || '') + '" needs a quote — contact AMZ Prints or use Get a Quote.');
     var minQ = Math.max(1, Number(prod.minquantity || 1));
     if (qty < minQ) qty = minQ;

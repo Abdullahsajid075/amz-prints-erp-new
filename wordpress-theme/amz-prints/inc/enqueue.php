@@ -77,6 +77,7 @@ function amz_prints_enqueue_assets() {
 	wp_enqueue_script( 'amz-prints-popup', AMZ_PRINTS_URI . '/assets/js/promo-popup.js', array(), AMZ_PRINTS_VERSION, true );
 
 	$is_cv = is_page_template( 'page-templates/template-cv-builder.php' ) || is_page( 'create-free-cv' );
+	$is_cv_wizard = is_page_template( 'page-templates/template-free-cv.php' ) || is_page( 'free-cv' );
 	if ( $is_cv ) {
 		wp_enqueue_style(
 			'amz-prints-cv-fonts',
@@ -86,6 +87,10 @@ function amz_prints_enqueue_assets() {
 		);
 		wp_enqueue_style( 'amz-prints-cv', AMZ_PRINTS_URI . '/assets/css/cv-builder.css', array( 'amz-prints-main' ), AMZ_PRINTS_VERSION );
 		wp_enqueue_script( 'amz-prints-cv', AMZ_PRINTS_URI . '/assets/js/cv-builder.js', array(), AMZ_PRINTS_VERSION, true );
+	}
+	if ( $is_cv_wizard || is_front_page() ) {
+		wp_enqueue_style( 'amz-prints-portal', AMZ_PRINTS_URI . '/assets/css/amz-portal.css', array( 'amz-prints-main' ), AMZ_PRINTS_VERSION );
+		wp_enqueue_script( 'amz-prints-portal', AMZ_PRINTS_URI . '/assets/js/amz-portal.js', array(), AMZ_PRINTS_VERSION, true );
 	}
 
 	$google_client = trim( (string) amz_prints_mod( 'amz_google_client_id', '' ) );

@@ -378,9 +378,16 @@ async function dispatch(req, res) {
         const row = cvFromBody(body);
         if (!row.cv_id) row.cv_id = await nextCvId();
         if (!row.status) row.status = 'Completed';
-        const { error } = await supabase.from('cvs').insert(row);
+        let { error } = await supabase.from('cvs').insert(row);
+        if (error && row.photo) {
+          const retry = await supabase.from('cvs').insert({ ...row, photo: '' });
+          if (!retry.error) {
+            return send(res, { ok: true, id: row.id, cvId: row.cv_id, photoStored: false });
+          }
+          error = retry.error;
+        }
         if (error) throw error;
-        return send(res, { ok: true, id: row.id, cvId: row.cv_id });
+        return send(res, { ok: true, id: row.id, cvId: row.cv_id, photoStored: !!row.photo });
       }
 
       // Customer portal (read-only website account)
@@ -766,11 +773,28 @@ async function dispatch(req, res) {
                 const nameNeedle = String(item.name || '').trim().toLowerCase();
                 prod = (catalog || []).find((p) => nameNeedle && String(p.name || '').trim().toLowerCase() === nameNeedle) || null;
               }
-              if (!prod) return sendError(res, `Product not found: ${item.name || pid || 'unknown'}`, 404);
+              const postedRate = Number(item.rate != null ? item.rate : (item.price != null ? item.price : 0));
+              if (!prod) {
+                const name = String(item.name || '').trim();
+                if (!name || postedRate <= 0) {
+                  return sendError(res, `Product not found: ${item.name || pid || 'unknown'}`, 404);
+                }
+                lineItems.push({
+                  productId: pid,
+                  name,
+                  quantity: qty,
+                  rate: postedRate,
+                  size: String(item.size || ''),
+                  material: String(item.material || ''),
+                  notes: String(item.notes || 'Website line (not in ERP catalog)'),
+                });
+                subtotal += postedRate * qty;
+                continue;
+              }
               if (String(prod.status || 'Active').toLowerCase() === 'inactive') {
                 return sendError(res, `Product unavailable: ${prod.name || pid}`, 400);
               }
-              const rate = Number(prod.rate || 0);
+              const rate = Number(prod.rate || 0) > 0 ? Number(prod.rate || 0) : postedRate;
               if (rate <= 0) {
                 return sendError(res, `Product "${prod.name || ''}" needs a quote — contact AMZ Prints or use Get a Quote.`, 400);
               }

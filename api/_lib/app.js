@@ -18,8 +18,8 @@ app.use(cors({
   credentials: true,
 }));
 
-app.use(express.json({ type: ['application/json', 'text/plain'] }));
-app.use(express.text({ type: 'text/plain' }));
+app.use(express.json({ limit: '8mb', type: ['application/json', 'text/plain'] }));
+app.use(express.text({ limit: '8mb', type: 'text/plain' }));
 
 app.use((req, _res, next) => {
   if (typeof req.body === 'string' && req.body.trim()) {
