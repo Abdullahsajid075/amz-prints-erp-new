@@ -17,7 +17,7 @@ import PageHeader from '@/components/shared/PageHeader';
 import { clearGasCache } from '@/services/gasClient';
 import { compressGalleryImageFile, productImageSrc, productImagesList, fitImagesForSheets, MAX_PRODUCT_IMAGES } from '@/utils/productImage';
 import {
-  Plus, Search, Edit, Trash2, Package, X, Save, Wrench, ImagePlus, Boxes, Globe, RefreshCw,
+  Plus, Search, Edit, Trash2, Package, X, Save, Wrench, ImagePlus, Boxes, Globe, RefreshCw, EyeOff,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DEFAULT_PRODUCT_CATEGORIES, DEFAULT_PRODUCT_MATERIALS, mergeInventorySettings } from '@/utils/moduleSettings';
@@ -221,7 +221,7 @@ const Products = () => {
       setFormData((prev) => {
         const merged = [...(prev.images || []), ...added];
         const images = merged.slice(0, MAX_PRODUCT_IMAGES);
-        return { ...prev, images, image: images[0] || '', showOnWebsite: true };
+        return { ...prev, images, image: images[0] || '' };
       });
       toast.success(added.length > 1 ? `${added.length} photos ready (original resolution)` : 'Photo ready (original resolution)');
     } catch (err) {
@@ -274,8 +274,8 @@ const Products = () => {
         images: productImagesList(product),
         status: product.active === false ? 'Inactive' : (product.status || 'Active'),
         active: product.active !== false,
-        showOnWebsite: isCatalogReady(product),
-        showOnTop: isCatalogReady(product) && !!product.showOnTop,
+        showOnWebsite: isCatalogReady(product) && product.showOnWebsite !== false,
+        showOnTop: isCatalogReady(product) && product.showOnWebsite !== false && !!product.showOnTop,
         variations: product.variations || [],
       });
       clearGasCache();
@@ -310,10 +310,11 @@ const Products = () => {
       const salePrice = Number(formData.salePrice) > 0 ? Number(formData.salePrice) : 0;
       const images = fitImagesForSheets(formData.images || []);
       const ready = isCatalogReady({ ...formData, images });
+      const showOnWebsite = ready && formData.showOnWebsite !== false;
       if (!ready) {
         toast.message('Website se hide — HD photo aur description dono zaroori hain');
-      } else if (formData.showOnWebsite === false) {
-        toast.message('Product ready hai — website par push ho raha hai (catalog rule)');
+      } else if (!showOnWebsite) {
+        toast.message('Website se hide — Show on website Off hai');
       }
       const payload = service
         ? {
@@ -334,8 +335,8 @@ const Products = () => {
             images,
             active: formData.active !== false,
             status: formData.active === false ? 'Inactive' : 'Active',
-            showOnWebsite: ready,
-            showOnTop: ready && !!formData.showOnTop,
+            showOnWebsite,
+            showOnTop: showOnWebsite && !!formData.showOnTop,
             variations,
           }
         : {
@@ -356,8 +357,8 @@ const Products = () => {
             images,
             active: formData.active !== false,
             status: formData.active === false ? 'Inactive' : 'Active',
-            showOnWebsite: ready,
-            showOnTop: ready && !!formData.showOnTop,
+            showOnWebsite,
+            showOnTop: showOnWebsite && !!formData.showOnTop,
             variations,
           };
       const save = (body) => (editingProduct
@@ -387,6 +388,44 @@ const Products = () => {
       toast.error(msg);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const setWebsiteVisibility = async (product, visible) => {
+    if (visible && !isCatalogReady(product)) {
+      toast.error('Pehle HD image aur description add karein');
+      return;
+    }
+    try {
+      await productsAPI.update(product.id, {
+        name: product.name,
+        category: product.category,
+        productType: product.productType || 'Product',
+        description: product.description || '',
+        fullDescription: product.fullDescription || '',
+        basePrice: product.basePrice ?? product.rate ?? 0,
+        rate: product.basePrice ?? product.rate ?? 0,
+        salePrice: product.salePrice,
+        unit: product.unit || '',
+        material: product.material || '',
+        size: product.size || '',
+        minQuantity: product.minQuantity,
+        designer: product.designer || '',
+        stock: Number(product.stock ?? 0) || 0,
+        images: productImagesList(product),
+        status: product.active === false ? 'Inactive' : (product.status || 'Active'),
+        active: product.active !== false,
+        showOnWebsite: !!visible,
+        showOnTop: visible ? !!product.showOnTop : false,
+        variations: product.variations || [],
+        trackInventory: product.trackInventory,
+      });
+      try { await productsAPI.publishWebsite(); } catch { /* listing refresh is enough */ }
+      clearGasCache();
+      toast.success(visible ? `${product.name} website par show` : `${product.name} website se hide`);
+      fetchProducts();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Website visibility update failed');
     }
   };
 
@@ -425,7 +464,7 @@ const Products = () => {
                   clearGasCache();
                   const n = Number(pub?.data?.count || 0);
                   const added = Number(pub?.data?.published || 0);
-                  toast.success(`Website push: ${n} ready item(s)${added ? ` · ${added} newly published` : ''}`);
+                  toast.success(`Website push: ${n} listed item(s)${added ? ` · ${added} visible` : ''}. Off items stay hidden.`);
                   fetchProducts();
                 } catch (err) {
                   toast.error(err?.response?.data?.message || 'Website push failed');
@@ -598,6 +637,29 @@ const Products = () => {
                         <Button size="sm" variant="outline" className="h-8 flex-1 text-xs border-gray-600" onClick={() => openEditDialog(product)}>
                           <Edit className="h-3.5 w-3.5 mr-1" />Edit
                         </Button>
+                        {isCatalogReady(product) && product.showOnWebsite !== false ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 px-2 text-xs"
+                            title="Hide from website"
+                            data-testid={`hide-website-${product.id}`}
+                            onClick={() => setWebsiteVisibility(product, false)}
+                          >
+                            <EyeOff className="h-3.5 w-3.5 mr-1" />Hide
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 px-2 text-xs"
+                            title="Show on website"
+                            data-testid={`show-website-${product.id}`}
+                            onClick={() => setWebsiteVisibility(product, true)}
+                          >
+                            <Globe className="h-3.5 w-3.5 mr-1" />Show
+                          </Button>
+                        )}
                         <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => handleDelete(product)}>
                           <Trash2 className="h-3.5 w-3.5 text-red-600" />
                         </Button>
@@ -744,7 +806,7 @@ const Products = () => {
               <div>
                 <Label htmlFor="show-on-website" className="text-sm font-semibold">Show on website</Label>
                 <p className="text-[11px] text-gray-500 mt-0.5">
-                  Photo + description ready hon to website par automatically push. Incomplete auto-hide.
+                  Off = website se hide. On tabhi chalega jab HD photo + description hon. Incomplete auto-hide.
                 </p>
               </div>
               <Switch

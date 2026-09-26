@@ -16,7 +16,7 @@ const {
   isAdminRole, userLabel, collectOrderIds, invoiceStatusFromPaid, asArray, uniqueStrings,
   makePortalPassword, checkPortalPassword, portalPasswordFromRow, issueCustomerToken, parseCustomerToken,
   sanitizePortalCustomer, isBlocked, productFromBody,
-  withCustomerPhoto, customerPhoto, isWebsiteCatalogReady,
+  withCustomerPhoto, customerPhoto, isWebsiteCatalogReady, isListedOnWebsite,
   isServiceProduct, productTracksInventory,
 } = require('../lib/helpers');
 const {
@@ -176,39 +176,30 @@ function persistIncompleteWebsiteHides(rows) {
   syncWebsiteCatalogFlags(rows).catch((err) => console.error('website catalog sync', dbErrorMessage(err)));
 }
 
-/** Website rule: HD photo + description + active → show. Incomplete → hide. */
+/** Website rule: incomplete (no photo/desc) auto-hide. User Off stays Off — never auto-publish. */
 async function syncWebsiteCatalogFlags(rows) {
   const list = rows || [];
   const hide = [];
-  const show = [];
   for (const row of list) {
     const api = mapProduct(row);
     if (!api || !api.id) continue;
     const ready = isWebsiteCatalogReady(api);
     if (!ready && row.show_on_website !== false) hide.push(row.id);
-    if (ready && api.active && row.show_on_website === false) show.push(row.id);
   }
-  const writes = [
-    ...hide.slice(0, 80).map((pid) => (
-      supabase.from('products').update({ show_on_website: false, show_on_top: false }).eq('id', pid)
-    )),
-    ...show.slice(0, 80).map((pid) => (
-      supabase.from('products').update({ show_on_website: true }).eq('id', pid)
-    )),
-  ];
+  const writes = hide.slice(0, 80).map((pid) => (
+    supabase.from('products').update({ show_on_website: false, show_on_top: false }).eq('id', pid)
+  ));
   if (writes.length) {
     await Promise.all(writes).catch((err) => console.error('website catalog sync', dbErrorMessage(err)));
   }
   const hideSet = new Set(hide);
-  const showSet = new Set(show);
   for (const row of list) {
-    if (showSet.has(row.id)) row.show_on_website = true;
     if (hideSet.has(row.id)) {
       row.show_on_website = false;
       row.show_on_top = false;
     }
   }
-  return { hidden: hide.length, published: show.length };
+  return { hidden: hide.length, published: list.filter((row) => isListedOnWebsite(mapProduct(row))).length };
 }
 
 const LEAN_ORDER_COLS = 'id,order_id,date,created_at,customer_id,customer_phone,customer_name,status,doc_type,total_amount,advance_payment,balance_amount,delivery_date,tracking_number';
@@ -1509,7 +1500,7 @@ async function dispatch(req, res) {
         }
         const { data } = await supabase.from('products').select('*');
         await syncWebsiteCatalogFlags(data || []);
-        const products = (data || []).map(mapProduct).filter((p) => p && p.active && isWebsiteCatalogReady(p));
+        const products = (data || []).map(mapProduct).filter((p) => isListedOnWebsite(p));
         products.sort((a, b) => Number(!!b.showOnTop) - Number(!!a.showOnTop) || String(a.name).localeCompare(String(b.name)));
         return send(res, { products, generatedAt: new Date().toISOString() });
       }
@@ -1518,7 +1509,7 @@ async function dispatch(req, res) {
         const { data } = await supabase.from('products').select('*').eq('id', pid).maybeSingle();
         if (!data) return sendError(res, 'Product not found', 404);
         const pub = mapProduct(data);
-        if (!pub || !pub.active || !isWebsiteCatalogReady(pub)) return sendError(res, 'Product not available', 404);
+        if (!isListedOnWebsite(pub)) return sendError(res, 'Product not available', 404);
         return send(res, pub);
       }
       if (method === 'POST' && path === '/public/lead') {
@@ -1699,7 +1690,7 @@ async function dispatch(req, res) {
           }
           if (!match) return sendError(res, `Product not found: ${line.name || pid || 'unknown'}`, 400);
           const api = mapProduct(match);
-          if (!api.active || !isWebsiteCatalogReady(api)) return sendError(res, `Product not available: ${api.name}`, 400);
+          if (!isListedOnWebsite(api)) return sendError(res, `Product not available: ${api.name}`, 400);
           const rate = num(api.effectivePrice);
           subtotal += rate * qty;
           products.push({
@@ -2391,7 +2382,7 @@ async function dispatch(req, res) {
         const { data, error } = await supabase.from('products').select('*');
         if (error) throw error;
         const sync = await syncWebsiteCatalogFlags(data || []);
-        const products = (data || []).map(mapProduct).filter((p) => p && p.active && isWebsiteCatalogReady(p));
+        const products = (data || []).map(mapProduct).filter((p) => isListedOnWebsite(p));
         return send(res, { ...sync, count: products.length, products });
       }
       if (path === '/products' && method === 'POST') {

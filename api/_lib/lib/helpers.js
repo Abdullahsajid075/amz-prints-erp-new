@@ -110,6 +110,16 @@ function isWebsiteCatalogReady(p) {
   return hasPhoto && desc.length >= 3;
 }
 
+/** Public website: ready + active + user did not turn Show on website Off. */
+function isListedOnWebsite(p) {
+  if (!p) return false;
+  if (p.active === false) return false;
+  if (String(p.status || '').toLowerCase() === 'inactive') return false;
+  if (!isWebsiteCatalogReady(p)) return false;
+  if (p.showOnWebsite === false || p.show_on_website === false) return false;
+  return true;
+}
+
 function invoiceStatusFromPaid(total, paid) {
   const t = num(total);
   const p = num(paid);
@@ -263,6 +273,7 @@ module.exports = {
   parseImages,
   isRealProductPhoto,
   isWebsiteCatalogReady,
+  isListedOnWebsite,
   isServiceProduct,
   productTracksInventory,
   invoiceStatusFromPaid,

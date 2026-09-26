@@ -130,7 +130,7 @@ export const GUIDE_SECTIONS = [
     audience: 'Warehouse / sales',
     body: [
       'Products store rates, sale price, category, photos, and “show on website”. Keep names consistent with what appears on quotations and the public catalogue.',
-      'Website catalog rule: a product is published only when it has at least one HD photo and a description. Incomplete items are auto-hidden from amzprints.com until both are added.',
+      'Website catalog rule: Show on website Off hides the product on amzprints.com. On requires an HD photo and a description. Incomplete items stay hidden. Off is never auto-published.',
       'Inventory lists only products that have Track inventory on. Services have no quantity and never appear in inventory. Each product has its own Track inventory switch — if it is off, sales continue without stock.',
       'POS opens as a dedicated till window (not an ERP tab). Register, slip QRs, and service cards live in POS settings. Statement stays under Accounts.',
       'Printing Cost Calculator is a planning tool for media, size, and quantity. Transfer the result into a quotation/order; the calculator itself does not post stock or AR.',
