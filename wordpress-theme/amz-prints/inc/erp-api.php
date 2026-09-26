@@ -178,7 +178,7 @@ function amz_prints_first_real_product_photo( $row ) {
  * @return array List of product arrays (empty on failure).
  */
 function amz_prints_erp_get_products( $force_refresh = false ) {
-	$cache_key = 'amz_prints_erp_products_v7';
+	$cache_key = 'amz_prints_erp_products_v8';
 	if ( ! $force_refresh ) {
 		$cached = get_transient( $cache_key );
 		if ( is_array( $cached ) ) {
@@ -232,6 +232,9 @@ function amz_prints_erp_get_products( $force_refresh = false ) {
 		}
 		$photo = amz_prints_first_real_product_photo( $row );
 		if ( ! $photo ) {
+			continue;
+		}
+		if ( array_key_exists( 'showOnWebsite', $row ) && empty( $row['showOnWebsite'] ) ) {
 			continue;
 		}
 		$variations = array();

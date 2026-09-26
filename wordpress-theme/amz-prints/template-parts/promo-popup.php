@@ -9,8 +9,10 @@ if ( ! function_exists( 'amz_prints_popup_should_show' ) || ! amz_prints_popup_s
 	return;
 }
 
-$image_id = absint( amz_prints_mod( 'amz_popup_image', 0 ) );
-$url      = $image_id ? wp_get_attachment_image_url( $image_id, 'full' ) : '';
+$image_id = amz_prints_mod( 'amz_popup_image', 0 );
+$url      = function_exists( 'amz_prints_media_url' )
+	? amz_prints_media_url( $image_id, 'full' )
+	: ( absint( $image_id ) ? wp_get_attachment_image_url( absint( $image_id ), 'full' ) : '' );
 if ( ! $url ) {
 	return;
 }

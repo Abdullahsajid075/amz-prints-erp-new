@@ -301,6 +301,8 @@ alter table customers add column if not exists blocked_by text default '';
 alter table customers add column if not exists credit_balance numeric default 0;
 alter table customers add column if not exists portal_password text default '';
 alter table customers add column if not exists photo text default '';
+alter table employees add column if not exists photo text default '';
+alter table employees add column if not exists image text default '';
 
 alter table products add column if not exists image text default '';
 alter table products add column if not exists images jsonb default '[]'::jsonb;

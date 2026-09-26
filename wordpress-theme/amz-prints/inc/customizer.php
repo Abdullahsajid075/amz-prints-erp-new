@@ -130,13 +130,13 @@ function amz_prints_customize_register( $wp_customize ) {
 
 	$wp_customize->add_setting( 'amz_hero_image', array(
 		'default'           => '',
-		'sanitize_callback' => 'absint',
+		'sanitize_callback' => 'amz_prints_sanitize_media',
 	) );
 	$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'amz_hero_image', array(
 		'label'       => __( 'Main hero image (large)', 'amz-prints' ),
 		'section'     => 'amz_hero',
 		'mime_type'   => 'image',
-		'description' => __( '1 large hero + 5 supporting images. On mobile they become a carousel.', 'amz-prints' ),
+		'description' => __( 'Upload or Select image. 1 large hero + 5 supporting images. On mobile they become a carousel.', 'amz-prints' ),
 	) ) );
 
 	foreach ( array(
@@ -148,7 +148,7 @@ function amz_prints_customize_register( $wp_customize ) {
 	) as $hero_id => $hero_label ) {
 		$wp_customize->add_setting( $hero_id, array(
 			'default'           => '',
-			'sanitize_callback' => 'absint',
+			'sanitize_callback' => 'amz_prints_sanitize_media',
 		) );
 		$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, $hero_id, array(
 			'label'     => $hero_label,
@@ -175,7 +175,7 @@ function amz_prints_customize_register( $wp_customize ) {
 
 	$wp_customize->add_setting( 'amz_popup_image', array(
 		'default'           => '',
-		'sanitize_callback' => 'absint',
+		'sanitize_callback' => 'amz_prints_sanitize_media',
 	) );
 	$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'amz_popup_image', array(
 		'label'     => __( 'Popup image', 'amz-prints' ),

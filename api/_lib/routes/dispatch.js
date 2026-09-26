@@ -1690,7 +1690,7 @@ async function dispatch(req, res) {
           }
           if (!match) return sendError(res, `Product not found: ${line.name || pid || 'unknown'}`, 400);
           const api = mapProduct(match);
-          if (!isListedOnWebsite(api)) return sendError(res, `Product not available: ${api.name}`, 400);
+          if (!api || api.active === false) return sendError(res, `Product not available: ${api && api.name ? api.name : 'item'}`, 400);
           const rate = num(api.effectivePrice);
           subtotal += rate * qty;
           products.push({
@@ -1704,29 +1704,34 @@ async function dispatch(req, res) {
         }
         const paymentMethodRaw = String(body.paymentMethod || body.payment_method || 'Cash on Delivery').trim();
         const isCod = /cod|cash\s*on\s*delivery/i.test(paymentMethodRaw);
+        const webNotes = [body.notes, body.remarks].map((s) => String(s || '').trim()).filter(Boolean).join(' · ');
         const row = orderFromBody({
           customerId: orderCust.id,
           customerName: orderCust.name,
           customerPhone: orderCust.phone,
           customerEmail: orderCust.email,
-          customerAddress: body.deliveryAddress || orderCust.address,
+          customerAddress: body.deliveryAddress || body.customerAddress || orderCust.address,
+          deliveryAddress: body.deliveryAddress || body.customerAddress || orderCust.address,
           products,
           totalAmount: subtotal,
           advancePayment: 0,
           paymentMethod: isCod ? 'Cash on Delivery' : 'Online Payment',
-          remarks: body.notes || '',
+          remarks: webNotes ? `Website · ${webNotes}` : 'Website order',
           status: 'Order Received',
+          docType: 'Order',
         });
         row.order_id = await nextOrderId('WEB');
         row.tracking_number = await nextTrackingNumber();
         row.status_history = [{ status: row.status, at: `${today()} ${nowTime()}`, note: 'Website order' }];
         await persistOrderStock(row, { isPos: false });
-        const { error: webOrdErr } = await supabase.from('orders').insert(row);
-        if (webOrdErr) {
+        try {
+          await dbWrite('orders', row, { mode: 'insert' });
+        } catch (webOrdErr) {
           try { await syncProductStock(row.products, []); } catch { /* ignore */ }
           throw webOrdErr;
         }
-        return send(res, { ok: true, order: mapOrder(row) });
+        const { data: savedWeb } = await supabase.from('orders').select('*').eq('id', row.id).maybeSingle();
+        return send(res, { ok: true, order: mapOrder(savedWeb || row) });
       }
       if (method === 'GET' && path.startsWith('/public/employee/')) {
         const code = decodeURIComponent(path.replace('/public/employee/', '')).trim().toLowerCase();
@@ -2345,29 +2350,33 @@ async function dispatch(req, res) {
     }
 
     if (path === '/employees' || path.startsWith('/employees/')) {
-      const done = await handleCollection('employees', '/employees', mapEmployee, (b, rid) => ({
-        id: rid || b.id || id('emp'),
-        employee_code: b.employeeCode || b.employee_code || '',
-        name: b.name || '',
-        phone: b.phone || '',
-        email: b.email || '',
-        cnic: b.cnic || '',
-        role: b.role || 'Staff',
-        designation: b.designation || '',
-        department: b.department || 'General',
-        join_date: b.joinDate || b.join_date || '',
-        end_date: b.endDate || b.end_date || '',
-        valid_from: b.validFrom || b.valid_from || '',
-        valid_until: b.validUntil || b.valid_until || '',
-        salary: num(b.salary),
-        status: b.status || 'Active',
-        address: b.address || '',
-        city: b.city || '',
-        emergency_contact: b.emergencyContact || b.emergency_contact || '',
-        emergency_phone: b.emergencyPhone || b.emergency_phone || '',
-        notes: b.notes || '',
-        photo: b.photo || b.image || '',
-      }));
+      const done = await handleCollection('employees', '/employees', mapEmployee, (b, rid) => {
+        const packed = withCustomerPhoto({ notes: b.notes || '' }, b.photo != null ? b.photo : (b.image || ''));
+        return {
+          id: rid || b.id || id('emp'),
+          employee_code: b.employeeCode || b.employee_code || '',
+          name: b.name || '',
+          phone: b.phone || '',
+          email: b.email || '',
+          cnic: b.cnic || '',
+          role: b.role || 'Staff',
+          designation: b.designation || '',
+          department: b.department || 'General',
+          join_date: b.joinDate || b.join_date || '',
+          end_date: b.endDate || b.end_date || '',
+          valid_from: b.validFrom || b.valid_from || '',
+          valid_until: b.validUntil || b.valid_until || '',
+          salary: num(b.salary),
+          status: b.status || 'Active',
+          address: b.address || '',
+          city: b.city || '',
+          emergency_contact: b.emergencyContact || b.emergency_contact || '',
+          emergency_phone: b.emergencyPhone || b.emergency_phone || '',
+          notes: packed.notes,
+          photo: packed.photo || '',
+          image: packed.image || '',
+        };
+      });
       if (done !== null) return done;
     }
 
