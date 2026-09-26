@@ -1,6 +1,7 @@
 import { gasRequest, withToken } from './gasClient';
 import { tokenStorage } from './tokenStorage';
 import { tasksAPI, broadcastsAPI } from './opsFallback';
+import { appendOrderToInvoicePayload, mergeInvoicePayload } from '@/utils/invoiceOrders';
 
 export { tasksAPI, broadcastsAPI };
 
@@ -27,6 +28,7 @@ export const ordersAPI = {
   updateStatus: (id, status) => gasRequest('PATCH', `/orders/${id}/status`, withToken({ data: { status } })),
   pay: (id, data) => gasRequest('POST', `/orders/${id}/payment`, withToken({ data })),
   createInvoice: (id) => gasRequest('POST', `/orders/${id}/invoice`, withToken({ data: {} })),
+  addToInvoice: (id, invoiceId) => invoicesAPI.addOrder(invoiceId, { orderId: id }),
 };
 
 export const customersAPI = {
@@ -79,6 +81,12 @@ export const filesAPI = {
   getDownloadUrl: (fileId) => gasRequest('GET', `/files/${fileId}/download-url`, withToken()),
 };
 
+const isMissingRoute = (err) => {
+  const status = Number(err?.response?.status || 0);
+  const msg = String(err?.response?.data?.message || err?.message || '');
+  return status === 404 || /not found/i.test(msg);
+};
+
 export const invoicesAPI = {
   getAll: (params) => gasRequest('GET', '/invoices', withToken({ params })),
   getById: (id) => gasRequest('GET', `/invoices/${id}`, withToken()),
@@ -87,6 +95,40 @@ export const invoicesAPI = {
   update: (id, data) => gasRequest('PUT', `/invoices/${id}`, withToken({ data })),
   pay: (id, data) => gasRequest('POST', `/invoices/${id}/payment`, withToken({ data })),
   delete: (id) => gasRequest('DELETE', `/invoices/${id}`, withToken()),
+  addOrder: async (id, data = {}) => {
+    try {
+      return await gasRequest('POST', `/invoices/${id}/add-order`, withToken({ data }));
+    } catch (err) {
+      if (!isMissingRoute(err)) throw err;
+      const [invRes, ordRes] = await Promise.all([
+        gasRequest('GET', `/invoices/${id}`, withToken()),
+        gasRequest('GET', `/orders/${data.orderId || data.order_id || data.id}`, withToken()),
+      ]);
+      const payload = appendOrderToInvoicePayload(invRes.data || {}, ordRes.data || {});
+      return gasRequest('PUT', `/invoices/${id}`, withToken({ data: payload }));
+    }
+  },
+  combine: async (data = {}) => {
+    try {
+      return await gasRequest('POST', '/invoices/combine', withToken({ data }));
+    } catch (err) {
+      if (!isMissingRoute(err)) throw err;
+      const ids = Array.isArray(data.invoiceIds) ? data.invoiceIds : [];
+      if (ids.length < 2) throw err;
+      const loaded = [];
+      for (const iid of ids) {
+        const res = await gasRequest('GET', `/invoices/${iid}`, withToken());
+        if (res.data) loaded.push(res.data);
+      }
+      const target = loaded[0];
+      const payload = mergeInvoicePayload(target, loaded.slice(1));
+      const saved = await gasRequest('PUT', `/invoices/${target.id}`, withToken({ data: payload }));
+      for (const extra of loaded.slice(1)) {
+        try { await gasRequest('DELETE', `/invoices/${extra.id}`, withToken()); } catch { /* keep going */ }
+      }
+      return saved;
+    }
+  },
 };
 
 export const expensesAPI = {

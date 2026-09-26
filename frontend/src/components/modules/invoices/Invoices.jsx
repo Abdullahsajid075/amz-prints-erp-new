@@ -15,7 +15,7 @@ import { useBrand } from '@/context/BrandContext';
 import { formatCurrency, formatDate, invoiceOrderIds, invoiceBalanceDue, invoicePendingScore } from '@/utils/helpers';
 import { sortBy, pinFirst } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
-import { Plus, Search, Eye, Edit, FileText, Copy as CopyIcon, Wallet } from 'lucide-react';
+import { Plus, Search, Eye, Edit, FileText, Copy as CopyIcon, Wallet, Combine } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import ReceivablesDialog from '@/components/shared/ReceivablesDialog';
 import { toast } from 'sonner';
@@ -41,6 +41,8 @@ const Invoices = () => {
   const [paymentData, setPaymentData] = useState({ amount: '', method: 'Cash', notes: '', date: new Date().toISOString().slice(0, 10) });
   const [paymentSaving, setPaymentSaving] = useState(false);
   const [receivablesOpen, setReceivablesOpen] = useState(false);
+  const [combineIds, setCombineIds] = useState([]);
+  const [combineBusy, setCombineBusy] = useState(false);
 
   const fetchInvoices = useCallback(async () => {
     setLoading(true);
@@ -263,15 +265,49 @@ const Invoices = () => {
           <h1 className="text-3xl font-bold" style={{ color: '#0747a3' }}>Invoices</h1>
           <p className="text-gray-600 mt-1">Create, manage & share professional invoices</p>
         </div>
-        <Button
-          onClick={() => navigate('/invoices/new')}
-          style={{ backgroundColor: '#ff6d00' }}
-          className="text-white"
-          data-testid="create-invoice-button"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Create Invoice
-        </Button>      </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            disabled={combineBusy || combineIds.length < 2}
+            onClick={async () => {
+              const picked = invoices.filter((inv) => combineIds.includes(inv.id));
+              const sameId = picked.every((inv) => String(inv.customerId || '') && String(inv.customerId) === String(picked[0].customerId));
+              const phone = String(picked[0]?.customerPhone || '').replace(/\D/g, '').slice(-10);
+              const samePhone = !!(phone && picked.every((inv) => String(inv.customerPhone || '').replace(/\D/g, '').slice(-10) === phone));
+              if (!sameId && !samePhone) {
+                toast.error('Combine only open invoices of the same customer');
+                return;
+              }
+              if (!window.confirm(`Combine ${picked.length} invoices into one for ${picked[0].customerName}?`)) return;
+              setCombineBusy(true);
+              try {
+                const res = await invoicesAPI.combine({ invoiceIds: combineIds });
+                toast.success(`Combined into ${res.data?.invoiceNumber || 'one invoice'}`);
+                setCombineIds([]);
+                fetchInvoices();
+                if (res.data?.id) navigate(`/invoices/${res.data.id}`);
+              } catch (err) {
+                toast.error(err?.response?.data?.message || err?.message || 'Could not combine invoices');
+              } finally {
+                setCombineBusy(false);
+              }
+            }}
+            data-testid="combine-invoices-button"
+          >
+            <Combine className="h-4 w-4 mr-2" />
+            {combineBusy ? 'Combining…' : `Combine invoices${combineIds.length ? ` (${combineIds.length})` : ''}`}
+          </Button>
+          <Button
+            onClick={() => navigate('/invoices/new')}
+            style={{ backgroundColor: '#ff6d00' }}
+            className="text-white"
+            data-testid="create-invoice-button"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Create Invoice
+          </Button>
+        </div>
+      </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
@@ -328,7 +364,7 @@ const Invoices = () => {
       <Card>
         <CardHeader>
           <CardTitle>Open invoices ({activeInvoices.length})</CardTitle>
-          <p className="text-xs text-gray-500 font-normal mt-1">Unpaid and partial invoices as cards</p>
+          <p className="text-xs text-gray-500 font-normal mt-1">Tick two or more invoices of the same customer, then Combine. Drag extra orders onto an invoice from Invoice edit.</p>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -358,7 +394,19 @@ const Invoices = () => {
                 >
                   <div className="absolute top-0 left-0 right-0 h-0.5 rounded-t-xl" style={{ background: 'linear-gradient(90deg, #ff6d00, #0747a3)' }} />
                   <div className="flex items-start justify-between mb-2">
-                    <div className="min-w-0">
+                    <label className="flex items-center gap-2 min-w-0">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={combineIds.includes(invoice.id)}
+                        onChange={(e) => {
+                          setCombineIds((prev) => (
+                            e.target.checked ? [...prev, invoice.id] : prev.filter((id) => id !== invoice.id)
+                          ));
+                        }}
+                        aria-label={`Select ${invoice.invoiceNumber}`}
+                      />
+                      <div className="min-w-0">
                       <p className="text-[9px] text-gray-500 uppercase tracking-wider font-semibold">Invoice</p>
                       <h3 className="text-sm font-bold truncate" style={{ color: '#1F2937' }}>{invoice.invoiceNumber}</h3>
                       {invoiceOrderIds(invoice).length > 0 && (
@@ -366,7 +414,8 @@ const Invoices = () => {
                           Ord: {invoiceOrderIds(invoice).join(', ')}
                         </p>
                       )}
-                    </div>
+                      </div>
+                    </label>
                     <Badge className={`${getStatusBadge(invoice.status)} text-[9px] shrink-0`}>{invoice.status}</Badge>
                   </div>
 
