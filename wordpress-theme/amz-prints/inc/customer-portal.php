@@ -328,13 +328,18 @@ function amz_prints_customer_ensure_erp( $email ) {
 	if ( ! is_array( $row ) || ! function_exists( 'amz_prints_customer_api' ) ) {
 		return;
 	}
-	amz_prints_customer_api( '/public/customer/ensure', array(
+	$result = amz_prints_customer_api( '/public/customer/ensure', array(
 		'portalKey' => amz_prints_customer_portal_key(),
 		'email'     => $email,
 		'name'      => (string) ( $row['name'] ?? '' ),
 		'phone'     => (string) ( $row['phone'] ?? '' ),
 		'address'   => (string) ( $row['address'] ?? '' ),
 	) );
+	$token = amz_prints_customer_matching_erp_token( $email, $result );
+	if ( $token ) {
+		$row['erp_token'] = $token;
+		amz_prints_local_customer_save( $email, $row );
+	}
 }
 
 function amz_prints_customer_matching_erp_token( $email, $result ) {

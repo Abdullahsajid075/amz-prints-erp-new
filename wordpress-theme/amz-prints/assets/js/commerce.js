@@ -575,7 +575,7 @@
           '',
           'Thank you for your order.',
           'Order number: ' + (lastOrder.orderId || ''),
-          'Status: Pending Confirmation',
+          'Status: Order Received',
           'Payment verification: ' + (lastOrder.paymentStatus || 'Pending Verification'),
           'Payment method: ' + (lastOrder.paymentMethod || ''),
           'Delivery: ' + (lastOrder.deliveryMethod || ''),

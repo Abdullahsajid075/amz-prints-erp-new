@@ -16,6 +16,7 @@ export const MODULES = {
 
 export const ORDER_STATUS = {
   RECEIVED: 'Order Received',
+  PENDING_CONFIRMATION: 'Pending Confirmation',
   DESIGNING: 'Designing',
   PROOF_APPROVAL: 'Proof Approval',
   PRINTING: 'Printing',

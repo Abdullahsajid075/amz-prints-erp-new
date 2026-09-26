@@ -37,6 +37,7 @@ export const calculateOrderTotal = (products = []) => {
 export const getStatusColor = (status) => {
   const colors = {
     'Order Received': 'bg-blue-100 text-blue-800',
+    'Pending Confirmation': 'bg-amber-100 text-amber-800',
     'Designing': 'bg-purple-100 text-purple-800',
     'Proof Approval': 'bg-yellow-100 text-yellow-800',
     'Printing': 'bg-indigo-100 text-indigo-800',

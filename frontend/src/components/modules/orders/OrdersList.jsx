@@ -23,8 +23,18 @@ const ORDER_SORT_OPTS = [
   { value: 'totalAmount', label: 'Amount' },
 ];
 
-const IN_PROGRESS_STATUSES = ['Order Received', 'Designing', 'Proof Approval', 'Printing', 'Finishing', 'Packing', 'Ready'];
+const IN_PROGRESS_STATUSES = ['Order Received', 'Pending Confirmation', 'Designing', 'Proof Approval', 'Printing', 'Finishing', 'Packing', 'Ready'];
 const COMPLETED_STATUSES = ['Delivered', 'Cancelled'];
+
+function isWebsiteOrder(order) {
+  if (String(order?.orderSource || '').toLowerCase() === 'website') return true;
+  return /website order/i.test(String(order?.remarks || ''));
+}
+
+function WebsiteBadge({ order }) {
+  if (!isWebsiteOrder(order)) return null;
+  return <Badge className="bg-orange-100 text-orange-800 text-[10px] shrink-0">Website</Badge>;
+}
 
 function orderDisplayTotal(order) {
   const direct = Number(order?.totalAmount);
@@ -276,7 +286,10 @@ const OrdersList = () => {
           <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Order</p>
           <h3 className="text-lg font-bold truncate" style={{ color: '#1F2937' }}>{order.orderId}</h3>
         </div>
-        <Badge className={`${getStatusColor(order.status)} text-[10px] shrink-0`}>{order.status}</Badge>
+        <div className="flex items-center gap-1 shrink-0">
+          <WebsiteBadge order={order} />
+          <Badge className={`${getStatusColor(order.status)} text-[10px] shrink-0`}>{order.status}</Badge>
+        </div>
       </div>
       <div className="space-y-1.5 mb-3">
         <div className="flex items-center gap-2 text-sm">
@@ -409,7 +422,7 @@ const OrdersList = () => {
                       <td className="py-2.5 px-3 text-gray-600 hidden md:table-cell">{formatDate(order.date)}</td>
                       <td className="py-2.5 px-3 text-gray-600 hidden md:table-cell">{formatDate(order.deliveryDate)}</td>
                       <td className="py-2.5 px-3 text-right font-bold" style={{ color: '#ff6d00' }}>{formatCurrency(orderDisplayTotal(order))}</td>
-                      <td className="py-2.5 px-3"><Badge className={`${getStatusColor(order.status)} text-[10px]`}>{order.status}</Badge></td>
+                      <td className="py-2.5 px-3"><div className="flex items-center gap-1 flex-wrap"><WebsiteBadge order={order} /><Badge className={`${getStatusColor(order.status)} text-[10px]`}>{order.status}</Badge></div></td>
                       <td className="py-2.5 px-3 text-right">
                         <div className="flex items-center gap-1 justify-end">
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleView(order.id)} title="View"><Eye className="h-4 w-4" /></Button>
@@ -444,7 +457,12 @@ const OrdersList = () => {
                 </DialogTitle>
                 <DialogDescription className="mt-2">{viewOrder?.orderId} — Complete order information</DialogDescription>
               </div>
-              {viewOrder && <Badge className={`${getStatusColor(viewOrder.status)} text-sm px-3 py-1`}>{viewOrder.status}</Badge>}
+              {viewOrder && (
+                <div className="flex items-center gap-2">
+                  <WebsiteBadge order={viewOrder} />
+                  <Badge className={`${getStatusColor(viewOrder.status)} text-sm px-3 py-1`}>{viewOrder.status}</Badge>
+                </div>
+              )}
             </div>
           </DialogHeader>
 

@@ -336,8 +336,8 @@ async function dispatch(req, res) {
         return send(res, { ok: true, customerId, stage: 'lead', inCrm: true });
       }
 
-      // Customer portal (read-only website account)
-      if (path.startsWith('/public/customer/')) {
+      // Customer portal (website account). POST /public/orders is the same checkout.
+      if (path.startsWith('/public/customer/') || (method === 'POST' && path === '/public/orders')) {
         const issueCustomerToken = (cust) => Buffer.from(JSON.stringify({
           type: 'customer',
           id: String(cust.id || ''),
@@ -682,7 +682,7 @@ async function dispatch(req, res) {
             const { data: existingRows } = await supabase.from('customers').select('*').ilike('email', email).limit(5);
             const exists = (existingRows || []).find((c) => String(c.email || '').trim().toLowerCase() === email);
             if (exists) {
-              return send(res, { ok: true, created: false, customer: enrichPortalCustomer(exists) });
+              return send(res, { ok: true, created: false, token: issueCustomerToken(exists), customer: enrichPortalCustomer(exists) });
             }
             const customerId = id('cust');
             const row = {
@@ -702,7 +702,7 @@ async function dispatch(req, res) {
             };
             const { error } = await supabase.from('customers').insert(row);
             if (error) return sendError(res, error.message || 'Could not create customer', 500);
-            return send(res, { ok: true, created: true, customer: enrichPortalCustomer(row) });
+            return send(res, { ok: true, created: true, token: issueCustomerToken(row), customer: enrichPortalCustomer(row) });
           }
 
           if (method === 'POST' && path === '/public/customer/cv') {
@@ -923,8 +923,37 @@ async function dispatch(req, res) {
             });
           }
 
-          if (method === 'POST' && path === '/public/customer/order') {
-            const customer = await validateCustomerToken(body.token);
+          if (method === 'POST' && (path === '/public/customer/order' || path === '/public/orders')) {
+            let customer = await validateCustomerToken(body.token);
+            if (!customer) {
+              const portalKey = String(body.portalKey || '').trim();
+              const email = String(body.customerEmail || body.email || '').trim().toLowerCase();
+              if (portalKey && email.includes('@')) {
+                assertPortalKey(portalKey);
+                const { data: existingRows } = await supabase.from('customers').select('*').ilike('email', email).limit(5);
+                customer = (existingRows || []).find((c) => String(c.email || '').trim().toLowerCase() === email) || null;
+                if (!customer) {
+                  const created = {
+                    id: id('cust'),
+                    name: String(body.customerName || '').trim() || email.split('@')[0],
+                    phone: String(body.customerPhone || '').trim(),
+                    email,
+                    address: String(body.deliveryAddress || body.address || '').trim(),
+                    city: '',
+                    notes: 'Website order',
+                    in_crm: true,
+                    stage: 'customer',
+                    stage_updated_at: new Date().toISOString(),
+                    notify_whatsapp: true,
+                    notify_email: true,
+                    portal_password: '',
+                  };
+                  const { error: custErr } = await supabase.from('customers').insert(created);
+                  if (custErr) return sendError(res, custErr.message || 'Could not create customer', 500);
+                  customer = created;
+                }
+              }
+            }
             if (!customer) return sendError(res, 'Please log in to place an order', 401);
             // Auto-add / keep customer in CRM on website order
             try {
@@ -1022,7 +1051,8 @@ async function dispatch(req, res) {
               // Declared money is not a verified ledger payment.
               advanceRecorded = 0;
               paymentStatus = 'Pending Verification';
-              orderStatus = 'Pending Confirmation';
+              // Order Received is the in-progress status the Orders list already shows.
+              orderStatus = 'Order Received';
             }
             const nowStamp = `${today()} ${nowTime()}`;
             const deliveryAddress = String(body.deliveryAddress || body.address || customer.address || '').trim();

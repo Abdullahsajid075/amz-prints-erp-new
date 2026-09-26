@@ -507,6 +507,61 @@ function amz_prints_checkout_store_receipt() {
 }
 
 /**
+ * Tell the office that a website checkout just happened.
+ *
+ * @param array $details      Order facts for the email.
+ * @param bool  $saved_in_erp True when the ERP order insert succeeded.
+ */
+function amz_prints_notify_website_order( $details, $saved_in_erp ) {
+	$details  = is_array( $details ) ? $details : array();
+	$order_id = (string) ( $details['orderId'] ?? '' );
+	$money    = function ( $amount ) {
+		return function_exists( 'amz_prints_money' ) ? amz_prints_money( $amount ) : (string) $amount;
+	};
+	$lines    = array();
+	if ( $saved_in_erp ) {
+		$lines[] = 'A customer placed an order on the website.';
+		$lines[] = 'Open ERP → Orders. It is listed as Order Received, payment Pending Verification, source Website.';
+		$lines[] = 'The declared advance is not in the customer ledger until you open this order, enter the verified advance, and save.';
+	} else {
+		$lines[] = 'A customer placed an order on the website, but it was NOT saved in ERP Orders.';
+		$lines[] = 'Redeploy the API (the api folder, live at https://amz-prints-api.vercel.app) from this project. Until then this order exists only on the customer website account.';
+	}
+	$lines[] = '';
+	$lines[] = 'Order: ' . $order_id;
+	$lines[] = 'Customer: ' . (string) ( $details['customerName'] ?? '' );
+	$lines[] = 'Email: ' . (string) ( $details['email'] ?? '' );
+	$lines[] = 'WhatsApp: ' . (string) ( $details['phone'] ?? '' );
+	if ( ! empty( $details['altPhone'] ) ) {
+		$lines[] = 'Alternative phone: ' . (string) $details['altPhone'];
+	}
+	$lines[] = 'Address: ' . (string) ( $details['address'] ?? '' );
+	$lines[] = 'Delivery: ' . (string) ( $details['deliveryMethod'] ?? '' );
+	$lines[] = 'Delivery charges: ' . $money( $details['deliveryCharges'] ?? 0 );
+	$lines[] = 'Payment method: ' . (string) ( $details['paymentMethod'] ?? '' );
+	$lines[] = 'Subtotal: ' . $money( $details['subtotal'] ?? 0 );
+	$lines[] = 'Discount: ' . $money( $details['discount'] ?? 0 );
+	$lines[] = 'Total: ' . $money( $details['totalAmount'] ?? 0 );
+	$lines[] = 'Declared advance (not verified): ' . $money( $details['declaredAdvance'] ?? 0 );
+	$lines[] = 'Remaining balance: ' . $money( $details['balanceAmount'] ?? 0 );
+	if ( ! empty( $details['receiptUrl'] ) ) {
+		$lines[] = 'Receipt: ' . (string) $details['receiptUrl'];
+	}
+	$lines[] = '';
+	$lines[] = 'Products:';
+	foreach ( (array) ( $details['items'] ?? array() ) as $item ) {
+		if ( is_array( $item ) ) {
+			$lines[] = '- ' . (string) ( $item['name'] ?? '' ) . ' × ' . (string) ( $item['quantity'] ?? 1 ) . ' — ' . $money( $item['lineTotal'] ?? 0 );
+		} else {
+			$lines[] = '- ' . (string) $item;
+		}
+	}
+	$reply   = sanitize_email( (string) ( $details['email'] ?? '' ) );
+	$headers = $reply ? array( 'Reply-To: ' . $reply ) : array();
+	wp_mail( 'info@amzprints.com', sprintf( '[AMZ Prints] Website order %s', $order_id ), implode( "\n", $lines ), $headers );
+}
+
+/**
  * AJAX: place order (requires customer login)
  */
 function amz_prints_ajax_place_order() {
@@ -687,6 +742,7 @@ function amz_prints_ajax_place_order() {
 		'receiptUrl'          => $receipt_url,
 		'customerName'        => $name,
 		'customerEmail'       => $email,
+		'portalKey'           => function_exists( 'amz_prints_customer_portal_key' ) ? amz_prints_customer_portal_key() : '',
 	);
 	if ( $email && function_exists( 'amz_prints_local_customer_get' ) ) {
 		$profile_row = amz_prints_local_customer_get( $email );
@@ -699,13 +755,22 @@ function amz_prints_ajax_place_order() {
 			amz_prints_local_customer_save( $email, $profile_row );
 		}
 	}
+	if ( $email && function_exists( 'amz_prints_customer_ensure_erp' ) ) {
+		amz_prints_customer_ensure_erp( $email );
+		if ( function_exists( 'amz_prints_customer_erp_token' ) ) {
+			$fresh_token = amz_prints_customer_erp_token();
+			if ( $fresh_token ) {
+				$body['token'] = $fresh_token;
+			}
+		}
+	}
 
 	$payload = array(
 		'orderId'          => '',
 		'trackingNumber'   => '',
 		'paymentMethod'    => $pay_label,
 		'paymentStatus'    => 'Pending Verification',
-		'status'           => 'Pending Confirmation',
+		'status'           => 'Order Received',
 		'subtotal'         => $quote['subtotal'],
 		'discount'         => $quote['discount'],
 		'deliveryCharges'  => $quote['deliveryCharges'],
@@ -724,6 +789,17 @@ function amz_prints_ajax_place_order() {
 
 	$result = amz_prints_erp_request( 'POST', '/public/customer/order', $body );
 	if ( is_wp_error( $result ) ) {
+		$err_data = $result->get_error_data();
+		$err_code = is_array( $err_data ) && isset( $err_data['status'] ) ? (int) $err_data['status'] : 0;
+		$err_msg  = $result->get_error_message();
+		if ( 404 === $err_code || false !== stripos( $err_msg, 'Not found' ) ) {
+			$retry = amz_prints_erp_request( 'POST', '/public/orders', $body );
+			if ( ! is_wp_error( $retry ) ) {
+				$result = $retry;
+			}
+		}
+	}
+	if ( is_wp_error( $result ) ) {
 		$order_id = 'WEB-' . gmdate( 'ymd' ) . '-' . wp_rand( 1000, 9999 );
 		$payload['orderId']        = $order_id;
 		$payload['trackingNumber'] = $order_id;
@@ -732,7 +808,7 @@ function amz_prints_ajax_place_order() {
 			amz_prints_store_customer_order( $email, array(
 				'orderId'         => $order_id,
 				'trackingNumber'  => $order_id,
-				'status'          => 'Pending Confirmation',
+				'status'          => 'Order Received',
 				'paymentMethod'   => $pay_label,
 				'paymentStatus'   => 'Pending Verification',
 				'totalAmount'     => $quote['total'],
@@ -759,7 +835,7 @@ function amz_prints_ajax_place_order() {
 			amz_prints_store_customer_order( $email, array(
 				'orderId'         => $order_id,
 				'trackingNumber'  => $payload['trackingNumber'],
-				'status'          => 'Pending Confirmation',
+				'status'          => 'Order Received',
 				'paymentMethod'   => $pay_label,
 				'paymentStatus'   => 'Pending Verification',
 				'date'            => gmdate( 'Y-m-d' ),
@@ -773,6 +849,28 @@ function amz_prints_ajax_place_order() {
 			) );
 		}
 	}
+
+	amz_prints_notify_website_order(
+		array(
+			'orderId'         => $payload['orderId'],
+			'customerName'    => $name,
+			'email'           => $email,
+			'phone'           => $phone,
+			'altPhone'        => $alt,
+			'address'         => $address,
+			'deliveryMethod'  => $quote['deliveryMethod'],
+			'deliveryCharges' => $quote['deliveryCharges'],
+			'paymentMethod'   => $pay_label,
+			'subtotal'        => $quote['subtotal'],
+			'discount'        => $quote['discount'],
+			'totalAmount'     => $quote['total'],
+			'declaredAdvance' => $declared_advance,
+			'balanceAmount'   => $payload['balanceAmount'],
+			'receiptUrl'      => $receipt_url,
+			'items'           => $summary_items,
+		),
+		! is_wp_error( $result )
+	);
 
 	amz_prints_cart_clear();
 	set_transient( $lock_key, $payload, 30 * MINUTE_IN_SECONDS );
