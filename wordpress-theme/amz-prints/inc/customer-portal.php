@@ -305,6 +305,9 @@ function amz_prints_customer_sign_in_local( $email, $profile, $password = '', $e
 		$row['erp_token'] = (string) $erp_token;
 	}
 	amz_prints_local_customer_save( $email, $row );
+	if ( strlen( (string) $password ) >= 6 ) {
+		amz_prints_customer_production_token( $email, (string) ( $row['name'] ?? '' ), (string) ( $row['phone'] ?? '' ), (string) ( $row['address'] ?? '' ), $password, true );
+	}
 	$token = amz_prints_local_issue_token( $email );
 	amz_prints_customer_set_token( $token );
 	amz_prints_remember_portal_session( $token, array(
@@ -340,6 +343,94 @@ function amz_prints_customer_ensure_erp( $email ) {
 		$row['erp_token'] = $token;
 		amz_prints_local_customer_save( $email, $row );
 	}
+}
+
+/**
+ * True when a customer portal token is still inside its expiry window.
+ *
+ * @param string $token ERP customer token.
+ * @return bool
+ */
+function amz_prints_customer_token_usable( $token ) {
+	$token = (string) $token;
+	if ( strlen( $token ) < 20 ) {
+		return false;
+	}
+	$json = base64_decode( strtr( $token, '-_', '+/' ), true );
+	$data = json_decode( is_string( $json ) ? $json : '', true );
+	if ( ! is_array( $data ) ) {
+		return false;
+	}
+	$kind = (string) ( $data['typ'] ?? $data['type'] ?? '' );
+	if ( 'customer' !== $kind ) {
+		return false;
+	}
+	if ( ! empty( $data['exp'] ) && (int) $data['exp'] < (int) round( microtime( true ) * 1000 ) ) {
+		return false;
+	}
+	return true;
+}
+
+/**
+ * Customer token the live ERP accepts for POST /public/orders.
+ *
+ * @param string $email    Customer email.
+ * @param string $name     Customer name.
+ * @param string $phone    Customer phone.
+ * @param string $address  Customer address.
+ * @param string $password Plain password when the customer just typed it.
+ * @param bool   $force    Ignore a stored token and sign in again.
+ * @return string
+ */
+function amz_prints_customer_production_token( $email, $name = '', $phone = '', $address = '', $password = '', $force = false ) {
+	$email = strtolower( trim( (string) $email ) );
+	if ( ! $email || ! function_exists( 'amz_prints_customer_api' ) ) {
+		return '';
+	}
+	$row = amz_prints_local_customer_get( $email );
+	$row = is_array( $row ) ? $row : array();
+	$stored = (string) ( $row['erp_token'] ?? '' );
+	if ( ! $force && amz_prints_customer_token_usable( $stored ) ) {
+		return $stored;
+	}
+	$name    = trim( (string) $name ) ? trim( (string) $name ) : (string) ( $row['name'] ?? '' );
+	$phone   = trim( (string) $phone ) ? trim( (string) $phone ) : (string) ( $row['phone'] ?? '' );
+	$address = trim( (string) $address ) ? trim( (string) $address ) : (string) ( $row['address'] ?? '' );
+	$typed   = (string) $password;
+	$pass    = strlen( $typed ) >= 6 ? $typed : (string) ( $row['erp_sync_pass'] ?? '' );
+	$created = false;
+	if ( strlen( $pass ) < 6 ) {
+		$pass    = wp_generate_password( 20, false, false );
+		$created = true;
+		$row['erp_sync_pass'] = $pass;
+		amz_prints_local_customer_save( $email, $row );
+	}
+	$login = amz_prints_customer_api( '/public/customer/login', array(
+		'email'    => $email,
+		'password' => $pass,
+	) );
+	$token = amz_prints_customer_matching_erp_token( $email, $login );
+	if ( ! $token && $name && $phone ) {
+		$reg = amz_prints_customer_api( '/public/customer/register', array(
+			'name'     => $name,
+			'email'    => $email,
+			'phone'    => $phone,
+			'password' => $pass,
+			'address'  => $address,
+		) );
+		$token = amz_prints_customer_matching_erp_token( $email, $reg );
+	}
+	if ( ! $token ) {
+		return '';
+	}
+	$row = amz_prints_local_customer_get( $email );
+	$row = is_array( $row ) ? $row : array();
+	$row['erp_token'] = $token;
+	if ( $created ) {
+		$row['erp_sync_pass'] = $pass;
+	}
+	amz_prints_local_customer_save( $email, $row );
+	return $token;
 }
 
 function amz_prints_customer_matching_erp_token( $email, $result ) {
@@ -692,7 +783,8 @@ function amz_prints_ajax_customer_login() {
 				'name'    => (string) ( $local['name'] ?? '' ),
 				'phone'   => (string) ( $local['phone'] ?? '' ),
 				'address' => (string) ( $local['address'] ?? '' ),
-			)
+			),
+			$password
 		);
 		wp_send_json_success( array(
 			'redirect' => $redirect,

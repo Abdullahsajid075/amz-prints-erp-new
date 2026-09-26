@@ -757,13 +757,29 @@ function amz_prints_ajax_place_order() {
 	}
 	if ( $email && function_exists( 'amz_prints_customer_ensure_erp' ) ) {
 		amz_prints_customer_ensure_erp( $email );
-		if ( function_exists( 'amz_prints_customer_erp_token' ) ) {
-			$fresh_token = amz_prints_customer_erp_token();
-			if ( $fresh_token ) {
-				$body['token'] = $fresh_token;
-			}
+	}
+	if ( $email && function_exists( 'amz_prints_customer_production_token' ) ) {
+		$fresh_token = amz_prints_customer_production_token( $email, $name, $phone, $address );
+		if ( $fresh_token ) {
+			$body['token'] = $fresh_token;
 		}
 	}
+	$body['acceptPolicy'] = true;
+	$body['notes']        = implode( ' · ', array_filter( array(
+		'Website order',
+		'Customer: ' . $name,
+		'WhatsApp: ' . $phone,
+		$alt ? 'Alternative phone: ' . $alt : '',
+		'Delivery: ' . (string) ( $quote['deliveryMethod'] ?? '' ),
+		'Delivery charges: ' . (string) $quote['deliveryCharges'],
+		'Subtotal: ' . (string) $quote['subtotal'],
+		'Total: ' . (string) $quote['total'],
+		'Declared advance (not verified): ' . (string) $declared_advance,
+		'Payment: ' . $pay_label,
+		$receipt_url ? 'Receipt: ' . $receipt_url : '',
+		$note ? 'Note: ' . $note : '',
+	) ) );
+	$body['customerNote'] = $body['notes'];
 
 	$payload = array(
 		'orderId'          => '',
@@ -787,16 +803,49 @@ function amz_prints_ajax_place_order() {
 		'trackUrl'         => home_url( '/track-order/' ),
 	);
 
-	$result = amz_prints_erp_request( 'POST', '/public/customer/order', $body );
-	if ( is_wp_error( $result ) ) {
-		$err_data = $result->get_error_data();
+	$result = null;
+	foreach ( array( '/public/customer/order', '/public/orders', '/public/checkout' ) as $order_path ) {
+		$try = amz_prints_erp_request( 'POST', $order_path, $body );
+		if ( ! is_wp_error( $try ) ) {
+			$result = $try;
+			break;
+		}
+		$result   = $try;
+		$err_data = $try->get_error_data();
 		$err_code = is_array( $err_data ) && isset( $err_data['status'] ) ? (int) $err_data['status'] : 0;
-		$err_msg  = $result->get_error_message();
-		if ( 404 === $err_code || false !== stripos( $err_msg, 'Not found' ) ) {
-			$retry = amz_prints_erp_request( 'POST', '/public/orders', $body );
-			if ( ! is_wp_error( $retry ) ) {
-				$result = $retry;
+		$err_msg  = $try->get_error_message();
+		$missing  = ( 404 === $err_code || false !== stripos( $err_msg, 'Not found' ) );
+		$denied   = ( 401 === $err_code || false !== stripos( $err_msg, 'Login required' ) || false !== stripos( $err_msg, 'Please log in' ) );
+		if ( $denied && $email && function_exists( 'amz_prints_customer_production_token' ) ) {
+			$fresh_token = amz_prints_customer_production_token( $email, $name, $phone, $address, '', true );
+			if ( $fresh_token ) {
+				$body['token'] = $fresh_token;
+				$again         = amz_prints_erp_request( 'POST', $order_path, $body );
+				if ( ! is_wp_error( $again ) ) {
+					$result = $again;
+					break;
+				}
+				$result = $again;
 			}
+		}
+		if ( ! $missing && ! $denied ) {
+			break;
+		}
+	}
+	if ( is_array( $result ) ) {
+		if ( empty( $result['orderId'] ) && ! empty( $result['order']['orderId'] ) ) {
+			$result['orderId'] = (string) $result['order']['orderId'];
+		}
+		if ( empty( $result['trackingNumber'] ) && ! empty( $result['order']['trackingNumber'] ) ) {
+			$result['trackingNumber'] = (string) $result['order']['trackingNumber'];
+		}
+	}
+	if ( is_wp_error( $result ) ) {
+		$fail_data = $result->get_error_data();
+		$fail_code = is_array( $fail_data ) && isset( $fail_data['status'] ) ? (int) $fail_data['status'] : 0;
+		if ( $fail_code >= 400 && 404 !== $fail_code && false === stripos( $result->get_error_message(), 'Not found' ) ) {
+			delete_transient( $lock_key );
+			wp_send_json_error( array( 'message' => $result->get_error_message() ), $fail_code ? $fail_code : 400 );
 		}
 	}
 	if ( is_wp_error( $result ) ) {
