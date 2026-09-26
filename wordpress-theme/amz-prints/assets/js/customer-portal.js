@@ -351,31 +351,45 @@
       var fd = new FormData(profileForm);
       var out = document.getElementById('amz-customer-profile-msg');
       var btn = profileForm.querySelector('[type="submit"]');
+      var photo = fd.get('photo');
+      if (!String(fd.get('name') || '').trim()) {
+        msg(out, 'Enter your full name.', true);
+        return;
+      }
       if (!validPhone(fd.get('phone'))) {
         msg(out, 'Enter a mobile number with country code, for example +923001234567.', true);
         return;
       }
-      if (String(fd.get('address') || '').trim().length < 8) {
-        msg(out, 'Enter a complete delivery address (street, area, and city).', true);
+      if (String(fd.get('street') || '').trim().length < 3 || String(fd.get('area') || '').trim().length < 2 || String(fd.get('city') || '').trim().length < 2) {
+        msg(out, 'Enter your street, area, and city.', true);
         return;
       }
+      if (photo && photo.size && photo.size > 2 * 1024 * 1024) {
+        msg(out, 'Profile picture must be under 2 MB.', true);
+        return;
+      }
+      fd.set('phone', normalizePhone(fd.get('phone') || ''));
+      fd.append('action', 'amz_prints_customer_profile');
+      fd.append('nonce', cfg.nonce || '');
       if (btn) btn.disabled = true;
-      post('amz_prints_customer_profile', {
-        name: fd.get('name') || '',
-        phone: normalizePhone(fd.get('phone') || ''),
-        address: fd.get('address') || ''
-      }).then(function (res) {
-        if (btn) btn.disabled = false;
-        if (!res || !res.success) {
-          msg(out, (res && res.data && res.data.message) || 'Could not save your profile', true);
-          return;
-        }
-        msg(out, (res.data && res.data.message) || 'Profile saved.', false);
-        window.setTimeout(function () { window.location.reload(); }, 500);
-      }).catch(function () {
-        if (btn) btn.disabled = false;
-        msg(out, 'Network error. Try again.', true);
-      });
+      msg(out, 'Saving your profile…', false);
+      fetch(cfg.ajaxUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function (r) { return r.text(); })
+        .then(function (text) {
+          var res = null;
+          try { res = JSON.parse(text); } catch (err) { res = null; }
+          if (btn) btn.disabled = false;
+          if (!res || !res.success) {
+            msg(out, (res && res.data && res.data.message) || 'Could not save your profile. Refresh the page and try again.', true);
+            return;
+          }
+          msg(out, (res.data && res.data.message) || 'Profile saved.', false);
+          window.setTimeout(function () { window.location.reload(); }, 500);
+        })
+        .catch(function () {
+          if (btn) btn.disabled = false;
+          msg(out, 'Network error. Try again.', true);
+        });
     });
   }
 
@@ -429,11 +443,16 @@
     });
   }
 
+  function loyaltyOpen() {
+    var card = document.getElementById('amz-member-card');
+    return card && card.getAttribute('data-loyalty') === 'open';
+  }
+
   var cardBtn = document.getElementById('amz-download-card');
   if (cardBtn) {
     cardBtn.addEventListener('click', function () {
       var card = document.getElementById('amz-member-card');
-      if (!card) return;
+      if (!card || !loyaltyOpen()) return;
       var prev = document.title;
       document.title = (card.getAttribute('data-card-name') || 'AMZ') + ' — Customer Card';
       document.body.classList.add('amz-print-card');
@@ -449,7 +468,7 @@
   if (pngBtn) {
     pngBtn.addEventListener('click', function () {
       var card = document.getElementById('amz-member-card');
-      if (!card) return;
+      if (!card || !loyaltyOpen()) return;
       var name = card.getAttribute('data-card-name') || 'customer';
       function loadScript(src) {
         return new Promise(function (resolve, reject) {
@@ -471,7 +490,7 @@
         .then(function (canvas) {
           var a = document.createElement('a');
           a.href = canvas.toDataURL('image/png');
-          a.download = 'AMZ-Prints-Card-' + name.replace(/\s+/g, '-') + '.png';
+          a.download = 'AMZ-Prints-Loyalty-Card-' + name.replace(/\s+/g, '-') + '.png';
           a.click();
         })
         .catch(function () {

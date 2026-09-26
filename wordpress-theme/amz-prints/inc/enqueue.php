@@ -66,7 +66,7 @@ function amz_prints_enqueue_assets() {
 		return;
 	}
 
-	$fonts = 'https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap';
+	$fonts = 'https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800&family=Great+Vibes&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap';
 
 	wp_enqueue_style( 'amz-prints-fonts', $fonts, array(), null );
 	wp_enqueue_style( 'amz-prints-main', AMZ_PRINTS_URI . '/assets/css/main.css', array( 'amz-prints-fonts' ), AMZ_PRINTS_VERSION );

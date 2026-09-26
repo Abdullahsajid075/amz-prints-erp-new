@@ -357,13 +357,7 @@ function amz_prints_local_session_customer( $token ) {
 		return null;
 	}
 	return array(
-		'customer' => array(
-			'name'    => (string) ( $customer['name'] ?? '' ),
-			'email'   => (string) ( $customer['email'] ?? '' ),
-			'phone'   => (string) ( $customer['phone'] ?? '' ),
-			'address' => (string) ( $customer['address'] ?? '' ),
-			'cardNumber' => 'AMZ-' . strtoupper( substr( md5( strtolower( (string) ( $customer['email'] ?? '' ) ) ), 0, 6 ) ),
-		),
+		'customer' => amz_prints_customer_card_fields( $customer ),
 		'ledger'  => array(),
 		'pending' => array(),
 	);
@@ -478,11 +472,7 @@ function amz_prints_customer_fetch_session() {
 		amz_prints_customer_clear_token();
 		return new WP_Error( 'amz_customer_auth', __( 'Please log in again.', 'amz-prints' ) );
 	}
-	$local['customer']['name']       = (string) ( $row['name'] ?? '' );
-	$local['customer']['email']      = $email;
-	$local['customer']['phone']      = (string) ( $row['phone'] ?? '' );
-	$local['customer']['address']    = (string) ( $row['address'] ?? '' );
-	$local['customer']['cardNumber'] = 'AMZ-' . strtoupper( substr( md5( $email ), 0, 6 ) );
+	$local['customer'] = amz_prints_customer_card_fields( $row );
 	$local['orders']                 = amz_prints_customer_orders_for( $email );
 	$local['invoices']               = array();
 	$local['ledger']                 = array(
@@ -983,50 +973,200 @@ function amz_prints_ajax_customer_track() {
 }
 
 /**
- * AJAX: save this customer's own name, phone, and delivery address.
+ * Fields shown on the account form and loyalty card.
+ *
+ * @param array $row Saved customer row.
+ * @return array
+ */
+function amz_prints_customer_card_fields( $row ) {
+	$row   = is_array( $row ) ? $row : array();
+	$email = strtolower( trim( (string) ( $row['email'] ?? '' ) ) );
+	return array(
+		'name'       => (string) ( $row['name'] ?? '' ),
+		'email'      => $email,
+		'phone'      => (string) ( $row['phone'] ?? '' ),
+		'address'    => (string) ( $row['address'] ?? '' ),
+		'street'     => (string) ( $row['street'] ?? '' ),
+		'area'       => (string) ( $row['area'] ?? '' ),
+		'city'       => (string) ( $row['city'] ?? '' ),
+		'postal'     => (string) ( $row['postal'] ?? '' ),
+		'landmark'   => (string) ( $row['landmark'] ?? '' ),
+		'photo'      => (string) ( $row['photo'] ?? '' ),
+		'cardNumber' => 'AMZ-' . strtoupper( substr( md5( $email ), 0, 6 ) ),
+	);
+}
+
+/**
+ * Delivered online spend for the loyalty card.
+ *
+ * @param array $orders Orders for this email.
+ * @return float
+ */
+function amz_prints_loyalty_delivered_total( $orders ) {
+	$total = 0.0;
+	if ( ! is_array( $orders ) ) {
+		return 0.0;
+	}
+	foreach ( $orders as $order ) {
+		if ( ! is_array( $order ) ) {
+			continue;
+		}
+		$status = strtolower( trim( (string) ( $order['status'] ?? '' ) ) );
+		if ( '' === $status || false !== strpos( $status, 'out for' ) || false !== strpos( $status, 'undeliver' ) ) {
+			continue;
+		}
+		if ( ! preg_match( '/\bdelivered\b/', $status ) ) {
+			continue;
+		}
+		$amount = $order['totalAmount'] ?? ( $order['total'] ?? 0 );
+		$total += (float) $amount;
+	}
+	return $total;
+}
+
+/**
+ * Code 39 bars for the loyalty card number.
+ *
+ * @param string $text Card number.
+ * @return string HTML
+ */
+function amz_prints_barcode_markup( $text ) {
+	$patterns = array(
+		'0' => 'nnnwwnwnn', '1' => 'wnnwnnnnw', '2' => 'nnwwnnnnw', '3' => 'wnwwnnnnn',
+		'4' => 'nnnwwnnnw', '5' => 'wnnwwnnnn', '6' => 'nnwwwnnnn', '7' => 'nnnwnnwnw',
+		'8' => 'wnnwnnwnn', '9' => 'nnwwnnwnn', 'A' => 'wnnnnwnnw', 'B' => 'nnwnnwnnw',
+		'C' => 'wnwnnwnnn', 'D' => 'nnnnwwnnw', 'E' => 'wnnnwwnnn', 'F' => 'nnwnwwnnn',
+		'G' => 'nnnnnwwnw', 'H' => 'wnnnnwwnn', 'I' => 'nnwnnwwnn', 'J' => 'nnnnwwwnn',
+		'K' => 'wnnnnnnww', 'L' => 'nnwnnnnww', 'M' => 'wnwnnnnwn', 'N' => 'nnnnwnnww',
+		'O' => 'wnnnwnnwn', 'P' => 'nnwnwnnwn', 'Q' => 'nnnnnnwww', 'R' => 'wnnnnnwwn',
+		'S' => 'nnwnnnwwn', 'T' => 'nnnnwnwwn', 'U' => 'wwnnnnnnw', 'V' => 'nwwnnnnnw',
+		'W' => 'wwwnnnnnn', 'X' => 'nwnnwnnnw', 'Y' => 'wwnnwnnnn', 'Z' => 'nwwnwnnnn',
+		'-' => 'nwnnnnwnw', '.' => 'wwnnnnwnn', ' ' => 'nwwnnnwnn', '*' => 'nwnnwnwnn',
+	);
+	$text = strtoupper( preg_replace( '/[^0-9A-Z\-.]/', '', (string) $text ) );
+	if ( '' === $text ) {
+		$text = 'AMZ';
+	}
+	$encoded = '*' . $text . '*';
+	$html    = '<div class="loyalty-barcode" aria-hidden="true">';
+	$length  = strlen( $encoded );
+	for ( $i = 0; $i < $length; $i++ ) {
+		$char = $encoded[ $i ];
+		if ( ! isset( $patterns[ $char ] ) ) {
+			continue;
+		}
+		$seq   = $patterns[ $char ];
+		$isbar = true;
+		$seq_n = strlen( $seq );
+		for ( $k = 0; $k < $seq_n; $k++ ) {
+			$wide = ( 'w' === $seq[ $k ] );
+			$w    = $wide ? 4 : 2;
+			$html .= $isbar
+				? '<i style="width:' . $w . 'px"></i>'
+				: '<b style="width:' . $w . 'px"></b>';
+			$isbar = ! $isbar;
+		}
+		$html .= '<b style="width:2px"></b>';
+	}
+	$html .= '</div>';
+	return $html;
+}
+
+/**
+ * Store a customer profile photo in the uploads folder.
+ *
+ * @return string|WP_Error URL, empty string when no file, or error.
+ */
+function amz_prints_customer_store_photo() {
+	if ( empty( $_FILES['photo']['name'] ) ) {
+		return '';
+	}
+	$file = $_FILES['photo'];
+	if ( UPLOAD_ERR_NO_FILE === (int) ( $file['error'] ?? UPLOAD_ERR_NO_FILE ) ) {
+		return '';
+	}
+	if ( ! empty( $file['error'] ) ) {
+		return new WP_Error( 'amz_photo', __( 'Could not upload the profile picture. Use a JPG or PNG under 2 MB.', 'amz-prints' ) );
+	}
+	if ( (int) ( $file['size'] ?? 0 ) > 2 * 1024 * 1024 ) {
+		return new WP_Error( 'amz_photo', __( 'Profile picture must be under 2 MB.', 'amz-prints' ) );
+	}
+	$check   = wp_check_filetype_and_ext( $file['tmp_name'], $file['name'] );
+	$allowed = array( 'jpg', 'jpeg', 'png', 'webp' );
+	if ( empty( $check['ext'] ) || ! in_array( strtolower( (string) $check['ext'] ), $allowed, true ) ) {
+		return new WP_Error( 'amz_photo', __( 'Use a JPG, PNG, or WebP picture.', 'amz-prints' ) );
+	}
+	require_once ABSPATH . 'wp-admin/includes/file.php';
+	$upload = wp_handle_upload(
+		$file,
+		array(
+			'test_form' => false,
+			'mimes'     => array(
+				'jpg|jpeg|jpe' => 'image/jpeg',
+				'png'          => 'image/png',
+				'webp'         => 'image/webp',
+			),
+		)
+	);
+	if ( ! empty( $upload['error'] ) ) {
+		return new WP_Error( 'amz_photo', __( 'Could not upload the profile picture. Try a smaller JPG or PNG.', 'amz-prints' ) );
+	}
+	return (string) ( $upload['url'] ?? '' );
+}
+
+/**
+ * AJAX: save this customer's full profile. Works for website customers, not only WP admins.
  */
 function amz_prints_ajax_customer_profile() {
 	check_ajax_referer( 'amz_prints_customer', 'nonce' );
-	$session = amz_prints_customer_fetch_session();
-	if ( is_wp_error( $session ) ) {
-		wp_send_json_error( array( 'message' => __( 'Please log in again.', 'amz-prints' ) ), 401 );
+	$token = amz_prints_customer_token();
+	$local = $token ? amz_prints_local_session_customer( $token ) : null;
+	if ( ! is_array( $local ) || empty( $local['customer']['email'] ) ) {
+		wp_send_json_error( array( 'message' => __( 'Please log in again, then save your profile.', 'amz-prints' ) ), 401 );
 	}
-	$email = strtolower( trim( (string) ( $session['customer']['email'] ?? '' ) ) );
-	$name  = isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '';
-	$phone = isset( $_POST['phone'] ) ? sanitize_text_field( wp_unslash( $_POST['phone'] ) ) : '';
-	$address = isset( $_POST['address'] ) ? sanitize_textarea_field( wp_unslash( $_POST['address'] ) ) : '';
+	$email    = strtolower( trim( (string) $local['customer']['email'] ) );
+	$name     = isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '';
+	$phone    = isset( $_POST['phone'] ) ? sanitize_text_field( wp_unslash( $_POST['phone'] ) ) : '';
+	$street   = isset( $_POST['street'] ) ? sanitize_text_field( wp_unslash( $_POST['street'] ) ) : '';
+	$area     = isset( $_POST['area'] ) ? sanitize_text_field( wp_unslash( $_POST['area'] ) ) : '';
+	$city     = isset( $_POST['city'] ) ? sanitize_text_field( wp_unslash( $_POST['city'] ) ) : '';
+	$postal   = isset( $_POST['postal'] ) ? sanitize_text_field( wp_unslash( $_POST['postal'] ) ) : '';
+	$landmark = isset( $_POST['landmark'] ) ? sanitize_text_field( wp_unslash( $_POST['landmark'] ) ) : '';
+	if ( strlen( $street ) < 3 || strlen( $area ) < 2 || strlen( $city ) < 2 ) {
+		wp_send_json_error( array( 'message' => __( 'Enter your street, area, and city so the delivery address is complete.', 'amz-prints' ) ), 400 );
+	}
+	$address  = implode( ', ', array_filter( array( $street, $area, $city, $postal, $landmark ) ) );
 	$identity = amz_prints_customer_validate_identity( $name, $email, $phone, $address, true );
 	if ( is_wp_error( $identity ) ) {
 		wp_send_json_error( array( 'message' => $identity->get_error_message() ), 400 );
 	}
-	if ( $identity['email'] !== $email ) {
-		wp_send_json_error( array( 'message' => __( 'This profile does not match the signed-in email.', 'amz-prints' ) ), 400 );
+	$photo = amz_prints_customer_store_photo();
+	if ( is_wp_error( $photo ) ) {
+		wp_send_json_error( array( 'message' => $photo->get_error_message() ), 400 );
 	}
 	$row = amz_prints_local_customer_get( $email );
 	$row = is_array( $row ) ? $row : array();
 	$row['name']     = $identity['name'];
 	$row['email']    = $email;
 	$row['phone']    = $identity['phone'];
-	$row['address']  = $identity['address'];
+	$row['street']   = $street;
+	$row['area']     = $area;
+	$row['city']     = $city;
+	$row['postal']   = $postal;
+	$row['landmark'] = $landmark;
+	$row['address']  = $address;
 	$row['verified'] = true;
+	if ( $photo ) {
+		$row['photo'] = $photo;
+	}
 	amz_prints_local_customer_save( $email, $row );
-	$token = amz_prints_customer_token();
-	amz_prints_remember_portal_session( $token, array(
-		'name'    => $row['name'],
-		'email'   => $email,
-		'phone'   => $row['phone'],
-		'address' => $row['address'],
-	) );
+	amz_prints_remember_portal_session( $token, amz_prints_customer_card_fields( $row ) );
 	wp_send_json_success( array(
 		'message'  => __( 'Profile saved for this account.', 'amz-prints' ),
-		'customer' => array(
-			'name'    => $row['name'],
-			'email'   => $email,
-			'phone'   => $row['phone'],
-			'address' => $row['address'],
-		),
+		'customer' => amz_prints_customer_card_fields( $row ),
 	) );
 }
 add_action( 'wp_ajax_amz_prints_customer_profile', 'amz_prints_ajax_customer_profile' );
+add_action( 'wp_ajax_nopriv_amz_prints_customer_profile', 'amz_prints_ajax_customer_profile' );
 add_action( 'wp_ajax_amz_prints_customer_track', 'amz_prints_ajax_customer_track' );
 add_action( 'wp_ajax_nopriv_amz_prints_customer_track', 'amz_prints_ajax_customer_track' );

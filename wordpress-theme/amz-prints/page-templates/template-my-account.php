@@ -25,11 +25,27 @@ $discounts = isset( $session['discounts'] ) && is_array( $session['discounts'] )
 $ledger   = isset( $session['ledger'] ) && is_array( $session['ledger'] ) ? $session['ledger'] : array();
 $pending  = isset( $session['pendingPayments'] ) && is_array( $session['pendingPayments'] ) ? $session['pendingPayments'] : array();
 
-$card_no = (string) ( $customer['cardNumber'] ?? '' );
-$qr_url  = (string) ( $customer['qrUrl'] ?? '' );
-$name    = (string) ( $customer['name'] ?? '' );
-$email   = (string) ( $customer['email'] ?? '' );
-$phone   = (string) ( $customer['phone'] ?? '' );
+$card_no  = (string) ( $customer['cardNumber'] ?? '' );
+$name     = (string) ( $customer['name'] ?? '' );
+$email    = (string) ( $customer['email'] ?? '' );
+$phone    = (string) ( $customer['phone'] ?? '' );
+$street   = (string) ( $customer['street'] ?? '' );
+if ( '' === $street ) {
+	$street = (string) ( $customer['address'] ?? '' );
+}
+$area     = (string) ( $customer['area'] ?? '' );
+$city     = (string) ( $customer['city'] ?? '' );
+$postal   = (string) ( $customer['postal'] ?? '' );
+$landmark = (string) ( $customer['landmark'] ?? '' );
+$photo    = (string) ( $customer['photo'] ?? '' );
+$address  = (string) ( $customer['address'] ?? '' );
+$company  = amz_prints_mod( 'amz_company_name', 'AMZ Prints' );
+$logo_id  = (int) get_theme_mod( 'custom_logo' );
+$logo_url = $logo_id ? (string) wp_get_attachment_image_url( $logo_id, 'medium' ) : '';
+$spent    = function_exists( 'amz_prints_loyalty_delivered_total' ) ? amz_prints_loyalty_delivered_total( $orders ) : 0;
+$unlocked = $spent >= 1000;
+$remain   = max( 0, 1000 - $spent );
+$initial  = strtoupper( substr( $name ? $name : 'A', 0, 1 ) );
 
 get_header();
 ?>
@@ -60,27 +76,50 @@ get_header();
 	<div class="container customer-account">
 		<article class="customer-panel" id="profile">
 			<h2><?php esc_html_e( 'Your details', 'amz-prints' ); ?></h2>
-			<p><?php esc_html_e( 'This account shows only the name, email, mobile number, and delivery address saved for the email you used to sign in.', 'amz-prints' ); ?></p>
+			<p><?php esc_html_e( 'These details belong to the email you signed in with. Fill every field, add your photo, then save.', 'amz-prints' ); ?></p>
 			<?php $profile_ready = function_exists( 'amz_prints_customer_profile_is_complete' ) && amz_prints_customer_profile_is_complete( $customer ); ?>
 			<?php if ( ! $profile_ready ) : ?>
 				<p class="form-note"><?php esc_html_e( 'Add a mobile number with country code and a complete delivery address before you add items to the cart.', 'amz-prints' ); ?></p>
 			<?php endif; ?>
-			<form class="amz-form" id="amz-customer-profile-form">
-				<label>
-					<span><?php esc_html_e( 'Full name', 'amz-prints' ); ?></span>
-					<input type="text" name="name" required value="<?php echo esc_attr( $name ); ?>" autocomplete="name">
-				</label>
-				<label>
-					<span><?php esc_html_e( 'Email', 'amz-prints' ); ?></span>
-					<input type="email" value="<?php echo esc_attr( $email ); ?>" readonly>
-				</label>
-				<label>
-					<span><?php esc_html_e( 'Mobile number with country code', 'amz-prints' ); ?></span>
-					<input type="tel" name="phone" required value="<?php echo esc_attr( $phone ); ?>" placeholder="+923001234567" autocomplete="tel" inputmode="tel">
-				</label>
-				<label>
-					<span><?php esc_html_e( 'Delivery address', 'amz-prints' ); ?></span>
-					<textarea name="address" required rows="3" autocomplete="street-address"><?php echo esc_textarea( (string) ( $customer['address'] ?? '' ) ); ?></textarea>
+			<form class="amz-form profile-form" id="amz-customer-profile-form">
+				<div class="profile-form__grid">
+					<label>
+						<span><?php esc_html_e( 'Full name', 'amz-prints' ); ?></span>
+						<input type="text" name="name" required value="<?php echo esc_attr( $name ); ?>" autocomplete="name">
+					</label>
+					<label>
+						<span><?php esc_html_e( 'Email', 'amz-prints' ); ?></span>
+						<input type="email" value="<?php echo esc_attr( $email ); ?>" readonly>
+					</label>
+					<label>
+						<span><?php esc_html_e( 'Mobile number with country code', 'amz-prints' ); ?></span>
+						<input type="tel" name="phone" required value="<?php echo esc_attr( $phone ); ?>" placeholder="+923001234567" autocomplete="tel" inputmode="tel">
+					</label>
+					<label>
+						<span><?php esc_html_e( 'House / street', 'amz-prints' ); ?></span>
+						<input type="text" name="street" required value="<?php echo esc_attr( $street ); ?>" autocomplete="address-line1" placeholder="<?php esc_attr_e( 'House no. and street', 'amz-prints' ); ?>">
+					</label>
+					<label>
+						<span><?php esc_html_e( 'Area', 'amz-prints' ); ?></span>
+						<input type="text" name="area" required value="<?php echo esc_attr( $area ); ?>" autocomplete="address-level3" placeholder="<?php esc_attr_e( 'Area or locality', 'amz-prints' ); ?>">
+					</label>
+					<label>
+						<span><?php esc_html_e( 'City', 'amz-prints' ); ?></span>
+						<input type="text" name="city" required value="<?php echo esc_attr( $city ); ?>" autocomplete="address-level2">
+					</label>
+					<label>
+						<span><?php esc_html_e( 'Postal code', 'amz-prints' ); ?></span>
+						<input type="text" name="postal" value="<?php echo esc_attr( $postal ); ?>" autocomplete="postal-code">
+					</label>
+					<label>
+						<span><?php esc_html_e( 'Landmark', 'amz-prints' ); ?></span>
+						<input type="text" name="landmark" value="<?php echo esc_attr( $landmark ); ?>" placeholder="<?php esc_attr_e( 'Near a known place', 'amz-prints' ); ?>">
+					</label>
+				</div>
+				<label class="profile-photo">
+					<span><?php esc_html_e( 'Profile picture', 'amz-prints' ); ?></span>
+					<input type="file" name="photo" accept="image/jpeg,image/png,image/webp">
+					<small><?php esc_html_e( 'JPG or PNG, up to 2 MB. This photo is printed on your loyalty card.', 'amz-prints' ); ?></small>
 				</label>
 				<button type="submit" class="btn btn--primary"><?php esc_html_e( 'Save profile', 'amz-prints' ); ?></button>
 				<p class="form-note" id="amz-customer-profile-msg" hidden></p>
@@ -88,35 +127,67 @@ get_header();
 		</article>
 
 		<div class="customer-account__grid customer-account__grid--card">
-			<article class="amz-member-card" id="amz-member-card" data-card-name="<?php echo esc_attr( $name ? $name : 'customer' ); ?>">
-				<div class="amz-member-card__top">
-					<span><?php echo esc_html( amz_prints_mod( 'amz_company_name', 'AMZ Prints' ) ); ?></span>
-					<strong><?php esc_html_e( 'Customer card', 'amz-prints' ); ?></strong>
-				</div>
-				<div class="amz-member-card__body">
-					<div>
-						<p class="amz-member-card__name"><?php echo esc_html( $name ?: '—' ); ?></p>
-						<p><?php echo esc_html( $email ?: '—' ); ?></p>
-						<p><?php echo esc_html( $phone ?: '—' ); ?></p>
-						<p class="amz-member-card__no"><?php echo esc_html( $card_no ?: 'AMZ-CARD' ); ?></p>
+			<article class="amz-member-card loyalty-card" id="amz-member-card" data-card-name="<?php echo esc_attr( $name ? $name : 'customer' ); ?>" data-loyalty="<?php echo $unlocked ? 'open' : 'locked'; ?>">
+				<div class="loyalty-card__shine" aria-hidden="true"></div>
+				<header class="loyalty-card__head">
+					<div class="loyalty-card__brand">
+						<?php if ( $logo_url ) : ?>
+							<img class="loyalty-card__logo" src="<?php echo esc_url( $logo_url ); ?>" alt="">
+						<?php else : ?>
+							<span class="loyalty-card__mark" aria-hidden="true">AMZ</span>
+						<?php endif; ?>
+						<strong><?php echo esc_html( $company ); ?></strong>
 					</div>
-					<?php if ( $qr_url ) : ?>
-						<img class="amz-member-card__qr" src="<?php echo esc_url( $qr_url ); ?>" alt="<?php esc_attr_e( 'Customer QR', 'amz-prints' ); ?>" width="140" height="140">
-					<?php endif; ?>
+					<p class="loyalty-card__title"><?php esc_html_e( 'Loyalty Card', 'amz-prints' ); ?></p>
+				</header>
+				<div class="loyalty-card__mid">
+					<div class="loyalty-chip" aria-hidden="true"><span></span><span></span><span></span></div>
+					<div class="loyalty-card__photo">
+						<?php if ( $photo ) : ?>
+							<img src="<?php echo esc_url( $photo ); ?>" alt="<?php echo esc_attr( $name ); ?>">
+						<?php else : ?>
+							<span><?php echo esc_html( $initial ); ?></span>
+						<?php endif; ?>
+					</div>
+				</div>
+				<p class="loyalty-card__name"><?php echo esc_html( $name ?: '—' ); ?></p>
+				<ul class="loyalty-card__details">
+					<li><?php echo esc_html( $email ?: '—' ); ?></li>
+					<li><?php echo esc_html( $phone ?: '—' ); ?></li>
+					<li><?php echo esc_html( $address ?: '—' ); ?></li>
+				</ul>
+				<div class="loyalty-card__foot">
+					<?php echo amz_prints_barcode_markup( $card_no ? $card_no : 'AMZ' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+					<p class="loyalty-card__no"><?php echo esc_html( $card_no ?: 'AMZ-CARD' ); ?></p>
 				</div>
 			</article>
 
-			<article class="customer-panel reveal" data-reveal>
-				<h2><?php esc_html_e( 'Your card', 'amz-prints' ); ?></h2>
-				<p><?php esc_html_e( 'Download or print this card. Show the QR at the counter or keep it on your phone.', 'amz-prints' ); ?></p>
-				<div class="hero__actions" style="margin-top:0.85rem">
-					<button type="button" class="btn btn--primary" id="amz-download-card-png"><?php esc_html_e( 'Download card', 'amz-prints' ); ?></button>
-					<button type="button" class="btn btn--ghost" id="amz-download-card"><?php esc_html_e( 'Print card', 'amz-prints' ); ?></button>
-				</div>
+			<article class="customer-panel">
+				<h2><?php esc_html_e( 'Loyalty Card', 'amz-prints' ); ?></h2>
+				<?php if ( $unlocked ) : ?>
+					<p><?php esc_html_e( 'Your delivered online orders have reached Rs 1,000. Download or print your loyalty card.', 'amz-prints' ); ?></p>
+					<div class="hero__actions" style="margin-top:0.85rem">
+						<button type="button" class="btn btn--primary" id="amz-download-card-png"><?php esc_html_e( 'Download card', 'amz-prints' ); ?></button>
+						<button type="button" class="btn btn--ghost" id="amz-download-card"><?php esc_html_e( 'Print card', 'amz-prints' ); ?></button>
+					</div>
+				<?php else : ?>
+					<p><?php esc_html_e( 'Download opens after Rs 1,000 of online shopping, and only when that order is confirmed delivered.', 'amz-prints' ); ?></p>
+					<p class="form-note">
+						<?php
+						printf(
+							/* translators: 1: delivered amount, 2: amount still needed */
+							esc_html__( 'Delivered so far: Rs %1$s. Rs %2$s of delivered orders still needed.', 'amz-prints' ),
+							esc_html( number_format_i18n( $spent, 0 ) ),
+							esc_html( number_format_i18n( $remain, 0 ) )
+						);
+						?>
+					</p>
+				<?php endif; ?>
 				<ul class="customer-meta" style="margin-top:1rem">
 					<li><span><?php esc_html_e( 'Name', 'amz-prints' ); ?></span><strong><?php echo esc_html( $name ?: '—' ); ?></strong></li>
 					<li><span><?php esc_html_e( 'Email', 'amz-prints' ); ?></span><strong><?php echo esc_html( $email ?: '—' ); ?></strong></li>
 					<li><span><?php esc_html_e( 'Phone', 'amz-prints' ); ?></span><strong><?php echo esc_html( $phone ?: '—' ); ?></strong></li>
+					<li><span><?php esc_html_e( 'Address', 'amz-prints' ); ?></span><strong><?php echo esc_html( $address ?: '—' ); ?></strong></li>
 					<li><span><?php esc_html_e( 'Card no.', 'amz-prints' ); ?></span><strong><?php echo esc_html( $card_no ?: '—' ); ?></strong></li>
 				</ul>
 			</article>

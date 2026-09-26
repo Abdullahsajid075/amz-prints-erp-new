@@ -9,7 +9,27 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AMZ_PRINTS_VERSION', '3.23.0' );
+define( 'AMZ_PRINTS_VERSION', '3.24.0' );
+
+/**
+ * Every site email is sent from the company mailbox.
+ */
+function amz_prints_mail_from( $email ) {
+	unset( $email );
+	return 'info@amzprints.com';
+}
+function amz_prints_mail_from_name( $name ) {
+	unset( $name );
+	return 'AMZ Prints';
+}
+function amz_prints_phpmailer_from( $phpmailer ) {
+	$phpmailer->From     = 'info@amzprints.com';
+	$phpmailer->FromName = 'AMZ Prints';
+	$phpmailer->Sender   = 'info@amzprints.com';
+}
+add_filter( 'wp_mail_from', 'amz_prints_mail_from' );
+add_filter( 'wp_mail_from_name', 'amz_prints_mail_from_name' );
+add_action( 'phpmailer_init', 'amz_prints_phpmailer_from' );
 
 /**
  * Avoid long Hostinger CDN HTML cache hiding theme updates.
@@ -371,7 +391,7 @@ add_action( 'after_switch_theme', 'amz_prints_after_switch' );
  * Create missing pages on upgrade (fixes Services 404 without re-activating theme)
  */
 function amz_prints_maybe_upgrade_pages() {
-	if ( get_option( 'amz_prints_pages_ver' ) === '3.23.0' ) {
+	if ( get_option( 'amz_prints_pages_ver' ) === '3.24.0' ) {
 		return;
 	}
 	amz_prints_ensure_pages();
@@ -385,7 +405,7 @@ function amz_prints_maybe_upgrade_pages() {
 	}
 	delete_transient( 'amz_prints_erp_products_v3' );
 	delete_transient( 'amz_prints_erp_products_v4' );
-	update_option( 'amz_prints_pages_ver', '3.23.0' );
+	update_option( 'amz_prints_pages_ver', '3.24.0' );
 }
 add_action( 'init', 'amz_prints_maybe_upgrade_pages', 20 );
 
