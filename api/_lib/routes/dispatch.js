@@ -1,6 +1,7 @@
 const { supabase } = require('../db');
 const { handleLogin, validateToken, sanitizeUser } = require('../lib/auth');
 const { id, today, nowTime, num, truthy, send, sendError } = require('../lib/util');
+const { websiteCheckoutTotals, assertDeclaredAdvance } = require('../lib/checkout-totals');
 const {
   mapCustomer, mapOrder, mapProduct, mapInvoice, mapEmployee,
   mapVendor, mapPayment, mapExpense, mapPurchase, mapUser,
@@ -941,8 +942,9 @@ async function dispatch(req, res) {
             const methodRaw = String(body.paymentMethod || '').trim().toLowerCase();
             let paymentMethod = '';
             if (methodRaw === 'cod' || methodRaw.includes('cash')) paymentMethod = 'Cash on Delivery';
+            else if (methodRaw.includes('bank')) paymentMethod = 'Bank Transfer';
             else if (methodRaw === 'online' || methodRaw.includes('online')) paymentMethod = 'Online Payment';
-            else return sendError(res, 'Select a payment method: Cash on Delivery or Online Payment', 400);
+            else return sendError(res, 'Select a payment method: Cash on Delivery or Bank Transfer', 400);
 
             const { data: catalog } = await supabase.from('products').select('*');
             const byId = {};
@@ -985,33 +987,76 @@ async function dispatch(req, res) {
 
             let discountAmount = Math.max(0, Number(body.discountAmount != null ? body.discountAmount : body.discount || 0));
             if (discountAmount > subtotal) discountAmount = subtotal;
-            const deliveryCharges = Math.max(0, Number(body.deliveryCharges != null ? body.deliveryCharges : body.delivery || 0));
-            const totalAmount = Math.max(0, subtotal - discountAmount + deliveryCharges);
-            const paymentStatus = paymentMethod === 'Cash on Delivery' ? 'Unpaid' : 'Payment Pending';
+            const checkoutChoice = String(body.deliveryMethod || '').trim();
+            let deliveryCharges = Math.max(0, Number(body.deliveryCharges != null ? body.deliveryCharges : body.delivery || 0));
+            let totalAmount = Math.max(0, subtotal - discountAmount + deliveryCharges);
+            let paymentStatus = paymentMethod === 'Cash on Delivery' ? 'Unpaid' : 'Payment Pending';
+            let orderStatus = 'Order Received';
+            let advanceRecorded = 0;
+            let declaredAdvance = 0;
+            let deliveryLabel = deliveryCharges > 0 ? 'Delivery' : '';
+            const declarationOk = body.declarationAccepted === true || body.declarationAccepted === 'true' || body.declarationAccepted === 1 || body.declarationAccepted === '1';
+            if (checkoutChoice) {
+              if (!declarationOk) return sendError(res, 'Please accept the customer declaration before placing the order', 400);
+              const zone = String(body.deliveryZone || '').trim().toLowerCase();
+              const quote = websiteCheckoutTotals({
+                subtotal,
+                discountAmount,
+                deliveryMethod: checkoutChoice,
+                withinRadius: zone === 'inside' ? true : (zone === 'outside' ? false : null),
+              });
+              if (quote.error) return sendError(res, quote.error, 400);
+              deliveryCharges = quote.deliveryCharges;
+              totalAmount = quote.totalAmount;
+              discountAmount = quote.discountAmount;
+              deliveryLabel = quote.deliveryMethod;
+              const advanceCheck = assertDeclaredAdvance(body.declaredAdvance, quote.advanceDue, paymentMethod);
+              if (advanceCheck.error) return sendError(res, advanceCheck.error, 400);
+              declaredAdvance = advanceCheck.declared;
+              if (paymentMethod === 'Bank Transfer') {
+                const receiptUrl = String(body.receiptUrl || '').trim();
+                const payDate = String(body.paymentDate || '').trim();
+                if (!/^https?:\/\//i.test(receiptUrl)) return sendError(res, 'Upload the payment receipt or screenshot', 400);
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(payDate)) return sendError(res, 'Enter the payment date', 400);
+              }
+              // Declared money is not a verified ledger payment.
+              advanceRecorded = 0;
+              paymentStatus = 'Pending Verification';
+              orderStatus = 'Pending Confirmation';
+            }
             const nowStamp = `${today()} ${nowTime()}`;
             const deliveryAddress = String(body.deliveryAddress || body.address || customer.address || '').trim();
+            const altPhone = String(body.altPhone || '').trim();
             const remarks = [
               'Website order',
+              deliveryLabel ? `Delivery method: ${deliveryLabel}` : '',
               `Payment: ${paymentMethod}`,
               `Payment status: ${paymentStatus}`,
+              declaredAdvance > 0 ? `Declared advance (not verified): Rs. ${declaredAdvance}` : '',
+              `Minimum advance 50%: required before confirmation`,
+              body.transactionRef ? `Transaction ref: ${String(body.transactionRef).trim()}` : '',
+              body.paymentDate ? `Payment date: ${String(body.paymentDate).trim()}` : '',
+              body.receiptUrl ? `Receipt: ${String(body.receiptUrl).trim()}` : '',
+              altPhone ? `Alternative phone: ${altPhone}` : '',
+              declarationOk ? 'Customer declaration: accepted' : '',
               body.customerNote ? `Note: ${String(body.customerNote).trim()}` : '',
               discountAmount > 0 ? `Discount: ${discountAmount}` : '',
-              deliveryCharges > 0 ? `Delivery: ${deliveryCharges}` : '',
+              `Delivery charges: ${deliveryCharges}`,
             ].filter(Boolean).join(' · ');
 
             const orderId = await nextOrderId();
             const row = orderFromBody({
               customerId: customer.id,
-              customerName: customer.name || '',
+              customerName: String(body.customerName || customer.name || '').trim(),
               customerPhone: String(body.customerPhone || customer.phone || '').trim(),
               customerEmail: customer.email || '',
               customerAddress: deliveryAddress || customer.address || '',
               deliveryAddress,
               products: lineItems,
               totalAmount,
-              advancePayment: 0,
+              advancePayment: advanceRecorded,
               balanceAmount: totalAmount,
-              status: 'Order Received',
+              status: orderStatus,
               docType: 'Order',
               paymentMethod,
               paymentStatus,
@@ -1020,9 +1065,11 @@ async function dispatch(req, res) {
                 method: paymentMethod,
                 amount: 0,
                 at: nowStamp,
-                note: paymentMethod === 'Cash on Delivery'
-                  ? 'Order placed under COD terms'
-                  : 'Online payment selected — order created; payment confirmation pending',
+                note: declaredAdvance > 0
+                  ? `Declared advance Rs. ${declaredAdvance} is pending verification. Not recorded in the ledger.`
+                  : (paymentMethod === 'Cash on Delivery'
+                    ? 'Order placed under COD terms'
+                    : 'Online payment selected — order created; payment confirmation pending'),
               }],
               orderSource: 'Website',
               subtotal,
@@ -1031,7 +1078,7 @@ async function dispatch(req, res) {
               remarks,
               trackingNumber: `TRK-${Math.floor(1000 + Math.random() * 9000)}`,
               statusHistory: [{
-                status: 'Order Received',
+                status: orderStatus,
                 at: nowStamp,
                 note: `Created from website checkout (${paymentMethod}) · ${paymentStatus}`,
               }],
@@ -1066,7 +1113,7 @@ async function dispatch(req, res) {
                 party_phone: row.customer_phone || '',
                 amount: 0,
                 method: paymentMethod,
-                notes: `${paymentStatus} · website checkout`,
+                notes: `${paymentStatus} · declared advance Rs. ${declaredAdvance || 0} is not verified · ${body.receiptUrl ? `Receipt: ${String(body.receiptUrl).trim()}` : 'website checkout'}`,
                 balance_due: totalAmount,
                 total_amount: totalAmount,
               });
@@ -1083,9 +1130,15 @@ async function dispatch(req, res) {
               paymentMethod,
               paymentStatus,
               totalAmount: api.totalAmount,
-              message: paymentMethod === 'Cash on Delivery'
-                ? 'Order placed under Cash on Delivery terms. Processing begins after payment confirmation per policy.'
-                : 'Order placed. Complete online payment as instructed — processing starts after payment confirmation.',
+              message: checkoutChoice
+                ? 'Your order has been received. It will be confirmed after the advance payment is verified.'
+                : (paymentMethod === 'Cash on Delivery'
+                  ? 'Order placed under Cash on Delivery terms. Processing begins after payment confirmation per policy.'
+                  : 'Order placed. Complete online payment as instructed — processing starts after payment confirmation.'),
+              declaredAdvance,
+              deliveryCharges,
+              deliveryMethod: deliveryLabel,
+              advanceDue: declaredAdvance,
             });
           }
         } catch (err) {
@@ -1344,7 +1397,7 @@ async function dispatch(req, res) {
           payments: relatedPayments.map(mapPayment),
           totalBilled: relatedOrders.reduce((s, o) => s + num(o.total_amount), 0),
           totalPaid: relatedOrders.reduce((s, o) => s + num(o.advance_payment), 0)
-            + relatedPayments.reduce((s, p) => s + num(p.amount), 0),
+            + relatedPayments.reduce((s, p) => s + (String(p.notes || '').includes('linked-order-advance') ? 0 : num(p.amount)), 0),
           outstanding: relatedOrders.reduce((s, o) => s + num(o.balance_amount), 0),
         });
       }
@@ -1651,6 +1704,38 @@ async function dispatch(req, res) {
         const row = orderFromBody(body, existing);
         row.id = existing.id;
         if (!row.order_id) row.order_id = existing.order_id;
+        const prevPay = String(existing.payment_status || '');
+        const prevAdvance = num(existing.advance_payment);
+        const nextAdvance = num(row.advance_payment);
+        if (/pending verification/i.test(prevPay) && prevAdvance <= 0 && nextAdvance > 0) {
+          row.payment_status = 'Verified';
+          const hist = Array.isArray(row.payment_history) ? [...row.payment_history] : [];
+          hist.push({
+            status: 'Verified',
+            method: row.payment_method || existing.payment_method || '',
+            amount: nextAdvance,
+            at: `${today()} ${nowTime()}`,
+            note: 'Staff confirmed the advance. Recorded in the customer ledger.',
+          });
+          row.payment_history = hist;
+          try {
+            await supabase.from('payments').insert({
+              id: id('pay'),
+              date: today(),
+              type: 'inflow',
+              category: 'Order Advance',
+              ref_id: row.order_id || existing.order_id || '',
+              customer_name: row.customer_name || existing.customer_name || '',
+              customer_id: row.customer_id || existing.customer_id || '',
+              party_phone: row.customer_phone || existing.customer_phone || '',
+              amount: nextAdvance,
+              method: row.payment_method || existing.payment_method || '',
+              notes: `Verified advance for order ${row.order_id || existing.order_id}. linked-order-advance`,
+              balance_due: Math.max(0, num(row.total_amount) - nextAdvance),
+              total_amount: num(row.total_amount),
+            });
+          } catch { /* ledger row is best-effort; the order advance is the source of truth */ }
+        }
         await supabase.from('orders').update(row).eq('id', existing.id);
         return send(res, mapOrder(row));
       }

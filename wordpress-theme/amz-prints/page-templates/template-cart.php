@@ -66,6 +66,7 @@ $cart = function_exists( 'amz_prints_cart_summary' ) ? amz_prints_cart_summary()
 					<div class="is-grand"><dt><?php esc_html_e( 'Total', 'amz-prints' ); ?></dt><dd data-total="total"><?php echo esc_html( amz_prints_money( $cart['total'] ?? 0 ) ); ?></dd></div>
 				</dl>
 				<?php if ( ! empty( $cart['items'] ) ) : ?>
+					<p class="form-note"><?php esc_html_e( 'Delivery is chosen at checkout: PKR 250 within 10 km, or free store pickup.', 'amz-prints' ); ?></p>
 					<a class="btn btn--primary btn--block" href="<?php echo esc_url( amz_prints_checkout_url() ); ?>"><?php esc_html_e( 'Proceed to checkout', 'amz-prints' ); ?></a>
 				<?php endif; ?>
 				<a class="text-link" href="<?php echo esc_url( home_url( '/products/' ) ); ?>"><?php esc_html_e( 'Continue shopping', 'amz-prints' ); ?></a>

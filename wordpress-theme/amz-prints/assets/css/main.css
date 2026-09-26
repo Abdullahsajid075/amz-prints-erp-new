@@ -2854,6 +2854,10 @@ body.nav-open .nav-toggle__bar:nth-child(3) { transform: translateY(-8px) rotate
 .checkout-form label { display: grid; gap: 0.32rem; margin-bottom: 0.8rem; }
 
 .checkout-form input[type="tel"],
+.checkout-form input[type="text"],
+.checkout-form input[type="number"],
+.checkout-form input[type="date"],
+.checkout-form input[type="file"],
 .checkout-form textarea {
   width: 100%;
   border: 1px solid var(--amz-line-strong);
@@ -2880,6 +2884,43 @@ body.nav-open .nav-toggle__bar:nth-child(3) { transform: translateY(-8px) rotate
 .pay-option em { display: block; font-style: normal; color: var(--amz-muted); font-size: 0.88rem; margin-top: 0.22rem; }
 
 .policy-accept { display: grid; grid-template-columns: auto 1fr; gap: 0.58rem; align-items: start; }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.checkout-note,
+.checkout-alert {
+  margin: 0 0 0.85rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 12px;
+  background: rgba(7, 71, 163, 0.06);
+  color: var(--amz-ink);
+  line-height: 1.45;
+}
+.checkout-alert--important,
+.checkout-alert {
+  background: rgba(255, 109, 0, 0.1);
+  border: 1px solid rgba(255, 109, 0, 0.35);
+}
+.delivery-choices { display: grid; gap: 0.65rem; }
+.delivery-choice {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.7rem;
+  align-items: center;
+  border: 1px solid var(--amz-line);
+  border-radius: 14px;
+  padding: 0.8rem 0.9rem;
+  background: #fff;
+  cursor: pointer;
+}
+.delivery-choice:has(input:checked) {
+  border-color: var(--amz-accent);
+  box-shadow: 0 0 0 3px rgba(255, 109, 0, 0.15);
+}
+.delivery-choice strong { display: block; }
+.delivery-choice em { display: block; font-style: normal; color: var(--amz-muted); font-size: 0.86rem; margin-top: 0.15rem; }
+.delivery-zone { border: 0; margin: 0.2rem 0 0.6rem; padding: 0; display: grid; gap: 0.4rem; }
+.delivery-zone legend { font-weight: 700; margin-bottom: 0.35rem; }
+.commerce-totals--inline { margin-top: 0.2rem; }
+.bank-pay { margin-top: 0.85rem; }
 
 .checkout-items {
   list-style: none;

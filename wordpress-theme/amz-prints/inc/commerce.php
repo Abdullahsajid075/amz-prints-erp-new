@@ -430,6 +430,83 @@ add_action( 'wp_ajax_amz_prints_cart_update', 'amz_prints_ajax_cart_update' );
 add_action( 'wp_ajax_nopriv_amz_prints_cart_update', 'amz_prints_ajax_cart_update' );
 
 /**
+ * Checkout totals. Home delivery inside 10 km is PKR 250. Pickup is free.
+ *
+ * @param float  $subtotal Product subtotal.
+ * @param float  $discount Discount amount.
+ * @param string $method   home|pickup.
+ * @param string $zone     inside|outside|''.
+ * @return array|WP_Error
+ */
+function amz_prints_checkout_quote( $subtotal, $discount, $method, $zone ) {
+	$subtotal = max( 0, (float) $subtotal );
+	$discount = min( $subtotal, max( 0, (float) $discount ) );
+	$method   = sanitize_key( (string) $method );
+	$zone     = sanitize_key( (string) $zone );
+	if ( 'home' !== $method && 'pickup' !== $method ) {
+		return new WP_Error( 'amz_delivery', __( 'Select home delivery or store pickup.', 'amz-prints' ) );
+	}
+	if ( 'home' === $method && 'inside' !== $zone ) {
+		if ( 'outside' === $zone ) {
+			return new WP_Error( 'amz_delivery', __( 'Your address is outside the 10 km delivery area. The standard delivery charge of PKR 250 is not applied. Choose store pickup or contact the office.', 'amz-prints' ) );
+		}
+		return new WP_Error( 'amz_delivery', __( 'Confirm whether your address is within 10 km of the office.', 'amz-prints' ) );
+	}
+	$delivery = ( 'home' === $method ) ? 250.0 : 0.0;
+	$total    = round( $subtotal - $discount + $delivery, 2 );
+	$advance  = round( $total * 0.5, 2 );
+	return array(
+		'deliveryMethod'  => ( 'home' === $method ) ? 'Home Delivery' : 'Store Pickup',
+		'deliveryCharges' => $delivery,
+		'subtotal'        => round( $subtotal, 2 ),
+		'discount'        => round( $discount, 2 ),
+		'total'           => $total,
+		'advanceDue'      => $advance,
+		'balance'         => round( $total - $advance, 2 ),
+	);
+}
+
+/**
+ * Store a bank-transfer receipt.
+ *
+ * @return string|WP_Error URL or error.
+ */
+function amz_prints_checkout_store_receipt() {
+	if ( empty( $_FILES['payment_receipt']['name'] ) ) {
+		return new WP_Error( 'amz_receipt', __( 'Upload the payment receipt or screenshot.', 'amz-prints' ) );
+	}
+	$file = $_FILES['payment_receipt'];
+	if ( ! empty( $file['error'] ) ) {
+		return new WP_Error( 'amz_receipt', __( 'Could not upload the receipt. Use a JPG, PNG, WebP, or PDF under 5 MB.', 'amz-prints' ) );
+	}
+	if ( (int) ( $file['size'] ?? 0 ) > 5 * 1024 * 1024 ) {
+		return new WP_Error( 'amz_receipt', __( 'The receipt must be under 5 MB.', 'amz-prints' ) );
+	}
+	$check   = wp_check_filetype_and_ext( $file['tmp_name'], $file['name'] );
+	$allowed = array( 'jpg', 'jpeg', 'png', 'webp', 'pdf' );
+	if ( empty( $check['ext'] ) || ! in_array( strtolower( (string) $check['ext'] ), $allowed, true ) ) {
+		return new WP_Error( 'amz_receipt', __( 'Use a JPG, PNG, WebP, or PDF receipt.', 'amz-prints' ) );
+	}
+	require_once ABSPATH . 'wp-admin/includes/file.php';
+	$upload = wp_handle_upload(
+		$file,
+		array(
+			'test_form' => false,
+			'mimes'     => array(
+				'jpg|jpeg|jpe' => 'image/jpeg',
+				'png'          => 'image/png',
+				'webp'         => 'image/webp',
+				'pdf'          => 'application/pdf',
+			),
+		)
+	);
+	if ( ! empty( $upload['error'] ) || empty( $upload['url'] ) ) {
+		return new WP_Error( 'amz_receipt', __( 'Could not store the receipt. Try a smaller JPG or PDF.', 'amz-prints' ) );
+	}
+	return (string) $upload['url'];
+}
+
+/**
  * AJAX: place order (requires customer login)
  */
 function amz_prints_ajax_place_order() {
@@ -476,30 +553,101 @@ function amz_prints_ajax_place_order() {
 		}
 	}
 
-	$payment_method = isset( $_POST['payment_method'] ) ? sanitize_text_field( wp_unslash( $_POST['payment_method'] ) ) : '';
-	$policy         = ! empty( $_POST['policy_accepted'] );
-	$address        = isset( $_POST['delivery_address'] ) ? sanitize_textarea_field( wp_unslash( $_POST['delivery_address'] ) ) : '';
-	$phone          = isset( $_POST['customer_phone'] ) ? sanitize_text_field( wp_unslash( $_POST['customer_phone'] ) ) : '';
-	$note           = isset( $_POST['customer_note'] ) ? sanitize_textarea_field( wp_unslash( $_POST['customer_note'] ) ) : '';
+	$session  = function_exists( 'amz_prints_customer_fetch_session' ) ? amz_prints_customer_fetch_session() : array();
+	$customer = ( ! is_wp_error( $session ) && ! empty( $session['customer'] ) ) ? $session['customer'] : array();
+	$email    = strtolower( trim( (string) ( $customer['email'] ?? '' ) ) );
+	if ( ! $email && function_exists( 'amz_prints_customer_current_email' ) ) {
+		$email = amz_prints_customer_current_email();
+	}
 
-	if ( ! $policy ) {
-		wp_send_json_error( array( 'message' => __( 'Please accept the Order Processing Policy.', 'amz-prints' ) ), 400 );
+	$checkout_token = isset( $_POST['checkout_token'] ) ? sanitize_text_field( wp_unslash( $_POST['checkout_token'] ) ) : '';
+	if ( ! preg_match( '/^[A-Za-z0-9]{16,64}$/', $checkout_token ) ) {
+		wp_send_json_error( array( 'message' => __( 'Refresh the checkout page and place the order again.', 'amz-prints' ) ), 400 );
+	}
+	$lock_key = 'amz_chk_' . md5( $email . '|' . $checkout_token );
+	$locked   = get_transient( $lock_key );
+	if ( is_array( $locked ) ) {
+		wp_send_json_success( $locked );
+	}
+	if ( 'pending' === $locked ) {
+		wp_send_json_error( array( 'message' => __( 'This order is already being placed. Please wait.', 'amz-prints' ) ), 409 );
+	}
+
+	$name    = isset( $_POST['customer_name'] ) ? sanitize_text_field( wp_unslash( $_POST['customer_name'] ) ) : '';
+	$phone   = isset( $_POST['customer_phone'] ) ? sanitize_text_field( wp_unslash( $_POST['customer_phone'] ) ) : '';
+	$alt     = isset( $_POST['alt_phone'] ) ? sanitize_text_field( wp_unslash( $_POST['alt_phone'] ) ) : '';
+	$address = isset( $_POST['delivery_address'] ) ? sanitize_textarea_field( wp_unslash( $_POST['delivery_address'] ) ) : '';
+	$note    = isset( $_POST['customer_note'] ) ? sanitize_textarea_field( wp_unslash( $_POST['customer_note'] ) ) : '';
+	$method  = isset( $_POST['delivery_method'] ) ? sanitize_key( wp_unslash( $_POST['delivery_method'] ) ) : '';
+	$zone    = isset( $_POST['delivery_zone'] ) ? sanitize_key( wp_unslash( $_POST['delivery_zone'] ) ) : '';
+	$payment_method = isset( $_POST['payment_method'] ) ? sanitize_text_field( wp_unslash( $_POST['payment_method'] ) ) : '';
+	$declared = isset( $_POST['policy_accepted'] );
+	$pay_date = isset( $_POST['payment_date'] ) ? sanitize_text_field( wp_unslash( $_POST['payment_date'] ) ) : '';
+	$pay_ref  = isset( $_POST['transaction_ref'] ) ? sanitize_text_field( wp_unslash( $_POST['transaction_ref'] ) ) : '';
+	$pay_amt  = isset( $_POST['advance_amount'] ) ? (float) wp_unslash( $_POST['advance_amount'] ) : 0;
+
+	if ( strlen( $name ) < 2 ) {
+		wp_send_json_error( array( 'message' => __( 'Enter your full name.', 'amz-prints' ) ), 400 );
+	}
+	if ( ! $declared ) {
+		wp_send_json_error( array( 'message' => __( 'Please accept the declaration before placing the order.', 'amz-prints' ) ), 400 );
+	}
+	$quote = amz_prints_checkout_quote( $cart['subtotal'], $cart['discount'], $method, $zone );
+	if ( is_wp_error( $quote ) ) {
+		wp_send_json_error( array( 'message' => $quote->get_error_message() ), 400 );
 	}
 	$pay_opt = amz_prints_find_payment_method( $payment_method );
-	if ( ! $pay_opt ) {
-		wp_send_json_error( array( 'message' => __( 'Select a valid payment method.', 'amz-prints' ) ), 400 );
+	if ( ! $pay_opt || ! in_array( $pay_opt['type'], array( 'cod', 'bank' ), true ) ) {
+		wp_send_json_error( array( 'message' => __( 'Select Cash on Delivery or Bank Transfer.', 'amz-prints' ) ), 400 );
 	}
 	$phone_error = function_exists( 'amz_prints_customer_phone_error' ) ? amz_prints_customer_phone_error( $phone ) : '';
 	if ( $phone_error ) {
 		wp_send_json_error( array( 'message' => $phone_error ), 400 );
 	}
 	$phone = function_exists( 'amz_prints_customer_normalize_phone' ) ? amz_prints_customer_normalize_phone( $phone ) : $phone;
-	$address_error = function_exists( 'amz_prints_customer_address_error' ) ? amz_prints_customer_address_error( $address ) : '';
-	if ( $address_error ) {
-		wp_send_json_error( array( 'message' => $address_error ), 400 );
+	if ( '' !== trim( $alt ) ) {
+		$alt_error = function_exists( 'amz_prints_customer_phone_error' ) ? amz_prints_customer_phone_error( $alt ) : '';
+		if ( $alt_error ) {
+			wp_send_json_error( array( 'message' => __( 'The alternative number also needs a country code, for example +923001234567.', 'amz-prints' ) ), 400 );
+		}
+		$alt = function_exists( 'amz_prints_customer_normalize_phone' ) ? amz_prints_customer_normalize_phone( $alt ) : $alt;
+	}
+	if ( 'home' === $method ) {
+		$address_error = function_exists( 'amz_prints_customer_address_error' ) ? amz_prints_customer_address_error( $address ) : '';
+		if ( $address_error ) {
+			wp_send_json_error( array( 'message' => $address_error ), 400 );
+		}
+	} else {
+		$office  = function_exists( 'amz_prints_mod' ) ? trim( (string) amz_prints_mod( 'amz_address', '' ) ) : '';
+		$address = $office ? ( 'Store pickup — ' . $office ) : 'Store pickup from the AMZ Prints office';
+	}
+
+	$is_bank  = ( 'bank' === $pay_opt['type'] );
+	$declared_advance = $quote['advanceDue'];
+	$receipt_url      = '';
+	if ( $is_bank ) {
+		if ( round( $pay_amt, 2 ) + 0.001 < $quote['advanceDue'] ) {
+			wp_send_json_error( array(
+				'message' => sprintf(
+					/* translators: %s minimum advance */
+					__( 'The advance payment must be at least 50%% of the order (%s).', 'amz-prints' ),
+					amz_prints_money( $quote['advanceDue'] )
+				),
+			), 400 );
+		}
+		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $pay_date ) ) {
+			wp_send_json_error( array( 'message' => __( 'Enter the payment date.', 'amz-prints' ) ), 400 );
+		}
+		$receipt = amz_prints_checkout_store_receipt();
+		if ( is_wp_error( $receipt ) ) {
+			wp_send_json_error( array( 'message' => $receipt->get_error_message() ), 400 );
+		}
+		$receipt_url      = $receipt;
+		$declared_advance = round( $pay_amt, 2 );
 	}
 
 	$items = array();
+	$summary_items = array();
 	foreach ( $cart['items'] as $item ) {
 		$items[] = array(
 			'productId' => $item['id'],
@@ -507,98 +655,128 @@ function amz_prints_ajax_place_order() {
 			'quantity'  => $item['quantity'],
 			'rate'      => $item['price'],
 		);
+		$summary_items[] = array(
+			'name'      => $item['name'],
+			'quantity'  => $item['quantity'],
+			'rate'      => $item['price'],
+			'lineTotal' => $item['lineTotal'],
+		);
 	}
 
-	$body = array(
-		'token'            => function_exists( 'amz_prints_customer_erp_token' ) ? amz_prints_customer_erp_token() : amz_prints_customer_token(),
-		'items'            => $items,
-		'paymentMethod'    => $pay_opt['label'],
-		'policyAccepted'   => true,
-		'deliveryAddress'  => $address,
-		'customerPhone'    => $phone,
-		'customerNote'     => $note,
-		'subtotal'         => $cart['subtotal'],
-		'discountAmount'   => $cart['discount'],
-		'deliveryCharges'  => $cart['deliveryCharges'],
-	);
+	set_transient( $lock_key, 'pending', 2 * MINUTE_IN_SECONDS );
 
-	$session  = function_exists( 'amz_prints_customer_fetch_session' ) ? amz_prints_customer_fetch_session() : array();
-	$customer = ( ! is_wp_error( $session ) && ! empty( $session['customer'] ) ) ? $session['customer'] : array();
-	$body['customerName']  = (string) ( $customer['name'] ?? '' );
-	$body['customerEmail'] = strtolower( (string) ( $customer['email'] ?? '' ) );
-	$body['paymentMethod'] = 'cod' === $pay_opt['type'] ? 'Cash on Delivery' : 'Online Payment';
-	if ( $body['customerEmail'] && function_exists( 'amz_prints_local_customer_get' ) ) {
-		$profile_row = amz_prints_local_customer_get( $body['customerEmail'] );
+	$pay_label = $is_bank ? 'Bank Transfer' : 'Cash on Delivery';
+	$body = array(
+		'token'               => function_exists( 'amz_prints_customer_erp_token' ) ? amz_prints_customer_erp_token() : amz_prints_customer_token(),
+		'items'               => $items,
+		'paymentMethod'       => $pay_label,
+		'policyAccepted'      => true,
+		'declarationAccepted' => true,
+		'deliveryMethod'      => $method,
+		'deliveryZone'        => ( 'home' === $method ) ? $zone : '',
+		'deliveryAddress'     => $address,
+		'customerPhone'       => $phone,
+		'altPhone'            => $alt,
+		'customerNote'        => $note,
+		'subtotal'            => $quote['subtotal'],
+		'discountAmount'      => $quote['discount'],
+		'deliveryCharges'     => $quote['deliveryCharges'],
+		'declaredAdvance'     => $declared_advance,
+		'paymentDate'         => $is_bank ? $pay_date : '',
+		'transactionRef'      => $is_bank ? $pay_ref : '',
+		'receiptUrl'          => $receipt_url,
+		'customerName'        => $name,
+		'customerEmail'       => $email,
+	);
+	if ( $email && function_exists( 'amz_prints_local_customer_get' ) ) {
+		$profile_row = amz_prints_local_customer_get( $email );
 		if ( is_array( $profile_row ) ) {
-			$profile_row['phone']   = $phone;
-			$profile_row['address'] = $address;
-			amz_prints_local_customer_save( $body['customerEmail'], $profile_row );
+			$profile_row['name']  = $name;
+			$profile_row['phone'] = $phone;
+			if ( 'home' === $method ) {
+				$profile_row['address'] = $address;
+			}
+			amz_prints_local_customer_save( $email, $profile_row );
 		}
 	}
+
+	$payload = array(
+		'orderId'          => '',
+		'trackingNumber'   => '',
+		'paymentMethod'    => $pay_label,
+		'paymentStatus'    => 'Pending Verification',
+		'status'           => 'Pending Confirmation',
+		'subtotal'         => $quote['subtotal'],
+		'discount'         => $quote['discount'],
+		'deliveryCharges'  => $quote['deliveryCharges'],
+		'deliveryMethod'   => $quote['deliveryMethod'],
+		'totalAmount'      => $quote['total'],
+		'advanceDue'       => $quote['advanceDue'],
+		'declaredAdvance'  => $declared_advance,
+		'balanceAmount'    => round( $quote['total'] - $declared_advance, 2 ),
+		'receiptUrl'       => $receipt_url,
+		'items'            => $summary_items,
+		'customerName'     => $name,
+		'message'          => __( 'Your order has been received. It will be confirmed after the advance payment is verified.', 'amz-prints' ),
+		'accountUrl'       => home_url( '/my-account/' ),
+		'trackUrl'         => home_url( '/track-order/' ),
+	);
 
 	$result = amz_prints_erp_request( 'POST', '/public/customer/order', $body );
 	if ( is_wp_error( $result ) ) {
 		$order_id = 'WEB-' . gmdate( 'ymd' ) . '-' . wp_rand( 1000, 9999 );
-		$saved    = array(
-			'orderId'        => $order_id,
-			'trackingNumber' => $order_id,
-			'status'         => 'Order Received',
-			'paymentMethod'  => $body['paymentMethod'],
-			'paymentStatus'  => 'cod' === $pay_opt['type'] ? 'Unpaid' : 'Payment Pending',
-			'totalAmount'    => $cart['total'],
-			'items'          => array_map( function ( $row ) { return (string) ( $row['name'] ?? '' ); }, $items ),
-			'date'           => gmdate( 'Y-m-d' ),
-			'balanceAmount'  => $cart['total'],
-			'address'        => $address,
-			'phone'          => $phone,
-			'email'          => strtolower( (string) ( $customer['email'] ?? '' ) ),
-			'name'           => (string) ( $customer['name'] ?? '' ),
-			'createdAt'      => gmdate( 'c' ),
-		);
+		$payload['orderId']        = $order_id;
+		$payload['trackingNumber'] = $order_id;
+		$payload['trackUrl']       = home_url( '/track-order/?code=' . rawurlencode( $order_id ) );
 		if ( function_exists( 'amz_prints_store_customer_order' ) ) {
-			amz_prints_store_customer_order( $saved['email'], $saved );
+			amz_prints_store_customer_order( $email, array(
+				'orderId'         => $order_id,
+				'trackingNumber'  => $order_id,
+				'status'          => 'Pending Confirmation',
+				'paymentMethod'   => $pay_label,
+				'paymentStatus'   => 'Pending Verification',
+				'totalAmount'     => $quote['total'],
+				'balanceAmount'   => $quote['total'],
+				'declaredAdvance' => $declared_advance,
+				'deliveryCharges' => $quote['deliveryCharges'],
+				'deliveryMethod'  => $quote['deliveryMethod'],
+				'receiptUrl'      => $receipt_url,
+				'items'           => array_map( function ( $row ) { return (string) ( $row['name'] ?? '' ); }, $items ),
+				'date'            => gmdate( 'Y-m-d' ),
+				'address'         => $address,
+				'phone'           => $phone,
+				'email'           => $email,
+				'name'            => $name,
+				'createdAt'       => gmdate( 'c' ),
+			) );
 		}
-		amz_prints_cart_clear();
-		wp_send_json_success( array(
-			'orderId'        => $order_id,
-			'trackingNumber' => $order_id,
-			'paymentMethod'  => $saved['paymentMethod'],
-			'paymentStatus'  => $saved['paymentStatus'],
-			'totalAmount'    => $cart['total'],
-			'message'        => __( 'Order placed. It is saved on this customer account.', 'amz-prints' ),
-			'accountUrl'     => home_url( '/my-account/' ),
-			'trackUrl'       => home_url( '/track-order/?code=' . rawurlencode( $order_id ) ),
-		) );
+	} else {
+		$order_id = isset( $result['orderId'] ) ? (string) $result['orderId'] : '';
+		$payload['orderId']        = $order_id;
+		$payload['trackingNumber'] = isset( $result['trackingNumber'] ) ? (string) $result['trackingNumber'] : $order_id;
+		$payload['trackUrl']       = $order_id ? home_url( '/track-order/?code=' . rawurlencode( $order_id ) ) : home_url( '/track-order/' );
+		if ( function_exists( 'amz_prints_store_customer_order' ) ) {
+			amz_prints_store_customer_order( $email, array(
+				'orderId'         => $order_id,
+				'trackingNumber'  => $payload['trackingNumber'],
+				'status'          => 'Pending Confirmation',
+				'paymentMethod'   => $pay_label,
+				'paymentStatus'   => 'Pending Verification',
+				'date'            => gmdate( 'Y-m-d' ),
+				'totalAmount'     => $quote['total'],
+				'balanceAmount'   => $quote['total'],
+				'declaredAdvance' => $declared_advance,
+				'deliveryCharges' => $quote['deliveryCharges'],
+				'items'           => array_map( function ( $row ) { return (string) ( $row['name'] ?? '' ); }, $items ),
+				'email'           => $email,
+				'name'            => $name,
+			) );
+		}
 	}
 
 	amz_prints_cart_clear();
-	if ( function_exists( 'amz_prints_store_customer_order' ) ) {
-		amz_prints_store_customer_order( strtolower( (string) ( $customer['email'] ?? '' ) ), array(
-			'orderId'        => isset( $result['orderId'] ) ? (string) $result['orderId'] : '',
-			'trackingNumber' => isset( $result['trackingNumber'] ) ? (string) $result['trackingNumber'] : '',
-			'status'         => 'Order Received',
-			'date'           => gmdate( 'Y-m-d' ),
-			'totalAmount'    => $cart['total'],
-			'balanceAmount'  => $cart['total'],
-			'items'          => array_map( function ( $row ) { return (string) ( $row['name'] ?? '' ); }, $items ),
-			'email'          => strtolower( (string) ( $customer['email'] ?? '' ) ),
-			'name'           => (string) ( $customer['name'] ?? '' ),
-		) );
-	}
-
-	$order_id = isset( $result['orderId'] ) ? (string) $result['orderId'] : '';
-	wp_send_json_success(
-		array(
-			'orderId'         => $order_id,
-			'trackingNumber'  => isset( $result['trackingNumber'] ) ? $result['trackingNumber'] : '',
-			'paymentMethod'   => isset( $result['paymentMethod'] ) ? $result['paymentMethod'] : '',
-			'paymentStatus'   => isset( $result['paymentStatus'] ) ? $result['paymentStatus'] : '',
-			'totalAmount'     => isset( $result['totalAmount'] ) ? $result['totalAmount'] : $cart['total'],
-			'message'         => isset( $result['message'] ) ? $result['message'] : __( 'Order placed successfully.', 'amz-prints' ),
-			'accountUrl'      => home_url( '/my-account/' ),
-			'trackUrl'        => $order_id ? home_url( '/track-order/?code=' . rawurlencode( $order_id ) ) : home_url( '/track-order/' ),
-		)
-	);
+	set_transient( $lock_key, $payload, 30 * MINUTE_IN_SECONDS );
+	wp_send_json_success( $payload );
 }
 add_action( 'wp_ajax_amz_prints_place_order', 'amz_prints_ajax_place_order' );
 add_action( 'wp_ajax_nopriv_amz_prints_place_order', 'amz_prints_ajax_place_order' );
@@ -625,7 +803,7 @@ function amz_prints_payment_methods() {
 			'id'      => 'cod',
 			'label'   => __( 'Cash on Delivery', 'amz-prints' ),
 			'type'    => 'cod',
-			'details' => __( 'Order is placed under COD terms. Payment status starts as Unpaid.', 'amz-prints' ),
+			'details' => __( 'Cash on Delivery covers only the balance left after the 50% advance is received and verified.', 'amz-prints' ),
 			'image'   => '',
 		);
 	}
@@ -646,12 +824,31 @@ function amz_prints_payment_methods() {
 			'image'   => $img ? $img : '',
 		);
 	}
-	if ( empty( $methods ) ) {
-		$methods[] = array(
+	$has_cod  = false;
+	$has_bank = false;
+	foreach ( $methods as $method ) {
+		if ( 'cod' === $method['type'] ) {
+			$has_cod = true;
+		}
+		if ( 'bank' === $method['type'] ) {
+			$has_bank = true;
+		}
+	}
+	if ( ! $has_cod ) {
+		array_unshift( $methods, array(
 			'id'      => 'cod',
 			'label'   => __( 'Cash on Delivery', 'amz-prints' ),
 			'type'    => 'cod',
-			'details' => __( 'Order is placed under COD terms. Payment status starts as Unpaid.', 'amz-prints' ),
+			'details' => __( 'Cash on Delivery covers only the balance left after the 50% advance is received and verified.', 'amz-prints' ),
+			'image'   => '',
+		) );
+	}
+	if ( ! $has_bank ) {
+		$methods[] = array(
+			'id'      => 'bank_1',
+			'label'   => __( 'Bank Transfer', 'amz-prints' ),
+			'type'    => 'bank',
+			'details' => "Account title: Amazon Printings (Pvt) Ltd\nAccount no: 0000-0000000-00\nIBAN: PK00XXXX0000000000000000",
 			'image'   => '',
 		);
 	}

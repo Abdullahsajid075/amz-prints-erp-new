@@ -381,51 +381,225 @@
 
   var form = document.getElementById('amz-checkout-form');
   if (form) {
+    var root = document.querySelector('[data-amz-checkout]');
+    var subtotal = root ? Number(root.getAttribute('data-subtotal')) || 0 : 0;
+    var discount = root ? Number(root.getAttribute('data-discount')) || 0 : 0;
+    var placing = false;
+    var lastOrder = null;
+
+    function phoneOk(value, required) {
+      var raw = String(value || '').replace(/[\s\-().]/g, '');
+      if (raw.indexOf('00') === 0) raw = '+' + raw.slice(2);
+      if (!raw) return !required;
+      return /^\+[1-9]\d{7,14}$/.test(raw);
+    }
+
+    function selectedPayType() {
+      var picked = form.querySelector('input[name="payment_method"]:checked');
+      return picked ? (picked.getAttribute('data-pay-type') || '') : '';
+    }
+
+    function quote() {
+      var method = (form.querySelector('input[name="delivery_method"]:checked') || {}).value || '';
+      var zone = (form.querySelector('input[name="delivery_zone"]:checked') || {}).value || '';
+      var goods = Math.max(0, subtotal - discount);
+      var delivery = null;
+      if (method === 'pickup') delivery = 0;
+      if (method === 'home' && zone === 'inside') delivery = 250;
+      var total = delivery == null ? goods : Math.round((goods + delivery) * 100) / 100;
+      var advance = Math.round(total * 50) / 100;
+      return { method: method, zone: zone, delivery: delivery, total: total, advance: advance, balance: Math.round((total - advance) * 100) / 100 };
+    }
+
+    function paintQuote() {
+      var q = quote();
+      var deliveryText = q.delivery == null ? 'Select a method' : money(q.delivery);
+      var map = {
+        delivery: deliveryText,
+        'delivery-side': deliveryText,
+        grand: money(q.total),
+        'grand-side': money(q.total),
+        advance: money(q.advance),
+        'advance-side': money(q.advance),
+        balance: money(q.balance)
+      };
+      Object.keys(map).forEach(function (key) {
+        document.querySelectorAll('[data-quote="' + key + '"]').forEach(function (el) {
+          el.textContent = map[key];
+        });
+      });
+      var amount = form.querySelector('[data-advance-amount]');
+      if (amount && document.activeElement !== amount) {
+        var current = Number(amount.value);
+        if (!amount.value || current < q.advance) amount.value = q.advance ? String(q.advance) : '';
+        amount.min = String(q.advance || 0);
+      }
+      return q;
+    }
+
+    function syncPanels() {
+      var method = (form.querySelector('input[name="delivery_method"]:checked') || {}).value || '';
+      var zone = (form.querySelector('input[name="delivery_zone"]:checked') || {}).value || '';
+      document.querySelectorAll('[data-delivery-panel]').forEach(function (panel) {
+        panel.hidden = panel.getAttribute('data-delivery-panel') !== method;
+      });
+      var outside = document.querySelector('[data-outside-note]');
+      if (outside) outside.hidden = !(method === 'home' && zone === 'outside');
+      var pay = selectedPayType();
+      var bank = document.querySelector('[data-bank-fields]');
+      var cod = document.querySelector('[data-cod-note]');
+      if (bank) bank.hidden = pay !== 'bank';
+      if (cod) cod.hidden = pay !== 'cod';
+    }
+
+    function blockers() {
+      var q = paintQuote();
+      var reasons = [];
+      var name = (form.querySelector('[name="customer_name"]') || {}).value || '';
+      if (name.trim().length < 2) reasons.push('Enter your full name.');
+      if (!phoneOk((form.querySelector('[name="customer_phone"]') || {}).value, true)) reasons.push('Enter a WhatsApp number with country code.');
+      var alt = (form.querySelector('[name="alt_phone"]') || {}).value || '';
+      if (alt.trim() && !phoneOk(alt, true)) reasons.push('The alternative number needs a country code.');
+      if (!q.method) reasons.push('Select home delivery or store pickup.');
+      if (q.method === 'home' && q.zone !== 'inside') {
+        reasons.push(q.zone === 'outside'
+          ? 'Home delivery is not available outside 10 km.'
+          : 'Confirm that the address is within 10 km.');
+      }
+      if (q.method === 'home') {
+        var address = (form.querySelector('[name="delivery_address"]') || {}).value || '';
+        if (address.trim().length < 8) reasons.push('Enter the complete delivery address.');
+      }
+      var pay = selectedPayType();
+      if (!pay) reasons.push('Select a payment method.');
+      if (pay === 'bank') {
+        var paid = Number((form.querySelector('[name="advance_amount"]') || {}).value);
+        if (!(paid + 0.001 >= q.advance)) reasons.push('The advance must be at least 50% of the total.');
+        if (!((form.querySelector('[name="payment_date"]') || {}).value)) reasons.push('Enter the payment date.');
+        var file = form.querySelector('[name="payment_receipt"]');
+        if (!file || !file.files || !file.files.length) reasons.push('Upload the payment receipt.');
+      }
+      if (!(form.querySelector('[name="policy_accepted"]') || {}).checked) reasons.push('Accept the declaration to continue.');
+      return reasons;
+    }
+
+    function syncButton() {
+      syncPanels();
+      var btn = form.querySelector('[data-place-order]');
+      var reasons = blockers();
+      if (btn && !placing) btn.disabled = reasons.length > 0;
+    }
+
+    form.addEventListener('input', syncButton);
+    form.addEventListener('change', syncButton);
+    syncButton();
+
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       var msg = document.querySelector('[data-checkout-msg]');
       var btn = form.querySelector('[data-place-order]');
-      var fd = new FormData(form);
-      if (!fd.get('policy_accepted')) {
-        if (msg) { msg.hidden = false; msg.textContent = 'Please accept the Order Processing Policy.'; }
+      var reasons = blockers();
+      if (reasons.length) {
+        if (msg) { msg.hidden = false; msg.textContent = reasons[0]; }
+        syncButton();
         return;
       }
+      if (placing) return;
+      placing = true;
       if (btn) btn.disabled = true;
-      post('amz_prints_place_order', {
-        payment_method: fd.get('payment_method') || 'cod',
-        policy_accepted: fd.get('policy_accepted') ? '1' : '',
-        delivery_address: fd.get('delivery_address') || '',
-        customer_phone: fd.get('customer_phone') || '',
-        customer_note: fd.get('customer_note') || ''
-      }).then(function (res) {
-        if (!res || !res.success) {
-          var err = (res && res.data && res.data.message) || 'Could not place order';
-          if (res && res.data && (res.data.profileUrl || res.data.loginUrl)) {
-            window.location.href = res.data.profileUrl || res.data.loginUrl;
-            return;
+      if (msg) msg.hidden = true;
+      var fd = new FormData(form);
+      fd.append('action', 'amz_prints_place_order');
+      fd.append('nonce', cfg.nonce || '');
+      fetch(cfg.ajaxUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (!res || !res.success) {
+            var err = (res && res.data && res.data.message) || 'Could not place order';
+            if (res && res.data && (res.data.profileUrl || res.data.loginUrl)) {
+              window.location.href = res.data.profileUrl || res.data.loginUrl;
+              return;
+            }
+            throw new Error(err);
           }
-          throw new Error(err);
-        }
-        form.hidden = true;
-        var ok = document.querySelector('[data-checkout-success]');
-        if (ok) {
-          ok.hidden = false;
-          var sm = ok.querySelector('[data-success-msg]');
-          var so = ok.querySelector('[data-success-order]');
-          var sp = ok.querySelector('[data-success-pay]');
-          if (sm) sm.textContent = res.data.message || 'Order placed successfully.';
-          if (so) so.textContent = res.data.orderId || '';
-          if (sp) sp.textContent = (res.data.paymentMethod || '') + (res.data.paymentStatus ? ' · ' + res.data.paymentStatus : '');
-          var st = ok.querySelector('[data-success-track]');
-          if (st && res.data.trackUrl) st.href = res.data.trackUrl;
-        }
-        updateBadge(0);
-      }).catch(function (err) {
-        if (msg) { msg.hidden = false; msg.textContent = err.message || 'Order failed'; }
-      }).finally(function () {
-        if (btn) btn.disabled = false;
-      });
+          lastOrder = res.data || {};
+          form.hidden = true;
+          var aside = document.querySelector('.commerce-aside');
+          if (aside) aside.hidden = true;
+          var ok = document.querySelector('[data-checkout-success]');
+          if (ok) {
+            ok.hidden = false;
+            var set = function (sel, text) {
+              var el = ok.querySelector(sel);
+              if (el) el.textContent = text;
+            };
+            set('[data-success-order]', lastOrder.orderId || '');
+            set('[data-success-pay]', lastOrder.paymentStatus || 'Pending Verification');
+            set('[data-success-delivery]', lastOrder.deliveryMethod || '');
+            set('[data-success-fee]', money(lastOrder.deliveryCharges));
+            set('[data-success-total]', money(lastOrder.totalAmount));
+            set('[data-success-advance]', money(lastOrder.declaredAdvance));
+            set('[data-success-balance]', money(lastOrder.balanceAmount));
+            var list = ok.querySelector('[data-success-items]');
+            if (list) {
+              list.innerHTML = '';
+              (lastOrder.items || []).forEach(function (item) {
+                var li = document.createElement('li');
+                li.innerHTML = '<span><strong></strong><em></em></span><strong></strong>';
+                li.querySelector('strong').textContent = item.name || '';
+                li.querySelector('em').textContent = '× ' + (item.quantity || 1);
+                var totals = li.querySelectorAll('strong');
+                if (totals[1]) totals[1].textContent = money(item.lineTotal);
+                list.appendChild(li);
+              });
+            }
+            var st = ok.querySelector('[data-success-track]');
+            if (st && lastOrder.trackUrl) st.href = lastOrder.trackUrl;
+            ok.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+          updateBadge(0);
+        })
+        .catch(function (err) {
+          placing = false;
+          if (msg) { msg.hidden = false; msg.textContent = err.message || 'Order failed'; }
+          syncButton();
+        });
     });
+
+    var downloadBtn = document.querySelector('[data-download-summary]');
+    if (downloadBtn) {
+      downloadBtn.addEventListener('click', function () {
+        if (!lastOrder) return;
+        var lines = [
+          'AMZ Prints — Order summary',
+          '',
+          'Thank you for your order.',
+          'Order number: ' + (lastOrder.orderId || ''),
+          'Status: Pending Confirmation',
+          'Payment verification: ' + (lastOrder.paymentStatus || 'Pending Verification'),
+          'Payment method: ' + (lastOrder.paymentMethod || ''),
+          'Delivery: ' + (lastOrder.deliveryMethod || ''),
+          'Products subtotal: ' + money(lastOrder.subtotal),
+          'Delivery charges: ' + money(lastOrder.deliveryCharges),
+          'Total amount: ' + money(lastOrder.totalAmount),
+          'Declared advance: ' + money(lastOrder.declaredAdvance),
+          'Remaining balance: ' + money(lastOrder.balanceAmount),
+          '',
+          'Products:'
+        ];
+        (lastOrder.items || []).forEach(function (item) {
+          lines.push('- ' + (item.name || '') + ' × ' + (item.quantity || 1) + ' — ' + money(item.lineTotal));
+        });
+        lines.push('', 'Your order will be confirmed after verification of the required advance payment.');
+        var blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+        var link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'AMZ-Prints-' + (lastOrder.orderId || 'order') + '.txt';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      });
+    }
   }
 
   // Expose for hero product tiles
