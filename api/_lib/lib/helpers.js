@@ -132,11 +132,20 @@ function makePortalPassword(password) {
 
 function checkPortalPassword(stored, password) {
   const raw = String(stored || '');
+  const plain = String(password || '');
+  if (!raw || !plain) return false;
+  if (raw === plain) return true;
   const idx = raw.indexOf(':');
   if (idx < 0) return false;
   const salt = raw.slice(0, idx);
   const hash = raw.slice(idx + 1);
   return hashPortalPassword(password, salt) === hash;
+}
+
+function portalPasswordFromRow(row) {
+  if (row?.portal_password) return String(row.portal_password);
+  const m = String(row?.notes || '').match(/<!--portal:([^>]+)-->/);
+  return m ? m[1] : '';
 }
 
 function issueCustomerToken(customer) {
@@ -260,6 +269,7 @@ module.exports = {
   hashPortalPassword,
   makePortalPassword,
   checkPortalPassword,
+  portalPasswordFromRow,
   issueCustomerToken,
   parseCustomerToken,
   sanitizePortalCustomer,

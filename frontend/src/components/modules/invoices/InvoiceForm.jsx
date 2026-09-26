@@ -13,7 +13,7 @@ import { invoicesAPI, customersAPI, productsAPI, settingsAPI, ordersAPI } from '
 import { notifyOrderEvent, printPaymentSlip, openWhatsAppChat, buildWhatsAppAppUrl, fillTemplate, resolveWhatsAppTemplate, buildTemplateVars, DEFAULT_WHATSAPP_TEMPLATES, openBlankWhatsAppTab } from '@/services/notifications';
 import { lookupCustomerPhone, firstPhone } from '@/utils/notifyPhone';
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
-import { formatCurrency } from '@/utils/helpers';
+import { formatCurrency, formatDate } from '@/utils/helpers';
 import { catalogFieldsForOrderLine } from '@/utils/productImage';
 import { useBrand } from '@/context/BrandContext';
 import { ArrowLeft, Save, Plus, Trash2, PackagePlus, Receipt, User, GripVertical, X } from 'lucide-react';
@@ -125,8 +125,8 @@ function OpenOrderCard({ order, accent, onAdd }) {
           <GripVertical className="h-4 w-4" />
         </button>
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-bold truncate" style={{ color: '#1F2937' }}>{order.orderId}</p>
-          <p className="text-[10px] text-gray-500 truncate">{order.status}</p>
+          <p className="text-xs font-bold truncate" style={{ color: '#1F2937' }}>{order.orderId || order.id}</p>
+          <p className="text-[10px] text-gray-500 truncate">{formatDate(order.date || order.createdAt) || 'No date'} · {order.status}</p>
           <p className="text-xs font-semibold mt-0.5" style={{ color: accent }}>{formatCurrency(order.totalAmount)}</p>
         </div>
         <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={() => onAdd(order)}>

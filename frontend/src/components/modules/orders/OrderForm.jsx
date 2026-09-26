@@ -376,7 +376,7 @@ const OrderForm = () => {
       }
 
       const totalAmount = cleanProducts.reduce((t, p) => t + (p.quantity * p.rate), 0);
-      const advancePayment = Number(formData.advancePayment) || 0;
+      const advancePayment = linkedInvoiceId ? (Number(formData.advancePayment) || 0) : 0;
       const orderData = {
         id: isEdit ? orderId : formData.id,
         orderId: formData.orderId || undefined,
@@ -869,14 +869,14 @@ const OrderForm = () => {
                 <p className="font-bold text-xl" style={{ color: accent }}>{formatCurrency(calculateTotal())}</p>
               </div>
               <div>
-                <Label className="text-xs">Shown received</Label>
+                <Label className="text-xs">Received (invoice)</Label>
                 <Input
                   type="number"
                   min="0"
                   step="0.01"
                   value={formData.advancePayment}
                   onChange={(e) => setFormData((prev) => ({ ...prev, advancePayment: parseFloat(e.target.value) || 0 }))}
-                  disabled={isEdit}
+                  disabled
                   data-testid="advance-payment-input"
                 />
               </div>
@@ -886,7 +886,7 @@ const OrderForm = () => {
               </div>
             </div>
             <p className="text-xs text-gray-500">
-              Any amount received here is saved on an invoice. If this customer already has an unpaid invoice, the order is added to it; otherwise a new invoice is created.
+              Order par advance nahi likha jata. Pehle invoice banao — payment usi open invoice par record hogi.
             </p>
           </CardContent>
         </Card>

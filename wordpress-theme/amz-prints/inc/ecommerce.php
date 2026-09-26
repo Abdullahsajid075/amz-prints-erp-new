@@ -206,6 +206,9 @@ function amz_prints_ajax_customer_register() {
 	if ( is_wp_error( $result ) ) {
 		wp_send_json_error( array( 'message' => $result->get_error_message() ), 400 );
 	}
+	if ( empty( $result['token'] ) && empty( $result['ok'] ) ) {
+		wp_send_json_error( array( 'message' => ! empty( $result['message'] ) ? $result['message'] : 'Registration failed' ), 400 );
+	}
 	wp_send_json_success( $result );
 }
 add_action( 'wp_ajax_amz_prints_customer_register', 'amz_prints_ajax_customer_register' );

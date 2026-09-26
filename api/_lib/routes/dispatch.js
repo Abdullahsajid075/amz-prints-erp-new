@@ -14,7 +14,7 @@ const {
 const { sendWhatsAppCloud, cloudConfigured } = require('../lib/whatsappCloud');
 const {
   isAdminRole, userLabel, collectOrderIds, invoiceStatusFromPaid, asArray, uniqueStrings,
-  makePortalPassword, checkPortalPassword, issueCustomerToken, parseCustomerToken,
+  makePortalPassword, checkPortalPassword, portalPasswordFromRow, issueCustomerToken, parseCustomerToken,
   sanitizePortalCustomer, isBlocked, productFromBody,
   withCustomerPhoto, customerPhoto, isWebsiteCatalogReady,
   isServiceProduct, productTracksInventory,
@@ -492,7 +492,41 @@ async function withInvoiceMeta(apiOrder) {
   return apiOrder;
 }
 
+async function markLinkedOrdersDelivered(invoice) {
+  if (!invoice) return;
+  const ids = collectOrderIds({}, invoice);
+  for (const key of ids) {
+    if (!key) continue;
+    const order = await loadOrderByRef(key);
+    if (!order || isCancelledStatus(order.status)) continue;
+    if (/^delivered$/i.test(String(order.status))) continue;
+    const hist = Array.isArray(order.status_history) ? [...order.status_history] : [];
+    hist.push({ status: 'Delivered', at: `${today()} ${nowTime()}`, note: 'Invoice linked — marked Delivered' });
+    await supabase.from('orders').update({ status: 'Delivered', status_history: hist }).eq('id', order.id);
+  }
+}
+
+async function findOpenInvoiceForCustomer(order) {
+  const cid = String(order.customer_id || '');
+  const phone = String(order.customer_phone || '').replace(/\D/g, '').slice(-10);
+  if (!cid && !phone) return null;
+  const { data: invoices } = await supabase.from('invoices').select('*');
+  const open = (invoices || []).filter((inv) => {
+    if (!(invoiceRemaining(inv) > 0.009)) return false;
+    if (cid && String(inv.customer_id || '') === cid) return true;
+    const p = String(inv.customer_phone || '').replace(/\D/g, '').slice(-10);
+    return !!(phone && p && phone === p);
+  });
+  if (!open.length) return null;
+  open.sort((a, b) => String(a.date || a.created_at || '').localeCompare(String(b.date || b.created_at || '')));
+  return open[0];
+}
+
 async function findOrCreateInvoiceForOrder(order) {
+  const holder = await findInvoiceHoldingOrder(order);
+  if (holder) return holder;
+  const open = await findOpenInvoiceForCustomer(order);
+  if (open) return addOrderOntoInvoice(open, order);
   const { data: invoices } = await supabase.from('invoices').select('*');
   const keys = [order.order_id, order.id].filter(Boolean).map(String);
   const existing = (invoices || []).find((row) => {
@@ -527,6 +561,7 @@ async function findOrCreateInvoiceForOrder(order) {
     payment_history: [],
   };
   await supabase.from('invoices').insert(row);
+  await markLinkedOrdersDelivered(row);
   return row;
 }
 
@@ -564,6 +599,7 @@ async function ensureOrderInvoice(order) {
       return refreshed || afterAdvance;
     }
   }
+  await markLinkedOrdersDelivered(afterAdvance);
   return afterAdvance;
 }
 
@@ -750,6 +786,7 @@ async function addOrderOntoInvoice(invoice, order) {
   const { data: latest } = await supabase.from('invoices').select('*').eq('id', invoice.id).maybeSingle();
   const finalInv = latest || afterAdvance || refreshed || invoice;
   await syncLinkedOrderBalances(finalInv);
+  await markLinkedOrdersDelivered(finalInv);
   return finalInv;
 }
 
@@ -798,6 +835,7 @@ async function combineOpenInvoices(ids) {
   }
   const { data } = await supabase.from('invoices').select('*').eq('id', target.id).maybeSingle();
   await syncLinkedOrderBalances(data);
+  await markLinkedOrdersDelivered(data);
   return data;
 }
 
@@ -1261,20 +1299,27 @@ async function dispatch(req, res) {
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regEmail)) return sendError(res, 'Valid email is required', 400);
         if (regPass.length < 6) return sendError(res, 'Password must be at least 6 characters', 400);
         const { data: allCust } = await supabase.from('customers').select('*');
-        const existingEmail = (allCust || []).find((c) => String(c.email || '').trim().toLowerCase() === regEmail && c.portal_password);
+        const existingEmail = (allCust || []).find((c) => String(c.email || '').trim().toLowerCase() === regEmail && portalPasswordFromRow(c));
         if (existingEmail) return sendError(res, 'An account with this email already exists — please login', 400);
         const existingPhone = (allCust || []).find((c) => String(c.phone || '').replace(/\D/g, '') === regPhone.replace(/\D/g, ''));
         const portal = makePortalPassword(regPass);
         let customer = existingPhone;
         if (existingPhone) {
-          await supabase.from('customers').update({
+          const notes = String(existingPhone.notes || '');
+          const { error: upErr } = await supabase.from('customers').update({
             name: regName || existingPhone.name,
             email: regEmail || existingPhone.email,
             address: body.address || existingPhone.address || '',
             portal_password: portal,
+            notes: /<!--portal:/.test(notes) ? notes : `${notes}\n<!--portal:${portal}-->`.trim(),
             notify_email: true,
             notify_whatsapp: true,
           }).eq('id', existingPhone.id);
+          if (upErr) {
+            await supabase.from('customers').update({
+              notes: `${notes}\n<!--portal:${portal}-->`.trim(),
+            }).eq('id', existingPhone.id);
+          }
           customer = { ...existingPhone, name: regName || existingPhone.name, email: regEmail, portal_password: portal };
         } else {
           customer = {
@@ -1284,15 +1329,23 @@ async function dispatch(req, res) {
             email: regEmail,
             address: body.address || '',
             city: body.city || '',
-            notes: 'Website portal account',
+            notes: `Website portal account\n<!--portal:${portal}-->`,
             in_crm: false,
             notify_whatsapp: true,
             notify_email: true,
             portal_password: portal,
           };
           await dbWrite('customers', customer, { mode: 'insert' });
+          const { error: passErr } = await supabase.from('customers').update({ portal_password: portal }).eq('id', customer.id);
+          if (passErr) {
+            await supabase.from('customers').update({ notes: customer.notes }).eq('id', customer.id);
+          }
         }
-        return send(res, { ok: true, token: issueCustomerToken(customer), customer: sanitizePortalCustomer(customer) });
+        const { data: savedCust } = await supabase.from('customers').select('*').eq('id', customer.id).maybeSingle();
+        if (!portalPasswordFromRow(savedCust || customer)) {
+          return sendError(res, 'Website password could not be saved. Add portal_password on customers, then retry.', 500);
+        }
+        return send(res, { ok: true, token: issueCustomerToken(customer), customer: sanitizePortalCustomer(savedCust || customer) });
       }
       if (method === 'POST' && path === '/public/customer/login') {
         const loginId = String(body.email || body.phone || body.username || '').trim().toLowerCase();
@@ -1306,8 +1359,9 @@ async function dispatch(req, res) {
           return (email && email === loginId)
             || (phone && needlePhone && (phone === needlePhone || phone.slice(-10) === needlePhone.slice(-10)));
         });
-        if (!loginCust || !loginCust.portal_password) return sendError(res, 'Invalid login or account not registered online', 401);
-        if (!checkPortalPassword(loginCust.portal_password, loginPass)) {
+        const storedPass = portalPasswordFromRow(loginCust);
+        if (!loginCust || !storedPass) return sendError(res, 'Invalid login or account not registered online', 401);
+        if (!checkPortalPassword(storedPass, loginPass)) {
           return sendError(res, 'Invalid email/phone or password', 401);
         }
         return send(res, { ok: true, token: issueCustomerToken(loginCust), customer: sanitizePortalCustomer(loginCust) });
@@ -2325,20 +2379,14 @@ async function dispatch(req, res) {
         if (docType !== 'pos' && /^delivered$/i.test(String(row.status))) {
           return sendError(res, 'Generate the invoice before marking this order Delivered', 400);
         }
+        if (docType !== 'pos' && num(row.advance_payment) > 0) {
+          return sendError(res, 'Create the invoice before recording an advance payment', 400);
+        }
         await persistOrderStock(row, { isPos: docType === 'pos' });
         const { error } = await supabase.from('orders').insert(row);
         if (error) {
           try { await syncProductStock(row.products, []); } catch { /* keep original insert error */ }
           throw error;
-        }
-        if (docType !== 'pos' && num(row.advance_payment) > 0) {
-          try {
-            const inv = await ensureOrderInvoice(row);
-            row._invoiceNo = inv.invoice_no || inv.invoiceNumber;
-            row._invoiceId = inv.id;
-          } catch (invErr) {
-            row._invoiceError = invErr.message || 'Could not link invoice';
-          }
         }
         const mapped = await withInvoiceMeta(mapOrder(row));
         mapped.creditApplied = num(body.applyCredit);
@@ -2402,7 +2450,10 @@ async function dispatch(req, res) {
         if (String(existing.doc_type || '').toLowerCase() === 'quotation') {
           return sendError(res, 'Quotations are estimates only. Convert to an order before recording payment.', 400);
         }
-        const invoiceForPay = await ensureOrderInvoice(existing);
+        const invoiceForPay = await findInvoiceHoldingOrder(existing);
+        if (!invoiceForPay) {
+          return sendError(res, 'Create the invoice before recording a payment. Payment is saved on the invoice.', 400);
+        }
         const extra = num(body.amount);
         if (!(extra > 0)) {
           return send(res, { invoice: mapInvoice(invoiceForPay), order: await withInvoiceMeta(mapOrder(existing)) });
@@ -2424,6 +2475,9 @@ async function dispatch(req, res) {
           } catch (err) {
             return sendError(res, err.message, err.statusCode || 400);
           }
+        }
+        if (num(row.advance_payment) > num(existing.advance_payment) && !(await findInvoiceHoldingOrder(existing))) {
+          return sendError(res, 'Create the invoice before recording an advance payment', 400);
         }
         if (!isCancelledStatus(existing.status) && String(existing.doc_type || '').toLowerCase() !== 'quotation') {
           const putIsPos = String(row.doc_type || existing.doc_type || '').toLowerCase() === 'pos';
@@ -2554,6 +2608,7 @@ async function dispatch(req, res) {
             await supabase.from('invoices').update({ paid: row.paid, status: row.status }).eq('id', row.id);
           }
         }
+        await markLinkedOrdersDelivered(row);
         return send(res, mapInvoice(row));
       }
       if (path === '/invoices/combine' && method === 'POST') {
