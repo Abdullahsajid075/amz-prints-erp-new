@@ -1,0 +1,19 @@
+{
+  "name": "AMZ Prints ERP",
+  "install": "bash scripts/dev/install.sh",
+  "start": "bash scripts/dev/start.sh",
+  "terminals": [
+    {
+      "name": "api",
+      "command": "cd api && npm start"
+    },
+    {
+      "name": "frontend",
+      "command": "cd frontend && npm run dev -- --host 0.0.0.0"
+    },
+    {
+      "name": "backend",
+      "command": "cd backend && ./.venv/bin/uvicorn server:app --host 0.0.0.0 --port 8001"
+    }
+  ]
+}

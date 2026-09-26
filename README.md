@@ -153,18 +153,60 @@ REACT_APP_GAS_API_URL=your_google_apps_script_deployment_url
 
 See **INTEGRATION_GUIDE.md** for detailed backend integration instructions.
 
-## Running the Application
+## Local Development Environment
+
+This repo ships a self-contained local dev environment (used by Cursor Cloud
+agents via `.cursor/environment.json`, and reproducible on any Ubuntu machine).
+It runs the whole stack locally with no external Supabase/Google account:
+
+| Service | Port | Description |
+|---------|------|-------------|
+| Frontend (Vite/React) | 5173 | The ERP UI. Proxies `/api` → API on 3000. |
+| API (Express) | 3000 | REST backend consumed by the frontend. |
+| Supabase proxy | 3005 | Rewrites Supabase's `/rest/v1` path onto PostgREST. |
+| PostgREST | 3001 | Serves the local Postgres DB over Supabase's REST protocol. |
+| PostgreSQL | 5432 | Database (`amz_erp`), schema from `api/schema.sql`. |
+| Backend (FastAPI) | 8001 | Legacy status-check service backed by MongoDB. |
+| MongoDB | 27017 | Storage for the FastAPI backend. |
+
+`@supabase/supabase-js` in `api/` talks to a local Postgres through PostgREST +
+a tiny proxy, so the Express API works exactly as it would against a real
+Supabase project.
+
+### One-time setup + run
+
+```bash
+# Install system packages, PostgREST, and all app dependencies
+bash scripts/dev/install.sh
+
+# Start Postgres, PostgREST, the Supabase proxy, and MongoDB
+bash scripts/dev/start.sh
+
+# Then run the three app dev servers (each in its own terminal):
+( cd api && npm start )                                           # http://localhost:3000
+( cd frontend && npm run dev )                                    # http://localhost:5173
+( cd backend && ./.venv/bin/uvicorn server:app --port 8001 )     # http://localhost:8001
+```
+
+Open http://localhost:5173 and log in with the seeded admin account:
+
+- **Username:** `admin`
+- **Password:** `admin123`
+
+The helper scripts live in `scripts/dev/` and are all idempotent.
+
+## Running the Application (production)
 
 ### Development
 ```bash
-cd /app/frontend
-yarn install
-yarn start
+cd frontend
+npm install
+npm run dev
 ```
 
 ### Production Build
 ```bash
-yarn build
+npm run build
 ```
 
 ## Configuration
