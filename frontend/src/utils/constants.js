@@ -54,8 +54,9 @@ export function isSettledOrderStatus(status) {
 
 export function isOpenOrder(order) {
   if (!isBookingOrder(order)) return false;
+  if (order?.invoiceId || order?.invoiceNumber) return false;
+  if (isSettledOrderStatus(order?.status)) return false;
   const s = String(order?.status || '').trim().toLowerCase();
-  if (isSettledOrderStatus(s)) return false;
   return OPEN_ORDER_STATUSES.some((st) => st.toLowerCase() === s);
 }
 

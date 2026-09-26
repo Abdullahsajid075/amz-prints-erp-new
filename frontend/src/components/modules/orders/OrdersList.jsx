@@ -252,6 +252,10 @@ const OrdersList = () => {
   );
 
   const openPayment = (order) => {
+    if (!order?.invoiceId) {
+      toast.error('Pehle invoice create karein — advance / payment invoice par record hogi');
+      return;
+    }
     const balance = Math.max(0, orderDisplayTotal(order) - Number(order.advancePayment || 0));
     if (!(balance > 0)) {
       toast.message('This order is already fully paid');

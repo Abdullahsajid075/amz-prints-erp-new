@@ -264,12 +264,12 @@ add_action( 'after_switch_theme', 'amz_prints_after_switch' );
  * Create missing pages on upgrade (fixes Services 404 without re-activating theme)
  */
 function amz_prints_maybe_upgrade_pages() {
-	if ( get_option( 'amz_prints_pages_ver' ) === '2.3.0' ) {
+	if ( get_option( 'amz_prints_pages_ver' ) === '2.4.0' ) {
 		return;
 	}
 	amz_prints_ensure_pages();
 	flush_rewrite_rules( false );
-	update_option( 'amz_prints_pages_ver', '2.3.0' );
+	update_option( 'amz_prints_pages_ver', '2.4.0' );
 }
 add_action( 'init', 'amz_prints_maybe_upgrade_pages', 20 );
 

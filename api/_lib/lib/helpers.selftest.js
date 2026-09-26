@@ -18,5 +18,6 @@ assert(invoiceStatusFromPaid(100, 100) === 'Paid', 'paid');
 const stored = makePortalPassword('secret123');
 assert(checkPortalPassword(stored, 'secret123'), 'portal hash');
 assert(!checkPortalPassword(stored, 'nope'), 'portal reject');
+assert(checkPortalPassword('plain', 'plain'), 'legacy plaintext portal');
 assert(hashPortalPassword('x', 's').length === 64, 'sha256 hex');
 console.log('helpers ok');
