@@ -10,6 +10,7 @@ import { clearGasCache } from '@/services/gasClient';
 import { mergeInventorySettings, normalizeCatalogItems } from '@/utils/moduleSettings';
 import { collectPriceTagCopies, printPriceTags } from '@/utils/priceTags';
 import { useBrand } from '@/context/BrandContext';
+import ProductVariationsPanel from '@/components/modules/inventory/ProductVariationsPanel';
 import { ArrowLeft, Plus, Save, X, Printer, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -136,11 +137,16 @@ const InventorySettings = () => {
   };
 
   const chosen = products.filter((p) => selected[p.id]);
-  const printChosen = (list) => {
-    const result = printPriceTags(list, { company, ...tagCfg });
-    if (result?.reason === 'no_stock') toast.error('No in-stock products to print. Services and zero-stock items are skipped.');
-    else if (result?.ok === false) toast.error('Print dialog blocked');
-    else toast.success(`${collectPriceTagCopies(list).reduce((s, r) => s + r.copies, 0)} price tags ready`);
+  const printChosen = (list, { allowZeroStock = false } = {}) => {
+    const result = printPriceTags(list, { company, ...tagCfg, allowZeroStock });
+    const copies = collectPriceTagCopies(list, { allowZeroStock }).reduce((s, r) => s + r.copies, 0);
+    if (result?.reason === 'no_stock') {
+      toast.error('Nothing to print. Add stock, pick a product, or print selected (prints 1 black tag even if stock is 0).');
+    } else if (result?.ok === false) {
+      toast.error('Allow popups to print price tags');
+    } else {
+      toast.success(`${copies} black price tag(s) sent to printer`);
+    }
   };
 
   return (
@@ -151,7 +157,7 @@ const InventorySettings = () => {
             <ArrowLeft className="h-4 w-4 mr-1" />Inventory
           </Button>
           <h1 className="text-2xl font-bold mt-3" style={{ color: '#0747a3' }}>Product settings</h1>
-          <p className="text-sm text-slate-500">Categories, materials, stock rules, and POS price tags.</p>
+          <p className="text-sm text-slate-500">Categories, materials, variations, stock rules, and black POS price tags.</p>
         </div>
         <Button className="text-white" style={{ backgroundColor: '#ff6d00' }} onClick={save} disabled={saving}>
           <Save className="h-4 w-4 mr-1" />{saving ? 'Saving…' : 'Save'}
@@ -198,10 +204,19 @@ const InventorySettings = () => {
         onChange={(materialItems) => setForm((p) => ({ ...p, materialItems, materials: materialItems.filter((i) => i.active !== false).map((i) => i.name) }))}
       />
 
+      <ProductVariationsPanel
+        products={products}
+        onSaved={(updated) => setProducts((prev) => prev.map((p) => (p.id === updated.id ? { ...p, ...updated } : p)))}
+      />
+
       <div className="rounded-2xl border bg-white p-5 space-y-4" data-testid="price-tag-settings">
         <div>
           <h2 className="font-semibold text-lg">Price tags / POS sticker roll</h2>
-          <p className="text-sm text-slate-500">One sticker per stock unit. Services and zero-stock items are skipped. Variations print separately.</p>
+          <p className="text-sm text-slate-500">
+            Tags print in <strong>black ink</strong> on a white sticker (screen orange is only the ERP theme).
+            One sticker per stock unit. Services are skipped. Variations print separately.
+            Selected products print 1 black tag even if stock is 0.
+          </p>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div>
@@ -224,7 +239,7 @@ const InventorySettings = () => {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" onClick={() => printChosen(chosen.length ? chosen : products.filter((p) => selected[p.id]))} disabled={!chosen.length}>
+          <Button type="button" variant="outline" onClick={() => printChosen(chosen, { allowZeroStock: true })} disabled={!chosen.length}>
             <Printer className="h-4 w-4 mr-1" /> Print selected ({chosen.length})
           </Button>
           <Button type="button" onClick={() => printChosen(products)} className="text-white" style={{ backgroundColor: '#ff6d00' }}>
@@ -233,13 +248,13 @@ const InventorySettings = () => {
         </div>
         <div className="max-h-64 overflow-y-auto rounded-xl border divide-y">
           {products.map((p) => {
-            const copies = collectPriceTagCopies([p]).reduce((s, r) => s + r.copies, 0);
+            const copies = collectPriceTagCopies([p], { allowZeroStock: true }).reduce((s, r) => s + r.copies, 0);
             return (
               <label key={p.id} className="flex items-center gap-3 px-3 py-2 text-sm">
                 <input type="checkbox" checked={!!selected[p.id]} onChange={(e) => setSelected((s) => ({ ...s, [p.id]: e.target.checked }))} />
                 <span className="flex-1 truncate">{p.name}</span>
                 <span className="text-xs text-slate-500">{copies} tags</span>
-                <Button type="button" size="sm" variant="ghost" disabled={!copies} onClick={() => printChosen([p])}>Print</Button>
+                <Button type="button" size="sm" variant="ghost" disabled={!copies} onClick={() => printChosen([p], { allowZeroStock: true })}>Print</Button>
               </label>
             );
           })}

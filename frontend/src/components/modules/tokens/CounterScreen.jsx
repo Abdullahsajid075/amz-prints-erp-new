@@ -5,8 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { countersAPI, tokensAPI } from '@/services/api';
+import {
+  announceTokenCall, tokenAnnouncePhrase, tokenStatusOf, normalizeToken,
+  isWaitingToken, isActiveToken, sortTokensFifo, counterStatusBoard,
+} from '@/utils/tokenAnnounce';
 import { toast } from 'sonner';
-import { ArrowLeft, Bell, CheckCircle2, ShoppingCart, SkipForward, RefreshCw, Loader2, XCircle } from 'lucide-react';
+import { ArrowLeft, Bell, CheckCircle2, ShoppingCart, SkipForward, RefreshCw, Loader2, XCircle, Volume2 } from 'lucide-react';
 
 const TOKEN_STATUSES = [
   { key: 'waiting', label: 'Waiting', className: 'bg-amber-100 text-amber-800' },
@@ -59,13 +63,13 @@ const CounterScreen = () => {
         params.counter = 'all';
       }
       const res = await tokensAPI.getAll(params);
-      let list = Array.isArray(res.data) ? res.data : [];
+      let list = (Array.isArray(res.data) ? res.data : []).map(normalizeToken);
       // Fallback: if Today is empty, show recent open tokens so counter never looks broken
       if (!list.length) {
         const allRes = await tokensAPI.getAll({ date: 'all', counter: params.counter });
-        const all = Array.isArray(allRes.data) ? allRes.data : [];
+        const all = (Array.isArray(allRes.data) ? allRes.data : []).map(normalizeToken);
         list = all.filter((t) =>
-          ['waiting', 'called', 'in progress'].includes(String(t.status || '').toLowerCase())
+          ['waiting', 'called', 'in progress'].includes(tokenStatusOf(t).toLowerCase())
         ).slice(0, 40);
       }
       setTokens(list);
@@ -93,21 +97,31 @@ const CounterScreen = () => {
   }, [counterName, loadTokens, setSearchParams]);
 
   const waiting = useMemo(
-    () => tokens.filter((t) => String(t.status).toLowerCase() === 'waiting'),
+    () => sortTokensFifo(tokens.filter(isWaitingToken)),
     [tokens]
   );
   const active = useMemo(
-    () => tokens.filter((t) => ['called', 'in progress'].includes(String(t.status).toLowerCase())),
+    () => sortTokensFifo(tokens.filter(isActiveToken)),
     [tokens]
   );
   const current = active[0] || null;
   const nextWaiting = waiting[0] || null;
+  const tableBoard = useMemo(() => counterStatusBoard(tokens, counters), [tokens, counters]);
+
+  const speakToken = (token) => {
+    if (!token) return;
+    const spoken = announceTokenCall(token.tokenNo, token.counterName);
+    toast.message(spoken.text);
+  };
 
   const callToken = async (token) => {
+    if (!token) return;
     setLoading(true);
     try {
       const res = await tokensAPI.call(token.tokenNo || token.id);
-      toast.success(`Calling ${token.tokenNo}`);
+      const updated = normalizeToken(res.data || { ...token, status: 'Called' });
+      speakToken(updated);
+      toast.success(`Calling ${updated.tokenNo}`);
       const gasEmail = res?.data?._notifications?.email;
       if (gasEmail?.ok) toast.success(`Call email sent to ${token.customerEmail || gasEmail.to}`);
       else if (gasEmail?.ok === false && gasEmail.reason !== 'missing_email' && gasEmail.error) {
@@ -118,6 +132,30 @@ const CounterScreen = () => {
       await loadTokens();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to call token');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const callNext = async () => {
+    setLoading(true);
+    try {
+      const payload = counterName && counterName !== '__all__' ? { counterName } : {};
+      const res = await tokensAPI.callNext(payload);
+      const updated = normalizeToken(res.data);
+      if (updated?.tokenNo) {
+        speakToken(updated);
+        toast.success(`Calling ${updated.tokenNo}`);
+        await loadTokens();
+        return;
+      }
+      throw new Error('No waiting token');
+    } catch (error) {
+      if (nextWaiting) {
+        await callToken(nextWaiting);
+        return;
+      }
+      toast.error(error.response?.data?.message || 'No waiting token');
     } finally {
       setLoading(false);
     }
@@ -197,7 +235,7 @@ const CounterScreen = () => {
           </Button>
           <div>
             <h1 className="text-3xl font-bold" style={{ color: '#0747a3' }}>Counter Screen</h1>
-            <p className="text-sm text-gray-500">Live queue · auto-refresh every 12s</p>
+            <p className="text-sm text-gray-500">Live queue · voice call · auto-refresh every 12s</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -227,6 +265,27 @@ const CounterScreen = () => {
         ))}
       </div>
 
+      {(counterName === '__all__' || !counterName) && tableBoard.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3" data-testid="counter-tables">
+          {tableBoard.map((table) => (
+            <button
+              type="button"
+              key={table.counterName}
+              onClick={() => setCounterName(table.counterName)}
+              className="rounded-xl border bg-white p-3 text-left hover:border-orange-300"
+            >
+              <div className="text-xs uppercase tracking-wide text-gray-500">{table.counterName}</div>
+              <div className="text-2xl font-bold mt-1" style={{ color: '#ff6d00' }}>
+                {table.nowServing?.tokenNo || '—'}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                Waiting {table.waitingCount}{table.nextWaiting ? ` · next ${table.nextWaiting.tokenNo}` : ''}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2 overflow-hidden">
           <CardContent className="p-0">
@@ -240,8 +299,11 @@ const CounterScreen = () => {
               </div>
               {current && (
                 <div className="mt-4 text-center space-y-1">
+                  <div className="text-lg font-semibold tracking-wide" data-testid="now-serving-announce">
+                    {tokenAnnouncePhrase(current.tokenNo, current.counterName)}
+                  </div>
                   <div className="text-lg">{current.customerName}</div>
-                  <div className="opacity-90">{current.service}</div>
+                  <div className="opacity-90">{current.service} · {current.counterName}</div>
                   <div className="opacity-80 text-sm">{current.customerPhone}</div>
                 </div>
               )}
@@ -252,7 +314,7 @@ const CounterScreen = () => {
             <div className="p-4 flex flex-wrap gap-2">
               <Button
                 disabled={!nextWaiting || loading}
-                onClick={() => callToken(nextWaiting)}
+                onClick={callNext}
                 className="text-white"
                 style={{ backgroundColor: '#ff6d00' }}
                 data-testid="call-next"
@@ -260,6 +322,12 @@ const CounterScreen = () => {
                 <Bell className="h-4 w-4 mr-2" />
                 Call Next {nextWaiting ? `(${nextWaiting.tokenNo})` : ''}
               </Button>
+              {current && (
+                <Button variant="outline" disabled={loading} onClick={() => speakToken(current)} data-testid="replay-announce">
+                  <Volume2 className="h-4 w-4 mr-2" />
+                  Replay voice
+                </Button>
+              )}
               {current && (
                 <>
                   <Button variant="outline" disabled={loading} onClick={() => progressToken(current)} data-testid="token-in-progress">
@@ -332,8 +400,8 @@ const CounterScreen = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge className={statusColor(t.status)}>{statusLabel(t.status)}</Badge>
-                  {['called', 'waiting', 'in progress'].includes(String(t.status).toLowerCase()) && (
+                  <Badge className={statusColor(tokenStatusOf(t))}>{statusLabel(tokenStatusOf(t))}</Badge>
+                  {['called', 'waiting', 'in progress'].includes(tokenStatusOf(t).toLowerCase()) && (
                     <>
                       <Button size="sm" variant="outline" disabled={loading} onClick={() => progressToken(t)}>
                         In Progress
@@ -343,7 +411,7 @@ const CounterScreen = () => {
                       </Button>
                     </>
                   )}
-                  {String(t.status).toLowerCase() === 'called' && (
+                  {tokenStatusOf(t).toLowerCase() === 'called' && (
                     <Button size="sm" onClick={() => createOrder(t)}>
                       Create Order
                     </Button>

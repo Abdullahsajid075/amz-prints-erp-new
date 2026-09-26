@@ -411,7 +411,7 @@ const Products = () => {
         actions={(
           <div className="flex gap-2">
             <Button asChild variant="outline" className="h-9 rounded-xl">
-              <Link to="/warehouse/inventory/settings">Categories & materials</Link>
+              <Link to="/warehouse/inventory/settings">Categories, materials & variations</Link>
             </Button>
             <Button
               variant="outline"

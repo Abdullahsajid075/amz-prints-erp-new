@@ -3,7 +3,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, ShoppingCart, Users, Warehouse, FileText,
-  CreditCard, BarChart3, Settings, X, Ticket,
+  CreditCard, BarChart3, Settings, X, Ticket, Monitor,
   Store, Quote, Calculator, Kanban, ShoppingBag, UsersRound, ChevronDown,
   ListTodo, Megaphone, ClipboardCheck,
 } from 'lucide-react';
@@ -30,6 +30,7 @@ const menuGroups = [
       { icon: Quote, label: 'Quotation', path: '/quotations', module: 'quotations', testId: 'nav-quotations' },
       { icon: ShoppingCart, label: 'Orders', path: '/orders', module: 'orders', testId: 'nav-orders' },
       { icon: Ticket, label: 'Token Booking', path: '/tokens', module: 'tokens', testId: 'nav-tokens' },
+      { icon: Monitor, label: 'Counter Screen', path: '/tokens/counter', module: 'tokens', testId: 'nav-token-counter' },
       { icon: FileText, label: 'Invoices', path: '/invoices', module: 'invoices', testId: 'nav-invoices' },
       { icon: Users, label: 'Customers', path: '/customers', module: 'customers', testId: 'nav-customers' },
       { icon: Kanban, label: 'CRM', path: '/crm', module: 'crm', testId: 'nav-crm' },

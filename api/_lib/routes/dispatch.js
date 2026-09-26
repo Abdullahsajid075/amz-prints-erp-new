@@ -1247,6 +1247,70 @@ async function upsertCustomerFromOrder(body) {
   return mapCustomer(row);
 }
 
+const DEFAULT_COUNTERS = [
+  { counter_name: 'Table 01', prefix: 'A', access_holder: 'Design / Print' },
+  { counter_name: 'Table 02', prefix: 'B', access_holder: 'NADRA' },
+  { counter_name: 'Table 03', prefix: 'C', access_holder: 'Photo Copy' },
+  { counter_name: 'Executive Office', prefix: 'E', access_holder: 'Payments / PALS' },
+];
+
+function mapCounterRow(c) {
+  if (!c) return null;
+  return {
+    id: c.id,
+    counterName: c.counter_name,
+    accessHolder: c.access_holder,
+    prefix: c.prefix,
+    lastNumber: c.last_number,
+    status: c.status,
+    recordType: 'Counter',
+  };
+}
+
+async function ensureDefaultCounters() {
+  const { data } = await supabase.from('counters').select('*').order('counter_name', { ascending: true });
+  if (data && data.length) return data;
+  const rows = DEFAULT_COUNTERS.map((c) => ({
+    id: id('cnt'),
+    counter_name: c.counter_name,
+    access_holder: c.access_holder,
+    prefix: c.prefix,
+    last_number: 0,
+    status: 'Active',
+  }));
+  await supabase.from('counters').insert(rows);
+  return rows;
+}
+
+async function findTokenRow(tid) {
+  const key = decodeURIComponent(String(tid || '').trim());
+  if (!key) return null;
+  const { data: byId } = await supabase.from('tokens').select('*').eq('id', key).maybeSingle();
+  if (byId) return byId;
+  const { data: byNo } = await supabase
+    .from('tokens')
+    .select('*')
+    .eq('token_no', key)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  return (byNo && byNo[0]) || null;
+}
+
+function tokenMatchesDate(row, dateQ) {
+  const filter = String(dateQ || '').trim();
+  if (!filter || filter === 'all') return true;
+  const day = filter === 'today' ? today() : dateKey(filter);
+  if (!day) return true;
+  const tokenDay = dateKey(row.date || row.created_at || '');
+  return !tokenDay || tokenDay === day;
+}
+
+function tokenMatchesCounter(row, counterQ) {
+  const filter = String(counterQ || '').trim();
+  if (!filter || filter === 'all') return true;
+  return String(row.counter_name || row.counterName || '').toLowerCase() === filter.toLowerCase();
+}
+
 async function dispatch(req, res) {
   try {
     const path = String(req.query.path || '/').trim() || '/';
@@ -2340,6 +2404,15 @@ async function dispatch(req, res) {
       }
       const rid = decodeURIComponent(String(path.split('/')[2] || '').trim());
       if (!rid) return sendError(res, 'Product id required', 400);
+      if (path.split('/')[3] === 'variations' && (method === 'PUT' || method === 'PATCH' || method === 'POST')) {
+        const variations = Array.isArray(body.variations) ? body.variations : [];
+        const { data: existing } = await supabase.from('products').select('*').eq('id', rid).maybeSingle();
+        if (!existing) return sendError(res, 'Not found', 404);
+        await supabase.from('products').update({ variations }).eq('id', rid);
+        const { data } = await supabase.from('products').select('*').eq('id', rid).maybeSingle();
+        await syncWebsiteCatalogFlags(data ? [data] : [existing]);
+        return send(res, mapProduct(data || { ...existing, variations }));
+      }
       if (method === 'GET') {
         const { data } = await supabase.from('products').select('*').eq('id', rid).maybeSingle();
         if (!data) return sendError(res, 'Not found', 404);
@@ -2966,16 +3039,8 @@ async function dispatch(req, res) {
 
     // Counters
     if (path === '/counters' && method === 'GET') {
-      const { data } = await supabase.from('counters').select('*');
-      return send(res, (data || []).map((c) => ({
-        id: c.id,
-        counterName: c.counter_name,
-        accessHolder: c.access_holder,
-        prefix: c.prefix,
-        lastNumber: c.last_number,
-        status: c.status,
-        recordType: 'Counter',
-      })));
+      const counters = await ensureDefaultCounters();
+      return send(res, (counters || []).map(mapCounterRow));
     }
     if (path === '/counters' && method === 'POST') {
       const row = {
@@ -2992,14 +3057,12 @@ async function dispatch(req, res) {
 
     // Tokens meta + CRUD (simplified but functional)
     if (method === 'GET' && path === '/tokens/meta') {
-      const [{ data: counters }, { data: products }] = await Promise.all([
-        supabase.from('counters').select('*'),
+      const [counters, { data: products }] = await Promise.all([
+        ensureDefaultCounters(),
         supabase.from('products').select('*'),
       ]);
       return send(res, {
-        counters: (counters || []).map((c) => ({
-          id: c.id, counterName: c.counter_name, accessHolder: c.access_holder, prefix: c.prefix, lastNumber: c.last_number, status: c.status, recordType: 'Counter',
-        })),
+        counters: (counters || []).map(mapCounterRow),
         products: (products || []).map(mapProduct),
         services: [
           { name: 'Designing', counter: 'Table 01' },
@@ -3016,10 +3079,30 @@ async function dispatch(req, res) {
 
     if (path === '/tokens' && method === 'GET') {
       const { data } = await supabase.from('tokens').select('*').order('created_at', { ascending: false });
-      return send(res, (data || []).map(mapToken));
+      const dateQ = req.query.date;
+      const counterQ = req.query.counter;
+      const list = (data || []).filter((row) => tokenMatchesDate(row, dateQ) && tokenMatchesCounter(row, counterQ));
+      return send(res, list.map(mapToken));
+    }
+
+    if (path === '/tokens/call-next' && method === 'POST') {
+      const counterName = String(body.counterName || body.counter || req.query.counter || '').trim();
+      const { data } = await supabase.from('tokens').select('*').order('created_at', { ascending: true });
+      const waiting = (data || []).filter((row) => {
+        if (String(row.token_status || '').toLowerCase() !== 'waiting') return false;
+        if (!tokenMatchesDate(row, 'today')) return false;
+        return tokenMatchesCounter(row, counterName);
+      });
+      const tok = waiting[0];
+      if (!tok) return sendError(res, 'No waiting token', 404);
+      const updates = { token_status: 'Called', called_at: `${today()} ${nowTime()}` };
+      await supabase.from('tokens').update(updates).eq('id', tok.id);
+      const { data: updated } = await supabase.from('tokens').select('*').eq('id', tok.id).maybeSingle();
+      return send(res, mapToken(updated || { ...tok, ...updates }));
     }
 
     if (path === '/tokens' && method === 'POST') {
+      await ensureDefaultCounters();
       const counterName = body.counterName || body.counter || 'Table 01';
       let { data: counter } = await supabase.from('counters').select('*').eq('counter_name', counterName).maybeSingle();
       if (!counter) {
@@ -3047,36 +3130,29 @@ async function dispatch(req, res) {
         if (cust) row.customer_id = cust.id;
       }
       await supabase.from('tokens').insert(row);
-      return send(res, {
-        id: row.id, tokenNo: row.token_no, date: row.date, time: row.time,
-        customerName: row.customer_name, customerPhone: row.customer_phone,
-        service: row.service, tokenStatus: row.token_status, counterName: row.counter_name, recordType: 'Token',
-      });
+      return send(res, mapToken(row));
     }
 
     if (path.startsWith('/tokens/')) {
       const tid = path.split('/')[2];
       const action = path.split('/')[3];
-      const { data: tok } = await supabase.from('tokens').select('*').eq('id', tid).maybeSingle();
+      const tok = await findTokenRow(tid);
       if (!tok) return sendError(res, 'Token not found', 404);
       const statusMap = { call: 'Called', complete: 'Completed', skip: 'Skipped', progress: 'In Progress', cancel: 'Cancelled' };
       if (action === 'link-order' && method === 'POST') {
-        await supabase.from('tokens').update({ order_id: body.orderId || '' }).eq('id', tid);
-        const { data } = await supabase.from('tokens').select('*').eq('id', tid).maybeSingle();
-        return send(res, { id: data.id, tokenNo: data.token_no, tokenStatus: data.token_status, orderId: data.order_id });
+        await supabase.from('tokens').update({ order_id: body.orderId || '' }).eq('id', tok.id);
+        const { data } = await supabase.from('tokens').select('*').eq('id', tok.id).maybeSingle();
+        return send(res, mapToken(data || { ...tok, order_id: body.orderId || '' }));
       }
       if (action && statusMap[action] && method === 'POST') {
         const updates = { token_status: statusMap[action] };
         if (action === 'call') updates.called_at = `${today()} ${nowTime()}`;
-        await supabase.from('tokens').update(updates).eq('id', tid);
-        const { data } = await supabase.from('tokens').select('*').eq('id', tid).maybeSingle();
-        return send(res, { id: data.id, tokenNo: data.token_no, tokenStatus: data.token_status, orderId: data.order_id });
+        await supabase.from('tokens').update(updates).eq('id', tok.id);
+        const { data } = await supabase.from('tokens').select('*').eq('id', tok.id).maybeSingle();
+        return send(res, mapToken(data || { ...tok, ...updates }));
       }
       if (method === 'GET') {
-        return send(res, {
-          id: tok.id, tokenNo: tok.token_no, tokenStatus: tok.token_status,
-          customerName: tok.customer_name, service: tok.service, counterName: tok.counter_name,
-        });
+        return send(res, mapToken(tok));
       }
     }
 

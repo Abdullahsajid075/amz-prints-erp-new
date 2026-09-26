@@ -10,11 +10,15 @@ import { tokensAPI, customersAPI, debugAPI } from '@/services/api';
 import { notifyTokenEvent } from '@/services/notifications';
 import { documentFileName } from '@/utils/printHelpers';
 import { isCustomerBlocked, getBlockMessage } from '@/utils/customerHelpers';
+import {
+  announceTokenCall, tokenAnnouncePhrase, tokenStatusOf, normalizeToken,
+  isWaitingToken, isActiveToken, sortTokensFifo, counterStatusBoard,
+} from '@/utils/tokenAnnounce';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import {
   Ticket, Printer, Monitor, Search, Plus, XCircle,
-  Loader2, RefreshCw,
+  Loader2, RefreshCw, Bell, Volume2,
 } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 
@@ -37,6 +41,12 @@ const statusClass = (status) => {
   if (s === 'cancelled' || s === 'skipped') return 'bg-red-100 text-red-800';
   return 'bg-slate-100 text-slate-700';
 };
+
+function speakToken(token) {
+  if (!token) return;
+  const spoken = announceTokenCall(token.tokenNo, token.counterName);
+  toast.message(spoken.text);
+}
 
 function buildWhatsAppUrl(phone, text) {
   const digits = String(phone || '').replace(/\D/g, '');
@@ -148,7 +158,7 @@ const TokenBooking = () => {
         date: listFilter === 'all' ? 'all' : 'today',
         counter: 'all',
       });
-      const list = Array.isArray(res.data) ? res.data : [];
+      const list = (Array.isArray(res.data) ? res.data : []).map(normalizeToken);
       setTokens(list);
     } catch (error) {
       console.error(error);
@@ -289,11 +299,12 @@ const TokenBooking = () => {
           },
         };
       }
-      const normalized = {
+      const normalized = normalizeToken({
         ...token,
         tokenNo,
+        status: token.status || token.tokenStatus || 'Waiting',
         customerEmail: token.customerEmail || form.customerEmail.trim(),
-      };
+      });
       setLastToken(normalized);
       toast.success(`Token ${tokenNo} → ${token.counterName || counterName}`);
       const gasEmail = token?._notifications?.email;
@@ -363,7 +374,7 @@ const TokenBooking = () => {
   const markProgress = async (token) => {
     try {
       const res = await tokensAPI.progress(token.tokenNo || token.id);
-      setLastToken(res.data || { ...token, status: 'In Progress' });
+      setLastToken(normalizeToken(res.data || { ...token, status: 'In Progress' }));
       toast.success(`${token.tokenNo} → In Progress`);
       loadTokens();
     } catch (error) {
@@ -376,7 +387,7 @@ const TokenBooking = () => {
     try {
       const res = await tokensAPI.cancel(token.tokenNo || token.id);
       if (lastToken && (lastToken.tokenNo === token.tokenNo || lastToken.id === token.id)) {
-        setLastToken(res.data || { ...token, status: 'Cancelled' });
+        setLastToken(normalizeToken(res.data || { ...token, status: 'Cancelled' }));
       }
       toast.message(`${token.tokenNo} cancelled`);
       loadTokens();
@@ -385,12 +396,51 @@ const TokenBooking = () => {
     }
   };
 
+  const callToken = async (token) => {
+    if (!token) return;
+    try {
+      const res = await tokensAPI.call(token.tokenNo || token.id);
+      const updated = normalizeToken(res.data || { ...token, status: 'Called' });
+      setLastToken(updated);
+      speakToken(updated);
+      toast.success(`Calling ${updated.tokenNo}`);
+      loadTokens();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to call token');
+    }
+  };
+
+  const callNext = async (counterName) => {
+    try {
+      const res = await tokensAPI.callNext(counterName ? { counterName } : {});
+      const updated = normalizeToken(res.data);
+      if (!updated?.tokenNo) throw new Error('No waiting token');
+      setLastToken(updated);
+      speakToken(updated);
+      toast.success(`Calling ${updated.tokenNo}`);
+      loadTokens();
+    } catch (error) {
+      const local = sortTokensFifo(tokens.filter((t) => (
+        isWaitingToken(t) && (!counterName || t.counterName === counterName)
+      )))[0];
+      if (local) {
+        await callToken(local);
+        return;
+      }
+      toast.error(error.response?.data?.message || 'No waiting token');
+    }
+  };
+
+  const tableBoard = useMemo(() => counterStatusBoard(tokens, counters), [tokens, counters]);
+  const nowServing = useMemo(() => sortTokensFifo(tokens.filter(isActiveToken))[0] || null, [tokens]);
+  const nextWaiting = useMemo(() => sortTokensFifo(tokens.filter(isWaitingToken))[0] || null, [tokens]);
+
   return (
     <div className="space-y-6" data-testid="token-booking">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold" style={{ color: '#0747a3' }}>Token Booking</h1>
-          <p className="text-sm text-gray-500 mt-1">Select service → counter auto-assigned · list · print · WhatsApp</p>
+          <p className="text-sm text-gray-500 mt-1">Book · Call Next · tables · voice: TOKEN PLEASE PROCEED TO THE COUNTER</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={syncSheets} data-testid="sync-sheets">
@@ -399,6 +449,16 @@ const TokenBooking = () => {
           <Button variant="outline" onClick={loadTokens} disabled={listLoading}>
             <RefreshCw className={`h-4 w-4 mr-2 ${listLoading ? 'animate-spin' : ''}`} />
             Refresh List
+          </Button>
+          <Button
+            className="text-white"
+            style={{ backgroundColor: '#ff6d00' }}
+            onClick={() => callNext()}
+            disabled={!nextWaiting}
+            data-testid="booking-call-next"
+          >
+            <Bell className="h-4 w-4 mr-2" />
+            Call Next {nextWaiting ? `(${nextWaiting.tokenNo})` : ''}
           </Button>
           <Button
             variant="outline"
@@ -416,6 +476,63 @@ const TokenBooking = () => {
           {dbStatus}
         </div>
       )}
+
+      <Card data-testid="current-token-status">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Current token status</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-xl p-4 text-white" style={{ background: 'linear-gradient(135deg, #0747a3 0%, #0a2f66 100%)' }}>
+            <div className="text-xs uppercase tracking-[0.18em] opacity-80">Now serving</div>
+            <div className="text-4xl font-bold mt-1" data-testid="booking-now-serving">{nowServing?.tokenNo || '—'}</div>
+            {nowServing ? (
+              <div className="mt-2 text-sm opacity-90">
+                {tokenAnnouncePhrase(nowServing.tokenNo, nowServing.counterName)}
+                <div className="opacity-80">{nowServing.customerName} · {nowServing.service}</div>
+              </div>
+            ) : (
+              <div className="mt-2 text-sm opacity-80">No token called yet</div>
+            )}
+            {nowServing && (
+              <Button
+                size="sm"
+                variant="secondary"
+                className="mt-3"
+                onClick={() => speakToken(nowServing)}
+              >
+                <Volume2 className="h-4 w-4 mr-1" />
+                Replay voice
+              </Button>
+            )}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3" data-testid="token-tables">
+            {tableBoard.map((table) => (
+              <div key={table.counterName} className="rounded-xl border p-3 bg-white">
+                <div className="text-xs uppercase tracking-wide text-gray-500">{table.counterName}</div>
+                <div className="text-2xl font-bold mt-1" style={{ color: '#ff6d00' }}>
+                  {table.nowServing?.tokenNo || '—'}
+                </div>
+                <div className="text-xs text-gray-500 mt-1">
+                  Waiting {table.waitingCount}{table.nextWaiting ? ` · next ${table.nextWaiting.tokenNo}` : ''}
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-2 w-full"
+                  disabled={!table.nextWaiting}
+                  onClick={() => callNext(table.counterName)}
+                >
+                  <Bell className="h-3.5 w-3.5 mr-1" />
+                  Call Next
+                </Button>
+              </div>
+            ))}
+            {!tableBoard.length && (
+              <p className="text-sm text-gray-500 col-span-full">Tables appear after Sync Sheets or the first booking.</p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2">
@@ -556,6 +673,15 @@ const TokenBooking = () => {
                     <WhatsAppIcon className="h-4 w-4 mr-2" />
                     Send WhatsApp
                   </Button>
+                  <Button
+                    className="text-white"
+                    style={{ backgroundColor: '#ff6d00' }}
+                    onClick={() => callToken(lastToken)}
+                    data-testid="token-booking-call"
+                  >
+                    <Bell className="h-4 w-4 mr-2" />
+                    Call / Announce
+                  </Button>
                   <Button variant="outline" onClick={() => markProgress(lastToken)} data-testid="token-booking-progress">
                     <Loader2 className="h-4 w-4 mr-2" />
                     In Progress
@@ -643,10 +769,20 @@ const TokenBooking = () => {
                         {t.date} {t.time}
                       </td>
                       <td className="py-2.5 pr-3">
-                        <Badge className={statusClass(t.status)}>{t.status || 'Waiting'}</Badge>
+                        <Badge className={statusClass(tokenStatusOf(t))}>{tokenStatusOf(t)}</Badge>
                       </td>
                       <td className="py-2.5">
                         <div className="flex flex-wrap gap-1">
+                          {isWaitingToken(t) && (
+                            <Button size="sm" variant="ghost" className="h-8 px-2 text-orange-600" onClick={() => callToken(t)} title="Call">
+                              <Bell className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          {isActiveToken(t) && (
+                            <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => speakToken(t)} title="Replay voice">
+                              <Volume2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                           <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => printToken(t)} title="Print">
                             <Printer className="h-3.5 w-3.5" />
                           </Button>

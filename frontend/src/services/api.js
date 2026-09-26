@@ -64,6 +64,7 @@ export const productsAPI = {
   getById: (id) => gasRequest('GET', `/products/${id}`, withToken()),
   create: (data) => gasRequest('POST', '/products', withToken({ data })),
   update: (id, data) => gasRequest('PUT', `/products/${id}`, withToken({ data })),
+  updateVariations: (id, variations) => gasRequest('PUT', `/products/${id}/variations`, withToken({ data: { variations } })),
   delete: (id) => gasRequest('DELETE', `/products/${id}`, withToken()),
   publishWebsite: () => gasRequest('POST', '/products/publish-website', withToken({ data: {} })),
 };
@@ -193,6 +194,7 @@ export const tokensAPI = {
   create: (data) => gasRequest('POST', '/tokens', withToken({ data })),
   getById: (id) => gasRequest('GET', `/tokens/${id}`, withToken()),
   call: (id) => gasRequest('POST', `/tokens/${id}/call`, withToken()),
+  callNext: (data) => gasRequest('POST', '/tokens/call-next', withToken({ data: data || {} })),
   complete: (id) => gasRequest('POST', `/tokens/${id}/complete`, withToken()),
   skip: (id) => gasRequest('POST', `/tokens/${id}/skip`, withToken()),
   progress: (id) => gasRequest('POST', `/tokens/${id}/progress`, withToken()),
