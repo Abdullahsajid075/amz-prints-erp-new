@@ -1244,6 +1244,94 @@ function amz_prints_customer_cv_by_token( $token ) {
 }
 
 /**
+ * Uploads folder used for CV photos.
+ *
+ * @return array|WP_Error { dir, baseurl }
+ */
+function amz_prints_customer_cv_photo_dir() {
+	$upload = wp_upload_dir();
+	if ( ! empty( $upload['error'] ) ) {
+		return new WP_Error( 'amz_cv_photo', __( 'Could not store the CV photo.', 'amz-prints' ) );
+	}
+	$dir = trailingslashit( $upload['basedir'] ) . 'amz-cv';
+	if ( ! wp_mkdir_p( $dir ) ) {
+		return new WP_Error( 'amz_cv_photo', __( 'Could not store the CV photo.', 'amz-prints' ) );
+	}
+	$index = $dir . '/index.php';
+	if ( ! file_exists( $index ) ) {
+		file_put_contents( $index, "<?php\n// Silence is golden.\n" );
+	}
+	return array(
+		'dir'     => $dir,
+		'baseurl' => $upload['baseurl'],
+	);
+}
+
+/**
+ * Public URL for this customer's CV photo file.
+ *
+ * @param string              $email Customer email.
+ * @param string              $ext   jpg, png, or webp.
+ * @param array<string,mixed> $dir   Result of amz_prints_customer_cv_photo_dir().
+ * @return array{path:string,url:string}
+ */
+function amz_prints_customer_cv_photo_target( $email, $ext, $dir ) {
+	$hash = md5( strtolower( $email ) );
+	$name = 'cv-' . $hash . '.' . $ext;
+	foreach ( array( 'jpg', 'png', 'webp' ) as $old_ext ) {
+		$old = $dir['dir'] . '/cv-' . $hash . '.' . $old_ext;
+		if ( $old_ext !== $ext && file_exists( $old ) ) {
+			unlink( $old );
+		}
+	}
+	return array(
+		'path' => $dir['dir'] . '/' . $name,
+		'url'  => trailingslashit( $dir['baseurl'] ) . 'amz-cv/' . $name . '?v=' . time(),
+	);
+}
+
+/**
+ * Store the photo sent as a real file upload.
+ *
+ * @param string $email Customer email.
+ * @return string|WP_Error Public URL, empty string when no file, or error.
+ */
+function amz_prints_customer_cv_store_uploaded_file( $email ) {
+	if ( empty( $_FILES['photo']['tmp_name'] ) ) {
+		return '';
+	}
+	$file = $_FILES['photo'];
+	if ( ! empty( $file['error'] ) ) {
+		return new WP_Error( 'amz_cv_photo', __( 'Could not upload the CV photo. Use a JPG or PNG under 2 MB.', 'amz-prints' ) );
+	}
+	if ( ! is_uploaded_file( $file['tmp_name'] ) ) {
+		return new WP_Error( 'amz_cv_photo', __( 'Could not upload the CV photo.', 'amz-prints' ) );
+	}
+	if ( (int) $file['size'] > 2 * 1024 * 1024 ) {
+		return new WP_Error( 'amz_cv_photo', __( 'That photo is too large. Use a JPG or PNG under 2 MB.', 'amz-prints' ) );
+	}
+	$info = @getimagesize( $file['tmp_name'] );
+	$map  = array(
+		'image/jpeg' => 'jpg',
+		'image/png'  => 'png',
+		'image/webp' => 'webp',
+	);
+	$mime = is_array( $info ) ? (string) ( $info['mime'] ?? '' ) : '';
+	if ( ! isset( $map[ $mime ] ) ) {
+		return new WP_Error( 'amz_cv_photo', __( 'Upload a JPG, PNG, or WebP photo for the CV.', 'amz-prints' ) );
+	}
+	$dir = amz_prints_customer_cv_photo_dir();
+	if ( is_wp_error( $dir ) ) {
+		return $dir;
+	}
+	$target = amz_prints_customer_cv_photo_target( $email, $map[ $mime ], $dir );
+	if ( ! move_uploaded_file( $file['tmp_name'], $target['path'] ) ) {
+		return new WP_Error( 'amz_cv_photo', __( 'Could not store the CV photo.', 'amz-prints' ) );
+	}
+	return $target['url'];
+}
+
+/**
  * Write a CV photo from a data URL into uploads/amz-cv.
  *
  * @param string $email    Customer email.
@@ -1254,6 +1342,9 @@ function amz_prints_customer_cv_store_photo( $email, $data_url ) {
 	$data_url = (string) $data_url;
 	if ( preg_match( '#^https?://#i', $data_url ) ) {
 		return esc_url_raw( $data_url );
+	}
+	if ( preg_match( '#^(blob:|data:application/)#i', $data_url ) ) {
+		return new WP_Error( 'amz_cv_photo', __( 'Upload a JPG, PNG, or WebP photo for the CV.', 'amz-prints' ) );
 	}
 	if ( ! preg_match( '#^data:image/(jpeg|jpg|png|webp);base64,#i', $data_url, $match ) ) {
 		return new WP_Error( 'amz_cv_photo', __( 'Upload a JPG, PNG, or WebP photo for the CV.', 'amz-prints' ) );
@@ -1267,29 +1358,15 @@ function amz_prints_customer_cv_store_photo( $email, $data_url ) {
 	if ( 'jpeg' === $ext ) {
 		$ext = 'jpg';
 	}
-	$upload = wp_upload_dir();
-	if ( ! empty( $upload['error'] ) ) {
+	$dir = amz_prints_customer_cv_photo_dir();
+	if ( is_wp_error( $dir ) ) {
+		return $dir;
+	}
+	$target = amz_prints_customer_cv_photo_target( $email, $ext, $dir );
+	if ( false === file_put_contents( $target['path'], $raw ) ) {
 		return new WP_Error( 'amz_cv_photo', __( 'Could not store the CV photo.', 'amz-prints' ) );
 	}
-	$dir = trailingslashit( $upload['basedir'] ) . 'amz-cv';
-	if ( ! wp_mkdir_p( $dir ) ) {
-		return new WP_Error( 'amz_cv_photo', __( 'Could not store the CV photo.', 'amz-prints' ) );
-	}
-	$index = $dir . '/index.php';
-	if ( ! file_exists( $index ) ) {
-		file_put_contents( $index, "<?php\n// Silence is golden.\n" );
-	}
-	$name = 'cv-' . md5( strtolower( $email ) ) . '.' . $ext;
-	foreach ( array( 'jpg', 'png', 'webp' ) as $old_ext ) {
-		$old = $dir . '/cv-' . md5( strtolower( $email ) ) . '.' . $old_ext;
-		if ( $old_ext !== $ext && file_exists( $old ) ) {
-			unlink( $old );
-		}
-	}
-	if ( false === file_put_contents( $dir . '/' . $name, $raw ) ) {
-		return new WP_Error( 'amz_cv_photo', __( 'Could not store the CV photo.', 'amz-prints' ) );
-	}
-	return trailingslashit( $upload['baseurl'] ) . 'amz-cv/' . $name . '?v=' . time();
+	return $target['url'];
 }
 
 /**
@@ -1400,21 +1477,42 @@ function amz_prints_ajax_save_cv() {
 	$token    = ( is_array( $existing ) && ! empty( $existing['token'] ) ) ? (string) $existing['token'] : bin2hex( random_bytes( 16 ) );
 	$photo    = '';
 	if ( ! $clear ) {
+		$uploaded = amz_prints_customer_cv_store_uploaded_file( $email );
+		if ( is_wp_error( $uploaded ) ) {
+			wp_send_json_error( array( 'message' => $uploaded->get_error_message() ), 400 );
+		}
 		$incoming = (string) ( $state['photo'] ?? '' );
+		if ( preg_match( '#^(blob:|data:)#i', $incoming ) ) {
+			$incoming = '';
+		}
 		if ( '' === $incoming && is_array( $existing ) ) {
 			$incoming = (string) ( $existing['photo'] ?? '' );
 		}
-		if ( '' === $incoming ) {
+		if ( $uploaded ) {
+			$photo = $uploaded;
+		} elseif ( '' === $incoming ) {
 			wp_send_json_error( array( 'message' => __( 'Upload a photo before saving the CV.', 'amz-prints' ) ), 400 );
+		} else {
+			$stored = amz_prints_customer_cv_store_photo( $email, $incoming );
+			if ( is_wp_error( $stored ) ) {
+				wp_send_json_error( array( 'message' => $stored->get_error_message() ), 400 );
+			}
+			$photo = $stored;
 		}
-		$stored = amz_prints_customer_cv_store_photo( $email, $incoming );
-		if ( is_wp_error( $stored ) ) {
-			wp_send_json_error( array( 'message' => $stored->get_error_message() ), 400 );
-		}
-		$photo          = $stored;
 		$state['photo'] = $photo;
 		if ( $html && $photo ) {
-			$html = preg_replace( '#src="data:image/[^"]+"#', 'src="' . esc_url( $photo ) . '"', $html );
+			$src  = esc_url( $photo );
+			$html = preg_replace_callback(
+				'#<img\b[^>]*class="cv-photo"[^>]*>#i',
+				static function ( $match ) use ( $src ) {
+					$tag = $match[0];
+					if ( preg_match( '#\ssrc="#', $tag ) ) {
+						return preg_replace( '#\ssrc="[^"]*"#', ' src="' . $src . '"', $tag, 1 );
+					}
+					return preg_replace( '#^<img\b#i', '<img src="' . $src . '"', $tag, 1 );
+				},
+				$html
+			);
 		}
 		$html = amz_prints_customer_cv_kses( $html );
 	} else {
@@ -1462,6 +1560,30 @@ function amz_prints_customer_cv_public_view() {
 	header( 'X-Robots-Tag: noindex, nofollow' );
 	$css  = get_template_directory_uri() . '/assets/css/cv-builder.css?ver=' . rawurlencode( AMZ_PRINTS_VERSION );
 	$html = ( $row && ! empty( $row['html'] ) ) ? (string) $row['html'] : '<p class="cv-muted">This CV is not available.</p>';
+	$photo_url = '';
+	if ( is_array( $row ) ) {
+		$photo_url = (string) ( $row['photo'] ?? '' );
+		if ( ! $photo_url && ! empty( $row['state']['photo'] ) ) {
+			$photo_url = (string) $row['state']['photo'];
+		}
+	}
+	if ( $photo_url && preg_match( '#^https?://#i', $photo_url ) && preg_match( '#<img\b[^>]*class="cv-photo"#i', $html ) ) {
+		$src  = esc_url( $photo_url );
+		$html = preg_replace_callback(
+			'#<img\b[^>]*class="cv-photo"[^>]*>#i',
+			static function ( $match ) use ( $src ) {
+				$tag = $match[0];
+				if ( preg_match( '#\ssrc="https?://#i', $tag ) ) {
+					return $tag;
+				}
+				if ( preg_match( '#\ssrc="#', $tag ) ) {
+					return preg_replace( '#\ssrc="[^"]*"#', ' src="' . $src . '"', $tag, 1 );
+				}
+				return preg_replace( '#^<img\b#i', '<img src="' . $src . '"', $tag, 1 );
+			},
+			$html
+		);
+	}
 	echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">';
 	echo '<title>' . esc_html__( "Customer's CV", 'amz-prints' ) . '</title>';
 	echo '<link rel="stylesheet" href="' . esc_url( $css ) . '">';

@@ -290,12 +290,19 @@
   line-height: 1.2;
   padding: 0 6mm;
 }
-.cv-photo {
+.cv-photo,
+img.cv-photo {
   width: 34mm;
   height: 34mm;
+  max-width: none;
   object-fit: cover;
   background: rgba(255,255,255,0.2);
   display: block;
+}
+img.cv-photo-preview {
+  width: 72px;
+  height: 72px;
+  max-width: none;
 }
 .cv-name { font-weight: 800; line-height: 1.1; letter-spacing: -0.02em; overflow-wrap: anywhere; }
 .cv-role { font-weight: 600; opacity: 0.92; margin-top: 2mm; overflow-wrap: anywhere; }

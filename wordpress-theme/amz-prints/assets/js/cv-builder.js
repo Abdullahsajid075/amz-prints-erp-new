@@ -128,14 +128,28 @@
 
   var allowServer = false;
   var saveTimer = null;
+  var pendingPhoto = null;
+  var pendingPhotoUrl = '';
+  var photoSeq = 0;
+
+  function httpPhoto(value) {
+    return value && /^https?:\/\//i.test(value) ? value : '';
+  }
+
+  function releasePendingPhoto() {
+    if (pendingPhotoUrl) {
+      try { URL.revokeObjectURL(pendingPhotoUrl); } catch (err) { /* ignore */ }
+    }
+    pendingPhoto = null;
+    pendingPhotoUrl = '';
+  }
 
   function save() {
     try {
       var copy = JSON.parse(JSON.stringify(state));
-      copy.photo = (state.photo && state.photo.indexOf('data:') !== 0) ? state.photo : '';
+      copy.photo = httpPhoto(state.photo);
       localStorage.setItem(STORAGE, JSON.stringify(copy));
-      if (state.photo && state.photo.indexOf('data:') === 0) localStorage.setItem(STORAGE + '_photo', state.photo);
-      else localStorage.removeItem(STORAGE + '_photo');
+      localStorage.removeItem(STORAGE + '_photo');
     } catch (e) { /* quota */ }
     if (allowServer) scheduleServerSave(false);
   }
@@ -151,7 +165,7 @@
     Array.prototype.forEach.call(pagesHost.querySelectorAll('.cv-page'), function (page) {
       html += page.outerHTML;
     });
-    return html;
+    return html.replace(/\ssrc="(?:blob:|data:)[^"]*"/g, ' src=""');
   }
 
   function scheduleServerSave(immediate) {
@@ -161,22 +175,34 @@
 
   function pushServer(clearing) {
     if (!window.amzCv || !amzCv.ajaxUrl) return Promise.resolve(false);
-    if (!clearing && !state.photo) return Promise.resolve(false);
+    if (!clearing && !state.photo && !pendingPhoto) return Promise.resolve(false);
     setStatus(clearing ? 'Clearing…' : 'Saving…');
+    var seq = photoSeq;
+    var payload = JSON.parse(JSON.stringify(state));
+    payload.photo = httpPhoto(state.photo);
     var body = new FormData();
     body.append('action', 'amz_prints_save_cv');
     body.append('nonce', amzCv.nonce || '');
-    body.append('state', JSON.stringify(state));
+    body.append('state', JSON.stringify(payload));
     body.append('html', clearing ? '' : pagesHtml());
     if (clearing) body.append('clear', '1');
+    if (!clearing && pendingPhoto) body.append('photo', pendingPhoto, 'cv-photo.jpg');
     return fetch(amzCv.ajaxUrl, { method: 'POST', credentials: 'same-origin', body: body })
       .then(function (r) { return r.json(); })
       .then(function (res) {
+        if (seq !== photoSeq) return false;
         if (res && res.success) {
-          if (!clearing && res.data && res.data.photoUrl && state.photo.indexOf('data:') === 0) {
+          if (!clearing && res.data && res.data.photoUrl && (pendingPhoto || !httpPhoto(state.photo))) {
+            releasePendingPhoto();
             state.photo = res.data.photoUrl;
+            state.enabled.photo = true;
+            renderForm();
+            renderPreview();
+          }
+          if (!clearing && res.data && res.data.photoUrl && httpPhoto(state.photo)) {
             try {
               var copy = JSON.parse(JSON.stringify(state));
+              copy.photo = state.photo;
               localStorage.setItem(STORAGE, JSON.stringify(copy));
               localStorage.removeItem(STORAGE + '_photo');
             } catch (err) { /* ignore */ }
@@ -188,7 +214,7 @@
         return false;
       })
       .catch(function () {
-        setStatus('Saved on this device');
+        setStatus('Could not save the photo. Try again.');
         return false;
       });
   }
@@ -415,6 +441,8 @@
       save(); renderForm(); renderPreview();
     }
     if (btn.hasAttribute('data-photo-remove')) {
+      photoSeq += 1;
+      releasePendingPhoto();
       state.photo = '';
       try { localStorage.removeItem(STORAGE + '_photo'); } catch (err) { /* ignore */ }
       save(); renderForm(); renderPreview();
@@ -609,6 +637,25 @@
     scaleEl.style.height = (pages * 1123 * s) + 'px';
   }
 
+  function canvasToJpegBlob(canvas) {
+    return new Promise(function (resolve) {
+      if (canvas.toBlob) {
+        canvas.toBlob(function (blob) { resolve(blob || null); }, 'image/jpeg', 0.86);
+        return;
+      }
+      try {
+        var data = canvas.toDataURL('image/jpeg', 0.86);
+        var parts = data.split(',');
+        var bin = atob(parts[1] || '');
+        var bytes = new Uint8Array(bin.length);
+        for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        resolve(new Blob([bytes], { type: 'image/jpeg' }));
+      } catch (err) {
+        resolve(null);
+      }
+    });
+  }
+
   function applyPhotoBitmap(bitmap) {
     var canvas = document.createElement('canvas');
     var size = 520;
@@ -617,18 +664,30 @@
     var ctx = canvas.getContext('2d');
     var w = bitmap.width || bitmap.naturalWidth || size;
     var h = bitmap.height || bitmap.naturalHeight || size;
-    var s = Math.min(w, h) || 1;
-    var sx = (w - s) / 2;
-    var sy = (h - s) / 2;
+    var side = Math.min(w, h) || 1;
+    var sx = (w - side) / 2;
+    var sy = (h - side) / 2;
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, size, size);
-    ctx.drawImage(bitmap, sx, sy, s, s, 0, 0, size, size);
+    ctx.drawImage(bitmap, sx, sy, side, side, 0, 0, size, size);
     if (bitmap.close) bitmap.close();
-    state.photo = canvas.toDataURL('image/jpeg', 0.86);
-    state.enabled.photo = true;
-    save();
-    renderForm();
-    renderPreview();
+    photoSeq += 1;
+    var seq = photoSeq;
+    canvasToJpegBlob(canvas).then(function (blob) {
+      if (seq !== photoSeq) return;
+      if (!blob) {
+        alert('Could not process that image. Try another JPG or PNG.');
+        return;
+      }
+      releasePendingPhoto();
+      pendingPhoto = blob;
+      pendingPhotoUrl = URL.createObjectURL(blob);
+      state.photo = pendingPhotoUrl;
+      state.enabled.photo = true;
+      save();
+      renderForm();
+      renderPreview();
+    });
   }
 
   function readPhotoWithImage(file) {
@@ -784,13 +843,11 @@
       }
       if (act === 'print') {
         if (!requirePhoto()) return;
-        pushServer(false);
-        doPrint();
+        pushServer(false).then(function (ok) { if (ok) doPrint(); });
       }
       if (act === 'download') {
         if (!requirePhoto()) return;
-        pushServer(false);
-        doDownloadPdf();
+        pushServer(false).then(function (ok) { if (ok) doDownloadPdf(); });
       }
       if (act === 'preview') {
         var box = document.getElementById('cv-lightbox');
@@ -805,6 +862,8 @@
       }
       if (act === 'reset') {
         if (!window.confirm('Clear this CV and start again? This cannot be undone.')) return;
+        photoSeq += 1;
+        releasePendingPhoto();
         state = defaultState();
         try {
           localStorage.removeItem(STORAGE);
