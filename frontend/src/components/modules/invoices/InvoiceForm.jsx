@@ -648,7 +648,7 @@ const InvoiceForm = () => {
         }
       } else {
         res = await invoicesAPI.create(payload);
-        toast.success(`Invoice ${payload.invoiceNumber || res.data?.invoiceNumber || ''} created`);
+        toast.success(`Invoice ${payload.invoiceNumber || res.data?.invoiceNumber || ''} created. Linked orders are eligible for delivery and were not marked Delivered.`);
         const data = { ...payload, ...(res.data || {}) };
         try {
           await sendInvoiceWhatsApp(data, grandTotal, balance, Number(payload.paidAmount) || 0, waWindow);

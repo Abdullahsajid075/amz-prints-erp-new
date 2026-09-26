@@ -25,7 +25,9 @@ export const ORDER_STATUS = {
   FINISHING: 'Finishing',
   PACKING: 'Packing',
   READY: 'Ready',
+  READY_FOR_DELIVERY: 'Ready for Delivery',
   DELIVERED: 'Delivered',
+  CLOSED: 'Closed',
   CANCELLED: 'Cancelled'
 };
 
@@ -37,6 +39,7 @@ export const OPEN_ORDER_STATUSES = [
   ORDER_STATUS.FINISHING,
   ORDER_STATUS.PACKING,
   ORDER_STATUS.READY,
+  ORDER_STATUS.READY_FOR_DELIVERY,
 ];
 
 export function isBookingOrder(order) {
@@ -49,14 +52,14 @@ export function isBookingOrder(order) {
 export function isSettledOrderStatus(status) {
   const s = String(status || '').trim().toLowerCase();
   return s === 'delivered' || s === 'complete' || s === 'completed'
-    || s === 'cancelled' || s === 'canceled';
+    || s === 'closed' || s === 'cancelled' || s === 'canceled';
 }
 
 export function isOpenOrder(order) {
   if (!isBookingOrder(order)) return false;
-  if (order?.invoiceId || order?.invoiceNumber) return false;
   if (isSettledOrderStatus(order?.status)) return false;
   const s = String(order?.status || '').trim().toLowerCase();
+  if (s === 'ready for delivery') return true;
   return OPEN_ORDER_STATUSES.some((st) => st.toLowerCase() === s);
 }
 

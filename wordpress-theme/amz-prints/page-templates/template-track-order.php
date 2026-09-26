@@ -112,6 +112,26 @@ $prefill = isset( $_GET['order_id'] ) ? sanitize_text_field( wp_unslash( $_GET['
 						<p class="track-items"><?php echo esc_html( $result['items'] ); ?></p>
 					<?php endif; ?>
 
+					<?php if ( ! empty( $result['invoice_required'] ) ) : ?>
+						<p class="track-alert">
+							<?php
+							echo esc_html(
+								! empty( $result['invoice_required_message'] )
+									? $result['invoice_required_message']
+									: __( 'Invoice Required: Please generate the invoice before delivering this order.', 'amz-prints' )
+							);
+							?>
+						</p>
+					<?php endif; ?>
+
+					<?php if ( current_user_can( 'edit_posts' ) && empty( $result['cancelled'] ) && ! preg_match( '/delivered|closed/i', (string) ( $result['status'] ?? '' ) ) ) : ?>
+						<p class="form-note">
+							<a href="<?php echo esc_url( $result['erp_track_url'] ); ?>" target="_blank" rel="noopener noreferrer">
+								<?php esc_html_e( 'Staff: confirm delivery in ERP after the invoice exists.', 'amz-prints' ); ?>
+							</a>
+						</p>
+					<?php endif; ?>
+
 					<?php if ( ! empty( $result['cancelled'] ) ) : ?>
 						<p class="track-alert track-alert--error"><?php esc_html_e( 'This order was cancelled.', 'amz-prints' ); ?></p>
 					<?php elseif ( ! empty( $result['timeline'] ) && is_array( $result['timeline'] ) ) : ?>

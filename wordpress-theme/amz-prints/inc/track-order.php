@@ -157,6 +157,10 @@ function amz_prints_map_erp_track( $data ) {
 		'cancelled'        => ! empty( $data['cancelled'] ),
 		'message'          => (string) ( $data['companyNote'] ?? '' ),
 		'erp_track_url'    => amz_prints_erp_track_page_url( $data['trackCode'] ?? $track_no ),
+		'has_invoice'      => ! empty( $data['hasInvoice'] ),
+		'invoice_required' => ! empty( $data['invoiceRequired'] ),
+		'invoice_required_message' => (string) ( $data['invoiceRequiredMessage'] ?? '' ),
+		'can_deliver'      => ! empty( $data['canDeliver'] ),
 		'demo'             => false,
 		'source'           => 'erp',
 	);

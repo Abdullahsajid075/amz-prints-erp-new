@@ -19,7 +19,7 @@ export function isOpenBookingOrder(order) {
   if (/pos\s*sale/i.test(String(order.remarks || ''))) return false;
   const s = String(order.status || '').trim().toLowerCase();
   if (/cancel/.test(s)) return false;
-  if (/^(delivered|completed|complete)$/.test(s)) return false;
+  if (/^(delivered|completed|complete|closed)$/.test(s)) return false;
   return true;
 }
 
@@ -94,8 +94,17 @@ export function buildPurchaseNeeds({ orders = [], products = [], purchases = [] 
 
   return Array.from(groups.values())
     .map((row) => {
-      const remaining = Math.max(0, row.required - row.stock - row.incoming);
-      return { ...row, remaining, status: remaining > 0 ? 'Need to purchase' : 'Covered' };
+      const ordered = row.incoming || 0;
+      const remaining = Math.max(0, row.required - row.stock - ordered);
+      let status = 'Need to purchase';
+      if (remaining <= 0) status = 'Covered';
+      else if (ordered > 0 || row.stock > 0) status = 'Partially covered';
+      return {
+        ...row,
+        ordered,
+        remaining,
+        status,
+      };
     })
     .filter((row) => row.remaining > 0)
     .sort((a, b) => b.remaining - a.remaining || a.name.localeCompare(b.name));
