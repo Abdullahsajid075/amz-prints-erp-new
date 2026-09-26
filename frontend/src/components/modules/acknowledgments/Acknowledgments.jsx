@@ -2,58 +2,95 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import PageHeader from '@/components/shared/PageHeader';
-import { ordersAPI, productsAPI, purchasesAPI, invoicesAPI } from '@/services/api';
+import { ordersAPI, productsAPI, purchasesAPI, invoicesAPI, customersAPI, vendorsAPI } from '@/services/api';
 import { clearGasCache } from '@/services/gasClient';
 import { buildPurchaseNeeds } from '@/utils/purchaseNeeds';
 import {
   buildLateOrders,
-  buildOverduePayables,
-  buildOverdueReceivables,
-  buildAdminReviewOrders,
+  buildCustomerBalanceReminders,
+  buildPurchaseDeliveryReminders,
   loadResolvedAckKeys,
   saveResolvedAckKey,
   isAckExplicitlyResolved,
+  loadAckSchedule,
+  markAckReminded,
+  rescheduleAck,
+  filterVisibleAckRows,
+  todayKey,
 } from '@/utils/ackAlerts';
 import { formatCurrency, formatDate } from '@/utils/helpers';
-import { useAuth } from '@/context/AuthContext';
-import { hasFullAccess } from '@/utils/permissions';
-import { ClipboardCheck, ShoppingBag, Package, RefreshCw, Clock, Wallet, Receipt, ShieldAlert } from 'lucide-react';
+import { openUrduBalanceWhatsApp } from '@/utils/customerHelpers';
+import { openWhatsAppChat, openBlankWhatsAppTab } from '@/services/notifications/whatsappChannel';
+import { useBrand } from '@/context/BrandContext';
+import { ClipboardCheck, ShoppingBag, Package, RefreshCw, Clock, Truck, Receipt, Bell, CalendarClock } from 'lucide-react';
 import { toast } from 'sonner';
+
+function vendorPhone(vendors, row) {
+  if (row.vendorPhone) return row.vendorPhone;
+  const byId = (vendors || []).find((v) => String(v.id) === String(row.vendorId));
+  if (byId?.phone) return byId.phone;
+  const byName = (vendors || []).find((v) => String(v.name || '').toLowerCase() === String(row.vendorName || '').toLowerCase());
+  return byName?.phone || '';
+}
+
+function poDeliveryMessage(row, companyName) {
+  const items = (row.items || [])
+    .slice(0, 8)
+    .map((it, i) => `${i + 1}. ${it.name || 'Item'} × ${it.quantity || 0}`)
+    .join('\n');
+  const more = (row.items || []).length > 8 ? `\n… +${(row.items || []).length - 8} more` : '';
+  return (
+    `Dear ${row.vendorName || 'Vendor'},\n\n`
+    + `*Reminder — Delivery*\n\n`
+    + `Please deliver PO *${row.poNumber}* as per schedule.`
+    + (row.expectedDeliveryDate ? `\nExpected delivery: *${formatDate(row.expectedDeliveryDate)}*` : '')
+    + (row.totalAmount ? `\n\nPO total: ${formatCurrency(row.totalAmount)}` : '')
+    + (items ? `\n\nItems:\n${items}${more}` : '')
+    + `\n\nKindly confirm delivery status.\n\nThank you.\n${companyName}`
+  );
+}
 
 const Acknowledgments = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const admin = hasFullAccess(user);
+  const { company } = useBrand();
   const [purchaseRows, setPurchaseRows] = useState([]);
   const [lateOrders, setLateOrders] = useState([]);
-  const [payables, setPayables] = useState([]);
-  const [receivables, setReceivables] = useState([]);
-  const [reviews, setReviews] = useState([]);
+  const [balances, setBalances] = useState([]);
+  const [poReminders, setPoReminders] = useState([]);
+  const [vendors, setVendors] = useState([]);
   const [resolvedMap, setResolvedMap] = useState(() => loadResolvedAckKeys());
+  const [schedule, setSchedule] = useState(() => loadAckSchedule());
   const [loading, setLoading] = useState(true);
-  const [restoring, setRestoring] = useState(false);
+  const [rescheduleRow, setRescheduleRow] = useState(null);
+  const [rescheduleDate, setRescheduleDate] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       clearGasCache();
-      const [ordRes, prodRes, poRes, invRes] = await Promise.all([
+      const [ordRes, prodRes, poRes, invRes, custRes, vendRes] = await Promise.all([
         ordersAPI.getAll(),
         productsAPI.getAll(),
         purchasesAPI.getAll().catch(() => ({ data: [] })),
         invoicesAPI.getAll().catch(() => ({ data: [] })),
+        customersAPI.getAll().catch(() => ({ data: [] })),
+        vendorsAPI.getAll().catch(() => ({ data: [] })),
       ]);
       const orders = Array.isArray(ordRes.data) ? ordRes.data : [];
       const products = Array.isArray(prodRes.data) ? prodRes.data : [];
       const purchases = Array.isArray(poRes.data) ? poRes.data : [];
       const invoices = Array.isArray(invRes.data) ? invRes.data : [];
+      const customers = Array.isArray(custRes.data) ? custRes.data : [];
+      setVendors(Array.isArray(vendRes.data) ? vendRes.data : []);
       setPurchaseRows(buildPurchaseNeeds({ orders, products, purchases }));
       setLateOrders(buildLateOrders(orders));
-      setPayables(buildOverduePayables(purchases));
-      setReceivables(buildOverdueReceivables(invoices));
-      setReviews(buildAdminReviewOrders(orders));
+      setBalances(buildCustomerBalanceReminders({ invoices, customers }));
+      setPoReminders(buildPurchaseDeliveryReminders(purchases));
       setResolvedMap(loadResolvedAckKeys());
+      setSchedule(loadAckSchedule());
     } catch (err) {
       toast.error(err.response?.data?.message || 'Could not load acknowledgments');
       setPurchaseRows([]);
@@ -68,6 +105,8 @@ const Acknowledgments = () => {
     () => purchaseRows.filter((row) => !isAckExplicitlyResolved(row, resolvedMap)),
     [purchaseRows, resolvedMap],
   );
+  const visibleBalances = useMemo(() => filterVisibleAckRows(balances, schedule), [balances, schedule]);
+  const visiblePos = useMemo(() => filterVisibleAckRows(poReminders, schedule), [poReminders, schedule]);
 
   const resolvePurchase = (row) => {
     saveResolvedAckKey(row.key, { required: row.required, remaining: row.remaining });
@@ -75,19 +114,56 @@ const Acknowledgments = () => {
     toast.message('Requirement marked resolved. It will return if the shortage changes.');
   };
 
-  const restoreAuto = async () => {
-    if (!admin) return;
-    setRestoring(true);
-    try {
-      const res = await ordersAPI.restoreAutoDeliveries();
-      const data = res.data || {};
-      toast.success(`Restore complete: ${data.restored?.length || 0} restored, ${data.flagged?.length || 0} flagged for review`);
-      load();
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Could not restore auto-delivered orders');
-    } finally {
-      setRestoring(false);
+  const sendBalanceReminder = (row) => {
+    const customer = row.customer || {
+      name: row.customerName,
+      phone: row.customerPhone,
+      customerCode: row.customerCode,
+      id: row.customerId,
+    };
+    if (!customer.phone) {
+      toast.error('Customer phone required for WhatsApp');
+      return;
     }
+    const pending = openBlankWhatsAppTab();
+    const result = openUrduBalanceWhatsApp(customer, { outstanding: row.outstanding, pendingWindow: pending });
+    if (!result?.ok) {
+      toast.error('Could not open WhatsApp — check customer phone / allow popups');
+      return;
+    }
+    setSchedule(markAckReminded(row.key));
+    toast.success('Payment reminder opened — tap Send. This acknowledgment is hidden until you reschedule it.');
+  };
+
+  const sendPoReminder = (row) => {
+    const phone = vendorPhone(vendors, row);
+    if (!phone) {
+      toast.error('Vendor WhatsApp phone missing — add phone in Vendors');
+      return;
+    }
+    const pending = openBlankWhatsAppTab();
+    const result = openWhatsAppChat(phone, poDeliveryMessage(row, company?.name || 'Amazon Printing Services'), { pendingWindow: pending });
+    if (!result?.ok) {
+      toast.error('Could not open WhatsApp');
+      return;
+    }
+    setSchedule(markAckReminded(row.key));
+    toast.success('PO delivery reminder opened — tap Send. This acknowledgment is hidden until you reschedule it.');
+  };
+
+  const openReschedule = (row) => {
+    setRescheduleRow(row);
+    setRescheduleDate(todayKey());
+  };
+
+  const saveReschedule = () => {
+    if (!rescheduleRow || !rescheduleDate) {
+      toast.error('Pick a date');
+      return;
+    }
+    setSchedule(rescheduleAck(rescheduleRow.key, rescheduleDate));
+    toast.success(`Reminder will appear again on ${formatDate(rescheduleDate)}`);
+    setRescheduleRow(null);
   };
 
   return (
@@ -95,19 +171,12 @@ const Acknowledgments = () => {
       <PageHeader
         eyebrow="Operations"
         title="Acknowledgments"
-        subtitle="Open requirements stay visible until they are fully covered or an authorized user resolves them. Dismissing a popup does not close these items."
+        subtitle="Open purchase needs, late jobs, customer payment reminders, and vendor delivery reminders. Delivered orders are not listed here."
         testId="acknowledgments-header"
         actions={(
-          <div className="flex gap-2">
-            {admin && (
-              <Button variant="outline" onClick={restoreAuto} disabled={restoring}>
-                <ShieldAlert className="h-4 w-4 mr-1" />{restoring ? 'Restoring…' : 'Restore auto-deliveries'}
-              </Button>
-            )}
-            <Button variant="outline" onClick={load}>
-              <RefreshCw className="h-4 w-4 mr-1" />Refresh
-            </Button>
-          </div>
+          <Button variant="outline" onClick={load}>
+            <RefreshCw className="h-4 w-4 mr-1" />Refresh
+          </Button>
         )}
       />
 
@@ -115,18 +184,6 @@ const Acknowledgments = () => {
         <p className="p-8 text-center text-slate-500">Loading…</p>
       ) : (
         <div className="space-y-6">
-          {reviews.length > 0 && (
-            <section className="space-y-2" data-testid="ack-admin-review">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-rose-800">Administrator review</h2>
-              {reviews.map((row) => (
-                <article key={row.key} className="erp-panel p-4 border border-rose-100">
-                  <p className="font-semibold">{row.orderId} · {row.customerName || 'Customer'}</p>
-                  <p className="text-sm text-slate-600 mt-1">Status {row.status}. Genuine delivery history was preserved. Review before changing this job.</p>
-                </article>
-              ))}
-            </section>
-          )}
-
           <section className="space-y-2" data-testid="ack-purchase-needs">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-700">Purchase requirements</h2>
             {!visiblePurchases.length ? (
@@ -161,20 +218,14 @@ const Acknowledgments = () => {
                       {row.orders[0]?.customerName ? ` · ${row.orders[0].customerName}` : ''}
                     </p>
                   </div>
-                  <div className="flex flex-col gap-2">
-                    <Button
-                      className="text-white"
-                      style={{ backgroundColor: '#ff6d00' }}
-                      onClick={() => navigate(`/purchases?product=${encodeURIComponent(row.productId || row.name)}&qty=${row.remaining}`)}
-                    >
-                      <ShoppingBag className="h-4 w-4 mr-1" />Create vendor PO
-                    </Button>
-                    {admin && (
-                      <Button variant="outline" size="sm" onClick={() => resolvePurchase(row)}>
-                        Resolve
-                      </Button>
-                    )}
-                  </div>
+                  <Button
+                    className="text-white"
+                    style={{ backgroundColor: '#ff6d00' }}
+                    onClick={() => navigate(`/purchases?product=${encodeURIComponent(row.productId || row.name)}&qty=${row.remaining}`)}
+                  >
+                    <ShoppingBag className="h-4 w-4 mr-1" />Create vendor PO
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => resolvePurchase(row)}>Resolve</Button>
                 </div>
               </article>
             ))}
@@ -193,48 +244,96 @@ const Acknowledgments = () => {
                     Expected {formatDate(row.dueDate)} · {row.overdueDays} day{row.overdueDays === 1 ? '' : 's'} overdue · {row.status}
                   </p>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => navigate(`/orders`)}>Open orders</Button>
+                <Button variant="outline" size="sm" onClick={() => navigate('/orders')}>Open orders</Button>
               </article>
             ))}
           </section>
 
-          <section className="space-y-2" data-testid="ack-overdue-payables">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-700">Overdue payables</h2>
-            {!payables.length ? (
-              <p className="erp-panel p-4 text-sm text-slate-500">No overdue supplier invoices.</p>
-            ) : payables.map((row) => (
-              <article key={row.key} className="erp-panel p-4 flex flex-wrap items-start gap-3">
-                <Wallet className="h-5 w-5 text-amber-700 mt-0.5" />
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold">{row.supplierName} · {row.invoiceRef}</p>
-                  <p className="text-sm text-slate-600">
-                    Outstanding {formatCurrency(row.outstanding)} · due {formatDate(row.dueDate)} · {row.overdueDays} day{row.overdueDays === 1 ? '' : 's'} overdue
-                  </p>
-                </div>
-                <Button variant="outline" size="sm" onClick={() => navigate('/purchases')}>Open purchases</Button>
-              </article>
-            ))}
-          </section>
-
-          <section className="space-y-2" data-testid="ack-overdue-receivables">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-700">Overdue receivables</h2>
-            {!receivables.length ? (
-              <p className="erp-panel p-4 text-sm text-slate-500">No overdue customer invoices.</p>
-            ) : receivables.map((row) => (
-              <article key={row.key} className="erp-panel p-4 flex flex-wrap items-start gap-3">
+          <section className="space-y-2" data-testid="ack-customer-balances">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-700">Payment reminders</h2>
+            {!visibleBalances.length ? (
+              <p className="erp-panel p-4 text-sm text-slate-500">No overdue customer balances right now.</p>
+            ) : visibleBalances.map((row) => (
+              <article key={row.key} className="erp-panel p-4 flex flex-wrap items-start gap-3" data-testid="ack-balance-row">
                 <Receipt className="h-5 w-5 text-sky-700 mt-0.5" />
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold">{row.customerName || 'Customer'} · {row.invoiceNumber}</p>
+                  <p className="font-semibold">{row.customerName}</p>
                   <p className="text-sm text-slate-600">
-                    Outstanding {formatCurrency(row.outstanding)} · due {formatDate(row.dueDate)} · {row.overdueDays} day{row.overdueDays === 1 ? '' : 's'} overdue
+                    Overall balance {formatCurrency(row.outstanding)}
+                    {row.dueDate ? ` · oldest due ${formatDate(row.dueDate)}` : ''}
+                    {row.overdueDays ? ` · ${row.overdueDays} day${row.overdueDays === 1 ? '' : 's'} overdue` : ''}
+                    {row.invoiceCount ? ` · ${row.invoiceCount} open invoice${row.invoiceCount === 1 ? '' : 's'}` : ''}
                   </p>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => navigate(row.id ? `/invoices/${row.id}` : '/invoices')}>Open invoice</Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    className="text-white"
+                    style={{ backgroundColor: '#25D366' }}
+                    onClick={() => sendBalanceReminder(row)}
+                    data-testid={`ack-balance-reminder-${row.customerId || row.key}`}
+                  >
+                    <Bell className="h-4 w-4 mr-1" />Reminder
+                  </Button>
+                  <Button variant="outline" onClick={() => openReschedule(row)}>
+                    <CalendarClock className="h-4 w-4 mr-1" />Reschedule
+                  </Button>
+                </div>
+              </article>
+            ))}
+          </section>
+
+          <section className="space-y-2" data-testid="ack-po-delivery">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-700">Purchase order reminders</h2>
+            <p className="text-xs text-slate-500">Shown from 2 days before the expected delivery date until the PO is received.</p>
+            {!visiblePos.length ? (
+              <p className="erp-panel p-4 text-sm text-slate-500">No purchase orders due in the next 2 days.</p>
+            ) : visiblePos.map((row) => (
+              <article key={row.key} className="erp-panel p-4 flex flex-wrap items-start gap-3" data-testid="ack-po-row">
+                <Truck className="h-5 w-5 text-amber-700 mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold">{row.poNumber} · {row.vendorName}</p>
+                  <p className="text-sm text-slate-600">
+                    Expected {formatDate(row.expectedDeliveryDate)}
+                    {row.daysUntil > 0 ? ` · in ${row.daysUntil} day${row.daysUntil === 1 ? '' : 's'}` : row.daysUntil === 0 ? ' · due today' : ` · ${Math.abs(row.daysUntil)} day${Math.abs(row.daysUntil) === 1 ? '' : 's'} overdue`}
+                    {row.totalAmount ? ` · ${formatCurrency(row.totalAmount)}` : ''}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    className="text-white"
+                    style={{ backgroundColor: '#25D366' }}
+                    onClick={() => sendPoReminder(row)}
+                    data-testid={`ack-po-reminder-${row.id || row.poNumber}`}
+                  >
+                    <Bell className="h-4 w-4 mr-1" />Reminder
+                  </Button>
+                  <Button variant="outline" onClick={() => openReschedule(row)}>
+                    <CalendarClock className="h-4 w-4 mr-1" />Reschedule
+                  </Button>
+                </div>
               </article>
             ))}
           </section>
         </div>
       )}
+
+      <Dialog open={!!rescheduleRow} onOpenChange={(open) => { if (!open) setRescheduleRow(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Reschedule reminder</DialogTitle>
+            <DialogDescription>
+              This acknowledgment will hide and appear again on the date you choose.
+            </DialogDescription>
+          </DialogHeader>
+          <div>
+            <Input type="date" value={rescheduleDate} onChange={(e) => setRescheduleDate(e.target.value)} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRescheduleRow(null)}>Cancel</Button>
+            <Button className="text-white" style={{ backgroundColor: '#ff6d00' }} onClick={saveReschedule}>Save date</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
