@@ -355,6 +355,11 @@
 
     // CRM first; WhatsApp always opens even if CRM fails.
     fetch(cfg.ajaxUrl, { method: 'POST', body: body, credentials: 'same-origin' })
+      .then(function (r) { return r.json().catch(function () { return {}; }); })
+      .then(function (res) {
+        var orderId = res && res.data && res.data.orderId;
+        if (orderId) waText += '\nERP Order ID: ' + orderId;
+      })
       .catch(function () { /* ignore */ })
       .then(function () { finishWa(); });
   }

@@ -354,7 +354,9 @@
         policy_accepted: fd.get('policy_accepted') ? '1' : '',
         delivery_address: fd.get('delivery_address') || '',
         customer_phone: fd.get('customer_phone') || '',
-        customer_note: fd.get('customer_note') || ''
+        customer_note: fd.get('customer_note') || '',
+        customer_name: fd.get('customer_name') || '',
+        customer_email: fd.get('customer_email') || ''
       }).then(function (res) {
         if (!res || !res.success) {
           var err = (res && res.data && res.data.message) || 'Could not place order';

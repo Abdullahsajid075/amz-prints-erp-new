@@ -266,6 +266,33 @@ function amz_prints_erp_create_lead( $payload ) {
 }
 
 /**
+ * Create an ERP Orders row from the public website (checkout or quote).
+ *
+ * @param array $body API body.
+ * @return array|WP_Error
+ */
+function amz_prints_erp_create_website_order( $body ) {
+	$body = is_array( $body ) ? $body : array();
+	if ( function_exists( 'amz_prints_customer_portal_key' ) ) {
+		$body['portalKey'] = amz_prints_customer_portal_key();
+	}
+	if ( function_exists( 'amz_prints_customer_token' ) && empty( $body['token'] ) ) {
+		$token = amz_prints_customer_token();
+		if ( $token ) {
+			$body['token'] = $token;
+		}
+	}
+	$result = amz_prints_erp_request( 'POST', '/public/website/order', $body );
+	if ( is_wp_error( $result ) ) {
+		$result = amz_prints_erp_request( 'POST', '/public/order', $body );
+	}
+	if ( is_wp_error( $result ) && ! empty( $body['token'] ) ) {
+		$result = amz_prints_erp_request( 'POST', '/public/customer/order', $body );
+	}
+	return $result;
+}
+
+/**
  * AJAX: submit website lead to ERP CRM (then JS opens WhatsApp).
  */
 function amz_prints_ajax_submit_lead() {
@@ -295,11 +322,45 @@ function amz_prints_ajax_submit_lead() {
 		);
 	}
 
+	$qty = isset( $payload['quantity'] ) ? (int) preg_replace( '/\D+/', '', $payload['quantity'] ) : 1;
+	if ( $qty < 1 ) {
+		$qty = 1;
+	}
+	$order = function_exists( 'amz_prints_erp_create_website_order' )
+		? amz_prints_erp_create_website_order(
+			array(
+				'kind'            => 'quote',
+				'allowUnpriced'   => true,
+				'source'          => 'website-quote',
+				'policyAccepted'  => true,
+				'paymentMethod'   => 'Quote Request',
+				'customerName'    => $payload['name'],
+				'customerEmail'   => $payload['email'],
+				'customerPhone'   => $payload['phone'],
+				'customerAddress' => $payload['company'],
+				'deliveryAddress' => $payload['company'],
+				'details'         => $payload['details'],
+				'neededBy'        => $payload['neededBy'],
+				'items'           => array(
+					array(
+						'name'     => $payload['product'] ? $payload['product'] : 'Website quote',
+						'quantity' => $qty,
+						'rate'     => 0,
+						'notes'    => $payload['details'],
+					),
+				),
+			)
+		)
+		: null;
+	$order_id = ( is_array( $order ) && ! empty( $order['orderId'] ) ) ? (string) $order['orderId'] : '';
+
 	wp_send_json_success(
 		array(
 			'ok'         => ! empty( $result['ok'] ),
 			'customerId' => isset( $result['customerId'] ) ? $result['customerId'] : '',
 			'stage'      => isset( $result['stage'] ) ? $result['stage'] : 'lead',
+			'orderId'    => $order_id,
+			'trackingNumber' => ( is_array( $order ) && ! empty( $order['trackingNumber'] ) ) ? (string) $order['trackingNumber'] : '',
 		)
 	);
 }

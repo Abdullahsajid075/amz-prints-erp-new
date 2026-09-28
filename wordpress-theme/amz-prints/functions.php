@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AMZ_PRINTS_VERSION', '3.5.2' );
+define( 'AMZ_PRINTS_VERSION', '3.5.3' );
 
 /**
  * Avoid long Hostinger CDN HTML cache hiding theme updates.
@@ -495,6 +495,31 @@ function amz_prints_handle_quote() {
 	$email   = sanitize_email( wp_unslash( $_POST['email'] ?? '' ) );
 	$subject = sprintf( '[%s] Quote request from %s', amz_prints_mod( 'amz_company_name', 'AMZ Prints' ), $name );
 	wp_mail( $to, $subject, implode( "\n", $lines ), array( 'Reply-To: ' . $email ) );
+	if ( function_exists( 'amz_prints_erp_create_website_order' ) ) {
+		$qty = isset( $_POST['quantity'] ) ? (int) preg_replace( '/\D+/', '', (string) wp_unslash( $_POST['quantity'] ) ) : 1;
+		if ( $qty < 1 ) {
+			$qty = 1;
+		}
+		amz_prints_erp_create_website_order(
+			array(
+				'kind'           => 'quote',
+				'allowUnpriced'  => true,
+				'policyAccepted' => true,
+				'paymentMethod'  => 'Quote Request',
+				'customerName'   => $name,
+				'customerEmail'  => $email,
+				'customerPhone'  => sanitize_text_field( wp_unslash( $_POST['phone'] ?? '' ) ),
+				'details'        => sanitize_textarea_field( wp_unslash( $_POST['details'] ?? '' ) ),
+				'items'          => array(
+					array(
+						'name'     => sanitize_text_field( wp_unslash( $_POST['product'] ?? 'Website quote' ) ),
+						'quantity' => $qty,
+						'rate'     => 0,
+					),
+				),
+			)
+		);
+	}
 	wp_safe_redirect( add_query_arg( 'sent', '1', wp_get_referer() ?: home_url( '/quote/' ) ) );
 	exit;
 }

@@ -37,16 +37,10 @@ $customer = ( $session && ! empty( $session['customer'] ) ) ? $session['customer
 			</div>
 		<?php else : ?>
 			<div class="commerce-main">
-				<?php if ( ! $logged_in ) : ?>
-					<div class="checkout-gate">
-						<h2><?php esc_html_e( 'Login required to place order', 'amz-prints' ); ?></h2>
-						<p><?php esc_html_e( 'You can browse and fill your cart as a guest. To complete checkout, log in with your customer account.', 'amz-prints' ); ?></p>
-						<a class="btn btn--primary" href="<?php echo esc_url( amz_prints_customer_login_url( amz_prints_checkout_url() ) ); ?>"><?php esc_html_e( 'Log in to continue', 'amz-prints' ); ?></a>
-					</div>
-				<?php else : ?>
 					<form class="checkout-form" id="amz-checkout-form">
 						<div class="checkout-block">
 							<h2><?php esc_html_e( 'Customer', 'amz-prints' ); ?></h2>
+							<?php if ( $logged_in ) : ?>
 							<p class="checkout-customer">
 								<strong><?php echo esc_html( $customer['name'] ?? '' ); ?></strong><br>
 								<?php echo esc_html( $customer['email'] ?? '' ); ?>
@@ -54,6 +48,20 @@ $customer = ( $session && ! empty( $session['customer'] ) ) ? $session['customer
 									<br><?php echo esc_html( $customer['phone'] ); ?>
 								<?php endif; ?>
 							</p>
+							<?php else : ?>
+							<p class="form-note">
+								<?php esc_html_e( 'Checkout as a guest — your order is saved in AMZ Prints ERP. Optional:', 'amz-prints' ); ?>
+								<a href="<?php echo esc_url( amz_prints_customer_login_url( amz_prints_checkout_url() ) ); ?>"><?php esc_html_e( 'log in', 'amz-prints' ); ?></a>
+							</p>
+							<label>
+								<span><?php esc_html_e( 'Full name', 'amz-prints' ); ?></span>
+								<input type="text" name="customer_name" required>
+							</label>
+							<label>
+								<span><?php esc_html_e( 'Email', 'amz-prints' ); ?></span>
+								<input type="email" name="customer_email" required>
+							</label>
+							<?php endif; ?>
 							<label>
 								<span><?php esc_html_e( 'Phone (for this order)', 'amz-prints' ); ?></span>
 								<input type="tel" name="customer_phone" value="<?php echo esc_attr( $customer['phone'] ?? '' ); ?>" required>
@@ -111,7 +119,6 @@ $customer = ( $session && ! empty( $session['customer'] ) ) ? $session['customer
 							<a class="btn btn--ghost" href="<?php echo esc_url( home_url( '/products/' ) ); ?>"><?php esc_html_e( 'Keep shopping', 'amz-prints' ); ?></a>
 						</div>
 					</div>
-				<?php endif; ?>
 			</div>
 
 			<aside class="commerce-aside">

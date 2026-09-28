@@ -356,21 +356,10 @@ add_action( 'wp_ajax_amz_prints_cart_update', 'amz_prints_ajax_cart_update' );
 add_action( 'wp_ajax_nopriv_amz_prints_cart_update', 'amz_prints_ajax_cart_update' );
 
 /**
- * AJAX: place order (requires customer login)
+ * AJAX: place order → ERP Orders (guest or logged-in customer)
  */
 function amz_prints_ajax_place_order() {
 	check_ajax_referer( 'amz_prints_commerce', 'nonce' );
-
-	if ( ! function_exists( 'amz_prints_customer_is_logged_in' ) || ! amz_prints_customer_is_logged_in() ) {
-		wp_send_json_error(
-			array(
-				'message'  => __( 'Please log in to place your order.', 'amz-prints' ),
-				'loginUrl' => amz_prints_customer_login_url( amz_prints_checkout_url() ),
-				'code'     => 'login_required',
-			),
-			401
-		);
-	}
 
 	$cart = amz_prints_cart_summary();
 	if ( empty( $cart['items'] ) ) {
@@ -397,6 +386,8 @@ function amz_prints_ajax_place_order() {
 	$address        = isset( $_POST['delivery_address'] ) ? sanitize_textarea_field( wp_unslash( $_POST['delivery_address'] ) ) : '';
 	$phone          = isset( $_POST['customer_phone'] ) ? sanitize_text_field( wp_unslash( $_POST['customer_phone'] ) ) : '';
 	$note           = isset( $_POST['customer_note'] ) ? sanitize_textarea_field( wp_unslash( $_POST['customer_note'] ) ) : '';
+	$name           = isset( $_POST['customer_name'] ) ? sanitize_text_field( wp_unslash( $_POST['customer_name'] ) ) : '';
+	$email          = isset( $_POST['customer_email'] ) ? sanitize_email( wp_unslash( $_POST['customer_email'] ) ) : '';
 
 	if ( ! $policy ) {
 		wp_send_json_error( array( 'message' => __( 'Please accept the Order Processing Policy.', 'amz-prints' ) ), 400 );
@@ -406,6 +397,27 @@ function amz_prints_ajax_place_order() {
 	}
 	if ( ! $address ) {
 		wp_send_json_error( array( 'message' => __( 'Delivery address is required.', 'amz-prints' ) ), 400 );
+	}
+
+	$session = null;
+	if ( function_exists( 'amz_prints_customer_is_logged_in' ) && amz_prints_customer_is_logged_in() && function_exists( 'amz_prints_customer_fetch_session' ) ) {
+		$session = amz_prints_customer_fetch_session();
+		if ( is_wp_error( $session ) ) {
+			$session = null;
+		}
+	}
+	$customer = ( $session && ! empty( $session['customer'] ) ) ? $session['customer'] : array();
+	if ( ! $name ) {
+		$name = (string) ( $customer['name'] ?? '' );
+	}
+	if ( ! $email ) {
+		$email = (string) ( $customer['email'] ?? '' );
+	}
+	if ( ! $phone ) {
+		$phone = (string) ( $customer['phone'] ?? '' );
+	}
+	if ( ! $name || ( ! $phone && ! $email ) ) {
+		wp_send_json_error( array( 'message' => __( 'Name and phone or email are required.', 'amz-prints' ) ), 400 );
 	}
 
 	$items = array();
@@ -419,23 +431,25 @@ function amz_prints_ajax_place_order() {
 	}
 
 	$body = array(
-		'token'            => amz_prints_customer_token(),
+		'kind'             => 'checkout',
+		'customerName'     => $name,
+		'customerEmail'    => $email,
+		'customerPhone'    => $phone,
 		'items'            => $items,
 		'paymentMethod'    => ( 'cod' === $payment_method ) ? 'Cash on Delivery' : 'Online Payment',
 		'policyAccepted'   => true,
 		'deliveryAddress'  => $address,
-		'customerPhone'    => $phone,
 		'customerNote'     => $note,
 		'subtotal'         => $cart['subtotal'],
 		'discountAmount'   => $cart['discount'],
 		'deliveryCharges'  => $cart['deliveryCharges'],
 	);
 
-	$result = amz_prints_erp_request( 'POST', '/public/customer/order', $body );
+	$result = amz_prints_erp_create_website_order( $body );
 	if ( is_wp_error( $result ) ) {
 		$err = $result->get_error_message();
-		if ( 'Not found' === $err || false !== stripos( $err, 'not found' ) ) {
-			$err = __( 'ERP website order API not found. Redeploy latest Code.gs (New version) and try again.', 'amz-prints' );
+		if ( 'Not found' === $err || false !== stripos( $err, 'not found: /public' ) ) {
+			$err = __( 'Could not reach the ERP Orders API. Check Customizer → ERP API URL.', 'amz-prints' );
 		}
 		wp_send_json_error( array( 'message' => $err ), 400 );
 	}
