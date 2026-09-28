@@ -157,8 +157,22 @@ get_header();
 					<li><?php echo esc_html( $address ?: '—' ); ?></li>
 				</ul>
 				<div class="loyalty-card__foot">
-					<?php echo amz_prints_barcode_markup( $card_no ? $card_no : 'AMZ' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-					<p class="loyalty-card__no"><?php echo esc_html( $card_no ?: 'AMZ-CARD' ); ?></p>
+					<div class="loyalty-card__codes">
+						<div class="loyalty-card__barcode-col">
+							<?php echo amz_prints_barcode_markup( $card_no ? $card_no : 'AMZ' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+							<p class="loyalty-card__no"><?php echo esc_html( $card_no ?: 'AMZ-CARD' ); ?></p>
+						</div>
+						<?php
+						$qr_link = 'https://amzprints.com';
+						$qr_src  = function_exists( 'amz_prints_qr_url' ) ? amz_prints_qr_url( $qr_link, 280 ) : '';
+						?>
+						<?php if ( $qr_src ) : ?>
+							<figure class="loyalty-card__qr">
+								<img src="<?php echo esc_url( $qr_src ); ?>" alt="<?php esc_attr_e( 'QR code linking to amzprints.com', 'amz-prints' ); ?>" width="84" height="84" crossorigin="anonymous">
+								<figcaption>amzprints.com</figcaption>
+							</figure>
+						<?php endif; ?>
+					</div>
 				</div>
 			</article>
 
@@ -324,8 +338,24 @@ get_header();
 									<td><span class="track-status-pill"><?php echo esc_html( $order['status'] ?: '—' ); ?></span></td>
 									<td><?php
 										$names = array();
-										foreach ( (array) ( $order['items'] ?? array() ) as $it ) {
-											$names[] = is_array( $it ) ? (string) ( $it['name'] ?? '' ) : (string) $it;
+										$item_rows = (array) ( $order['items'] ?? array() );
+										if ( ! $item_rows && ! empty( $order['products'] ) && is_array( $order['products'] ) ) {
+											$item_rows = $order['products'];
+										}
+										foreach ( $item_rows as $it ) {
+											if ( is_array( $it ) ) {
+												$label = (string) ( $it['name'] ?? '' );
+												$variant = array_filter( array( (string) ( $it['size'] ?? '' ), (string) ( $it['material'] ?? '' ) ) );
+												if ( $variant ) {
+													$label .= ' (' . implode( ', ', $variant ) . ')';
+												}
+												if ( ! empty( $it['quantity'] ) ) {
+													$label .= ' × ' . (string) $it['quantity'];
+												}
+												$names[] = $label;
+											} else {
+												$names[] = (string) $it;
+											}
 										}
 										echo esc_html( $names ? implode( ', ', array_filter( $names ) ) : '—' );
 									?></td>

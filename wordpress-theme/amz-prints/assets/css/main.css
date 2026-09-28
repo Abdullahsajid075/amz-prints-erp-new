@@ -3662,6 +3662,39 @@ body.nav-open .nav-toggle__bar:nth-child(3) { transform: translateY(-8px) rotate
   color: rgba(255,255,255,0.94);
 }
 .loyalty-card__foot { margin-top: auto; }
+.loyalty-card__codes {
+  display: flex;
+  align-items: stretch;
+  gap: 0.65rem;
+}
+.loyalty-card__barcode-col { flex: 1; min-width: 0; }
+.loyalty-card__qr {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  flex: 0 0 92px;
+  width: 92px;
+  background: #fff;
+  border-radius: 8px;
+  padding: 4px 4px 2px;
+  text-align: center;
+}
+.loyalty-card__qr img {
+  width: 84px;
+  height: 84px;
+  max-width: none;
+  display: block;
+  object-fit: contain;
+  background: #fff;
+}
+.loyalty-card__qr figcaption {
+  margin: 1px 0 0;
+  color: #111;
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.1;
+}
 .loyalty-barcode {
   display: flex;
   align-items: stretch;

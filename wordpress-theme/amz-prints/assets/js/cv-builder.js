@@ -244,8 +244,98 @@
     extra = extra || '';
     return '<label class="cv-field"><span>' + esc(label) + '</span><input type="' + type + '" data-path="' + esc(path) + '" value="' + esc(val(path) || '') + '" ' + extra + '></label>';
   }
-  function area(path, label, ph) {
+  function looksLikeHtml(value) {
+    return /<\/?[a-z][^>]*>/i.test(String(value || ''));
+  }
+  function sanitizeRich(html) {
+    var root = document.createElement('div');
+    root.innerHTML = String(html || '');
+    var allowed = { B: 1, STRONG: 1, I: 1, EM: 1, U: 1, BR: 1, P: 1, DIV: 1, UL: 1, OL: 1, LI: 1, SPAN: 1, BLOCKQUOTE: 1 };
+    function clean(node) {
+      Array.prototype.slice.call(node.childNodes).forEach(function (child) {
+        if (child.nodeType === 3) return;
+        if (child.nodeType !== 1 || !allowed[child.tagName]) {
+          if (child.nodeType === 1) {
+            while (child.firstChild) node.insertBefore(child.firstChild, child);
+          }
+          if (child.parentNode === node) node.removeChild(child);
+          return;
+        }
+        var tag = child.tagName;
+        var styleIn = (child.getAttribute('style') || '').toLowerCase();
+        var align = '';
+        var indent = '';
+        var list = '';
+        var alignMatch = styleIn.match(/text-align\s*:\s*(left|center|right|justify)/);
+        if (alignMatch && (tag === 'P' || tag === 'DIV' || tag === 'LI' || tag === 'BLOCKQUOTE')) align = alignMatch[1];
+        var indentMatch = styleIn.match(/margin-left\s*:\s*(\d+(?:\.\d+)?)(px|em)/);
+        if (indentMatch) {
+          var px = parseFloat(indentMatch[1]);
+          if (indentMatch[2] === 'em') px *= 16;
+          px = Math.max(0, Math.min(160, Math.round(px / 24) * 24));
+          if (px) indent = px + 'px';
+        }
+        if (tag === 'BLOCKQUOTE' && !indent) indent = '24px';
+        var listMatch = styleIn.match(/list-style-type\s*:\s*(disc|circle|square|decimal|lower-alpha|upper-alpha|lower-roman|upper-roman)/);
+        if (listMatch && (tag === 'UL' || tag === 'OL')) list = listMatch[1];
+        while (child.attributes.length) child.removeAttribute(child.attributes[0].name);
+        var style = '';
+        if (align) style += 'text-align:' + align + ';';
+        if (indent) style += 'margin-left:' + indent + ';';
+        if (list) style += 'list-style-type:' + list + ';';
+        if (style) child.setAttribute('style', style);
+        if (tag === 'BLOCKQUOTE') {
+          var div = document.createElement('div');
+          if (style) div.setAttribute('style', style);
+          while (child.firstChild) div.appendChild(child.firstChild);
+          node.replaceChild(div, child);
+          clean(div);
+          return;
+        }
+        clean(child);
+      });
+    }
+    clean(root);
+    return root.innerHTML;
+  }
+  function richBlock(text) {
+    if (!looksLikeHtml(text)) return '';
+    var clean = sanitizeRich(text);
+    var probe = document.createElement('div');
+    probe.innerHTML = clean;
+    if (!probe.textContent || !String(probe.textContent).trim()) return '';
+    return '<div class="cv-rich">' + clean + '</div>';
+  }
+  function plainArea(path, label, ph) {
     return '<label class="cv-field"><span>' + esc(label) + '</span><textarea data-path="' + esc(path) + '" placeholder="' + esc(ph || '') + '">' + esc(val(path) || '') + '</textarea></label>';
+  }
+  function area(path, label, ph) {
+    var raw = String(val(path) || '');
+    var inner = looksLikeHtml(raw) ? sanitizeRich(raw) : esc(raw).replace(/\n/g, '<br>');
+    return '<label class="cv-field cv-field--rich"><span>' + esc(label) + '</span><div class="cv-rich-box" contenteditable="true" data-rich="1" data-path="' + esc(path) + '" data-placeholder="' + esc(ph || '') + '">' + inner + '</div></label>';
+  }
+  function toolbarHtml() {
+    return '<div class="cv-toolbar" data-cv-toolbar>' +
+      '<button type="button" data-cmd="bold" title="Bold"><b>B</b></button>' +
+      '<button type="button" data-cmd="italic" title="Italic"><i>I</i></button>' +
+      '<button type="button" data-cmd="underline" title="Underline"><u>U</u></button>' +
+      '<span class="cv-toolbar__gap"></span>' +
+      '<button type="button" data-align="left" title="Align left">Left</button>' +
+      '<button type="button" data-align="center" title="Align center">Center</button>' +
+      '<button type="button" data-align="right" title="Align right">Right</button>' +
+      '<button type="button" data-align="justify" title="Justify">Justify</button>' +
+      '<span class="cv-toolbar__gap"></span>' +
+      '<button type="button" data-list-style="disc" title="Disc bullets">•</button>' +
+      '<button type="button" data-list-style="circle" title="Circle bullets">◦</button>' +
+      '<button type="button" data-list-style="square" title="Square bullets">▪</button>' +
+      '<button type="button" data-list-style="decimal" title="Numbered list">1.</button>' +
+      '<button type="button" data-list-style="lower-alpha" title="Letter list">a.</button>' +
+      '<button type="button" data-list-style="lower-roman" title="Roman list">i.</button>' +
+      '<span class="cv-toolbar__gap"></span>' +
+      '<button type="button" data-cmd="outdent" title="Decrease indent">Outdent</button>' +
+      '<button type="button" data-cmd="indent" title="Increase indent">Indent</button>' +
+      '<p class="cv-toolbar__hint">Select text, then apply formatting. It stays on the preview, the saved CV, and the download.</p>' +
+      '</div>';
   }
 
   function sectionHead(def) {
@@ -262,7 +352,7 @@
   }
 
   function renderForm() {
-    var html = '';
+    var html = toolbarHtml();
     html += '<div class="cv-editor-block"><div class="cv-editor-head"><h3>CV design</h3></div>';
     html += '<div class="cv-templates">';
     TEMPLATES.forEach(function (t) {
@@ -306,7 +396,7 @@
       } else if (def.type === 'text') {
         html += area(def.id === 'summary' ? 'summary' : 'hobbies', def.label, def.placeholder);
       } else if (def.type === 'chips') {
-        html += area(def.id, 'List items (comma or new line)', 'Excel, Photoshop, Teamwork');
+        html += plainArea(def.id, 'List items (comma or new line)', 'Excel, Photoshop, Teamwork');
       } else if (def.type === 'job') {
         (state[def.id] || []).forEach(function (row, i) {
           html += itemChrome(def.id, i, def.label);
@@ -397,9 +487,131 @@
     return emptySimple();
   }
 
+  var lastRich = null;
+  function richHost() {
+    var active = document.activeElement;
+    if (active && active.getAttribute && active.getAttribute('data-rich')) return active;
+    return lastRich && document.body.contains(lastRich) ? lastRich : null;
+  }
+  function rangeInHost(host) {
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return null;
+    var range = sel.getRangeAt(0);
+    if (!host.contains(range.commonAncestorContainer)) return null;
+    return range;
+  }
+  function blockForRange(host, range) {
+    var node = range.startContainer;
+    var el = node.nodeType === 1 ? node : node.parentElement;
+    if (!el || !el.closest) return null;
+    var block = el.closest('p,li');
+    if (block && host.contains(block) && block !== host) return block;
+    var div = el.closest('div');
+    if (div && div !== host && host.contains(div)) return div;
+    return null;
+  }
+  function ensureBlock(host, range) {
+    var block = blockForRange(host, range);
+    if (block) return block;
+    if (range.collapsed) return null;
+    var p = document.createElement('p');
+    p.appendChild(range.extractContents());
+    range.insertNode(p);
+    return p;
+  }
+  function wrapSelection(host, tag) {
+    var range = rangeInHost(host);
+    if (!range || range.collapsed) return;
+    var el = document.createElement(tag);
+    try {
+      range.surroundContents(el);
+    } catch (err) {
+      el.appendChild(range.extractContents());
+      range.insertNode(el);
+    }
+  }
+  function shiftIndent(host, dir) {
+    var range = rangeInHost(host);
+    if (!range) return;
+    var block = ensureBlock(host, range);
+    if (!block) return;
+    var cur = parseInt(block.style.marginLeft || '0', 10) || 0;
+    var next = Math.max(0, Math.min(160, cur + (dir * 24)));
+    block.style.marginLeft = next ? (next + 'px') : '';
+  }
+  function applyListStyle(host, style) {
+    var range = rangeInHost(host);
+    if (!range) return;
+    var ordered = style === 'decimal' || style === 'lower-alpha' || style === 'upper-alpha' || style === 'lower-roman' || style === 'upper-roman';
+    var node = range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement;
+    var existing = node && node.closest ? node.closest('ul,ol') : null;
+    if (existing && host.contains(existing)) {
+      var replacement = document.createElement(ordered ? 'ol' : 'ul');
+      replacement.style.listStyleType = style;
+      while (existing.firstChild) replacement.appendChild(existing.firstChild);
+      existing.parentNode.replaceChild(replacement, existing);
+      return;
+    }
+    var li = document.createElement('li');
+    var list = document.createElement(ordered ? 'ol' : 'ul');
+    list.style.listStyleType = style;
+    if (range.collapsed) {
+      var block = blockForRange(host, range);
+      if (!block) return;
+      li.innerHTML = block.innerHTML;
+      list.appendChild(li);
+      block.parentNode.replaceChild(list, block);
+      return;
+    }
+    li.appendChild(range.extractContents());
+    list.appendChild(li);
+    range.insertNode(list);
+  }
+  function applyTool(btn) {
+    var host = richHost();
+    if (!host) return;
+    var sel = window.getSelection();
+    var range = (sel && sel.rangeCount) ? sel.getRangeAt(0).cloneRange() : null;
+    host.focus();
+    if (range && sel) {
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+    var cmd = btn.getAttribute('data-cmd');
+    var align = btn.getAttribute('data-align');
+    var list = btn.getAttribute('data-list-style');
+    if (cmd === 'bold') wrapSelection(host, 'b');
+    else if (cmd === 'italic') wrapSelection(host, 'i');
+    else if (cmd === 'underline') wrapSelection(host, 'u');
+    else if (cmd === 'indent' || cmd === 'outdent') shiftIndent(host, cmd === 'indent' ? 1 : -1);
+    if (align) {
+      var live = rangeInHost(host);
+      if (live) {
+        var block = ensureBlock(host, live);
+        if (block) block.style.textAlign = align;
+      }
+    }
+    if (list) applyListStyle(host, list);
+    val(host.getAttribute('data-path'), sanitizeRich(host.innerHTML));
+  }
+  editor.addEventListener('focusin', function (e) {
+    var rich = e.target.closest ? e.target.closest('[data-rich]') : null;
+    if (rich) lastRich = rich;
+  });
+  editor.addEventListener('mousedown', function (e) {
+    var tool = e.target.closest ? e.target.closest('[data-cv-toolbar] button') : null;
+    if (!tool) return;
+    e.preventDefault();
+    applyTool(tool);
+  });
   editor.addEventListener('input', function (e) {
     var t = e.target;
-    if (t.getAttribute('data-path')) {
+    var rich = t.closest ? t.closest('[data-rich]') : null;
+    if (rich) {
+      val(rich.getAttribute('data-path'), sanitizeRich(rich.innerHTML));
+      return;
+    }
+    if (t.getAttribute && t.getAttribute('data-path')) {
       if (t.type === 'checkbox') val(t.getAttribute('data-path'), t.checked);
       else val(t.getAttribute('data-path'), t.value);
     }
@@ -425,6 +637,7 @@
     }
   });
   editor.addEventListener('click', function (e) {
+    if (e.target.closest && e.target.closest('[data-cv-toolbar]')) return;
     var btn = e.target.closest('[data-template],[data-color],[data-add],[data-remove-item],[data-photo-remove]');
     if (!btn) return;
     if (btn.getAttribute('data-template')) {
@@ -475,11 +688,16 @@
     return '<ul>' + arr.map(function (b) { return '<li>' + esc(b.replace(/^[-•]\s*/, '')) + '</li>'; }).join('') + '</ul>';
   }
 
+  function detailsHtml(text) {
+    var rich = richBlock(text);
+    if (rich) return rich;
+    return bullets(text);
+  }
   function jobHtml(row) {
     if (!row || !(row.title || row.org)) return '';
     var when = [row.start, row.current ? 'Present' : row.end].filter(Boolean).join(' – ');
     return '<div class="cv-item-cv"><strong>' + esc(row.title) + (row.org ? ' · ' + esc(row.org) : '') + '</strong>' +
-      '<em>' + esc([row.place, when].filter(Boolean).join(' · ')) + '</em>' + bullets(row.details) + '</div>';
+      '<em>' + esc([row.place, when].filter(Boolean).join(' · ')) + '</em>' + detailsHtml(row.details) + '</div>';
   }
 
   function simpleHtml(row) {
@@ -512,8 +730,16 @@
 
   function sectionBody(id) {
     if (!on(id)) return '';
-    if (id === 'summary') return state.summary ? '<p>' + esc(state.summary).replace(/\n/g, '<br>') + '</p>' : '';
-    if (id === 'hobbies') return state.hobbies ? '<p>' + esc(state.hobbies).replace(/\n/g, '<br>') + '</p>' : '';
+    if (id === 'summary') {
+      var summaryRich = richBlock(state.summary);
+      if (summaryRich) return summaryRich;
+      return state.summary ? '<p>' + esc(state.summary).replace(/\n/g, '<br>') + '</p>' : '';
+    }
+    if (id === 'hobbies') {
+      var hobbyRich = richBlock(state.hobbies);
+      if (hobbyRich) return hobbyRich;
+      return state.hobbies ? '<p>' + esc(state.hobbies).replace(/\n/g, '<br>') + '</p>' : '';
+    }
     if (id === 'skills' || id === 'professionalSkills' || id === 'technicalSkills') return chipHtml(state[id]);
     if (id === 'experience' || id === 'internships' || id === 'volunteer') {
       return (state[id] || []).map(jobHtml).join('');
@@ -521,7 +747,7 @@
     if (id === 'education') return (state.education || []).map(function (row) {
       if (!row.title && !row.org) return '';
       return '<div class="cv-item-cv"><strong>' + esc(row.title) + (row.org ? ' · ' + esc(row.org) : '') + '</strong>' +
-        '<em>' + esc([row.place, [row.start, row.end].filter(Boolean).join(' – ')].filter(Boolean).join(' · ')) + '</em>' + bullets(row.details) + '</div>';
+        '<em>' + esc([row.place, [row.start, row.end].filter(Boolean).join(' – ')].filter(Boolean).join(' · ')) + '</em>' + detailsHtml(row.details) + '</div>';
     }).join('');
     if (id === 'certifications' || id === 'courses' || id === 'awards' || id === 'publications') {
       return (state[id] || []).map(simpleHtml).join('');
@@ -529,7 +755,7 @@
     if (id === 'projects') {
       return (state.projects || []).map(function (row) {
         if (!row.title) return '';
-        return '<div class="cv-item-cv"><strong>' + esc(row.title) + '</strong><em>' + esc([row.org, row.year].filter(Boolean).join(' · ')) + '</em>' + bullets(row.details) + '</div>';
+        return '<div class="cv-item-cv"><strong>' + esc(row.title) + '</strong><em>' + esc([row.org, row.year].filter(Boolean).join(' · ')) + '</em>' + detailsHtml(row.details) + '</div>';
       }).join('');
     }
     if (id === 'languages') {
@@ -550,7 +776,7 @@
     }
     if (id === 'custom') {
       return (state.custom || []).filter(function (r) { return r.title || r.body; }).map(function (r) {
-        return '<div class="cv-item-cv"><strong>' + esc(r.title) + '</strong>' + (r.body ? '<p>' + esc(r.body).replace(/\n/g, '<br>') + '</p>' : '') + '</div>';
+        return '<div class="cv-item-cv"><strong>' + esc(r.title) + '</strong>' + (richBlock(r.body) || (r.body ? '<p>' + esc(r.body).replace(/\n/g, '<br>') + '</p>' : '')) + '</div>';
       }).join('');
     }
     return '';
@@ -577,54 +803,311 @@
     ['custom', 'Additional']
   ];
 
-  function pageHtml(railExtra, mainHtml, compact) {
-    var rail = identityHtml() + (railExtra || '');
-    if (compact) {
-      rail = '<div class="cv-identity"><div class="cv-name">' + esc(state.personal.fullName || 'Your Name') + '</div><div class="cv-role">' + esc(state.personal.title || '') + '</div></div>';
-    }
-    return '<article class="cv-page cv-tpl-' + esc(state.template) + '" style="--cv-accent:' + esc(state.color) + '">' +
-      '<div class="cv-rail">' + rail + '</div>' +
-      '<div class="cv-main">' + (compact ? '' : '<div class="cv-identity"><div class="cv-name">' + esc(state.personal.fullName || 'Your Name') + '</div></div>') +
-      mainHtml + '</div>' +
-      '<p class="cv-powered">Powered by Amazon Printing Services | www.amzprints.com | 03276650001</p></article>';
+  function htmlToNode(html) {
+    var holder = document.createElement('div');
+    holder.innerHTML = html;
+    return holder.firstElementChild;
   }
-
+  function makePage(first) {
+    var article = document.createElement('article');
+    article.className = 'cv-page cv-tpl-' + state.template + (first ? '' : ' cv-page--continue');
+    article.style.setProperty('--cv-accent', state.color);
+    var rail = document.createElement('div');
+    rail.className = 'cv-rail';
+    if (first) rail.innerHTML = identityHtml();
+    var main = document.createElement('div');
+    main.className = 'cv-main';
+    var foot = document.createElement('p');
+    foot.className = 'cv-powered';
+    foot.textContent = 'Powered by Amazon Printing Services | www.amzprints.com | 03276650001';
+    article.appendChild(rail);
+    article.appendChild(main);
+    article.appendChild(foot);
+    return article;
+  }
+  function pageTooTall(page) {
+    return page.scrollHeight > page.clientHeight + 2;
+  }
+  function contentNodes(section) {
+    return Array.prototype.filter.call(section.children, function (child) {
+      return child.tagName !== 'H2';
+    });
+  }
+  function wordUnits(el) {
+    var units = [];
+    function walk(node) {
+      if (node.nodeType === 3) {
+        String(node.textContent || '').split(/(\s+)/).forEach(function (part) {
+          if (part) units.push({ kind: 'text', text: part });
+        });
+        return;
+      }
+      if (node.nodeType !== 1) return;
+      if (node.tagName === 'BR') {
+        units.push({ kind: 'br' });
+        return;
+      }
+      if (/^(B|STRONG|I|EM|U|SPAN)$/.test(node.tagName)) {
+        units.push({ kind: 'html', html: node.outerHTML });
+        return;
+      }
+      Array.prototype.forEach.call(node.childNodes, walk);
+    }
+    Array.prototype.forEach.call(el.childNodes, walk);
+    return units;
+  }
+  function unitsHtml(units) {
+    return units.map(function (unit) {
+      if (unit.kind === 'text') return esc(unit.text);
+      if (unit.kind === 'br') return '<br>';
+      return unit.html;
+    }).join('');
+  }
+  function copyStyle(from, to) {
+    var style = from && from.getAttribute ? from.getAttribute('style') : '';
+    if (style) to.setAttribute('style', style);
+    if (from && from.className) to.className = from.className;
+  }
+  function sliceNode(node, units, start, end, mode) {
+    var slice = units.slice(start, end);
+    if (mode === 'sec') {
+      var sec = document.createElement('section');
+      sec.className = 'cv-sec';
+      var heading = node.querySelector('h2');
+      if (heading) sec.appendChild(heading.cloneNode(true));
+      slice.forEach(function (el) { sec.appendChild(el.cloneNode(true)); });
+      return sec;
+    }
+    if (mode === 'item') {
+      var item = document.createElement('div');
+      item.className = 'cv-item-cv';
+      Array.prototype.forEach.call(node.children, function (child) {
+        if (child.tagName === 'STRONG' || child.tagName === 'EM') item.appendChild(child.cloneNode(true));
+      });
+      slice.forEach(function (el) { item.appendChild(el.cloneNode(true)); });
+      return item;
+    }
+    if (mode === 'list') {
+      var list = document.createElement(node.tagName.toLowerCase());
+      copyStyle(node, list);
+      slice.forEach(function (el) { list.appendChild(el.cloneNode(true)); });
+      return list;
+    }
+    if (mode === 'rich-kids') {
+      var rich = document.createElement('div');
+      rich.className = 'cv-rich';
+      slice.forEach(function (el) { rich.appendChild(el.cloneNode(true)); });
+      return rich;
+    }
+    var blockEl = document.createElement(node.tagName === 'DIV' ? 'div' : (node.tagName === 'LI' ? 'li' : 'p'));
+    copyStyle(node, blockEl);
+    blockEl.innerHTML = unitsHtml(slice);
+    if (mode === 'rich-words') {
+      var wrap = document.createElement('div');
+      wrap.className = 'cv-rich';
+      wrap.appendChild(blockEl);
+      return wrap;
+    }
+    if (mode === 'li-words') {
+      var listWrap = document.createElement(node.tagName.toLowerCase());
+      copyStyle(node, listWrap);
+      if (blockEl.tagName !== 'LI') {
+        var li = document.createElement('li');
+        li.innerHTML = blockEl.innerHTML;
+        listWrap.appendChild(li);
+      } else {
+        listWrap.appendChild(blockEl);
+      }
+      return listWrap;
+    }
+    return blockEl;
+  }
+  function splitUnits(page, container, node, units, mode) {
+    if (!units || units.length < 2) return null;
+    var best = 0;
+    var lo = 1;
+    var hi = units.length - 1;
+    while (lo <= hi) {
+      var mid = (lo + hi) >> 1;
+      var head = sliceNode(node, units, 0, mid, mode);
+      container.appendChild(head);
+      var ok = !pageTooTall(page);
+      container.removeChild(head);
+      if (ok) {
+        best = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    if (!best) return null;
+    container.appendChild(sliceNode(node, units, 0, best, mode));
+    return sliceNode(node, units, best, units.length, mode);
+  }
+  function tryPlaceSplit(page, container, node) {
+    if (!node || node.nodeType !== 1) return null;
+    if (node.classList.contains('cv-sec')) {
+      var bits = contentNodes(node);
+      if (bits.length > 1) return splitUnits(page, container, node, bits, 'sec');
+      if (bits.length === 1) {
+        var shell = document.createElement('section');
+        shell.className = 'cv-sec';
+        var heading = node.querySelector('h2');
+        if (heading) shell.appendChild(heading.cloneNode(true));
+        container.appendChild(shell);
+        var before = shell.childNodes.length;
+        var innerTail = tryPlaceSplit(page, shell, bits[0].cloneNode(true));
+        if (shell.childNodes.length <= before || pageTooTall(page)) {
+          container.removeChild(shell);
+          return null;
+        }
+        if (!innerTail) {
+          container.removeChild(shell);
+          return null;
+        }
+        var tailSec = document.createElement('section');
+        tailSec.className = 'cv-sec';
+        if (heading) tailSec.appendChild(heading.cloneNode(true));
+        tailSec.appendChild(innerTail);
+        return tailSec;
+      }
+      return null;
+    }
+    if (node.classList.contains('cv-item-cv')) {
+      var details = Array.prototype.filter.call(node.children, function (child) {
+        return child.tagName !== 'STRONG' && child.tagName !== 'EM';
+      });
+      if (details.length > 1) return splitUnits(page, container, node, details, 'item');
+      if (details.length === 1) {
+        var item = document.createElement('div');
+        item.className = 'cv-item-cv';
+        Array.prototype.forEach.call(node.children, function (child) {
+          if (child.tagName === 'STRONG' || child.tagName === 'EM') item.appendChild(child.cloneNode(true));
+        });
+        container.appendChild(item);
+        var itemBefore = item.childNodes.length;
+        var detailTail = tryPlaceSplit(page, item, details[0].cloneNode(true));
+        if (item.childNodes.length <= itemBefore || pageTooTall(page)) {
+          container.removeChild(item);
+          return null;
+        }
+        if (!detailTail) {
+          container.removeChild(item);
+          return null;
+        }
+        var tailItem = document.createElement('div');
+        tailItem.className = 'cv-item-cv';
+        Array.prototype.forEach.call(node.children, function (child) {
+          if (child.tagName === 'STRONG' || child.tagName === 'EM') tailItem.appendChild(child.cloneNode(true));
+        });
+        tailItem.appendChild(detailTail);
+        return tailItem;
+      }
+      return null;
+    }
+    if (node.classList.contains('cv-rich')) {
+      var kids = Array.prototype.filter.call(node.children, function (child) { return child.tagName !== 'BR'; });
+      if (kids.length > 1) return splitUnits(page, container, node, kids, 'rich-kids');
+      var wordsFrom = kids[0] || node;
+      if (wordsFrom.tagName === 'UL' || wordsFrom.tagName === 'OL') {
+        return tryPlaceSplit(page, container, wordsFrom.cloneNode(true));
+      }
+      var richWords = wordUnits(wordsFrom);
+      if (richWords.length > 1) return splitUnits(page, container, node, richWords, 'rich-words');
+      return null;
+    }
+    if (node.tagName === 'UL' || node.tagName === 'OL') {
+      var items = Array.prototype.slice.call(node.children);
+      if (items.length > 1) return splitUnits(page, container, node, items, 'list');
+      if (items.length === 1) {
+        var liWords = wordUnits(items[0]);
+        if (liWords.length > 1) return splitUnits(page, container, node, liWords, 'li-words');
+      }
+      return null;
+    }
+    if (node.tagName === 'P' || node.tagName === 'DIV' || node.tagName === 'LI') {
+      var words = wordUnits(node);
+      if (words.length > 1) return splitUnits(page, container, node, words, 'words');
+    }
+    return null;
+  }
+  function liftOrphanHeading(container, rest) {
+    var last = container.lastElementChild;
+    if (!last || !last.classList.contains('cv-sec')) return;
+    if (contentNodes(last).length) return;
+    container.removeChild(last);
+    rest.unshift(last);
+  }
+  function fillFlow(page, container, nodes) {
+    var rest = nodes.slice();
+    var guard = 0;
+    while (rest.length && guard < 200) {
+      guard += 1;
+      var node = rest[0];
+      container.appendChild(node);
+      if (!pageTooTall(page)) {
+        rest.shift();
+        continue;
+      }
+      container.removeChild(node);
+      var tail = tryPlaceSplit(page, container, node);
+      if (tail) {
+        rest[0] = tail;
+        continue;
+      }
+      if (!container.children.length) {
+        container.appendChild(node);
+        rest.shift();
+        break;
+      }
+      liftOrphanHeading(container, rest);
+      break;
+    }
+    return rest;
+  }
   function renderPreview() {
     var sideIds = SIDE_SECTIONS[state.template] || [];
-    var railExtra = '';
-    var main = '';
+    var railNodes = [];
+    var mainNodes = [];
     MAIN_ORDER.forEach(function (pair) {
       var html = sectionBody(pair[0]);
       if (!html) return;
-      var wrapped = block(pair[1], html);
-      if (sideIds.indexOf(pair[0]) !== -1) railExtra += wrapped;
-      else main += wrapped;
+      var node = htmlToNode(block(pair[1], html));
+      if (!node) return;
+      if (sideIds.indexOf(pair[0]) !== -1) railNodes.push(node);
+      else mainNodes.push(node);
     });
-    if (!main) main = '<p class="cv-muted">Start typing on the left — your CV updates here instantly.</p>';
-
+    if (!mainNodes.length && !railNodes.length) {
+      var empty = htmlToNode('<p class="cv-muted">Start typing on the left — your CV updates here instantly.</p>');
+      if (empty) mainNodes.push(empty);
+    }
     var themeName = (TEMPLATES.filter(function (t) { return t.id === state.template; })[0] || {}).name || state.template;
-    pagesHost.innerHTML = '<p class="cv-theme-live">Theme: ' + esc(themeName) + '</p>' + pageHtml(railExtra, main, false);
-    var page1 = pagesHost.querySelector('.cv-page');
-    var overflow = [];
-    if (page1) {
-      var flow = page1.querySelector('.cv-main');
-      var guard = 0;
-      while (page1.scrollHeight > page1.clientHeight + 2 && flow && flow.children.length > 1 && guard < 40) {
-        var last = flow.lastElementChild;
-        if (!last || last.classList.contains('cv-identity')) break;
-        overflow.unshift(last);
-        flow.removeChild(last);
-        guard += 1;
+    pagesHost.innerHTML = '<p class="cv-theme-live">Theme: ' + esc(themeName) + '</p>';
+    var page = makePage(true);
+    pagesHost.appendChild(page);
+    var railRest = fillFlow(page, page.querySelector('.cv-rail'), railNodes);
+    var queue = fillFlow(page, page.querySelector('.cv-main'), railRest.concat(mainNodes));
+    var guard = 0;
+    while (queue.length && guard < 24) {
+      guard += 1;
+      var mark = queue.length + ':' + ((queue[0].textContent || '').length);
+      var next = makePage(false);
+      pagesHost.appendChild(next);
+      queue = fillFlow(next, next.querySelector('.cv-main'), queue);
+      var placed = next.querySelector('.cv-main').children.length;
+      var nextMark = queue.length ? (queue.length + ':' + ((queue[0].textContent || '').length)) : '0';
+      if (!placed || nextMark === mark) {
+        if (!placed) next.remove();
+        break;
       }
     }
-    if (overflow.length) {
-      var page2 = document.createElement('div');
-      page2.innerHTML = pageHtml('', '', true);
-      var main2 = page2.querySelector('.cv-main');
-      overflow.forEach(function (n) { main2.appendChild(n); });
-      pagesHost.appendChild(page2.firstElementChild);
-    }
-
+    Array.prototype.forEach.call(pagesHost.querySelectorAll('.cv-page'), function (sheet) {
+      var main = sheet.querySelector('.cv-main');
+      var rail = sheet.querySelector('.cv-rail');
+      var hasMain = main && main.children.length;
+      var hasRail = rail && rail.querySelector('.cv-sec, .cv-photo, .cv-identity, .cv-contact-line');
+      if (!hasMain && !hasRail) sheet.remove();
+    });
     var n = pagesHost.querySelectorAll('.cv-page').length;
     if (pageCountEl) pageCountEl.textContent = n === 1 ? '1 page' : n + ' pages';
     fitScale();
@@ -639,9 +1122,11 @@
     var avail = Math.max(280, wrap.clientWidth - 32);
     var s = Math.min(1, avail / 794);
     var pages = pagesHost.querySelectorAll('.cv-page').length || 1;
+    var label = pagesHost.querySelector('.cv-theme-live');
+    var labelH = label ? (label.offsetHeight + 14) : 0;
     scaleEl.style.transformOrigin = 'top center';
     scaleEl.style.transform = 'scale(' + s + ')';
-    scaleEl.style.height = (pages * 1123 * s) + 'px';
+    scaleEl.style.height = (labelH + (pages * 1123 * s) + (Math.max(0, pages - 1) * 14 * s) + 28) + 'px';
   }
 
   function canvasToJpegBlob(canvas) {

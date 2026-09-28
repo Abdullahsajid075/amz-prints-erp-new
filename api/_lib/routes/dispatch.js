@@ -955,6 +955,29 @@ async function dispatch(req, res) {
               }
             }
             if (!customer) return sendError(res, 'Please log in to place an order', 401);
+            const websiteKey = String(body.websiteKey || '').trim();
+            if (/^web-[a-f0-9]{12,40}$/i.test(websiteKey)) {
+              try {
+                const { data: priorRows } = await supabase.from('orders').select('*').ilike('remarks', `%${websiteKey}%`).limit(6);
+                const prior = (priorRows || []).find((row) => String(row.remarks || '').includes(websiteKey));
+                if (prior) {
+                  const api = mapOrder(prior);
+                  return send(res, {
+                    ok: true,
+                    duplicate: true,
+                    order: api,
+                    orderId: api.orderId,
+                    trackingNumber: api.trackingNumber,
+                    paymentMethod: api.paymentMethod,
+                    paymentStatus: api.paymentStatus,
+                    totalAmount: api.totalAmount,
+                    message: 'Your order has been received. It will be confirmed after the advance payment is verified.',
+                  });
+                }
+              } catch {
+                /* a failed lookup must not block a new order */
+              }
+            }
             // Auto-add / keep customer in CRM on website order
             try {
               await supabase.from('customers').update({
@@ -1059,6 +1082,7 @@ async function dispatch(req, res) {
             const altPhone = String(body.altPhone || '').trim();
             const remarks = [
               'Website order',
+              websiteKey ? `Website key: ${websiteKey}` : '',
               deliveryLabel ? `Delivery method: ${deliveryLabel}` : '',
               `Payment: ${paymentMethod}`,
               `Payment status: ${paymentStatus}`,

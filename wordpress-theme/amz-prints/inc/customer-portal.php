@@ -568,7 +568,20 @@ function amz_prints_store_customer_order( $email, $order ) {
 	if ( empty( $all[ $email ] ) || ! is_array( $all[ $email ] ) ) {
 		$all[ $email ] = array();
 	}
-	$all[ $email ][] = $order;
+	$order_id = (string) ( $order['orderId'] ?? '' );
+	$replaced = false;
+	if ( '' !== $order_id ) {
+		foreach ( $all[ $email ] as $index => $existing ) {
+			if ( is_array( $existing ) && (string) ( $existing['orderId'] ?? '' ) === $order_id ) {
+				$all[ $email ][ $index ] = array_merge( $existing, $order );
+				$replaced = true;
+				break;
+			}
+		}
+	}
+	if ( ! $replaced ) {
+		$all[ $email ][] = $order;
+	}
 	update_option( 'amz_prints_customer_orders', $all, false );
 }
 
@@ -577,6 +590,75 @@ function amz_prints_customer_orders_for( $email ) {
 	$all   = get_option( 'amz_prints_customer_orders', array() );
 	$rows  = ( $email && is_array( $all ) && isset( $all[ $email ] ) && is_array( $all[ $email ] ) ) ? $all[ $email ] : array();
 	return array_reverse( $rows );
+}
+
+/**
+ * Keep website order rows in step with ERP status, payment, and products.
+ *
+ * @param string $email         Customer email.
+ * @param array  $local_orders  Orders stored on the website.
+ * @param array  $remote_orders Orders returned by the ERP session.
+ * @return array
+ */
+function amz_prints_customer_orders_merge_remote( $email, $local_orders, $remote_orders ) {
+	$local_orders  = is_array( $local_orders ) ? $local_orders : array();
+	$remote_orders = is_array( $remote_orders ) ? $remote_orders : array();
+	$by_id         = array();
+	foreach ( $remote_orders as $remote ) {
+		if ( ! is_array( $remote ) ) {
+			continue;
+		}
+		$order_id = (string) ( $remote['orderId'] ?? '' );
+		if ( '' !== $order_id ) {
+			$by_id[ $order_id ] = $remote;
+		}
+	}
+	$merged = array();
+	$seen   = array();
+	foreach ( $local_orders as $local_order ) {
+		if ( ! is_array( $local_order ) ) {
+			continue;
+		}
+		$order_id = (string) ( $local_order['orderId'] ?? '' );
+		if ( '' !== $order_id && isset( $seen[ $order_id ] ) ) {
+			continue;
+		}
+		if ( '' !== $order_id && isset( $by_id[ $order_id ] ) ) {
+			$remote = $by_id[ $order_id ];
+			foreach ( array( 'status', 'paymentStatus', 'balanceAmount', 'totalAmount', 'advancePayment', 'paymentMethod' ) as $key ) {
+				if ( array_key_exists( $key, $remote ) && '' !== (string) $remote[ $key ] ) {
+					$local_order[ $key ] = $remote[ $key ];
+				}
+			}
+			if ( ! empty( $remote['products'] ) && is_array( $remote['products'] ) ) {
+				$local_order['products'] = $remote['products'];
+			}
+			$seen[ $order_id ] = true;
+		}
+		$merged[] = $local_order;
+	}
+	foreach ( $remote_orders as $remote ) {
+		if ( ! is_array( $remote ) ) {
+			continue;
+		}
+		$order_id = (string) ( $remote['orderId'] ?? '' );
+		if ( '' !== $order_id && isset( $seen[ $order_id ] ) ) {
+			continue;
+		}
+		if ( '' !== $order_id ) {
+			$seen[ $order_id ] = true;
+		}
+		$merged[] = $remote;
+	}
+	if ( $by_id && function_exists( 'amz_prints_store_customer_order' ) ) {
+		foreach ( $merged as $row ) {
+			$order_id = (string) ( $row['orderId'] ?? '' );
+			if ( '' !== $order_id && isset( $by_id[ $order_id ] ) ) {
+				amz_prints_store_customer_order( $email, $row );
+			}
+		}
+	}
+	return $merged;
 }
 
 function amz_prints_customer_fetch_session() {
@@ -616,7 +698,7 @@ function amz_prints_customer_fetch_session() {
 			$remote_email = strtolower( trim( (string) ( $remote['customer']['email'] ?? '' ) ) );
 			if ( $remote_email === $email ) {
 				$remote_orders = isset( $remote['orders'] ) && is_array( $remote['orders'] ) ? $remote['orders'] : array();
-				$local['orders'] = array_merge( $local['orders'], $remote_orders );
+				$local['orders'] = amz_prints_customer_orders_merge_remote( $email, $local['orders'], $remote_orders );
 				if ( ! empty( $remote['invoices'] ) && is_array( $remote['invoices'] ) ) {
 					$local['invoices'] = $remote['invoices'];
 				}
@@ -1493,14 +1575,18 @@ function amz_prints_customer_cv_clean_state( $state ) {
 function amz_prints_customer_cv_kses( $html ) {
 	$allowed = array(
 		'article' => array( 'class' => true, 'style' => true ),
-		'div'     => array( 'class' => true ),
+		'div'     => array( 'class' => true, 'style' => true ),
 		'span'    => array( 'class' => true ),
 		'img'     => array( 'class' => true, 'alt' => true, 'src' => true ),
-		'ul'      => array( 'class' => true ),
-		'li'      => array(),
+		'ul'      => array( 'class' => true, 'style' => true ),
+		'ol'      => array( 'class' => true, 'style' => true ),
+		'li'      => array( 'style' => true ),
 		'strong'  => array(),
+		'b'       => array(),
 		'em'      => array(),
-		'p'       => array( 'class' => true ),
+		'i'       => array(),
+		'u'       => array(),
+		'p'       => array( 'class' => true, 'style' => true ),
 		'h1'      => array( 'class' => true ),
 		'h2'      => array(),
 		'h3'      => array(),
@@ -1515,7 +1601,28 @@ function amz_prints_customer_cv_kses( $html ) {
 			if ( preg_match( '/^--cv-accent:\s*#[0-9a-fA-F]{3,8};?$/', $style ) ) {
 				return ' style="' . esc_attr( $style ) . '"';
 			}
-			return '';
+			$keep = array();
+			if ( preg_match( '/text-align\s*:\s*(left|center|right|justify)/i', $style, $align ) ) {
+				$keep[] = 'text-align:' . strtolower( $align[1] );
+			}
+			if ( preg_match( '/margin-left\s*:\s*(\d+(?:\.\d+)?)(px|em)/i', $style, $indent ) ) {
+				$px = (float) $indent[1];
+				if ( 'em' === strtolower( $indent[2] ) ) {
+					$px *= 16;
+				}
+				$px = (int) ( round( $px / 24 ) * 24 );
+				$px = max( 0, min( 160, $px ) );
+				if ( $px > 0 ) {
+					$keep[] = 'margin-left:' . $px . 'px';
+				}
+			}
+			if ( preg_match( '/list-style-type\s*:\s*(disc|circle|square|decimal|lower-alpha|upper-alpha|lower-roman|upper-roman)/i', $style, $list ) ) {
+				$keep[] = 'list-style-type:' . strtolower( $list[1] );
+			}
+			if ( ! $keep ) {
+				return '';
+			}
+			return ' style="' . esc_attr( implode( ';', $keep ) ) . '"';
 		},
 		$html
 	);
