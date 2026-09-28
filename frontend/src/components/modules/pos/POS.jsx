@@ -6,7 +6,7 @@ import { productsAPI, ordersAPI, invoicesAPI, customersAPI, posRegisterAPI, sett
 import { applyServerNotificationHint, openWhatsAppChat } from '@/services/notifications';
 import { formatCurrency } from '@/utils/helpers';
 import { customerMatchesQuery } from '@/utils/customerSearch';
-import { productMatchesQuery } from '@/utils/productSearch';
+import { findProductByBarcode, productMatchesQuery } from '@/utils/productSearch';
 import { printPosSlip, buildPosWhatsAppReceipt } from '@/utils/posSlip';
 import { printStampedReceipt, receiptAcceptAttr, isReceiptUploadFile } from '@/utils/posStampedReceipt';
 import { mergePosSettings, mergeInventorySettings } from '@/utils/moduleSettings';
@@ -246,6 +246,15 @@ const POS = () => {
     });
     setVarPick(null);
     if (typeof window !== 'undefined' && window.innerWidth < 640) setCartDrawer(true);
+  };
+
+  const scanBarcodeIntoCart = (rawCode) => {
+    if (posCfg.barcodeScan === false) return false;
+    const hit = findProductByBarcode(products, rawCode);
+    if (!hit) return false;
+    addToCart(hit.product, hit.variation);
+    setSearch('');
+    return true;
   };
 
   const lineKeyOf = (item) => `${item.productId}::${item.variationId || ''}`;
@@ -598,9 +607,18 @@ const POS = () => {
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
           <Input
             className="pl-10 h-10 bg-[#f4f6f8] border-slate-200 rounded-xl"
-            placeholder="Search product (e.g. Visiting Card, Mug, T-shirt…)"
+            placeholder={posCfg.barcodeScan !== false ? 'Search or scan barcode…' : 'Search product (e.g. Visiting Card, Mug, T-shirt…)'}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter') return;
+              const code = search.trim();
+              if (!code) return;
+              if (scanBarcodeIntoCart(code)) {
+                e.preventDefault();
+              }
+            }}
+            autoComplete="off"
             data-testid="pos-search"
           />
         </div>
