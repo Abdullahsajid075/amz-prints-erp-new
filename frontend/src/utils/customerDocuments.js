@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QRCodeCanvas } from 'qrcode.react';
-import { printHtml } from '@/utils/printHelpers';
+import { printHtml, barcodeBlock } from '@/utils/printHelpers';
 
 export function customerPortalUrl(customerId) {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -109,7 +109,7 @@ export async function printCustomerCard({ customer, company, qrUrl, outstanding,
     .logo { height: 9mm; max-width: 22mm; object-fit: contain; background: #fff; border-radius: 1.2mm; padding: 0.6mm; }
     .brand-name { font-size: 3.4mm; font-weight: 800; letter-spacing: 0.02em; line-height: 1.15; }
     .brand-sub { font-size: 2mm; opacity: .85; letter-spacing: .12em; text-transform: uppercase; margin-top: 0.4mm; }
-    .mid { flex: 1; display: grid; grid-template-columns: 14mm 1fr 18mm; gap: 2.4mm; padding: 2.4mm 3mm 1.6mm; align-items: center; }
+    .mid { flex: 1; display: grid; grid-template-columns: 14mm 1fr 18mm; gap: 2.4mm; padding: 2.2mm 3mm 1.2mm; align-items: center; }
     .dp {
       width: 14mm; height: 16mm; object-fit: cover; border-radius: 1.4mm;
       border: 0.3mm solid #dbe3ef; background: #f1f5f9;
@@ -123,6 +123,9 @@ export async function printCustomerCard({ customer, company, qrUrl, outstanding,
     .v { font-size: 2.7mm; font-weight: 700; margin: 0 0 1.1mm; line-height: 1.2; }
     .code { font-family: ui-monospace, Consolas, monospace; color: #ff6d00; font-size: 2.4mm; }
     .qr { width: 18mm; height: 18mm; display: block; background: #fff; }
+    .qr-cap { font-size: 1.6mm; text-align: center; font-weight: 800; letter-spacing: .08em; color: #0747a3; margin-top: 0.4mm; }
+    .bc { text-align: center; padding: 0 3mm 0.8mm; }
+    .bc svg { max-width: 100%; height: 9mm; }
     .foot {
       background: #f8fafc; border-top: 0.25mm solid #e2e8f0;
       padding: 1.3mm 3mm; font-size: 1.8mm; color: #475569;
@@ -153,10 +156,12 @@ export async function printCustomerCard({ customer, company, qrUrl, outstanding,
       </div>
       <div>
         ${qr ? `<img class="qr" src="${qr}" alt="QR"/>` : ''}
+        <div class="qr-cap">QR</div>
       </div>
     </div>
+    <div class="bc">${barcodeBlock(code || 'AMZ', { id: 'cust-barcode', height: 28 })}</div>
     <div class="foot">
-      <span>Scan QR → Customer Portal login</span>
+      <span>Scan QR → Customer Portal · barcode = ID</span>
       <span>Due ${esc(outstanding ?? '—')} · Adv ${esc(creditBalance ?? '—')}</span>
     </div>
   </div>

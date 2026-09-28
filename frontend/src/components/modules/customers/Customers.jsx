@@ -18,6 +18,8 @@ import { customerMatchesQuery } from '@/utils/customerSearch';
 import { customerPortalUrl, printCustomerCard, qrPngDataUrl, downloadDataUrl, canvasPngDataUrl } from '@/utils/customerDocuments';
 import { compressPortraitFile } from '@/utils/productImage';
 import { QRCodeCanvas } from 'qrcode.react';
+import CustomerIdCard from '@/components/modules/customers/CustomerIdCard';
+import Barcode from '@/components/shared/Barcode';
 import {
   isCustomerBlocked, canUnblockCustomer, customerDisplayCode,
   openUrduBalanceWhatsApp, openCustomerWelcomeWhatsApp, openLedgerWhatsApp,
@@ -26,7 +28,7 @@ import { openBlankWhatsAppTab } from '@/services/notifications';
 import { useAuth } from '@/context/AuthContext';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
-import { Plus, Search, Edit, Trash2, User, Phone, Mail, MapPin, TrendingUp, X, Save, BookOpen, Bell, Kanban, ShieldBan, ShieldCheck, Wallet, IdCard, QrCode, Camera } from 'lucide-react';
+import { Plus, Search, User, TrendingUp, X, Save, BookOpen, Bell, Kanban, ShieldBan, Wallet, QrCode, Camera } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
 
@@ -445,141 +447,29 @@ const Customers = () => {
                 <Button onClick={openCreate} style={{ backgroundColor: '#ff6d00' }} className="text-white"><Plus className="h-4 w-4 mr-2" />Add First Customer</Button>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm" data-testid="customer-directory-table">
-                  <thead>
-                    <tr className="border-b bg-gray-50">
-                      <th className="text-left py-3 px-3 text-xs uppercase font-semibold text-gray-600">Customer</th>
-                      <th className="text-left py-3 px-3 text-xs uppercase font-semibold text-gray-600">Contact</th>
-                      <th className="text-left py-3 px-3 text-xs uppercase font-semibold text-gray-600 hidden md:table-cell">City / Address</th>
-                      <th className="text-right py-3 px-3 text-xs uppercase font-semibold text-gray-600">Balance</th>
-                      <th className="text-right py-3 px-3 text-xs uppercase font-semibold text-gray-600">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sorted.map((c) => {
-                      const blocked = isCustomerBlocked(c);
-                      const due = Number(c.outstanding) || 0;
-                      return (
-                        <tr
-                          key={c.id}
-                          className={`border-b hover:bg-orange-50/40 ${blocked ? 'bg-red-50/40' : ''}`}
-                          data-testid={`customer-card-${c.id}`}
-                        >
-                          <td className="py-2.5 px-3">
-                            <div className="flex items-center gap-2.5 min-w-[180px]">
-                              <button
-                                type="button"
-                                className="relative w-10 h-10 rounded-lg overflow-hidden flex items-center justify-center shrink-0 border border-orange-200"
-                                style={{ backgroundColor: blocked ? '#FEE2E2' : '#FFF4EB' }}
-                                title="Upload customer photo"
-                                onClick={() => {
-                                  setPhotoTarget(c);
-                                  photoFileRef.current?.click();
-                                }}
-                              >
-                                {c.photo ? (
-                                  <img src={c.photo} alt="" className="w-full h-full object-cover" />
-                                ) : (
-                                  <Camera className="h-4 w-4" style={{ color: blocked ? '#DC2626' : '#ff6d00' }} />
-                                )}
-                              </button>
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <p className="font-bold truncate" style={{ color: '#1F2937' }}>{c.name}</p>
-                                  {blocked && <Badge className="bg-red-100 text-red-800 text-[10px]">Blocked</Badge>}
-                                </div>
-                                <p className="text-[10px] font-mono text-orange-700">ID: {customerDisplayCode(c)}</p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="py-2.5 px-3 text-gray-600">
-                            {c.phone ? <p className="flex items-center gap-1.5 whitespace-nowrap"><Phone className="h-3 w-3 shrink-0" />{c.phone}</p> : <p className="text-gray-400">—</p>}
-                            {c.email ? <p className="flex items-center gap-1.5 text-xs text-gray-500 truncate max-w-[220px]"><Mail className="h-3 w-3 shrink-0" />{c.email}</p> : null}
-                          </td>
-                          <td className="py-2.5 px-3 text-gray-600 hidden md:table-cell">
-                            {c.city ? <p className="font-medium">{c.city}</p> : null}
-                            {c.address ? (
-                              <p className="flex items-start gap-1.5 text-xs text-gray-500 max-w-[240px]">
-                                <MapPin className="h-3 w-3 mt-0.5 shrink-0" />
-                                <span className="line-clamp-2">{c.address}</span>
-                              </p>
-                            ) : (!c.city ? <span className="text-gray-400">—</span> : null)}
-                          </td>
-                          <td className={`py-2.5 px-3 text-right font-semibold whitespace-nowrap ${due > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
-                            {formatCurrency(due)}
-                          </td>
-                          <td className="py-2.5 px-3">
-                            <div className="flex items-center gap-0.5 justify-end flex-nowrap">
-                              <Button size="icon" variant="ghost" className="h-8 w-8 text-orange-600" onClick={() => openLedger(c)} title="Ledger" data-testid={`ledger-${c.id}`}>
-                                <BookOpen className="h-4 w-4" />
-                              </Button>
-                              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => printCardFor(c)} title="Print customer card">
-                                <IdCard className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-8 w-8"
-                                disabled={imageBusy}
-                                title="Upload photo"
-                                onClick={() => {
-                                  setPhotoTarget(c);
-                                  photoFileRef.current?.click();
-                                }}
-                              >
-                                <Camera className="h-4 w-4" />
-                              </Button>
-                              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openQr(c)} title="Customer QR">
-                                <QrCode className="h-4 w-4" />
-                              </Button>
-                              {due > 0 && c.phone ? (
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-8 w-8 text-green-700"
-                                  disabled={balanceSending}
-                                  onClick={() => sendBalanceRequest(c, c.outstanding)}
-                                  title="باقی رقم — WhatsApp"
-                                  data-testid={`balance-wa-${c.id}`}
-                                >
-                                  <WhatsAppIcon className="h-4 w-4" />
-                                </Button>
-                              ) : null}
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-8 w-8 text-emerald-700"
-                                onClick={() => openCustomerPayment(c)}
-                                title="Record payment"
-                                data-testid={`pay-customer-${c.id}`}
-                              >
-                                <Wallet className="h-4 w-4" />
-                              </Button>
-                              {blocked ? (
-                                canUnblock && (
-                                  <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-700" onClick={() => handleUnblock(c)} title="Unblock" data-testid={`unblock-${c.id}`}>
-                                    <ShieldCheck className="h-4 w-4" />
-                                  </Button>
-                                )
-                              ) : (
-                                <Button size="icon" variant="ghost" className="h-8 w-8 text-red-700" onClick={() => openBlockDialog(c)} title="Block" data-testid={`block-${c.id}`}>
-                                  <ShieldBan className="h-4 w-4" />
-                                </Button>
-                              )}
-                              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(c)} title="Edit" data-testid={`edit-customer-${c.id}`}>
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleDelete(c.id)} title="Delete" data-testid={`delete-customer-${c.id}`}>
-                                <Trash2 className="h-4 w-4 text-red-600" />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" data-testid="customer-directory-table">
+                {sorted.map((c) => (
+                  <CustomerIdCard
+                    key={c.id}
+                    customer={c}
+                    canUnblock={canUnblock}
+                    imageBusy={imageBusy}
+                    balanceSending={balanceSending}
+                    onPhoto={() => {
+                      setPhotoTarget(c);
+                      photoFileRef.current?.click();
+                    }}
+                    onLedger={() => openLedger(c)}
+                    onPrint={() => printCardFor(c)}
+                    onQr={() => openQr(c)}
+                    onBalanceWa={() => sendBalanceRequest(c, c.outstanding)}
+                    onPay={() => openCustomerPayment(c)}
+                    onBlock={() => openBlockDialog(c)}
+                    onUnblock={() => handleUnblock(c)}
+                    onEdit={() => openEdit(c)}
+                    onDelete={() => handleDelete(c.id)}
+                  />
+                ))}
               </div>
             )}
         </CardContent>
@@ -844,6 +734,9 @@ const Customers = () => {
           </DialogHeader>
           {qrCustomer && (
             <div className="flex flex-col items-center gap-3 py-2">
+              <div className="w-full rounded-xl bg-slate-50 border px-3 py-2">
+                <Barcode value={customerDisplayCode(qrCustomer)} height={44} className="w-full" />
+              </div>
               <div ref={qrCanvasWrap} className="bg-white p-3 border rounded-xl">
                 <QRCodeCanvas
                   value={customerPortalUrl(qrCustomer.id)}
@@ -854,7 +747,7 @@ const Customers = () => {
                   fgColor="#0747a3"
                 />
               </div>
-              <p className="text-xs text-slate-500 text-center">Scan to open the customer portal. Login is required.</p>
+              <p className="text-xs text-slate-500 text-center">Barcode = customer ID · QR opens the customer portal (login required).</p>
               <div className="flex flex-wrap gap-2 justify-center">
                 <Button
                   type="button"

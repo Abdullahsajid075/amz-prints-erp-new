@@ -30,7 +30,7 @@ const PIPELINE = [
 
 const QUICK_ACTIONS = [
   { label: 'New Order', path: '/orders/new', module: 'orders', icon: Plus, tint: '#ff6d00' },
-  { label: 'Token Booking', path: '/tokens', module: 'tokens', icon: Ticket, tint: '#0EA5E9' },
+  { label: 'Token', path: '/tokens', module: 'tokens', icon: Ticket, tint: '#0EA5E9' },
   { label: 'POS Sale', path: '/pos', module: 'pos', icon: Store, tint: '#10B981' },
   { label: 'Quotation', path: '/quotations/new', module: 'quotations', icon: FileText, tint: '#8B5CF6' },
   { label: 'Invoice', path: '/invoices/new', module: 'invoices', icon: FileSpreadsheet, tint: '#F59E0B' },

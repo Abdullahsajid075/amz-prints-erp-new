@@ -21,6 +21,7 @@ import {
   Loader2, RefreshCw, Bell, Volume2,
 } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
+import TokenSectionNav from '@/components/modules/tokens/TokenSectionNav';
 
 const DEFAULT_SERVICES = [
   { name: 'Designing', counter: 'Table 01' },
@@ -439,8 +440,11 @@ const TokenBooking = () => {
     <div className="space-y-6" data-testid="token-booking">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold" style={{ color: '#0747a3' }}>Token Booking</h1>
-          <p className="text-sm text-gray-500 mt-1">Book · Call Next · tables · voice: TOKEN PLEASE PROCEED TO THE COUNTER</p>
+          <h1 className="text-3xl font-bold" style={{ color: '#0747a3' }}>Token</h1>
+          <p className="text-sm text-gray-500 mt-1">1. Booking · 2. Screen · Call Next · voice: TOKEN PLEASE PROCEED TO THE COUNTER</p>
+          <div className="mt-3">
+            <TokenSectionNav />
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={syncSheets} data-testid="sync-sheets">
