@@ -89,8 +89,6 @@ const Products = () => {
   const [formData, setFormData] = useState(emptyProduct);
   const [saving, setSaving] = useState(false);
   const [imageBusy, setImageBusy] = useState(false);
-  const [stockDialog, setStockDialog] = useState({ open: false, product: null, value: '' });
-  const [stockSaving, setStockSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [catalogOptions, setCatalogOptions] = useState({
     categories: PRODUCT_CATEGORIES,
@@ -238,57 +236,6 @@ const Products = () => {
     });
   };
 
-  const openStockEdit = (product) => {
-    setStockDialog({
-      open: true,
-      product,
-      value: String(Number(product.stock ?? 0) || 0),
-    });
-  };
-
-  const saveStock = async () => {
-    const product = stockDialog.product;
-    if (!product?.id) return;
-    const next = Math.max(0, Math.floor(Number(stockDialog.value)));
-    if (Number.isNaN(next)) {
-      toast.error('Enter a valid stock number');
-      return;
-    }
-    setStockSaving(true);
-    try {
-      await productsAPI.update(product.id, {
-        name: product.name,
-        category: product.category,
-        productType: product.productType || 'Product',
-        description: product.description || '',
-        fullDescription: product.fullDescription || '',
-        basePrice: product.basePrice ?? product.rate ?? 0,
-        rate: product.basePrice ?? product.rate ?? 0,
-        salePrice: product.salePrice,
-        unit: product.unit || '',
-        material: product.material || '',
-        size: product.size || '',
-        minQuantity: product.minQuantity,
-        designer: product.designer || '',
-        stock: next,
-        images: productImagesList(product),
-        status: product.active === false ? 'Inactive' : (product.status || 'Active'),
-        active: product.active !== false,
-        showOnWebsite: isCatalogReady(product) && product.showOnWebsite !== false,
-        showOnTop: isCatalogReady(product) && product.showOnWebsite !== false && !!product.showOnTop,
-        variations: product.variations || [],
-      });
-      clearGasCache();
-      toast.success(`Stock updated to ${next}`);
-      setStockDialog({ open: false, product: null, value: '' });
-      fetchProducts();
-    } catch (err) {
-      toast.error(err?.response?.data?.message || err?.message || 'Stock update failed');
-    } finally {
-      setStockSaving(false);
-    }
-  };
-
   const handleSave = async (e) => {
     e.preventDefault();
     setSaving(true);
@@ -303,7 +250,11 @@ const Products = () => {
           material: String(v.material || '').trim(),
           price: v.price === '' || v.price == null ? null : Number(v.price),
           sku: String(v.sku || '').trim(),
-          stock: v.stock === '' || v.stock == null ? 0 : Math.max(0, Number(v.stock) || 0),
+          stock: (() => {
+            const existingVar = (editingProduct?.variations || []).find((x) => String(x.id) === String(v.id));
+            if (existingVar) return Math.max(0, Number(existingVar.stock) || 0);
+            return 0;
+          })(),
           image: String(v.image || '').trim(),
         }))
         .filter((v) => v.name || v.size || v.color || v.sku);
@@ -352,7 +303,7 @@ const Products = () => {
             material: formData.material || '',
             size: formData.size || '',
             minQuantity: formData.minQuantity || 1,
-            stock: Math.max(0, Math.floor(Number(formData.stock) || 0)),
+            stock: editingProduct ? Math.max(0, Math.floor(Number(editingProduct.stock) || 0)) : 0,
             trackInventory: formData.trackInventory !== false,
             images,
             active: formData.active !== false,
@@ -446,7 +397,7 @@ const Products = () => {
       <PageHeader
         eyebrow="Operations"
         title="Products"
-        subtitle="Catalog with photos · manual stock edit"
+        subtitle="Catalog with photos · on-hand quantity from purchases only"
         actions={(
           <div className="flex gap-2">
             <Button asChild variant="outline" className="h-9 rounded-xl">
@@ -618,16 +569,14 @@ const Products = () => {
                         </p>
                       )}
                       {tracking ? (
-                        <button
-                          type="button"
-                          onClick={() => openStockEdit(product)}
-                          className="flex items-center gap-1 text-[11px] font-medium text-gray-700 hover:text-orange-600"
-                          title="Edit stock"
+                        <p
+                          className="flex items-center gap-1 text-[11px] font-medium text-gray-700"
+                          title="On-hand updates when a purchase is received"
                         >
                           <Boxes className="h-3.5 w-3.5" />
-                          Stock: <span className="font-bold">{Number(product.stock ?? 0) || 0}</span>
-                          <span className="text-orange-600 underline ml-0.5">Edit</span>
-                        </button>
+                          On-hand: <span className="font-bold">{Number(product.stock ?? 0) || 0}</span>
+                          <span className="text-slate-500 ml-0.5">from purchases</span>
+                        </p>
                       ) : !service ? (
                         <p className="text-[11px] text-slate-500">Stock not tracked</p>
                       ) : (
@@ -673,61 +622,6 @@ const Products = () => {
         </div>
       </div>
 
-      <Dialog open={stockDialog.open} onOpenChange={(open) => setStockDialog((s) => ({ ...s, open }))}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Edit stock</DialogTitle>
-            <DialogDescription>
-              {stockDialog.product?.name || 'Product'} — set quantity manually.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label>Stock quantity</Label>
-              <Input
-                type="number"
-                min="0"
-                step="1"
-                value={stockDialog.value}
-                onChange={(e) => setStockDialog((s) => ({ ...s, value: e.target.value }))}
-                autoFocus
-              />
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {[-10, -1, +1, +10, +50].map((n) => (
-                <Button
-                  key={n}
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="h-8 text-xs"
-                  onClick={() => {
-                    const cur = Math.max(0, Math.floor(Number(stockDialog.value) || 0));
-                    setStockDialog((s) => ({ ...s, value: String(Math.max(0, cur + n)) }));
-                  }}
-                >
-                  {n > 0 ? `+${n}` : n}
-                </Button>
-              ))}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setStockDialog({ open: false, product: null, value: '' })}>
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              className="text-white"
-              style={{ backgroundColor: '#ff6d00' }}
-              disabled={stockSaving}
-              onClick={saveStock}
-            >
-              {stockSaving ? 'Saving…' : 'Save stock'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" data-testid="product-dialog">
           <DialogHeader>
@@ -737,7 +631,7 @@ const Products = () => {
             <DialogDescription>
               {isService
                 ? 'Service: description + charges. No inventory quantity.'
-                : 'Product photo + optional stock tracking for warehouse catalog.'}
+                : 'Product photo + tracking. Quantity updates when a purchase is received.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -854,7 +748,7 @@ const Products = () => {
                 <div>
                   <Label htmlFor="track-inventory" className="text-sm font-semibold">Track inventory</Label>
                   <p className="text-[11px] text-gray-500 mt-0.5">
-                    On = minus stock on sale. Off = sell without stock (no quantity block).
+                    On = POS/delivery consume on-hand. Quantity comes from purchases (Received). Off = sell without stock.
                   </p>
                 </div>
                 <Switch
@@ -983,15 +877,16 @@ const Products = () => {
                 </div>
                 {formData.trackInventory !== false ? (
                   <div>
-                    <Label>Stock (manual)</Label>
+                    <Label>On-hand (from purchases)</Label>
                     <Input
                       type="number"
-                      min="0"
-                      step="1"
-                      value={formData.stock}
-                      onChange={(e) => setFormData({ ...formData, stock: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                      value={editingProduct ? Math.max(0, Number(editingProduct.stock) || 0) : 0}
+                      disabled
                       data-testid="product-stock-input"
                     />
+                    <p className="text-[11px] text-gray-500 mt-1">
+                      Manual add/remove is locked. Receive a purchase order to increase quantity.
+                    </p>
                   </div>
                 ) : (
                   <div className="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-2 text-[11px] text-slate-500">
@@ -1035,7 +930,7 @@ const Products = () => {
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <Label className="text-sm font-semibold">Variations</Label>
-                  <p className="text-[11px] text-gray-500">Size, color, material, price, SKU, and stock — used in orders, POS, and price tags.</p>
+                  <p className="text-[11px] text-gray-500">Size, color, material, price, and SKU — used in orders, POS, and price tags. Quantity comes from purchases.</p>
                 </div>
                 <Button
                   type="button"
@@ -1129,16 +1024,12 @@ const Products = () => {
                         />
                       </div>
                       <div>
-                        <Label className="text-[11px]">Stock</Label>
+                        <Label className="text-[11px]">On-hand</Label>
                         <Input
                           type="number"
-                          min="0"
-                          value={v.stock}
-                          onChange={(e) => setFormData((prev) => {
-                            const variations = [...(prev.variations || [])];
-                            variations[idx] = { ...variations[idx], stock: e.target.value };
-                            return { ...prev, variations };
-                          })}
+                          value={Number(v.stock) || 0}
+                          disabled
+                          title="Quantity updates when a purchase is received"
                         />
                       </div>
                       <div className="md:col-span-4">

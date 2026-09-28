@@ -55,7 +55,7 @@ export default function ProductQuickCreate({
         material: form.material || '',
         basePrice: Number(form.basePrice) || 0,
         rate: Number(form.basePrice) || 0,
-        stock: Math.max(0, Math.floor(Number(form.stock) || 0)),
+        stock: 0,
         trackInventory: form.productType !== 'Service',
         description: form.description || '',
         active: true,
@@ -112,9 +112,8 @@ export default function ProductQuickCreate({
               </select>
             </div>
             {form.productType !== 'Service' ? (
-              <div>
-                <Label>Stock</Label>
-                <Input type="number" min="0" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} />
+              <div className="col-span-2 rounded-md border border-dashed bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+                On-hand starts at 0. Quantity increases when a purchase is received.
               </div>
             ) : null}
           </div>

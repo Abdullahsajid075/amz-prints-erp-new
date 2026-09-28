@@ -6,13 +6,13 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { ordersAPI, settingsAPI, invoicesAPI } from '@/services/api';
+import { ordersAPI, settingsAPI, invoicesAPI, productsAPI } from '@/services/api';
 import { openInvoicesForCustomer } from '@/utils/invoiceOrders';
 import { formatCurrency, formatDate, getStatusColor, invoiceBalanceDue } from '@/utils/helpers';
 import { documentFileName } from '@/utils/printHelpers';
 import { printOrderBookSlip } from '@/utils/orderBookSlip';
 import { ORDER_STATUS, isOpenOrder, isNotStartedOrder, isSettledOrderStatus, isWebsiteOrder, isPendingStatus, isPendingWebsiteOrder } from '@/utils/constants';
-import { INVOICE_REQUIRED_MESSAGE, canManuallyDeliver, orderHasInvoice, isReadyForDeliveryStatus } from '@/utils/deliveryRules';
+import { INVOICE_REQUIRED_MESSAGE, STOCK_REQUIRED_MESSAGE, canManuallyDeliver, isReadyForDeliveryStatus } from '@/utils/deliveryRules';
 import { sortBy, pinFirst } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
 import PageHeader from '@/components/shared/PageHeader';
@@ -90,6 +90,7 @@ const OrdersList = () => {
   const [statusBusyId, setStatusBusyId] = useState('');
   const [addInvoicePick, setAddInvoicePick] = useState(null);
   const [addInvoiceBusy, setAddInvoiceBusy] = useState(false);
+  const [catalog, setCatalog] = useState([]);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -143,6 +144,7 @@ const OrdersList = () => {
 
   useEffect(() => {
     settingsAPI.get().then(res => setCompany(res.data?.company || {})).catch(() => {});
+    productsAPI.getAll().then((res) => setCatalog(res.data || [])).catch(() => setCatalog([]));
   }, []);
 
   const sortedOrders = useMemo(() => sortBy(orders, sort, {
@@ -198,7 +200,7 @@ const OrdersList = () => {
   const changeOrderStatus = async (order, status) => {
     if (!order?.id || String(order.status) === String(status)) return;
     if (/^delivered$/i.test(String(status)) || /^closed$/i.test(String(status))) {
-      const gate = canManuallyDeliver(order);
+      const gate = canManuallyDeliver(order, catalog);
       if (!gate.ok) {
         toast.error(gate.message || INVOICE_REQUIRED_MESSAGE);
         return;
@@ -269,7 +271,7 @@ const OrdersList = () => {
   };
 
   const confirmManualDeliver = async (order) => {
-    const gate = canManuallyDeliver(order);
+    const gate = canManuallyDeliver(order, catalog);
     if (!gate.ok) {
       toast.error(gate.message || INVOICE_REQUIRED_MESSAGE);
       return;
@@ -319,17 +321,23 @@ const OrdersList = () => {
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {Object.values(ORDER_STATUS).map((s) => (
+        {Object.values(ORDER_STATUS).map((s) => {
+          const gate = canManuallyDeliver(order, catalog);
+          const deliverChoice = s === ORDER_STATUS.DELIVERED || s === ORDER_STATUS.CLOSED;
+          const blocked = deliverChoice && !gate.ok;
+          const label = !blocked
+            ? s
+            : (gate.message === STOCK_REQUIRED_MESSAGE ? 'Delivered (purchase required)' : 'Delivered (invoice required)');
+          return (
           <SelectItem
             key={s}
             value={s}
-            disabled={(s === ORDER_STATUS.DELIVERED || s === ORDER_STATUS.CLOSED) && !orderHasInvoice(order)}
+            disabled={blocked}
           >
-            {(s === ORDER_STATUS.DELIVERED || s === ORDER_STATUS.CLOSED) && !orderHasInvoice(order)
-              ? 'Delivered (invoice required)'
-              : s}
+            {label}
           </SelectItem>
-        ))}
+          );
+        })}
       </SelectContent>
     </Select>
   );
@@ -738,8 +746,8 @@ const OrdersList = () => {
               <Button
                 size="sm"
                 className="h-8 px-2 text-[11px] font-semibold rounded-lg text-white"
-                style={{ backgroundColor: orderHasInvoice(order) ? '#0747a3' : '#94a3b8' }}
-                title={orderHasInvoice(order) ? 'Manually confirm delivery' : INVOICE_REQUIRED_MESSAGE}
+                style={{ backgroundColor: canManuallyDeliver(order, catalog).ok ? '#0747a3' : '#94a3b8' }}
+                title={canManuallyDeliver(order, catalog).ok ? 'Manually confirm delivery' : (canManuallyDeliver(order, catalog).message || INVOICE_REQUIRED_MESSAGE)}
                 disabled={!!statusBusyId}
                 onClick={() => confirmManualDeliver(order)}
                 data-testid={`deliver-order-${order.id}`}
@@ -1112,7 +1120,7 @@ const OrdersList = () => {
                 {!isLockedOrder(viewOrder) && (
                   <Button
                     className="text-white"
-                    style={{ backgroundColor: orderHasInvoice(viewOrder) ? '#0747a3' : '#94a3b8' }}
+                    style={{ backgroundColor: canManuallyDeliver(viewOrder, catalog).ok ? '#0747a3' : '#94a3b8' }}
                     onClick={() => confirmManualDeliver(viewOrder)}
                     data-testid="deliver-from-dialog-button"
                   >

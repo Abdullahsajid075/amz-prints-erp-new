@@ -1,7 +1,7 @@
 /**
  * The 10 required delivery / acknowledgment / notification scenarios.
  */
-const { canDeliverOrder, classifyIncorrectDelivery, INVOICE_REQUIRED_MESSAGE } = require('./deliveryWorkflow');
+const { canDeliverOrder, classifyIncorrectDelivery, INVOICE_REQUIRED_MESSAGE, STOCK_REQUIRED_MESSAGE } = require('./deliveryWorkflow');
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -62,6 +62,16 @@ function assert(cond, msg) {
   const text = encodeURIComponent('Invoice INV-1 is ready');
   const url = `https://api.whatsapp.com/send?phone=${phone}&text=${text}`;
   assert(url.includes('text=Invoice'), 'TEST 10');
+}
+
+// TEST 11: invoiced order still cannot deliver until purchase is received
+{
+  const gate = canDeliverOrder({
+    hasInvoice: true,
+    status: 'Ready',
+    shortages: [{ name: 'Mug', required: 3, available: 0 }],
+  });
+  assert(!gate.ok && gate.message === STOCK_REQUIRED_MESSAGE, 'TEST 11');
 }
 
 console.log('delivery scenarios ok');

@@ -1,5 +1,6 @@
 const {
   INVOICE_REQUIRED_MESSAGE,
+  STOCK_REQUIRED_MESSAGE,
   classifyIncorrectDelivery,
   canDeliverOrder,
   asHistory,
@@ -16,6 +17,26 @@ assert(canDeliverOrder({ hasInvoice: true, status: 'Ready' }).ok === true, 'allo
 assert(canDeliverOrder({ hasInvoice: true, status: 'Ready' }).already !== true, 'not auto delivered');
 assert(canDeliverOrder({ hasInvoice: true, status: 'Delivered' }).already === true, 'already delivered');
 assert(canDeliverOrder({ hasInvoice: true, status: 'Printing', docType: 'pos' }).ok === true, 'pos ok');
+assert(
+  canDeliverOrder({
+    hasInvoice: true,
+    status: 'Ready',
+    shortages: [{ name: 'Mug', required: 5, available: 0 }],
+  }).ok === false,
+  'block delivery until purchase received',
+);
+assert(
+  canDeliverOrder({
+    hasInvoice: true,
+    status: 'Ready',
+    shortages: [{ name: 'Mug', required: 5, available: 0 }],
+  }).message === STOCK_REQUIRED_MESSAGE,
+  'exact stock toast',
+);
+assert(
+  canDeliverOrder({ hasInvoice: true, status: 'Ready', shortages: [] }).ok === true,
+  'allow when stock covers',
+);
 
 const auto = classifyIncorrectDelivery({
   status: 'Delivered',

@@ -89,7 +89,7 @@ export default function ProductVariationsPanel({ products = [], onSaved }) {
       <div>
         <h2 className="font-semibold text-lg">Product variations</h2>
         <p className="text-sm text-slate-500">
-          Size, color, material, price, SKU, and stock — used in orders, POS, and price tags.
+          Size, color, material, price, and SKU — used in orders, POS, and price tags. Quantity updates when a purchase is received.
         </p>
       </div>
       <div className="max-w-md">
@@ -157,8 +157,8 @@ export default function ProductVariationsPanel({ products = [], onSaved }) {
                     <Input value={v.sku} onChange={(e) => updateRow(idx, 'sku', e.target.value)} />
                   </div>
                   <div>
-                    <Label className="text-[11px]">Stock</Label>
-                    <Input type="number" min="0" value={v.stock} onChange={(e) => updateRow(idx, 'stock', e.target.value)} />
+                    <Label className="text-[11px]">On-hand</Label>
+                    <Input type="number" value={Number(v.stock) || 0} disabled title="Quantity updates when a purchase is received" />
                   </div>
                   <div>
                     <Button type="button" size="icon" variant="ghost" className="h-9 w-9" onClick={() => setRows((prev) => prev.filter((_, i) => i !== idx))}>
