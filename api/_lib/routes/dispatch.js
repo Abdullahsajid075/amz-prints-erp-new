@@ -445,6 +445,18 @@ async function dispatch(req, res) {
             message: 'We found your AMZ Prints record. You are signed in — your card, ledger, and orders are ready.',
           };
         };
+        const phoneKey = (value) => {
+          const digits = String(value || '').replace(/\D/g, '');
+          if (digits.length < 7) return '';
+          return digits.length > 10 ? digits.slice(-10) : digits;
+        };
+        const samePhone = (a, b) => {
+          const left = phoneKey(a);
+          const right = phoneKey(b);
+          return !!left && left === right;
+        };
+        const isCancelledStatus = (status) => /^cancell?ed$/i.test(String(status || '').trim());
+
         const buildLedger = async (customer, orders, invoices) => {
           const { data: payments } = await supabase.from('payments').select('*');
           const phone = String(customer.phone || '');
@@ -452,14 +464,15 @@ async function dispatch(req, res) {
             const t = String(p.type || 'inflow').toLowerCase();
             if (t === 'outflow' || t === 'out') return false;
             return String(p.customer_id) === String(customer.id)
-              || (phone && String(p.customer_phone || p.party_phone || '') === phone);
+              || samePhone(phone, p.customer_phone || p.party_phone || '');
           });
-          const billed = orders.reduce((s, o) => s + Number(o.totalAmount || 0), 0);
-          const outstanding = orders.reduce((s, o) => s + Number(o.balanceAmount || 0), 0);
-          const paidFromOrders = orders.reduce((s, o) => s + Math.max(0, Number(o.totalAmount || 0) - Number(o.balanceAmount || 0)), 0);
+          const openOrders = (orders || []).filter((o) => !isCancelledStatus(o.status));
+          const billed = openOrders.reduce((s, o) => s + Number(o.totalAmount || 0), 0);
+          const outstanding = openOrders.reduce((s, o) => s + Number(o.balanceAmount || 0), 0);
+          const paidFromOrders = openOrders.reduce((s, o) => s + Math.max(0, Number(o.totalAmount || 0) - Number(o.balanceAmount || 0)), 0);
           const paidFromPay = related.reduce((s, p) => s + Number(p.amount || 0), 0);
           const pending = [];
-          orders.forEach((o) => {
+          openOrders.forEach((o) => {
             const bal = Number(o.balanceAmount || 0);
             if (bal > 0) pending.push({ source: 'order', ref: o.orderId || o.id, date: o.date || '', amount: bal, status: o.status || 'Unpaid' });
           });
@@ -490,7 +503,7 @@ async function dispatch(req, res) {
           const phone = String(customer.phone || '').trim();
           const email = String(customer.email || '').trim().toLowerCase();
           if (cid && String(o.customer_id || '') === cid) return true;
-          if (phone && String(o.customer_phone || '').trim() === phone) return true;
+          if (samePhone(phone, o.customer_phone || '')) return true;
           if (email && String(o.customer_email || '').trim().toLowerCase() === email) return true;
           return false;
         };
@@ -500,7 +513,7 @@ async function dispatch(req, res) {
           const phone = String(customer.phone || '').trim();
           const email = String(customer.email || '').trim().toLowerCase();
           if (cid && String(inv.customer_id || '') === cid) return true;
-          if (phone && String(inv.customer_phone || '').trim() === phone) return true;
+          if (samePhone(phone, inv.customer_phone || '')) return true;
           if (email && String(inv.customer_email || '').trim().toLowerCase() === email) return true;
           return false;
         };
@@ -540,19 +553,34 @@ async function dispatch(req, res) {
         const listOrders = async (customer) => {
           const { data: orders } = await supabase.from('orders').select('*');
           return (orders || [])
-            .filter((o) => String(o.doc_type || 'Order').toLowerCase() !== 'quotation' && ownsOrder(customer, o))
+            .filter((o) => {
+              const doc = String(o.doc_type || 'Order').toLowerCase();
+              if (doc === 'quotation' || doc === 'pos') return false;
+              return ownsOrder(customer, o);
+            })
             .map((o) => {
               const api = mapOrder(o);
+              const cancelled = isCancelledStatus(api.status);
               return {
                 id: api.id || '',
                 orderId: api.orderId || '',
                 trackingNumber: api.trackingNumber || '',
                 date: api.date || '',
-                status: api.status || '',
+                status: cancelled ? 'Cancelled' : (api.status || ''),
+                paymentStatus: api.paymentStatus || '',
+                paymentMethod: api.paymentMethod || '',
                 deliveryDate: api.deliveryDate || '',
+                advancePayment: cancelled ? 0 : Number(api.advancePayment || 0),
                 items: (api.products || []).map((p) => p.name || '').filter(Boolean),
+                products: (api.products || []).map((p) => ({
+                  name: p.name || '',
+                  quantity: Number(p.quantity || p.qty || 0),
+                  rate: Number(p.rate || 0),
+                  size: p.size || '',
+                  material: p.material || '',
+                })).filter((p) => p.name),
                 totalAmount: Number(api.totalAmount || 0),
-                balanceAmount: Number(api.balanceAmount || 0),
+                balanceAmount: cancelled ? 0 : Number(api.balanceAmount || 0),
               };
             })
             .sort((a, b) => String(b.date).localeCompare(String(a.date)));

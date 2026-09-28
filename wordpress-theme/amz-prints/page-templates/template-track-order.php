@@ -56,6 +56,35 @@ if ( '' !== $code && function_exists( 'amz_prints_public_track' ) ) {
 				<?php if ( ! empty( $track['customer'] ) ) : ?>
 					<p><?php echo esc_html( $track['customer'] ); ?></p>
 				<?php endif; ?>
+				<?php if ( ! empty( $track['payment_status'] ) || isset( $track['total_amount'] ) ) : ?>
+					<p>
+						<?php
+						$money = array();
+						if ( ! empty( $track['payment_status'] ) ) {
+							$money[] = sprintf(
+								/* translators: %s payment status */
+								__( 'Payment: %s', 'amz-prints' ),
+								$track['payment_status']
+							);
+						}
+						if ( isset( $track['total_amount'] ) && null !== $track['total_amount'] ) {
+							$money[] = sprintf(
+								/* translators: %s amount */
+								__( 'Total: Rs. %s', 'amz-prints' ),
+								number_format_i18n( (float) $track['total_amount'], 0 )
+							);
+						}
+						if ( isset( $track['balance_amount'] ) && null !== $track['balance_amount'] ) {
+							$money[] = sprintf(
+								/* translators: %s amount */
+								__( 'Balance: Rs. %s', 'amz-prints' ),
+								number_format_i18n( (float) $track['balance_amount'], 0 )
+							);
+						}
+						echo esc_html( implode( ' · ', $money ) );
+						?>
+					</p>
+				<?php endif; ?>
 				<?php if ( ! empty( $track['items'] ) ) : ?>
 					<p><?php echo esc_html( $track['items'] ); ?></p>
 				<?php endif; ?>

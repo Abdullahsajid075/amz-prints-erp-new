@@ -139,23 +139,228 @@ function amz_prints_map_erp_track( $data ) {
 	$order_id = (string) ( $data['orderId'] ?? '' );
 	$track_no = (string) ( $data['trackingNumber'] ?? $data['trackCode'] ?? $order_id );
 	$display  = $order_id ? $order_id : $track_no;
+	$status   = (string) ( $data['status'] ?? '' );
+	if ( function_exists( 'amz_prints_customer_status_label' ) ) {
+		$status = amz_prints_customer_status_label( $status );
+	}
+	$cancelled = ! empty( $data['cancelled'] );
+	if ( ! $cancelled && function_exists( 'amz_prints_order_is_cancelled' ) ) {
+		$cancelled = amz_prints_order_is_cancelled( $status );
+	}
 
-	return array(
+	$mapped = array(
 		'order_id'         => $display,
 		'tracking_number'  => $track_no,
 		'customer'         => (string) ( $data['customerName'] ?? '' ),
-		'status'           => (string) ( $data['status'] ?? '' ),
+		'status'           => $status,
 		'status_index'     => (int) $status_index,
 		'updated'          => '',
 		'items'            => $products ? implode( ', ', $products ) : __( 'Print job', 'amz-prints' ),
 		'products'         => $products,
 		'timeline'         => $timeline,
-		'cancelled'        => ! empty( $data['cancelled'] ),
+		'cancelled'        => $cancelled,
 		'message'          => (string) ( $data['companyNote'] ?? '' ),
 		'erp_track_url'    => amz_prints_erp_track_page_url( $data['trackCode'] ?? $track_no ),
+		'payment_status'   => (string) ( $data['paymentStatus'] ?? '' ),
+		'payment_method'   => (string) ( $data['paymentMethod'] ?? '' ),
+		'total_amount'     => isset( $data['totalAmount'] ) ? (float) $data['totalAmount'] : null,
+		'balance_amount'   => isset( $data['balanceAmount'] ) ? (float) $data['balanceAmount'] : null,
 		'demo'             => false,
 		'source'           => 'erp',
 	);
+	return amz_prints_track_apply_status( $mapped );
+}
+
+/**
+ * Make the timeline show the live stage, including Cancelled and stages outside the default pipeline.
+ *
+ * @param array $mapped Track card.
+ * @return array
+ */
+function amz_prints_track_apply_status( $mapped ) {
+	$status = trim( (string) ( $mapped['status'] ?? '' ) );
+	if ( function_exists( 'amz_prints_customer_status_label' ) && '' !== $status ) {
+		$status = amz_prints_customer_status_label( $status );
+		$mapped['status'] = $status;
+	}
+	$cancelled = ! empty( $mapped['cancelled'] );
+	if ( ! $cancelled && function_exists( 'amz_prints_order_is_cancelled' ) ) {
+		$cancelled = amz_prints_order_is_cancelled( $status );
+	}
+	$mapped['cancelled'] = $cancelled;
+	if ( $cancelled ) {
+		$mapped['balance_amount'] = 0;
+	}
+	$timeline = isset( $mapped['timeline'] ) && is_array( $mapped['timeline'] ) ? $mapped['timeline'] : array();
+	$found    = false;
+	foreach ( $timeline as $i => $step ) {
+		if ( ! is_array( $step ) ) {
+			continue;
+		}
+		$label = (string) ( $step['status'] ?? '' );
+		$match = ( '' !== $status && 0 === strcasecmp( $label, $status ) );
+		if ( '' !== $status && ! $match ) {
+			$timeline[ $i ]['current'] = false;
+		}
+		if ( $cancelled ) {
+			$timeline[ $i ]['done']    = false;
+			$timeline[ $i ]['current'] = false;
+		} elseif ( $match ) {
+			$timeline[ $i ]['current'] = true;
+			$timeline[ $i ]['done']    = true;
+			$found = true;
+		}
+	}
+	if ( '' !== $status && ! $found ) {
+		$timeline[] = array(
+			'status'  => $status,
+			'done'    => true,
+			'current' => true,
+		);
+	}
+	$mapped['timeline'] = $timeline;
+	return $mapped;
+}
+
+/**
+ * Read one ERP order by id. Tracking numbers stay on the public track route.
+ *
+ * @param string $code Order ID.
+ * @return array|null
+ */
+function amz_prints_erp_fetch_order_by_code( $code ) {
+	$code = trim( (string) $code );
+	if ( '' === $code || ! function_exists( 'amz_prints_erp_staff_token' ) || ! function_exists( 'amz_prints_erp_request' ) ) {
+		return null;
+	}
+	$token = amz_prints_erp_staff_token();
+	if ( '' === $token ) {
+		return null;
+	}
+	$data = amz_prints_erp_request( 'GET', '/orders/' . rawurlencode( $code ), null, $token );
+	if ( is_wp_error( $data ) ) {
+		$msg  = $data->get_error_message();
+		$meta = $data->get_error_data();
+		$http = is_array( $meta ) && isset( $meta['status'] ) ? (int) $meta['status'] : 0;
+		if ( 401 === $http || false !== stripos( $msg, 'unauthorized' ) || false !== stripos( $msg, 'invalid token' ) ) {
+			delete_transient( 'amz_erp_staff_token' );
+		}
+		return null;
+	}
+	if ( ! is_array( $data ) || ( empty( $data['orderId'] ) && empty( $data['status'] ) ) ) {
+		return null;
+	}
+	$doc = strtolower( trim( (string) ( $data['docType'] ?? 'order' ) ) );
+	if ( 'quotation' === $doc || 'pos' === $doc ) {
+		return null;
+	}
+	return $data;
+}
+
+/**
+ * Copy money fields from a full ERP order onto a track card.
+ *
+ * @param array $mapped Track card.
+ * @param array $order  ERP order.
+ * @return array
+ */
+function amz_prints_track_overlay_order( $mapped, $order ) {
+	$status = (string) ( $order['status'] ?? '' );
+	if ( function_exists( 'amz_prints_customer_status_label' ) ) {
+		$status = amz_prints_customer_status_label( $status );
+	}
+	if ( '' !== $status ) {
+		$mapped['status'] = $status;
+	}
+	$mapped['cancelled'] = function_exists( 'amz_prints_order_is_cancelled' ) && amz_prints_order_is_cancelled( $mapped['status'] ?? '' );
+	if ( ! empty( $order['paymentStatus'] ) ) {
+		$mapped['payment_status'] = (string) $order['paymentStatus'];
+	}
+	if ( ! empty( $order['paymentMethod'] ) ) {
+		$mapped['payment_method'] = (string) $order['paymentMethod'];
+	}
+	if ( isset( $order['totalAmount'] ) ) {
+		$mapped['total_amount'] = (float) $order['totalAmount'];
+	}
+	if ( isset( $order['balanceAmount'] ) ) {
+		$mapped['balance_amount'] = (float) $order['balanceAmount'];
+	}
+	if ( empty( $mapped['products'] ) && ! empty( $order['products'] ) && is_array( $order['products'] ) ) {
+		$names = array();
+		foreach ( $order['products'] as $product ) {
+			$name = is_array( $product ) ? trim( (string) ( $product['name'] ?? '' ) ) : trim( (string) $product );
+			if ( '' !== $name ) {
+				$names[] = $name;
+			}
+		}
+		if ( $names ) {
+			$mapped['products'] = $names;
+			$mapped['items']    = implode( ', ', $names );
+		}
+	}
+	return amz_prints_track_apply_status( $mapped );
+}
+
+/**
+ * Save the live status onto the website copy of this order.
+ *
+ * @param string $code   Code the customer searched.
+ * @param array  $mapped Track card.
+ */
+function amz_prints_touch_local_order_status( $code, $mapped ) {
+	$needles = array( strtolower( trim( (string) $code ) ) );
+	foreach ( array( 'order_id', 'tracking_number' ) as $key ) {
+		$value = strtolower( trim( (string) ( $mapped[ $key ] ?? '' ) ) );
+		if ( '' !== $value ) {
+			$needles[] = $value;
+		}
+	}
+	$needles = array_values( array_unique( array_filter( $needles ) ) );
+	if ( ! $needles ) {
+		return;
+	}
+	$all = get_option( 'amz_prints_customer_orders', array() );
+	if ( ! is_array( $all ) ) {
+		return;
+	}
+	$changed = false;
+	foreach ( $all as $email => $orders ) {
+		if ( ! is_array( $orders ) ) {
+			continue;
+		}
+		foreach ( $orders as $index => $order ) {
+			if ( ! is_array( $order ) ) {
+				continue;
+			}
+			$keys = array();
+			foreach ( array( 'orderId', 'trackingNumber', 'id' ) as $key ) {
+				$value = strtolower( trim( (string) ( $order[ $key ] ?? '' ) ) );
+				if ( '' !== $value ) {
+					$keys[] = $value;
+				}
+			}
+			if ( ! array_intersect( $needles, $keys ) ) {
+				continue;
+			}
+			if ( ! empty( $mapped['status'] ) ) {
+				$all[ $email ][ $index ]['status'] = (string) $mapped['status'];
+			}
+			if ( isset( $mapped['balance_amount'] ) && null !== $mapped['balance_amount'] ) {
+				$all[ $email ][ $index ]['balanceAmount'] = (float) $mapped['balance_amount'];
+			}
+			if ( isset( $mapped['total_amount'] ) && null !== $mapped['total_amount'] && (float) $mapped['total_amount'] > 0 ) {
+				$all[ $email ][ $index ]['totalAmount'] = (float) $mapped['total_amount'];
+			}
+			if ( ! empty( $mapped['payment_status'] ) ) {
+				$all[ $email ][ $index ]['paymentStatus'] = (string) $mapped['payment_status'];
+			}
+			$all[ $email ][ $index ]['erpSynced'] = 1;
+			$changed = true;
+		}
+	}
+	if ( $changed ) {
+		update_option( 'amz_prints_customer_orders', $all, false );
+	}
 }
 
 /**
@@ -233,9 +438,26 @@ function amz_prints_public_track( $code ) {
 	if ( '' === $code ) {
 		return new WP_Error( 'amz_track_empty', __( 'Enter your Order ID or Tracking Number.', 'amz-prints' ) );
 	}
+	$mapped = null;
+	$raw    = amz_prints_erp_fetch_track( $code );
+	if ( ! is_wp_error( $raw ) ) {
+		$mapped = amz_prints_map_erp_track( $raw );
+	}
+	$staff = amz_prints_erp_fetch_order_by_code( $code );
+	if ( is_array( $staff ) ) {
+		if ( ! is_array( $mapped ) ) {
+			$mapped = amz_prints_map_erp_track( $staff );
+		}
+		$mapped = amz_prints_track_overlay_order( $mapped, $staff );
+	}
+	if ( is_array( $mapped ) ) {
+		amz_prints_touch_local_order_status( $code, $mapped );
+		return $mapped;
+	}
+
 	$local = amz_prints_find_local_public_order( $code );
 	if ( $local ) {
-		$items = $local['items'] ?? array();
+		$items = $local['items'] ?? $local['products'] ?? array();
 		$names = array();
 		if ( is_array( $items ) ) {
 			foreach ( $items as $item ) {
@@ -249,7 +471,11 @@ function amz_prints_public_track( $code ) {
 		}
 		$order_id = (string) ( $local['orderId'] ?? $local['trackingNumber'] ?? $code );
 		$status   = (string) ( $local['status'] ?? 'Order Received' );
-		return array(
+		if ( function_exists( 'amz_prints_customer_status_label' ) ) {
+			$status = amz_prints_customer_status_label( $status );
+		}
+		$cancelled = function_exists( 'amz_prints_order_is_cancelled' ) && amz_prints_order_is_cancelled( $status );
+		return amz_prints_track_apply_status( array(
 			'order_id'        => $order_id,
 			'tracking_number' => (string) ( $local['trackingNumber'] ?? $order_id ),
 			'customer'        => (string) ( $local['name'] ?? '' ),
@@ -258,22 +484,22 @@ function amz_prints_public_track( $code ) {
 			'updated'         => (string) ( $local['date'] ?? '' ),
 			'items'           => $names ? implode( ', ', $names ) : __( 'Print job', 'amz-prints' ),
 			'products'        => $names,
-			'timeline'        => array(
-				array(
-					'status'  => $status,
-					'done'    => true,
-					'current' => true,
-				),
-			),
-			'cancelled'       => false,
+			'timeline'        => array(),
+			'cancelled'       => $cancelled,
+			'payment_status'  => (string) ( $local['paymentStatus'] ?? '' ),
+			'payment_method'  => (string) ( $local['paymentMethod'] ?? '' ),
+			'total_amount'    => isset( $local['totalAmount'] ) ? (float) $local['totalAmount'] : null,
+			'balance_amount'  => $cancelled ? 0 : ( isset( $local['balanceAmount'] ) ? (float) $local['balanceAmount'] : null ),
 			'message'         => '',
 			'demo'            => false,
 			'source'          => 'website',
-		);
+		) );
 	}
-	$raw = amz_prints_erp_fetch_track( $code );
 	if ( is_wp_error( $raw ) ) {
 		return $raw;
 	}
-	return amz_prints_map_erp_track( $raw );
+	return new WP_Error(
+		'amz_track_not_found',
+		__( 'Order not found. Check your Order ID / Tracking Number.', 'amz-prints' )
+	);
 }

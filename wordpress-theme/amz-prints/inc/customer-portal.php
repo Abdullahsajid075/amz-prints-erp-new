@@ -661,6 +661,586 @@ function amz_prints_customer_orders_merge_remote( $email, $local_orders, $remote
 	return $merged;
 }
 
+/**
+ * Last 7–10 digits of a phone number, for matching ERP rows.
+ *
+ * @param string $phone Raw phone.
+ * @return string
+ */
+function amz_prints_customer_phone_key( $phone ) {
+	$digits = preg_replace( '/\D+/', '', (string) $phone );
+	if ( ! is_string( $digits ) || strlen( $digits ) < 7 ) {
+		return '';
+	}
+	if ( strlen( $digits ) > 10 ) {
+		$digits = substr( $digits, -10 );
+	}
+	return $digits;
+}
+
+/**
+ * Cancelled orders use one label, whether the ERP stored the US or UK spelling.
+ *
+ * @param string $status ERP status.
+ * @return bool
+ */
+function amz_prints_order_is_cancelled( $status ) {
+	return (bool) preg_match( '/^cancell?ed$/i', trim( (string) $status ) );
+}
+
+/**
+ * Status text to show. Every stage stays as the ERP saved it, except cancelled.
+ *
+ * @param string $status ERP status.
+ * @return string
+ */
+function amz_prints_customer_status_label( $status ) {
+	$status = trim( (string) $status );
+	if ( '' === $status ) {
+		return '';
+	}
+	if ( amz_prints_order_is_cancelled( $status ) ) {
+		return 'Cancelled';
+	}
+	return $status;
+}
+
+/**
+ * POS sales and quotations stay off the customer account.
+ *
+ * @param array $order ERP order.
+ * @return bool
+ */
+function amz_prints_order_is_hidden_doc( $order ) {
+	$doc = strtolower( trim( (string) ( $order['docType'] ?? $order['doc_type'] ?? '' ) ) );
+	if ( in_array( $doc, array( 'pos', 'quotation' ), true ) ) {
+		return true;
+	}
+	$id = strtoupper( trim( (string) ( $order['orderId'] ?? '' ) ) );
+	return ( 0 === strpos( $id, 'POS-' ) || 0 === strpos( $id, 'QTN-' ) );
+}
+
+/**
+ * Turn an ERP list payload into rows. Null means the request failed.
+ *
+ * @param array|WP_Error $data ERP response.
+ * @return array|null
+ */
+function amz_prints_erp_rows( $data ) {
+	if ( is_wp_error( $data ) || ! is_array( $data ) ) {
+		return null;
+	}
+	if ( array() === $data ) {
+		return array();
+	}
+	$keys    = array_keys( $data );
+	$is_list = ( $keys === range( 0, count( $data ) - 1 ) );
+	if ( $is_list ) {
+		return $data;
+	}
+	foreach ( array( 'orders', 'invoices', 'payments', 'customers' ) as $key ) {
+		if ( isset( $data[ $key ] ) && is_array( $data[ $key ] ) ) {
+			$inner = $data[ $key ];
+			$ikeys = array_keys( $inner );
+			if ( array() === $inner || $ikeys === range( 0, count( $inner ) - 1 ) ) {
+				return array_values( $inner );
+			}
+		}
+	}
+	return array();
+}
+
+/**
+ * Staff GET, refreshing the token once if the ERP rejects it.
+ *
+ * @param string $path API path.
+ * @return array|WP_Error
+ */
+function amz_prints_customer_erp_staff_get( $path ) {
+	if ( ! function_exists( 'amz_prints_erp_staff_token' ) || ! function_exists( 'amz_prints_erp_request' ) ) {
+		return new WP_Error( 'amz_staff', __( 'ERP sign-in is unavailable.', 'amz-prints' ) );
+	}
+	$token = amz_prints_erp_staff_token();
+	if ( '' === $token ) {
+		return new WP_Error( 'amz_staff', __( 'ERP sign-in failed.', 'amz-prints' ) );
+	}
+	$result = amz_prints_erp_request( 'GET', $path, null, $token );
+	if ( ! is_wp_error( $result ) ) {
+		return $result;
+	}
+	$msg  = $result->get_error_message();
+	$data = $result->get_error_data();
+	$code = is_array( $data ) && isset( $data['status'] ) ? (int) $data['status'] : 0;
+	$auth = ( 401 === $code || false !== stripos( $msg, 'unauthorized' ) || false !== stripos( $msg, 'invalid token' ) || false !== stripos( $msg, 'login' ) );
+	if ( ! $auth ) {
+		return $result;
+	}
+	delete_transient( 'amz_erp_staff_token' );
+	$token = amz_prints_erp_staff_token();
+	if ( '' === $token ) {
+		return $result;
+	}
+	return amz_prints_erp_request( 'GET', $path, null, $token );
+}
+
+/**
+ * Account-shaped order from a full ERP order.
+ *
+ * @param array $row ERP order.
+ * @return array
+ */
+function amz_prints_customer_normalize_erp_order( $row ) {
+	$status    = amz_prints_customer_status_label( $row['status'] ?? '' );
+	$cancelled = amz_prints_order_is_cancelled( $status );
+	$products  = array();
+	$source    = array();
+	if ( ! empty( $row['products'] ) && is_array( $row['products'] ) ) {
+		$source = $row['products'];
+	} elseif ( ! empty( $row['items'] ) && is_array( $row['items'] ) ) {
+		$source = $row['items'];
+	}
+	foreach ( $source as $item ) {
+		if ( is_string( $item ) ) {
+			$name = trim( $item );
+			if ( '' !== $name ) {
+				$products[] = array( 'name' => $name );
+			}
+			continue;
+		}
+		if ( ! is_array( $item ) ) {
+			continue;
+		}
+		$name = trim( (string) ( $item['name'] ?? '' ) );
+		if ( '' === $name ) {
+			continue;
+		}
+		$products[] = array(
+			'name'     => $name,
+			'quantity' => (int) ( $item['quantity'] ?? $item['qty'] ?? 0 ),
+			'rate'     => (float) ( $item['rate'] ?? 0 ),
+			'size'     => (string) ( $item['size'] ?? '' ),
+			'material' => (string) ( $item['material'] ?? '' ),
+		);
+	}
+	return array(
+		'id'              => (string) ( $row['id'] ?? '' ),
+		'orderId'         => (string) ( $row['orderId'] ?? '' ),
+		'trackingNumber'  => (string) ( $row['trackingNumber'] ?? '' ),
+		'date'            => (string) ( $row['date'] ?? '' ),
+		'status'          => $status,
+		'paymentStatus'   => (string) ( $row['paymentStatus'] ?? '' ),
+		'paymentMethod'   => (string) ( $row['paymentMethod'] ?? '' ),
+		'advancePayment'  => $cancelled ? 0.0 : (float) ( $row['advancePayment'] ?? 0 ),
+		'totalAmount'     => (float) ( $row['totalAmount'] ?? $row['total'] ?? 0 ),
+		'balanceAmount'   => $cancelled ? 0.0 : (float) ( $row['balanceAmount'] ?? 0 ),
+		'products'        => $products,
+		'items'           => $products,
+		'docType'         => (string) ( $row['docType'] ?? 'Order' ),
+		'customerId'      => (string) ( $row['customerId'] ?? '' ),
+		'customerEmail'   => (string) ( $row['customerEmail'] ?? '' ),
+		'customerPhone'   => (string) ( $row['customerPhone'] ?? '' ),
+		'erpSynced'       => 1,
+		'paymentHistory'  => ( isset( $row['paymentHistory'] ) && is_array( $row['paymentHistory'] ) ) ? $row['paymentHistory'] : array(),
+	);
+}
+
+/**
+ * Account-shaped invoice, with a public ERP link when the invoice can be shared.
+ *
+ * @param array $row ERP invoice.
+ * @return array
+ */
+function amz_prints_customer_normalize_erp_invoice( $row ) {
+	$share = (string) ( $row['shareToken'] ?? '' );
+	$pdf   = (string) ( $row['pdfUrl'] ?? '' );
+	if ( '' === $pdf && '' !== $share ) {
+		$pdf = 'https://erp.amzprints.com/invoice/' . rawurlencode( $share );
+	}
+	$total = (float) ( $row['totalAmount'] ?? $row['total'] ?? 0 );
+	$paid  = (float) ( $row['paidAmount'] ?? $row['paid'] ?? 0 );
+	$status = trim( (string) ( $row['status'] ?? '' ) );
+	if ( '' === $status ) {
+		if ( $paid <= 0 ) {
+			$status = 'Unpaid';
+		} elseif ( $total > 0 && $paid + 0.5 >= $total ) {
+			$status = 'Paid';
+		} else {
+			$status = 'Partial';
+		}
+	}
+	return array(
+		'id'             => (string) ( $row['id'] ?? '' ),
+		'invoiceNumber'  => (string) ( $row['invoiceNumber'] ?? $row['invoiceNo'] ?? '' ),
+		'orderId'        => (string) ( $row['orderId'] ?? '' ),
+		'date'           => (string) ( $row['date'] ?? '' ),
+		'status'         => amz_prints_order_is_cancelled( $status ) ? 'Cancelled' : $status,
+		'totalAmount'    => $total,
+		'paidAmount'     => $paid,
+		'balanceAmount'  => amz_prints_order_is_cancelled( $status ) ? 0.0 : max( 0, $total - $paid ),
+		'discount'       => (float) ( $row['discount'] ?? 0 ),
+		'pdfUrl'         => $pdf,
+		'customerId'     => (string) ( $row['customerId'] ?? '' ),
+		'customerEmail'  => (string) ( $row['customerEmail'] ?? '' ),
+		'customerPhone'  => (string) ( $row['customerPhone'] ?? '' ),
+	);
+}
+
+/**
+ * Replace this customer's saved orders with the live list (newest last in storage).
+ *
+ * @param string $email  Customer email.
+ * @param array  $orders Newest-first orders.
+ */
+function amz_prints_customer_orders_replace( $email, $orders ) {
+	$email = strtolower( trim( (string) $email ) );
+	if ( '' === $email ) {
+		return;
+	}
+	$all = get_option( 'amz_prints_customer_orders', array() );
+	if ( ! is_array( $all ) ) {
+		$all = array();
+	}
+	$stored = array();
+	foreach ( array_reverse( array_values( $orders ) ) as $order ) {
+		if ( is_array( $order ) ) {
+			$stored[] = $order;
+		}
+	}
+	$all[ $email ] = $stored;
+	update_option( 'amz_prints_customer_orders', $all, false );
+}
+
+/**
+ * Live orders, invoices, payments, and ledger for the signed-in customer.
+ *
+ * @param array $customer     Account customer.
+ * @param array $local_orders Orders already on the website.
+ * @return array|null Null when the ERP list could not be read.
+ */
+function amz_prints_customer_erp_live_books( $customer, $local_orders ) {
+	$customer     = is_array( $customer ) ? $customer : array();
+	$local_orders = is_array( $local_orders ) ? $local_orders : array();
+	$order_rows   = amz_prints_erp_rows( amz_prints_customer_erp_staff_get( '/orders' ) );
+	if ( ! is_array( $order_rows ) ) {
+		return null;
+	}
+	$invoice_rows  = amz_prints_erp_rows( amz_prints_customer_erp_staff_get( '/invoices' ) );
+	$payment_rows  = amz_prints_erp_rows( amz_prints_customer_erp_staff_get( '/payments' ) );
+	$customer_rows = amz_prints_erp_rows( amz_prints_customer_erp_staff_get( '/customers' ) );
+	if ( ! is_array( $invoice_rows ) ) {
+		$invoice_rows = array();
+	}
+	if ( ! is_array( $payment_rows ) ) {
+		$payment_rows = array();
+	}
+	if ( ! is_array( $customer_rows ) ) {
+		$customer_rows = array();
+	}
+
+	$email     = strtolower( trim( (string) ( $customer['email'] ?? '' ) ) );
+	$phone_key = amz_prints_customer_phone_key( $customer['phone'] ?? '' );
+	$ids       = array();
+	foreach ( $customer_rows as $row ) {
+		if ( ! is_array( $row ) ) {
+			continue;
+		}
+		$cemail = strtolower( trim( (string) ( $row['email'] ?? '' ) ) );
+		$cphone = amz_prints_customer_phone_key( $row['phone'] ?? '' );
+		$cid    = (string) ( $row['id'] ?? '' );
+		if ( '' !== $cid && ( ( $email && $cemail === $email ) || ( $phone_key && $cphone === $phone_key ) ) ) {
+			$ids[ $cid ] = true;
+		}
+	}
+	$known = array();
+	foreach ( $local_orders as $local ) {
+		if ( ! is_array( $local ) ) {
+			continue;
+		}
+		foreach ( array( 'orderId', 'trackingNumber', 'id' ) as $key ) {
+			$value = strtolower( trim( (string) ( $local[ $key ] ?? '' ) ) );
+			if ( '' !== $value ) {
+				$known[ $value ] = true;
+			}
+		}
+	}
+
+	$owns = function ( $row, $extra_ids = array() ) use ( $email, $phone_key, $ids, $known ) {
+		if ( ! is_array( $row ) ) {
+			return false;
+		}
+		$row_email = strtolower( trim( (string) ( $row['customerEmail'] ?? $row['email'] ?? '' ) ) );
+		if ( $email && $row_email && $row_email === $email ) {
+			return true;
+		}
+		$row_phone = amz_prints_customer_phone_key( $row['customerPhone'] ?? $row['phone'] ?? $row['partyPhone'] ?? '' );
+		if ( $phone_key && $row_phone && $row_phone === $phone_key ) {
+			return true;
+		}
+		$cid = (string) ( $row['customerId'] ?? '' );
+		if ( '' !== $cid && isset( $ids[ $cid ] ) ) {
+			return true;
+		}
+		foreach ( array( 'orderId', 'trackingNumber', 'id', 'refId', 'reference' ) as $key ) {
+			$value = strtolower( trim( (string) ( $row[ $key ] ?? '' ) ) );
+			if ( '' !== $value && ( isset( $known[ $value ] ) || isset( $extra_ids[ $value ] ) ) ) {
+				return true;
+			}
+		}
+		return false;
+	};
+
+	$erp_orders = array();
+	$order_ids  = array();
+	foreach ( $order_rows as $row ) {
+		if ( ! is_array( $row ) || amz_prints_order_is_hidden_doc( $row ) || ! $owns( $row ) ) {
+			continue;
+		}
+		$order = amz_prints_customer_normalize_erp_order( $row );
+		if ( '' === $order['orderId'] && '' === $order['id'] ) {
+			continue;
+		}
+		$erp_orders[] = $order;
+		foreach ( array( 'orderId', 'trackingNumber', 'id' ) as $key ) {
+			$value = strtolower( trim( (string) ( $order[ $key ] ?? '' ) ) );
+			if ( '' !== $value ) {
+				$order_ids[ $value ] = true;
+			}
+		}
+	}
+
+	$invoices = array();
+	foreach ( $invoice_rows as $row ) {
+		if ( ! is_array( $row ) || ! $owns( $row, $order_ids ) ) {
+			continue;
+		}
+		$invoice = amz_prints_customer_normalize_erp_invoice( $row );
+		if ( '' === $invoice['invoiceNumber'] && '' === $invoice['id'] ) {
+			continue;
+		}
+		$invoices[] = $invoice;
+	}
+
+	$invoice_ids = array();
+	foreach ( $invoices as $invoice ) {
+		foreach ( array( 'invoiceNumber', 'id', 'orderId' ) as $key ) {
+			$value = strtolower( trim( (string) ( $invoice[ $key ] ?? '' ) ) );
+			if ( '' !== $value ) {
+				$invoice_ids[ $value ] = true;
+			}
+		}
+	}
+
+	$pay_lines = array();
+	foreach ( $payment_rows as $row ) {
+		if ( ! is_array( $row ) ) {
+			continue;
+		}
+		$type = strtolower( trim( (string) ( $row['type'] ?? 'inflow' ) ) );
+		if ( 'outflow' === $type || 'out' === $type ) {
+			continue;
+		}
+		if ( ! $owns( $row, $order_ids + $invoice_ids ) ) {
+			continue;
+		}
+		$amount = (float) ( $row['amount'] ?? 0 );
+		if ( $amount <= 0 ) {
+			continue;
+		}
+		$ref = (string) ( $row['refId'] ?? $row['reference'] ?? '' );
+		$pay_lines[] = array(
+			'date'      => (string) ( $row['date'] ?? '' ),
+			'method'    => (string) ( $row['method'] ?? '' ),
+			'reference' => $ref,
+			'amount'    => $amount,
+			'notes'     => (string) ( $row['notes'] ?? '' ),
+		);
+	}
+
+	if ( ! $pay_lines ) {
+		$advance_orders = array();
+		foreach ( $erp_orders as $order ) {
+			if ( amz_prints_order_is_cancelled( $order['status'] ?? '' ) ) {
+				continue;
+			}
+			$advance = (float) ( $order['advancePayment'] ?? 0 );
+			$ref     = (string) ( $order['orderId'] ?? '' );
+			if ( $advance <= 0 || '' === $ref ) {
+				continue;
+			}
+			$advance_orders[ strtolower( $ref ) ] = true;
+			$pay_lines[] = array(
+				'date'      => (string) ( $order['date'] ?? '' ),
+				'method'    => (string) ( $order['paymentMethod'] ?? '' ),
+				'reference' => $ref,
+				'amount'    => $advance,
+				'notes'     => __( 'Advance on this order', 'amz-prints' ),
+			);
+		}
+		foreach ( $invoices as $invoice ) {
+			if ( amz_prints_order_is_cancelled( $invoice['status'] ?? '' ) ) {
+				continue;
+			}
+			$paid     = (float) ( $invoice['paidAmount'] ?? 0 );
+			$ref      = (string) ( $invoice['invoiceNumber'] ?? '' );
+			$order_id = strtolower( trim( (string) ( $invoice['orderId'] ?? '' ) ) );
+			if ( $paid <= 0 || '' === $ref || isset( $advance_orders[ $order_id ] ) ) {
+				continue;
+			}
+			$pay_lines[] = array(
+				'date'      => (string) ( $invoice['date'] ?? '' ),
+				'method'    => __( 'Invoice', 'amz-prints' ),
+				'reference' => $ref,
+				'amount'    => $paid,
+				'notes'     => __( 'Recorded on the invoice', 'amz-prints' ),
+			);
+		}
+	}
+
+	usort(
+		$pay_lines,
+		function ( $a, $b ) {
+			return strcmp( (string) ( $b['date'] ?? '' ), (string) ( $a['date'] ?? '' ) );
+		}
+	);
+
+	$seen    = array();
+	$display = array();
+	foreach ( $erp_orders as $order ) {
+		$key = strtolower( (string) ( $order['orderId'] ?? $order['id'] ?? '' ) );
+		if ( '' !== $key && isset( $seen[ $key ] ) ) {
+			continue;
+		}
+		if ( '' !== $key ) {
+			$seen[ $key ] = true;
+		}
+		$display[] = $order;
+	}
+	foreach ( $local_orders as $local ) {
+		if ( ! is_array( $local ) ) {
+			continue;
+		}
+		$key = strtolower( (string) ( $local['orderId'] ?? $local['id'] ?? '' ) );
+		if ( '' !== $key && isset( $seen[ $key ] ) ) {
+			continue;
+		}
+		if ( '' !== $key ) {
+			$seen[ $key ] = true;
+		}
+		if ( ! empty( $local['status'] ) ) {
+			$local['status'] = amz_prints_customer_status_label( $local['status'] );
+		}
+		$display[] = $local;
+	}
+	usort(
+		$display,
+		function ( $a, $b ) {
+			return strcmp( (string) ( $b['date'] ?? '' ), (string) ( $a['date'] ?? '' ) );
+		}
+	);
+	usort(
+		$invoices,
+		function ( $a, $b ) {
+			return strcmp( (string) ( $b['date'] ?? '' ), (string) ( $a['date'] ?? '' ) );
+		}
+	);
+
+	$billed       = 0.0;
+	$outstanding  = 0.0;
+	$pending      = array();
+	foreach ( $display as $order ) {
+		if ( ! is_array( $order ) || amz_prints_order_is_cancelled( $order['status'] ?? '' ) ) {
+			continue;
+		}
+		$total   = (float) ( $order['totalAmount'] ?? 0 );
+		$balance = max( 0, (float) ( $order['balanceAmount'] ?? 0 ) );
+		$billed      += $total;
+		$outstanding += $balance;
+		if ( $balance > 0 ) {
+			$pending[] = array(
+				'source' => 'order',
+				'ref'    => (string) ( $order['orderId'] ?? $order['id'] ?? '' ),
+				'date'   => (string) ( $order['date'] ?? '' ),
+				'amount' => $balance,
+				'status' => (string) ( $order['status'] ?? '' ),
+			);
+		}
+	}
+	$discount_items = array();
+	$total_discount = 0.0;
+	foreach ( $invoices as $invoice ) {
+		$due = (float) ( $invoice['balanceAmount'] ?? 0 );
+		if ( $due > 0 && ! amz_prints_order_is_cancelled( $invoice['status'] ?? '' ) ) {
+			$pending[] = array(
+				'source' => 'invoice',
+				'ref'    => (string) ( $invoice['invoiceNumber'] ?? $invoice['id'] ?? '' ),
+				'date'   => (string) ( $invoice['date'] ?? '' ),
+				'amount' => $due,
+				'status' => (string) ( $invoice['status'] ?? '' ),
+			);
+		}
+		$discount = (float) ( $invoice['discount'] ?? 0 );
+		if ( $discount > 0 ) {
+			$total_discount += $discount;
+			$discount_items[] = array(
+				'invoiceNumber' => (string) ( $invoice['invoiceNumber'] ?? '' ),
+				'date'          => (string) ( $invoice['date'] ?? '' ),
+				'discount'      => $discount,
+				'totalAmount'   => (float) ( $invoice['totalAmount'] ?? 0 ),
+				'status'        => (string) ( $invoice['status'] ?? '' ),
+				'pdfUrl'        => (string) ( $invoice['pdfUrl'] ?? '' ),
+			);
+		}
+	}
+
+	if ( $email ) {
+		amz_prints_customer_orders_replace( $email, $display );
+	}
+
+	return array(
+		'orders'          => $display,
+		'invoices'        => $invoices,
+		'ledger'          => array(
+			'totalBilled' => $billed,
+			'totalPaid'   => max( 0, $billed - $outstanding ),
+			'outstanding' => $outstanding,
+			'payments'    => $pay_lines,
+		),
+		'pendingPayments' => $pending,
+		'discounts'       => array(
+			'totalDiscount' => $total_discount,
+			'count'         => count( $discount_items ),
+			'items'         => $discount_items,
+		),
+	);
+}
+
+/**
+ * Overlay the open account with the current ERP books.
+ *
+ * @param array|WP_Error $session Account session.
+ * @return array|WP_Error
+ */
+function amz_prints_customer_apply_live_books( $session ) {
+	if ( is_wp_error( $session ) || ! is_array( $session ) ) {
+		return $session;
+	}
+	$books = amz_prints_customer_erp_live_books(
+		isset( $session['customer'] ) && is_array( $session['customer'] ) ? $session['customer'] : array(),
+		isset( $session['orders'] ) && is_array( $session['orders'] ) ? $session['orders'] : array()
+	);
+	if ( ! is_array( $books ) ) {
+		$session['erpLive'] = false;
+		return $session;
+	}
+	$session['orders']          = $books['orders'];
+	$session['invoices']        = $books['invoices'];
+	$session['ledger']          = $books['ledger'];
+	$session['pendingPayments'] = $books['pendingPayments'];
+	$session['discounts']       = $books['discounts'];
+	$session['erpLive']         = true;
+	return $session;
+}
+
 function amz_prints_customer_fetch_session() {
 	$token = amz_prints_customer_token();
 	if ( ! $token || 0 !== strpos( (string) $token, 'amzlocal.' ) ) {
@@ -1175,6 +1755,11 @@ function amz_prints_ajax_customer_track() {
 		'orderId'         => (string) ( $result['order_id'] ?? '' ),
 		'trackingNumber'  => (string) ( $result['tracking_number'] ?? '' ),
 		'status'          => (string) ( $result['status'] ?? '' ),
+		'cancelled'       => ! empty( $result['cancelled'] ),
+		'paymentStatus'   => (string) ( $result['payment_status'] ?? '' ),
+		'paymentMethod'   => (string) ( $result['payment_method'] ?? '' ),
+		'totalAmount'     => isset( $result['total_amount'] ) && null !== $result['total_amount'] ? (float) $result['total_amount'] : null,
+		'balanceAmount'   => isset( $result['balance_amount'] ) && null !== $result['balance_amount'] ? (float) $result['balance_amount'] : null,
 		'customerName'    => (string) ( $result['customer'] ?? '' ),
 		'products'        => $products,
 		'timeline'        => isset( $result['timeline'] ) && is_array( $result['timeline'] ) ? $result['timeline'] : array(),

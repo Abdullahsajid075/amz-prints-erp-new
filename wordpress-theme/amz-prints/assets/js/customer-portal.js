@@ -421,20 +421,33 @@
           return;
         }
         var d = res.data || {};
+        function esc(value) {
+          return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+        }
         var items = (d.products || []).map(function (p) { return p.name; }).filter(Boolean).join(', ');
         var timeline = (d.timeline || []).map(function (step) {
           var cls = 'track-timeline__item';
           if (step.current) cls += ' is-current';
           else if (step.done) cls += ' is-done';
           return '<li class="' + cls + '"><span class="track-timeline__dot"></span><span class="track-timeline__label">' +
-            (step.status || '') + '</span></li>';
+            esc(step.status || '') + '</span></li>';
         }).join('');
+        var money = [];
+        if (d.paymentStatus) money.push('Payment: ' + d.paymentStatus);
+        if (d.totalAmount != null && d.totalAmount !== '') money.push('Total: Rs. ' + d.totalAmount);
+        if (d.balanceAmount != null && d.balanceAmount !== '') money.push('Balance: Rs. ' + d.balanceAmount);
+        var pill = 'track-status-pill' + (d.cancelled ? ' is-cancelled' : '');
         box.innerHTML =
           '<div class="track-card">' +
-          '<div class="track-card__top"><div><p class="track-card__label">Order</p><h3>' + (d.orderId || d.trackingNumber || '') +
-          '</h3></div><span class="track-status-pill">' + (d.status || '') + '</span></div>' +
-          (d.customerName ? '<p class="track-meta">Customer: ' + d.customerName + '</p>' : '') +
-          (items ? '<p class="track-items">' + items + '</p>' : '') +
+          '<div class="track-card__top"><div><p class="track-card__label">Order</p><h3>' + esc(d.orderId || d.trackingNumber || '') +
+          '</h3></div><span class="' + pill + '">' + esc(d.status || '') + '</span></div>' +
+          (d.customerName ? '<p class="track-meta">Customer: ' + esc(d.customerName) + '</p>' : '') +
+          (money.length ? '<p class="track-meta">' + esc(money.join(' · ')) + '</p>' : '') +
+          (items ? '<p class="track-items">' + esc(items) + '</p>' : '') +
           (timeline ? '<ol class="track-timeline">' + timeline + '</ol>' : '') +
           '</div>';
       }).catch(function () {

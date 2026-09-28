@@ -13,6 +13,9 @@ if ( ! amz_prints_customer_is_logged_in() ) {
 }
 
 $session = amz_prints_customer_fetch_session();
+if ( ! is_wp_error( $session ) && function_exists( 'amz_prints_customer_apply_live_books' ) ) {
+	$session = amz_prints_customer_apply_live_books( $session );
+}
 if ( is_wp_error( $session ) ) {
 	wp_safe_redirect( amz_prints_customer_login_url( amz_prints_customer_account_url() ) );
 	exit;
@@ -228,6 +231,12 @@ get_header();
 			<?php endif; ?>
 		</article>
 
+		<?php if ( ! empty( $session['erpLive'] ) ) : ?>
+			<p class="form-note"><?php esc_html_e( 'Orders, invoices, and the ledger are loaded from the ERP. A cancelled order shows Cancelled. Every other stage is the current ERP status.', 'amz-prints' ); ?></p>
+		<?php else : ?>
+			<p class="form-note"><?php esc_html_e( 'Showing the last saved copy. Refresh this page to load the latest ERP status, invoices, and ledger.', 'amz-prints' ); ?></p>
+		<?php endif; ?>
+
 		<div class="ledger-stats">
 			<div class="ledger-stat">
 				<span><?php esc_html_e( 'Billed', 'amz-prints' ); ?></span>
@@ -290,6 +299,7 @@ get_header();
 								<th><?php esc_html_e( 'Date', 'amz-prints' ); ?></th>
 								<th><?php esc_html_e( 'Method', 'amz-prints' ); ?></th>
 								<th><?php esc_html_e( 'Reference', 'amz-prints' ); ?></th>
+								<th><?php esc_html_e( 'Notes', 'amz-prints' ); ?></th>
 								<th><?php esc_html_e( 'Amount', 'amz-prints' ); ?></th>
 							</tr>
 						</thead>
@@ -299,6 +309,7 @@ get_header();
 									<td><?php echo esc_html( $pay['date'] ?: '—' ); ?></td>
 									<td><?php echo esc_html( $pay['method'] ?: '—' ); ?></td>
 									<td><?php echo esc_html( $pay['reference'] ?: '—' ); ?></td>
+									<td><?php echo esc_html( $pay['notes'] ?: '—' ); ?></td>
 									<td><?php echo esc_html( number_format_i18n( (float) ( $pay['amount'] ?? 0 ), 0 ) ); ?></td>
 								</tr>
 							<?php endforeach; ?>
@@ -320,6 +331,7 @@ get_header();
 								<th><?php esc_html_e( 'Order', 'amz-prints' ); ?></th>
 								<th><?php esc_html_e( 'Date', 'amz-prints' ); ?></th>
 								<th><?php esc_html_e( 'Status', 'amz-prints' ); ?></th>
+								<th><?php esc_html_e( 'Payment', 'amz-prints' ); ?></th>
 								<th><?php esc_html_e( 'Items', 'amz-prints' ); ?></th>
 								<th><?php esc_html_e( 'Total', 'amz-prints' ); ?></th>
 								<th><?php esc_html_e( 'Balance', 'amz-prints' ); ?></th>
@@ -335,7 +347,14 @@ get_header();
 										<?php endif; ?>
 									</td>
 									<td><?php echo esc_html( $order['date'] ?: ( $order['createdAt'] ?? '—' ) ); ?></td>
-									<td><span class="track-status-pill"><?php echo esc_html( $order['status'] ?: '—' ); ?></span></td>
+									<?php
+									$status_label = function_exists( 'amz_prints_customer_status_label' )
+										? amz_prints_customer_status_label( $order['status'] ?? '' )
+										: (string) ( $order['status'] ?? '' );
+									$is_cancelled = function_exists( 'amz_prints_order_is_cancelled' ) && amz_prints_order_is_cancelled( $status_label );
+									?>
+									<td><span class="track-status-pill<?php echo $is_cancelled ? ' is-cancelled' : ''; ?>"><?php echo esc_html( '' !== $status_label ? $status_label : '—' ); ?></span></td>
+									<td><?php echo esc_html( $order['paymentStatus'] ?: ( $order['paymentMethod'] ?: '—' ) ); ?></td>
 									<td><?php
 										$names = array();
 										$item_rows = (array) ( $order['items'] ?? array() );
@@ -382,6 +401,8 @@ get_header();
 								<th><?php esc_html_e( 'Date', 'amz-prints' ); ?></th>
 								<th><?php esc_html_e( 'Status', 'amz-prints' ); ?></th>
 								<th><?php esc_html_e( 'Total', 'amz-prints' ); ?></th>
+								<th><?php esc_html_e( 'Paid', 'amz-prints' ); ?></th>
+								<th><?php esc_html_e( 'Balance', 'amz-prints' ); ?></th>
 								<th><?php esc_html_e( 'PDF', 'amz-prints' ); ?></th>
 							</tr>
 						</thead>
@@ -390,8 +411,18 @@ get_header();
 								<tr>
 									<td><strong><?php echo esc_html( $inv['invoiceNumber'] ?: $inv['id'] ); ?></strong></td>
 									<td><?php echo esc_html( $inv['date'] ?: '—' ); ?></td>
-									<td><?php echo esc_html( $inv['status'] ?: '—' ); ?></td>
+									<?php
+									$inv_status = function_exists( 'amz_prints_customer_status_label' )
+										? amz_prints_customer_status_label( $inv['status'] ?? '' )
+										: (string) ( $inv['status'] ?? '' );
+									$inv_cancelled = function_exists( 'amz_prints_order_is_cancelled' ) && amz_prints_order_is_cancelled( $inv_status );
+									$inv_paid = (float) ( $inv['paidAmount'] ?? 0 );
+									$inv_due  = isset( $inv['balanceAmount'] ) ? (float) $inv['balanceAmount'] : max( 0, (float) ( $inv['totalAmount'] ?? 0 ) - $inv_paid );
+									?>
+									<td><span class="track-status-pill<?php echo $inv_cancelled ? ' is-cancelled' : ''; ?>"><?php echo esc_html( '' !== $inv_status ? $inv_status : '—' ); ?></span></td>
 									<td><?php echo esc_html( number_format_i18n( (float) ( $inv['totalAmount'] ?? 0 ), 0 ) ); ?></td>
+									<td><?php echo esc_html( number_format_i18n( $inv_paid, 0 ) ); ?></td>
+									<td><?php echo esc_html( number_format_i18n( $inv_due, 0 ) ); ?></td>
 									<td>
 										<?php if ( ! empty( $inv['pdfUrl'] ) ) : ?>
 											<a class="btn btn--ghost btn--sm" href="<?php echo esc_url( $inv['pdfUrl'] ); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'View / Print PDF', 'amz-prints' ); ?></a>
