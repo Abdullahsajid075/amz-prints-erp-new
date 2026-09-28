@@ -109,3 +109,57 @@ export function buildPurchaseNeeds({ orders = [], products = [], purchases = [] 
     .filter((row) => row.remaining > 0)
     .sort((a, b) => b.remaining - a.remaining || a.name.localeCompare(b.name));
 }
+
+/** Acknowledgments “Low quantity” fold: on-hand less than 3. */
+export const LOW_QUANTITY_THRESHOLD = 3;
+
+export function isLowQuantityStock(stock, threshold = LOW_QUANTITY_THRESHOLD) {
+  const limit = Number(threshold);
+  const cut = Number.isFinite(limit) && limit > 0 ? limit : LOW_QUANTITY_THRESHOLD;
+  return qtyOf(stock) < cut;
+}
+
+export function buildLowQuantityAlerts({
+  products = [],
+  threshold = LOW_QUANTITY_THRESHOLD,
+} = {}) {
+  const limit = Number(threshold) || LOW_QUANTITY_THRESHOLD;
+  const rows = [];
+  (Array.isArray(products) ? products : []).forEach((product) => {
+    if (!product || isServiceItem(product) || !tracksInventory(product)) return;
+    const variations = Array.isArray(product.variations) ? product.variations : [];
+    if (variations.length) {
+      variations.forEach((variation) => {
+        const stock = productStock(product, variation.id);
+        if (!isLowQuantityStock(stock, limit)) return;
+        const label = [product.name, variation.name].filter(Boolean).join(' · ') || 'Item';
+        rows.push({
+          key: `lowqty:${product.id || product.name}:${variation.id || variation.name}`,
+          kind: 'low-quantity',
+          productId: product.id || '',
+          variationId: variation.id || '',
+          name: label,
+          sku: variation.sku || product.sku || '',
+          stock,
+          threshold: limit,
+          restockQty: Math.max(1, limit - stock),
+        });
+      });
+      return;
+    }
+    const stock = productStock(product);
+    if (!isLowQuantityStock(stock, limit)) return;
+    rows.push({
+      key: `lowqty:${product.id || product.name}`,
+      kind: 'low-quantity',
+      productId: product.id || '',
+      variationId: '',
+      name: product.name || 'Item',
+      sku: product.sku || '',
+      stock,
+      threshold: limit,
+      restockQty: Math.max(1, limit - stock),
+    });
+  });
+  return rows.sort((a, b) => a.stock - b.stock || String(a.name).localeCompare(String(b.name)));
+}

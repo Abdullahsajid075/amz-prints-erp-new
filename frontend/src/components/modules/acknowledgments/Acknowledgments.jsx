@@ -7,7 +7,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import PageHeader from '@/components/shared/PageHeader';
 import { ordersAPI, productsAPI, purchasesAPI, invoicesAPI, customersAPI, vendorsAPI } from '@/services/api';
 import { clearGasCache } from '@/services/gasClient';
-import { buildPurchaseNeeds } from '@/utils/purchaseNeeds';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { buildPurchaseNeeds, buildLowQuantityAlerts, LOW_QUANTITY_THRESHOLD } from '@/utils/purchaseNeeds';
 import {
   buildLateOrders,
   buildCustomerBalanceReminders,
@@ -25,7 +26,7 @@ import { formatCurrency, formatDate } from '@/utils/helpers';
 import { openUrduBalanceWhatsApp } from '@/utils/customerHelpers';
 import { openWhatsAppChat, openBlankWhatsAppTab } from '@/services/notifications/whatsappChannel';
 import { useBrand } from '@/context/BrandContext';
-import { ClipboardCheck, ShoppingBag, Package, RefreshCw, Clock, Truck, Receipt, Bell, CalendarClock } from 'lucide-react';
+import { ClipboardCheck, ShoppingBag, Package, RefreshCw, Clock, Truck, Receipt, Bell, CalendarClock, ChevronDown, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
 function vendorPhone(vendors, row) {
@@ -57,6 +58,7 @@ const Acknowledgments = () => {
   const navigate = useNavigate();
   const { company } = useBrand();
   const [purchaseRows, setPurchaseRows] = useState([]);
+  const [lowQuantityRows, setLowQuantityRows] = useState([]);
   const [lateOrders, setLateOrders] = useState([]);
   const [balances, setBalances] = useState([]);
   const [poReminders, setPoReminders] = useState([]);
@@ -86,6 +88,7 @@ const Acknowledgments = () => {
       const customers = Array.isArray(custRes.data) ? custRes.data : [];
       setVendors(Array.isArray(vendRes.data) ? vendRes.data : []);
       setPurchaseRows(buildPurchaseNeeds({ orders, products, purchases }));
+      setLowQuantityRows(buildLowQuantityAlerts({ products }));
       setLateOrders(buildLateOrders(orders));
       setBalances(buildCustomerBalanceReminders({ invoices, customers }));
       setPoReminders(buildPurchaseDeliveryReminders(purchases));
@@ -94,6 +97,7 @@ const Acknowledgments = () => {
     } catch (err) {
       toast.error(err.response?.data?.message || 'Could not load acknowledgments');
       setPurchaseRows([]);
+      setLowQuantityRows([]);
     } finally {
       setLoading(false);
     }
@@ -171,7 +175,7 @@ const Acknowledgments = () => {
       <PageHeader
         eyebrow="Operations"
         title="Acknowledgments"
-        subtitle="Open purchase needs, late jobs, customer payment reminders, and vendor delivery reminders. Delivered orders are not listed here."
+        subtitle="Open purchase needs, low quantity (under 3), late jobs, customer payment reminders, and vendor delivery reminders. Delivered orders are not listed here."
         testId="acknowledgments-header"
         actions={(
           <Button variant="outline" onClick={load}>
@@ -230,6 +234,59 @@ const Acknowledgments = () => {
               </article>
             ))}
           </section>
+
+          <Collapsible defaultOpen={false} className="space-y-2" data-testid="ack-low-quantity">
+            <CollapsibleTrigger
+              className="group w-full erp-panel px-4 py-3 flex items-center gap-3 text-left hover:bg-slate-50"
+              data-testid="ack-low-quantity-toggle"
+            >
+              <div className="h-10 w-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-700">Low quantity</h2>
+                <p className="text-xs text-slate-500">
+                  On-hand less than {LOW_QUANTITY_THRESHOLD}
+                  {lowQuantityRows.length ? ` · ${lowQuantityRows.length} item${lowQuantityRows.length === 1 ? '' : 's'}` : ''}
+                </p>
+              </div>
+              {lowQuantityRows.length > 0 && (
+                <Badge className="bg-rose-100 text-rose-800 border-rose-200">{lowQuantityRows.length}</Badge>
+              )}
+              <ChevronDown className="h-4 w-4 text-slate-500 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-2">
+              {!lowQuantityRows.length ? (
+                <p className="erp-panel p-4 text-sm text-slate-500">No tracked items below quantity {LOW_QUANTITY_THRESHOLD}.</p>
+              ) : lowQuantityRows.map((row) => (
+                <article key={row.key} className="erp-panel p-4" data-testid="ack-low-qty-row">
+                  <div className="flex flex-wrap items-start gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                      <Package className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-semibold text-ink">{row.name}</h3>
+                        <Badge className="bg-rose-100 text-rose-800 border-rose-200">Low quantity</Badge>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2 text-sm">
+                        <p>On-hand <strong className="text-rose-700">{row.stock}</strong></p>
+                        <p>Alert below <strong>{row.threshold}</strong></p>
+                        {row.sku ? <p>SKU <strong>{row.sku}</strong></p> : null}
+                      </div>
+                    </div>
+                    <Button
+                      className="text-white"
+                      style={{ backgroundColor: '#ff6d00' }}
+                      onClick={() => navigate(`/purchases?product=${encodeURIComponent(row.productId || row.name)}&qty=${row.restockQty}`)}
+                    >
+                      <ShoppingBag className="h-4 w-4 mr-1" />Create vendor PO
+                    </Button>
+                  </div>
+                </article>
+              ))}
+            </CollapsibleContent>
+          </Collapsible>
 
           <section className="space-y-2" data-testid="ack-late-orders">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-700">Late orders</h2>

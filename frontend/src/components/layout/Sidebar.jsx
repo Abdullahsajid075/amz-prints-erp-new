@@ -13,7 +13,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useBrand } from '@/context/BrandContext';
 import { ordersAPI, productsAPI, purchasesAPI, customersAPI } from '@/services/api';
 import { isOpenOrder } from '@/utils/constants';
-import { buildPurchaseNeeds } from '@/utils/purchaseNeeds';
+import { buildPurchaseNeeds, buildLowQuantityAlerts } from '@/utils/purchaseNeeds';
 import { countOpenCrmQueries } from '@/utils/crmStages';
 
 const menuGroups = [
@@ -219,11 +219,14 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
     ])
       .then(([ordRes, prodRes, poRes]) => {
         if (cancelled) return;
-        setAckCount(buildPurchaseNeeds({
-          orders: Array.isArray(ordRes.data) ? ordRes.data : [],
-          products: Array.isArray(prodRes.data) ? prodRes.data : [],
-          purchases: Array.isArray(poRes.data) ? poRes.data : [],
-        }).length);
+        setAckCount(
+          buildPurchaseNeeds({
+            orders: Array.isArray(ordRes.data) ? ordRes.data : [],
+            products: Array.isArray(prodRes.data) ? prodRes.data : [],
+            purchases: Array.isArray(poRes.data) ? poRes.data : [],
+          }).length
+          + buildLowQuantityAlerts({ products: Array.isArray(prodRes.data) ? prodRes.data : [] }).length
+        );
       })
       .catch(() => {
         if (!cancelled) setAckCount(0);
@@ -335,8 +338,8 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
                                       backgroundColor: isActive ? 'rgba(255,255,255,0.22)' : '#d97706',
                                       color: '#fff',
                                     }}
-                                    title={`${ackCount} need to purchase`}
-                                    aria-label={`${ackCount} need to purchase`}
+                                    title={`${ackCount} acknowledgments`}
+                                    aria-label={`${ackCount} acknowledgments`}
                                   >
                                     {ackCount > 99 ? '99+' : ackCount}
                                   </span>
