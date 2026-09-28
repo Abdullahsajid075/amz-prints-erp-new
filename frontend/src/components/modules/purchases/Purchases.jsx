@@ -49,7 +49,7 @@ const emptyPurchase = {
   expectedDeliveryDate: '', actualDeliveryDate: '',
   status: 'Draft',
   linkedOrderId: '',
-  items: [{ _key: 'i_init', productId: '', name: '', quantity: 1, rate: 0, unit: 'piece' }],
+  items: [{ _key: 'i_init', productId: '', name: '', quantity: 1, rate: 0, unit: 'piece', variationId: '', variationName: '' }],
   notes: '', totalAmount: 0, paidAmount: 0, poNumber: '',
 };
 
@@ -85,6 +85,8 @@ const normalizePurchase = (p = {}) => {
       quantity: Number(it.quantity) || 0,
       rate: Number(it.rate) || 0,
       unit: it.unit || 'piece',
+      variationId: it.variationId || it.variation_id || '',
+      variationName: it.variationName || it.variation_name || '',
     })),
     totalAmount: total,
     paidAmount: paid,
@@ -244,33 +246,17 @@ const Purchases = () => {
       name: product?.name || items[i].name,
       rate: product?.costPrice ?? product?.purchasePrice ?? items[i].rate,
       unit: product?.unit || items[i].unit || 'piece',
+      variationId: '',
+      variationName: '',
     };
     setFormData({ ...formData, items });
   };
 
   const addItem = () => setFormData({
     ...formData,
-    items: [...formData.items, { _key: `i_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, productId: '', name: '', quantity: 1, rate: 0, unit: 'piece' }],
+    items: [...formData.items, { _key: `i_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, productId: '', name: '', quantity: 1, rate: 0, unit: 'piece', variationId: '', variationName: '' }],
   });
   const removeItem = (i) => setFormData({ ...formData, items: formData.items.filter((_, x) => x !== i) });
-
-  const applyStockIncrease = async (items) => {
-    for (const item of items || []) {
-      if (!item.productId) continue;
-      const qty = Number(item.quantity) || 0;
-      if (qty <= 0) continue;
-      try {
-        const res = await productsAPI.getById(item.productId);
-        const product = res.data;
-        if (!product) continue;
-        const nextStock = (Number(product.stock) || 0) + qty;
-        await productsAPI.update(item.productId, { ...product, stock: nextStock });
-      } catch (err) {
-        console.error('Stock update failed for', item.productId, err);
-        toast.error(`Stock update failed for ${item.name || item.productId}`);
-      }
-    }
-  };
 
   const vendorPhoneFor = useCallback((purchaseOrVendorId, vendorName) => {
     const id = typeof purchaseOrVendorId === 'object'
@@ -400,6 +386,15 @@ const Purchases = () => {
       toast.error('Har line pe product select karein — ya Add New Product');
       return;
     }
+    const missingVar = formData.items.find((it) => {
+      const product = products.find((p) => String(p.id) === String(it.productId));
+      const vars = Array.isArray(product?.variations) ? product.variations : [];
+      return vars.length > 0 && !it.variationId;
+    });
+    if (missingVar) {
+      toast.error(`Variation select karein — ${missingVar.name || 'item'}`);
+      return;
+    }
     setSaving(true);
     const vendor = vendors.find((v) => String(v.id) === String(formData.vendorId));
     if (!vendor) {
@@ -422,8 +417,9 @@ const Purchases = () => {
         : (formData.actualDeliveryDate || ''),
       status: formData.status || 'Draft',
       linkedOrderId: formData.linkedOrderId || '',
-      items: formData.items.map(({ productId, name, quantity, rate, unit }) => ({
+      items: formData.items.map(({ productId, name, quantity, rate, unit, variationId, variationName }) => ({
         productId, name, quantity: Number(quantity) || 0, rate: Number(rate) || 0, unit: unit || 'piece',
+        variationId: variationId || '', variationName: variationName || '',
       })),
       notes: formData.notes || '',
       totalAmount,
@@ -483,8 +479,7 @@ const Purchases = () => {
       }
 
       if (formData.status === 'Received' && !wasReceived) {
-        await applyStockIncrease(payload.items);
-        toast.success('Stock updated for received items');
+        toast.success('Purchase received — inventory updated from this PO');
       }
 
       setDialogOpen(false);
@@ -496,7 +491,7 @@ const Purchases = () => {
   };
 
   const markReceived = async (p) => {
-    if (!window.confirm('Mark as received? This updates inventory.')) return;
+    if (!window.confirm('Mark as received? Inventory will update automatically from this PO.')) return;
     const row = normalizePurchase(p);
     try {
       await purchasesAPI.update(row.id, {
@@ -510,11 +505,8 @@ const Purchases = () => {
         status: 'Received',
         actualDeliveryDate: new Date().toISOString().split('T')[0],
       });
-      if (row.status !== 'Received') {
-        await applyStockIncrease(row.items);
-      }
-      toast.success('Marked received. Inventory updated.');
-      if (row.linkedOrderId) toast.info(`Linked order ${row.linkedOrderId} updated to Ready for Delivery.`);
+      toast.success('Marked received. Inventory updated from this purchase.');
+      if (row.linkedOrderId) toast.info(`Linked order ${row.linkedOrderId} is Ready for Delivery when stock covers it.`);
       fetchAll();
     } catch (err) {
       console.error(err);
@@ -923,6 +915,32 @@ const Purchases = () => {
                         </SelectContent>
                       </Select>
                     </div>
+                    {(() => {
+                      const product = products.find((p) => String(p.id) === String(item.productId));
+                      const vars = Array.isArray(product?.variations) ? product.variations : [];
+                      if (!vars.length) return null;
+                      return (
+                        <div className="col-span-12 sm:col-span-5">
+                          <Label className="text-xs">Variation</Label>
+                          <Select
+                            value={item.variationId || undefined}
+                            onValueChange={(v) => {
+                              const chosen = vars.find((x) => String(x.id) === String(v));
+                              const items = [...formData.items];
+                              items[i] = { ...items[i], variationId: v, variationName: chosen?.name || '' };
+                              setFormData({ ...formData, items });
+                            }}
+                          >
+                            <SelectTrigger data-testid={`variation-select-${i}`}><SelectValue placeholder="Select variation" /></SelectTrigger>
+                            <SelectContent>
+                              {vars.map((v) => (
+                                <SelectItem key={v.id} value={v.id}>{v.name || [v.size, v.color].filter(Boolean).join(' / ') || v.id}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      );
+                    })()}
                     <div className="col-span-2"><Label className="text-xs">Qty</Label><Input type="number" min="1" value={item.quantity} onChange={(e) => updateItem(i, 'quantity', parseInt(e.target.value) || 0)} /></div>
                     <div className="col-span-2"><Label className="text-xs">Purchase Price</Label><Input type="number" step="0.01" min="0" value={item.rate} onChange={(e) => updateItem(i, 'rate', parseFloat(e.target.value) || 0)} /></div>
                     <div className="col-span-2"><Label className="text-xs">Subtotal</Label><Input disabled value={formatCurrency(item.quantity * item.rate)} /></div>

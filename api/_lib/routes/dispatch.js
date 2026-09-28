@@ -29,6 +29,7 @@ const {
 } = require('../lib/ledger');
 const {
   INVOICE_REQUIRED_MESSAGE,
+  STOCK_REQUIRED_MESSAGE,
   INVOICE_ELIGIBLE_NOTE,
   MANUAL_DELIVER_NOTE,
   RESTORE_NOTE,
@@ -40,6 +41,16 @@ const {
   isDeliveredStatus,
   isPosOrder,
 } = require('../lib/deliveryWorkflow');
+const {
+  isReceivedPurchaseStatus,
+  purchaseHasStockApplied,
+  withStockAppliedNote,
+  withoutStockAppliedNote,
+  findCatalogProduct,
+  orderDeliveryShortages,
+  preserveProductStock,
+  applyOnHandDelta,
+} = require('../lib/inventoryStock');
 
 function expenseIsApproved(row) {
   if (!row) return false;
@@ -466,14 +477,100 @@ async function syncProductStock(oldLines, newLines, opts = {}) {
   }
 }
 
-async function persistOrderStock(row, { isPos = false, oldLines = [] } = {}) {
-  if (isPos) {
+async function persistOrderStock(row, { isPos = false, oldLines = [], deduct = false } = {}) {
+  if (isPos || deduct) {
     await syncProductStock(oldLines, row.products, { allowShortage: false });
     return;
   }
   const catalog = await dbSelectSafe('products', 'id,name,stock,product_type,category,track_inventory,variations');
   row.products = annotateBackorders(row.products, catalog || []);
-  await syncProductStock(oldLines, row.products, { allowShortage: true });
+}
+
+async function loadOrderStockShortages(order) {
+  const catalog = await dbSelectSafe('products', 'id,name,stock,product_type,category,track_inventory,variations');
+  return orderDeliveryShortages(order, catalog || []);
+}
+
+async function applyPurchaseStockDelta(items, sign) {
+  const catalog = await dbSelectSafe('products', 'id,name,stock,product_type,category,track_inventory,variations');
+  const rows = catalog || [];
+  for (const item of Array.isArray(items) ? items : []) {
+    const qty = num(item.quantity) * Number(sign);
+    if (!qty) continue;
+    const row = findCatalogProduct(rows, item);
+    if (!row || isServiceProduct(row) || !productTracksInventory(row)) continue;
+    const next = applyOnHandDelta(row, {
+      variationId: item.variationId || item.variation_id || '',
+      qty,
+    });
+    const patch = { stock: next.stock };
+    if (Array.isArray(next.variations) && next.variations.length) patch.variations = next.variations;
+    const { error } = await supabase.from('products').update(patch).eq('id', row.id);
+    if (error) throw error;
+    row.stock = next.stock;
+    if (patch.variations) row.variations = patch.variations;
+  }
+}
+
+function purchaseFromBody(b = {}, rid) {
+  const items = Array.isArray(b.items) ? b.items : [];
+  let total = num(b.total != null ? b.total : b.totalAmount);
+  if (!(total > 0) && items.length) {
+    total = items.reduce((s, it) => s + (num(it.quantity) * num(it.rate)), 0);
+  }
+  const year = new Date().getFullYear();
+  const autoPo = `PO-${year}-${String(Date.now()).slice(-4)}`;
+  return {
+    id: rid || b.id || id('pur'),
+    purchase_no: b.poNumber || b.purchaseNo || b.purchase_no || autoPo,
+    date: b.purchaseDate || b.date || today(),
+    vendor_id: b.vendorId || b.vendor_id || '',
+    vendor_name: b.vendorName || b.vendor_name || '',
+    vendor_invoice_number: b.vendorInvoiceNumber || '',
+    expected_delivery_date: b.expectedDeliveryDate || '',
+    actual_delivery_date: b.actualDeliveryDate || '',
+    linked_order_id: b.linkedOrderId || b.linked_order_id || '',
+    items,
+    total,
+    paid_amount: num(b.paidAmount != null ? b.paidAmount : b.paid_amount),
+    status: b.status || 'Draft',
+    notes: b.notes || '',
+  };
+}
+
+async function applyPurchaseInventoryTransition(existing, row, user) {
+  const wasReceived = isReceivedPurchaseStatus(existing?.status);
+  const nowReceived = isReceivedPurchaseStatus(row.status);
+  const applied = purchaseHasStockApplied(existing) || purchaseHasStockApplied(row);
+  if (nowReceived && !wasReceived && !applied) {
+    await applyPurchaseStockDelta(row.items, 1);
+    row.notes = withStockAppliedNote(row.notes);
+    if (!row.actual_delivery_date) row.actual_delivery_date = today();
+    await markLinkedOrderReady(row, user);
+  } else if (!nowReceived && wasReceived && applied) {
+    await applyPurchaseStockDelta(existing.items || row.items, -1);
+    row.notes = withoutStockAppliedNote(row.notes);
+  } else if (nowReceived && applied) {
+    row.notes = withStockAppliedNote(row.notes);
+  }
+}
+
+async function markLinkedOrderReady(purchase, user) {
+  const ref = purchase.linked_order_id || purchase.linkedOrderId;
+  if (!ref) return;
+  const order = await loadOrderByRef(ref);
+  if (!order || isCancelledStatus(order.status) || isDeliveredStatus(order.status)) return;
+  if (/^ready(\s+for\s+delivery)?$/i.test(String(order.status || '').trim())) return;
+  const hist = Array.isArray(order.status_history) ? [...order.status_history] : [];
+  hist.push(buildHistoryEntry({
+    status: 'Ready',
+    at: `${today()} ${nowTime()}`,
+    note: `PO ${purchase.purchase_no || purchase.id} received — eligible for delivery`,
+    previousStatus: order.status,
+    by: userLabel(user),
+    process: 'purchase-received',
+  }));
+  await supabase.from('orders').update({ status: 'Ready', status_history: hist }).eq('id', order.id);
 }
 
 async function withInvoiceMeta(apiOrder) {
@@ -524,16 +621,23 @@ async function confirmManualDelivery(order, user) {
     return order;
   }
   const holder = await findInvoiceHoldingOrder(order);
+  const shortages = await loadOrderStockShortages(order);
   const gate = canDeliverOrder({
     hasInvoice: !!holder,
     status: order.status,
     docType: order.doc_type,
     remarks: order.remarks,
+    shortages,
   });
   if (!gate.ok) {
     throw Object.assign(new Error(gate.message || INVOICE_REQUIRED_MESSAGE), { statusCode: 400 });
   }
   if (gate.already) return order;
+  try {
+    await persistOrderStock(order, { isPos: false, deduct: true });
+  } catch (err) {
+    throw Object.assign(new Error(err.message || STOCK_REQUIRED_MESSAGE), { statusCode: 400 });
+  }
   const hist = Array.isArray(order.status_history) ? [...order.status_history] : [];
   const at = `${today()} ${nowTime()}`;
   hist.push(buildHistoryEntry({
@@ -903,8 +1007,21 @@ async function findInvoiceHoldingOrder(order, exceptId = '') {
 
 async function assertOrderCanBeDelivered(order) {
   if (isPosOrder(order)) return true;
-  if (await findInvoiceHoldingOrder(order)) return true;
-  throw Object.assign(new Error(INVOICE_REQUIRED_MESSAGE), { statusCode: 400 });
+  if (!(await findInvoiceHoldingOrder(order))) {
+    throw Object.assign(new Error(INVOICE_REQUIRED_MESSAGE), { statusCode: 400 });
+  }
+  const shortages = await loadOrderStockShortages(order);
+  const gate = canDeliverOrder({
+    hasInvoice: true,
+    status: order.status,
+    docType: order.doc_type,
+    remarks: order.remarks,
+    shortages,
+  });
+  if (!gate.ok) {
+    throw Object.assign(new Error(gate.message || STOCK_REQUIRED_MESSAGE), { statusCode: 400 });
+  }
+  return true;
 }
 
 async function addOrderOntoInvoice(invoice, order) {
@@ -1731,7 +1848,6 @@ async function dispatch(req, res) {
         try {
           await dbWrite('orders', row, { mode: 'insert' });
         } catch (webOrdErr) {
-          try { await syncProductStock(row.products, []); } catch { /* ignore */ }
           throw webOrdErr;
         }
         const { data: savedWeb } = await supabase.from('orders').select('*').eq('id', row.id).maybeSingle();
@@ -2399,7 +2515,7 @@ async function dispatch(req, res) {
         return send(res, { ...sync, count: products.length, products });
       }
       if (path === '/products' && method === 'POST') {
-        const row = productFromBody(body);
+        const row = preserveProductStock(productFromBody(body), null);
         if (!row.id) row.id = id('prod');
         await saveProductRow(row, { mode: 'insert' });
         const { data: created } = await supabase.from('products').select('*').eq('id', row.id).maybeSingle();
@@ -2412,10 +2528,11 @@ async function dispatch(req, res) {
         const variations = Array.isArray(body.variations) ? body.variations : [];
         const { data: existing } = await supabase.from('products').select('*').eq('id', rid).maybeSingle();
         if (!existing) return sendError(res, 'Not found', 404);
-        await supabase.from('products').update({ variations }).eq('id', rid);
+        const locked = preserveProductStock({ ...existing, variations }, existing).variations;
+        await supabase.from('products').update({ variations: locked }).eq('id', rid);
         const { data } = await supabase.from('products').select('*').eq('id', rid).maybeSingle();
         await syncWebsiteCatalogFlags(data ? [data] : [existing]);
-        return send(res, mapProduct(data || { ...existing, variations }));
+        return send(res, mapProduct(data || { ...existing, variations: locked }));
       }
       if (method === 'GET') {
         const { data } = await supabase.from('products').select('*').eq('id', rid).maybeSingle();
@@ -2423,7 +2540,9 @@ async function dispatch(req, res) {
         return send(res, mapProduct(data));
       }
       if (method === 'PUT' || method === 'PATCH') {
-        const row = productFromBody(body, rid);
+        const { data: existing } = await supabase.from('products').select('*').eq('id', rid).maybeSingle();
+        if (!existing) return sendError(res, 'Not found', 404);
+        const row = preserveProductStock(productFromBody(body, rid), existing);
         delete row.id;
         await saveProductRow(row, { mode: 'update', id: rid });
         const { data } = await supabase.from('products').select('*').eq('id', rid).maybeSingle();
@@ -2499,31 +2618,30 @@ async function dispatch(req, res) {
         const { data: refreshed } = await supabase.from('purchases').select('*').eq('id', po.id).maybeSingle();
         return send(res, { purchase: mapPurchase(refreshed), payment: mapPayment(payRow) });
       }
-      const done = await handleCollection('purchases', '/purchases', mapPurchase, (b, rid) => {
-        const items = Array.isArray(b.items) ? b.items : [];
-        let total = num(b.total != null ? b.total : b.totalAmount);
-        if (!(total > 0) && items.length) {
-          total = items.reduce((s, it) => s + (num(it.quantity) * num(it.rate)), 0);
+      if (path === '/purchases' && method === 'POST') {
+        const row = purchaseFromBody(body);
+        await applyPurchaseInventoryTransition(null, row, user);
+        await dbWrite('purchases', row, { mode: 'insert' });
+        return send(res, mapPurchase(row));
+      }
+      const purId = path.split('/')[2];
+      if (purId && method === 'PUT') {
+        const { data: existing } = await supabase.from('purchases').select('*').eq('id', purId).maybeSingle();
+        if (!existing) return sendError(res, 'Not found', 404);
+        const row = purchaseFromBody(body, purId);
+        delete row.id;
+        await applyPurchaseInventoryTransition(existing, row, user);
+        await dbWrite('purchases', row, { mode: 'update', id: purId });
+        const { data } = await supabase.from('purchases').select('*').eq('id', purId).maybeSingle();
+        return send(res, mapPurchase(data || { ...row, id: purId }));
+      }
+      if (purId && method === 'DELETE') {
+        const { data: existing } = await supabase.from('purchases').select('*').eq('id', purId).maybeSingle();
+        if (existing && isReceivedPurchaseStatus(existing.status) && purchaseHasStockApplied(existing)) {
+          await applyPurchaseStockDelta(existing.items, -1);
         }
-        const year = new Date().getFullYear();
-        const autoPo = `PO-${year}-${String(Date.now()).slice(-4)}`;
-        return {
-          id: rid || b.id || id('pur'),
-          purchase_no: b.poNumber || b.purchaseNo || b.purchase_no || autoPo,
-          date: b.purchaseDate || b.date || today(),
-          vendor_id: b.vendorId || b.vendor_id || '',
-          vendor_name: b.vendorName || b.vendor_name || '',
-          vendor_invoice_number: b.vendorInvoiceNumber || '',
-          expected_delivery_date: b.expectedDeliveryDate || '',
-          actual_delivery_date: b.actualDeliveryDate || '',
-          linked_order_id: b.linkedOrderId || '',
-          items,
-          total,
-          paid_amount: num(b.paidAmount != null ? b.paidAmount : b.paid_amount),
-          status: b.status || 'Draft',
-          notes: b.notes || '',
-        };
-      });
+      }
+      const done = await handleCollection('purchases', '/purchases', mapPurchase, purchaseFromBody);
       if (done !== null) return done;
     }
 
@@ -2669,7 +2787,9 @@ async function dispatch(req, res) {
         await persistOrderStock(row, { isPos: docType === 'pos' });
         const { error } = await supabase.from('orders').insert(row);
         if (error) {
-          try { await syncProductStock(row.products, []); } catch { /* keep original insert error */ }
+          if (docType === 'pos') {
+            try { await syncProductStock(row.products, []); } catch { /* keep original insert error */ }
+          }
           throw error;
         }
         const mapped = await withInvoiceMeta(mapOrder(row));
@@ -2723,8 +2843,12 @@ async function dispatch(req, res) {
         const wasCancelled = isCancelledStatus(existing.status);
         const nowCancelled = isCancelledStatus(status);
         const statusIsPos = String(existing.doc_type || '').toLowerCase() === 'pos';
-        if (!wasCancelled && nowCancelled) await syncProductStock(existing.products, [], { allowShortage: true });
-        if (wasCancelled && !nowCancelled) await persistOrderStock(existing, { isPos: statusIsPos, oldLines: [] });
+        if (!wasCancelled && nowCancelled && (statusIsPos || isDeliveredStatus(existing.status))) {
+          await syncProductStock(existing.products, [], { allowShortage: true });
+        }
+        if (wasCancelled && !nowCancelled && statusIsPos) {
+          await persistOrderStock(existing, { isPos: true, oldLines: [] });
+        }
         await supabase.from('orders').update({ status, status_history: hist }).eq('id', existing.id);
         const { data } = await supabase.from('orders').select('*').eq('id', existing.id).maybeSingle();
         return send(res, await withInvoiceMeta(mapOrder(data)));
@@ -2793,9 +2917,13 @@ async function dispatch(req, res) {
         if (!isCancelledStatus(existing.status) && String(existing.doc_type || '').toLowerCase() !== 'quotation') {
           const putIsPos = String(row.doc_type || existing.doc_type || '').toLowerCase() === 'pos';
           if (isCancelledStatus(row.status)) {
-            await syncProductStock(existing.products, [], { allowShortage: true });
+            if (putIsPos || isDeliveredStatus(existing.status)) {
+              await syncProductStock(existing.products, [], { allowShortage: true });
+            }
+          } else if (putIsPos) {
+            await persistOrderStock(row, { isPos: true, oldLines: existing.products });
           } else {
-            await persistOrderStock(row, { isPos: putIsPos, oldLines: existing.products });
+            await persistOrderStock(row, { isPos: false });
           }
         }
         await supabase.from('orders').update(row).eq('id', existing.id);
@@ -2803,7 +2931,10 @@ async function dispatch(req, res) {
       }
       if (method === 'DELETE') {
         if (!isCancelledStatus(existing.status) && String(existing.doc_type || '').toLowerCase() !== 'quotation') {
-          await syncProductStock(existing.products, []);
+          const delIsPos = String(existing.doc_type || '').toLowerCase() === 'pos';
+          if (delIsPos || isDeliveredStatus(existing.status)) {
+            await syncProductStock(existing.products, []);
+          }
         }
         await supabase.from('orders').delete().eq('id', existing.id);
         return send(res, { success: true });

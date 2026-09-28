@@ -120,7 +120,7 @@ const Inventory = () => {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-3xl font-bold" style={{ color: '#0747a3' }}>Inventory</h1>
-            <p className="text-gray-600 mt-1">Stocked products only. Services and items with Track inventory off are not listed. Reserved uses open order qty.</p>
+            <p className="text-gray-600 mt-1">On-hand quantity updates when a purchase is Received. Manual add/remove is locked. POS and delivery consume stock.</p>
           </div>
           <Button asChild variant="outline">
             <Link to="/warehouse/inventory/settings"><Settings className="h-4 w-4 mr-1" />Product settings</Link>

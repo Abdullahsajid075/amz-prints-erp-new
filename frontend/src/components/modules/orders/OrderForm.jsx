@@ -16,6 +16,7 @@ import { formatCurrency } from '@/utils/helpers';
 import { catalogFieldsForOrderLine } from '@/utils/productImage';
 import { tracksInventory } from '@/utils/inventoryTrack';
 import { productStock } from '@/utils/purchaseNeeds';
+import { INVOICE_REQUIRED_MESSAGE, STOCK_REQUIRED_MESSAGE, canManuallyDeliver } from '@/utils/deliveryRules';
 import { useBrand } from '@/context/BrandContext';
 import { printOrderBookSlip } from '@/utils/orderBookSlip';
 import { Plus, Trash2, Save, ArrowLeft, ClipboardList, PackagePlus, AlertTriangle, Wallet, Receipt } from 'lucide-react';
@@ -339,6 +340,17 @@ const OrderForm = () => {
       toast.error('Invoice Required: Please generate the invoice before delivering this order.');
       return;
     }
+    if (/^delivered$/i.test(String(formData.status || '')) || /^closed$/i.test(String(formData.status || ''))) {
+      const gate = canManuallyDeliver({
+        ...formData,
+        invoiceId: linkedInvoiceId,
+        products: formData.products,
+      }, catalog);
+      if (!gate.ok) {
+        toast.error(gate.message || INVOICE_REQUIRED_MESSAGE);
+        return;
+      }
+    }
 
     setLoading(true);
     try {
@@ -372,7 +384,7 @@ const OrderForm = () => {
       });
       const shortLines = cleanProducts.filter((p) => (Number(p.backorder) || 0) > 0);
       if (shortLines.length) {
-        toast.message(`${shortLines.map((p) => p.name).join(', ')} stock short — order book ho jayega. Acknowledgments → Need to purchase.`);
+        toast.message(`${shortLines.map((p) => p.name).join(', ')} stock short — order book ho jayega. Deliver tabhi hoga jab purchase receive ho. Acknowledgments → Need to purchase.`);
       }
 
       const totalAmount = cleanProducts.reduce((t, p) => t + (p.quantity * p.rate), 0);
@@ -664,17 +676,27 @@ const OrderForm = () => {
                   >
                     <SelectTrigger data-testid="status-select"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {Object.values(ORDER_STATUS).map((status) => (
+                      {Object.values(ORDER_STATUS).map((status) => {
+                        const gate = canManuallyDeliver({
+                          ...formData,
+                          invoiceId: linkedInvoiceId,
+                          products: formData.products,
+                        }, catalog);
+                        const deliverChoice = status === ORDER_STATUS.DELIVERED || status === ORDER_STATUS.CLOSED;
+                        const blocked = deliverChoice && !gate.ok;
+                        const label = !blocked
+                          ? status
+                          : (gate.message === STOCK_REQUIRED_MESSAGE ? 'Delivered (purchase required)' : 'Delivered (invoice required)');
+                        return (
                         <SelectItem
                           key={status}
                           value={status}
-                          disabled={(status === ORDER_STATUS.DELIVERED || status === ORDER_STATUS.CLOSED) && !linkedInvoiceId}
+                          disabled={blocked}
                         >
-                          {(status === ORDER_STATUS.DELIVERED || status === ORDER_STATUS.CLOSED) && !linkedInvoiceId
-                            ? 'Delivered (invoice required)'
-                            : status}
+                          {label}
                         </SelectItem>
-                      ))}
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                 </div>

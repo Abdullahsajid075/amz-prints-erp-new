@@ -3,6 +3,8 @@
  * Generating an invoice only makes an order eligible for delivery.
  */
 
+const { STOCK_REQUIRED_MESSAGE } = require('./inventoryStock');
+
 const INVOICE_REQUIRED_MESSAGE = 'Invoice Required: Please generate the invoice before delivering this order.';
 const INVOICE_ELIGIBLE_NOTE = 'Invoice generated — eligible for delivery (not delivered)';
 const MANUAL_DELIVER_NOTE = 'Manual delivery confirmation — order closed';
@@ -164,16 +166,27 @@ function appendAdminReviewRemark(remarks, reason) {
   return current ? `${current} | ${tag}` : tag;
 }
 
-function canDeliverOrder({ hasInvoice, status, docType, remarks }) {
+function canDeliverOrder({ hasInvoice, status, docType, remarks, shortages } = {}) {
   if (isPosOrder({ doc_type: docType, remarks })) return { ok: true };
   if (isCancelledStatus(status)) return { ok: false, message: 'Cancelled orders cannot be delivered' };
   if (isDeliveredStatus(status)) return { ok: true, already: true };
   if (!hasInvoice) return { ok: false, message: INVOICE_REQUIRED_MESSAGE };
+  const short = Array.isArray(shortages) ? shortages.filter((s) => s && (s.required || 0) > (s.available || 0)) : [];
+  if (short.length) {
+    const names = short.map((s) => s.name).filter(Boolean).slice(0, 3).join(', ');
+    return {
+      ok: false,
+      message: STOCK_REQUIRED_MESSAGE,
+      shortages: short,
+      detail: names,
+    };
+  }
   return { ok: true };
 }
 
 module.exports = {
   INVOICE_REQUIRED_MESSAGE,
+  STOCK_REQUIRED_MESSAGE,
   INVOICE_ELIGIBLE_NOTE,
   MANUAL_DELIVER_NOTE,
   RESTORE_NOTE,
