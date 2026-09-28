@@ -125,6 +125,271 @@ async function upsertCustomerFromOrder(body) {
   return mapCustomer(row);
 }
 
+function httpErr(message, status = 400) {
+  const err = new Error(message);
+  err.httpStatus = status;
+  return err;
+}
+
+async function findOrCreateWebsiteCustomer(body = {}, existing = null) {
+  if (existing && existing.id) {
+    const phone = String(body.customerPhone || existing.phone || '').trim();
+    const address = String(body.deliveryAddress || body.address || existing.address || '').trim();
+    try {
+      await supabase.from('customers').update({
+        in_crm: true,
+        stage: existing.stage || 'customer',
+        stage_updated_at: new Date().toISOString(),
+        phone: phone || existing.phone,
+        email: String(body.customerEmail || existing.email || '').trim() || existing.email,
+        address: address || existing.address,
+        name: String(body.customerName || existing.name || '').trim() || existing.name,
+      }).eq('id', existing.id);
+    } catch { /* best-effort */ }
+    return existing;
+  }
+  const name = String(body.customerName || body.name || '').trim();
+  const phone = String(body.customerPhone || body.phone || '').trim();
+  const email = String(body.customerEmail || body.email || '').trim().toLowerCase();
+  const address = String(body.deliveryAddress || body.address || body.customerAddress || '').trim();
+  if (!name) throw httpErr('Name is required to create the ERP order', 400);
+  if (!phone && !email) throw httpErr('Phone or email is required', 400);
+
+  let found = null;
+  if (email) {
+    const { data } = await supabase.from('customers').select('*').ilike('email', email).limit(5);
+    found = (data || []).find((c) => String(c.email || '').trim().toLowerCase() === email) || null;
+  }
+  if (!found && phone) {
+    const { data } = await supabase.from('customers').select('*').eq('phone', phone).limit(1);
+    found = (data && data[0]) || null;
+  }
+  if (found) {
+    await supabase.from('customers').update({
+      name: name || found.name,
+      phone: phone || found.phone,
+      email: email || found.email,
+      address: address || found.address,
+      in_crm: true,
+      stage: found.stage || 'customer',
+      stage_updated_at: new Date().toISOString(),
+    }).eq('id', found.id);
+    return { ...found, name: name || found.name, phone: phone || found.phone, email: email || found.email, address: address || found.address };
+  }
+  const row = {
+    id: id('cust'),
+    name,
+    phone,
+    email,
+    address,
+    city: '',
+    notes: 'Website order',
+    in_crm: true,
+    stage: 'customer',
+    stage_updated_at: new Date().toISOString(),
+    notify_whatsapp: true,
+    notify_email: true,
+  };
+  const { error } = await supabase.from('customers').insert(row);
+  if (error) throw httpErr(error.message || 'Could not save customer', 500);
+  return row;
+}
+
+async function insertOrderRow(row) {
+  let { error } = await supabase.from('orders').insert(row);
+  if (error) {
+    const fallback = { ...row };
+    delete fallback.payment_status;
+    delete fallback.payment_history;
+    delete fallback.order_source;
+    delete fallback.subtotal;
+    delete fallback.discount_amount;
+    delete fallback.delivery_charges;
+    const retry = await supabase.from('orders').insert(fallback);
+    error = retry.error;
+    if (!error) Object.assign(row, fallback);
+  }
+  if (error) throw httpErr(error.message || 'Could not create order', 500);
+  return row;
+}
+
+/**
+ * Shared website → ERP Orders insert (checkout, guest checkout, quote form).
+ */
+async function createWebsiteStoreOrder(body = {}, existingCustomer = null) {
+  const kind = String(body.kind || body.source || '').trim().toLowerCase();
+  const isQuote = kind.includes('quote') || body.allowUnpriced === true || body.allowUnpriced === 'true';
+  const customer = await findOrCreateWebsiteCustomer(body, existingCustomer);
+
+  if (!isQuote) {
+    const accepted = body.policyAccepted === true || body.policyAccepted === 'true' || body.policyAccepted === 1 || body.policyAccepted === '1';
+    if (!accepted) throw httpErr('Please accept the Order Processing Policy before placing your order', 400);
+  }
+
+  const methodRaw = String(body.paymentMethod || '').trim().toLowerCase();
+  let paymentMethod = '';
+  if (isQuote || methodRaw.includes('quote')) paymentMethod = 'To be quoted';
+  else if (methodRaw === 'cod' || methodRaw.includes('cash')) paymentMethod = 'Cash on Delivery';
+  else if (methodRaw === 'online' || methodRaw.includes('online')) paymentMethod = 'Online Payment';
+  else throw httpErr('Select a payment method: Cash on Delivery or Online Payment', 400);
+
+  const { data: catalog } = await supabase.from('products').select('*');
+  const byId = {};
+  (catalog || []).forEach((p) => { if (p?.id) byId[String(p.id)] = p; });
+
+  const rawItems = body.items || body.products || [];
+  if (!Array.isArray(rawItems) || !rawItems.length) throw httpErr('Your cart is empty', 400);
+
+  const lineItems = [];
+  let subtotal = 0;
+  for (const item of rawItems) {
+    const pid = String(item.productId || item.id || '').trim();
+    let qty = Number(item.quantity);
+    if (!Number.isFinite(qty) || qty < 1) qty = 1;
+    qty = Math.max(1, Math.floor(qty));
+    let prod = pid ? byId[pid] : null;
+    if (!prod) {
+      const nameNeedle = String(item.name || '').trim().toLowerCase();
+      prod = (catalog || []).find((p) => nameNeedle && String(p.name || '').trim().toLowerCase() === nameNeedle) || null;
+    }
+    const postedRate = Number(item.rate != null ? item.rate : (item.price != null ? item.price : 0));
+    if (!prod) {
+      const name = String(item.name || '').trim();
+      if (!name) throw httpErr(`Product not found: ${pid || 'unknown'}`, 404);
+      if (postedRate <= 0 && !isQuote) throw httpErr(`Product not found: ${name}`, 404);
+      lineItems.push({
+        productId: pid,
+        name,
+        quantity: qty,
+        rate: Math.max(0, postedRate),
+        size: String(item.size || ''),
+        material: String(item.material || ''),
+        notes: String(item.notes || (isQuote ? 'Website quote' : 'Website line')),
+      });
+      subtotal += Math.max(0, postedRate) * qty;
+      continue;
+    }
+    if (String(prod.status || 'Active').toLowerCase() === 'inactive') {
+      throw httpErr(`Product unavailable: ${prod.name || pid}`, 400);
+    }
+    let rate = isQuote ? Math.max(0, postedRate) : (Number(prod.rate || 0) > 0 ? Number(prod.rate || 0) : postedRate);
+    if (rate <= 0 && isQuote) rate = 0;
+    if (rate <= 0 && !isQuote) {
+      throw httpErr(`Product "${prod.name || ''}" needs a quote — contact AMZ Prints or use Get a Quote.`, 400);
+    }
+    const minQ = Math.max(1, Number(prod.min_quantity || 1));
+    if (qty < minQ) qty = minQ;
+    lineItems.push({
+      productId: String(prod.id || ''),
+      name: String(prod.name || ''),
+      quantity: qty,
+      rate,
+      size: String(item.size || prod.size || ''),
+      material: String(item.material || prod.material || ''),
+      notes: String(item.notes || ''),
+    });
+    subtotal += rate * qty;
+  }
+
+  let discountAmount = Math.max(0, Number(body.discountAmount != null ? body.discountAmount : body.discount || 0));
+  if (discountAmount > subtotal) discountAmount = subtotal;
+  const deliveryCharges = Math.max(0, Number(body.deliveryCharges != null ? body.deliveryCharges : body.delivery || 0));
+  const totalAmount = Math.max(0, subtotal - discountAmount + deliveryCharges);
+  const paymentStatus = paymentMethod === 'Cash on Delivery' ? 'Unpaid'
+    : (paymentMethod === 'To be quoted' ? 'Unpaid' : 'Payment Pending');
+  const nowStamp = `${today()} ${nowTime()}`;
+  const deliveryAddress = String(body.deliveryAddress || body.address || customer.address || '').trim();
+  const remarks = [
+    isQuote ? 'Website quote' : 'Website order',
+    `Payment: ${paymentMethod}`,
+    `Payment status: ${paymentStatus}`,
+    body.customerNote ? `Note: ${String(body.customerNote).trim()}` : '',
+    body.details ? `Details: ${String(body.details).trim()}` : '',
+    discountAmount > 0 ? `Discount: ${discountAmount}` : '',
+    deliveryCharges > 0 ? `Delivery: ${deliveryCharges}` : '',
+  ].filter(Boolean).join(' · ');
+
+  const orderId = await nextOrderId();
+  const row = orderFromBody({
+    customerId: customer.id,
+    customerName: customer.name || '',
+    customerPhone: String(body.customerPhone || body.phone || customer.phone || '').trim(),
+    customerEmail: String(body.customerEmail || body.email || customer.email || '').trim(),
+    customerAddress: deliveryAddress || customer.address || '',
+    deliveryAddress,
+    products: lineItems,
+    totalAmount,
+    advancePayment: 0,
+    balanceAmount: totalAmount,
+    status: 'Order Received',
+    docType: 'Order',
+    paymentMethod,
+    paymentStatus,
+    paymentHistory: [{
+      status: paymentStatus,
+      method: paymentMethod,
+      amount: 0,
+      at: nowStamp,
+      note: isQuote ? 'Created from website quote form' : (
+        paymentMethod === 'Cash on Delivery'
+          ? 'Order placed under COD terms'
+          : 'Online payment selected — order created; payment confirmation pending'
+      ),
+    }],
+    orderSource: 'Website',
+    subtotal,
+    discountAmount,
+    deliveryCharges,
+    remarks,
+    trackingNumber: `TRK-${Math.floor(1000 + Math.random() * 9000)}`,
+    statusHistory: [{
+      status: 'Order Received',
+      at: nowStamp,
+      note: isQuote
+        ? 'Created from website quote form'
+        : `Created from website checkout (${paymentMethod}) · ${paymentStatus}`,
+    }],
+    orderId,
+  });
+  await insertOrderRow(row);
+
+  try {
+    await supabase.from('payments').insert({
+      id: id('pay'),
+      date: today(),
+      type: 'inflow',
+      category: isQuote ? 'Website Quote' : 'Website Order',
+      ref_id: orderId,
+      customer_name: row.customer_name || '',
+      customer_id: row.customer_id || '',
+      party_phone: row.customer_phone || '',
+      amount: 0,
+      method: paymentMethod,
+      notes: `${paymentStatus} · website`,
+      balance_due: totalAmount,
+      total_amount: totalAmount,
+    });
+  } catch { /* optional */ }
+
+  const api = mapOrder(row);
+  return {
+    ok: true,
+    created: true,
+    order: { ...api, paymentStatus, subtotal, discountAmount, deliveryCharges },
+    orderId: api.orderId,
+    trackingNumber: api.trackingNumber,
+    paymentMethod,
+    paymentStatus,
+    totalAmount: api.totalAmount,
+    customerId: customer.id,
+    message: isQuote
+      ? `Quote saved as ERP order ${api.orderId}. Staff will confirm pricing.`
+      : (paymentMethod === 'Cash on Delivery'
+        ? 'Order placed under Cash on Delivery terms. Processing begins after payment confirmation per policy.'
+        : 'Order placed. Complete online payment as instructed — processing starts after payment confirmation.'),
+  };
+}
+
 async function nextCvId() {
   const { data } = await supabase.from('cvs').select('cv_id').order('created_at', { ascending: false }).limit(200);
   let max = 0;
@@ -372,15 +637,43 @@ async function dispatch(req, res) {
 
         return send(res, { ok: true, customerId, stage: 'lead', inCrm: true });
       }
+      if (method === 'POST' && (path === '/public/website/order' || path === '/public/order')) {
+        try {
+          const expected = String(process.env.CUSTOMER_PORTAL_KEY || '').trim();
+          const got = String(body.portalKey || '').trim();
+          if (expected && got !== expected) return sendError(res, 'Invalid portal key', 403);
+          let existing = null;
+          if (body.token) {
+            try {
+              const payload = JSON.parse(Buffer.from(String(body.token), 'base64url').toString('utf8'));
+              if (payload.type === 'customer' && !(payload.exp && Date.now() > payload.exp)) {
+                const { data } = await supabase.from('customers').select('*').eq('id', payload.id).maybeSingle();
+                if (data) existing = data;
+              }
+            } catch { /* guest checkout */ }
+          }
+          const out = await createWebsiteStoreOrder(body, existing);
+          return send(res, out);
+        } catch (err) {
+          return sendError(res, err.message || 'Could not create website order', err.httpStatus || 400);
+        }
+      }
       if (method === 'POST' && path === '/public/cv') {
         const fullName = String(body.fullName || body.full_name || body.name || '').trim();
         if (!fullName) return sendError(res, 'Full name is required', 400);
         const row = cvFromBody(body);
         if (!row.cv_id) row.cv_id = await nextCvId();
         if (!row.status) row.status = 'Completed';
-        const { error } = await supabase.from('cvs').insert(row);
+        let { error } = await supabase.from('cvs').insert(row);
+        if (error && row.photo) {
+          const retry = await supabase.from('cvs').insert({ ...row, photo: '' });
+          if (!retry.error) {
+            return send(res, { ok: true, id: row.id, cvId: row.cv_id, photoStored: false });
+          }
+          error = retry.error;
+        }
         if (error) throw error;
-        return send(res, { ok: true, id: row.id, cvId: row.cv_id });
+        return send(res, { ok: true, id: row.id, cvId: row.cv_id, photoStored: !!row.photo });
       }
 
       // Customer portal (read-only website account)
@@ -451,7 +744,7 @@ async function dispatch(req, res) {
             assertPortalKey(body.portalKey);
             const email = String(body.email || '').trim().toLowerCase();
             if (!email || !email.includes('@')) throw new Error('Valid email required');
-            return { email, name: '' };
+            return { email, name: String(body.name || '') };
           }
           return verifyGoogle(body.idToken || body.credential || '');
         };
@@ -580,7 +873,11 @@ async function dispatch(req, res) {
             const { data: rows } = await supabase.from('customers').select('*').ilike('email', g.email).limit(5);
             let customer = (rows || []).find((c) => String(c.email || '').trim().toLowerCase() === g.email);
             if (!customer) {
-              if (body.createIfMissing) {
+              const shouldCreate = body.createIfMissing !== false
+                && body.createIfMissing !== 0
+                && String(body.createIfMissing).toLowerCase() !== 'false'
+                && String(body.createIfMissing) !== '0';
+              if (shouldCreate) {
                 const name = String(body.name || g.name || g.email.split('@')[0]).trim();
                 const password = `g_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
                 const customerId = id('cust');
@@ -726,168 +1023,8 @@ async function dispatch(req, res) {
           if (method === 'POST' && path === '/public/customer/order') {
             const customer = await validateCustomerToken(body.token);
             if (!customer) return sendError(res, 'Please log in to place an order', 401);
-            // Auto-add / keep customer in CRM on website order
-            try {
-              await supabase.from('customers').update({
-                in_crm: true,
-                stage: customer.stage || 'customer',
-                stage_updated_at: new Date().toISOString(),
-                phone: String(body.customerPhone || customer.phone || '').trim() || customer.phone,
-                address: String(body.deliveryAddress || body.address || customer.address || '').trim() || customer.address,
-              }).eq('id', customer.id);
-            } catch { /* best-effort */ }
-            const accepted = body.policyAccepted === true || body.policyAccepted === 'true' || body.policyAccepted === 1 || body.policyAccepted === '1';
-            if (!accepted) return sendError(res, 'Please accept the Order Processing Policy before placing your order', 400);
-
-            const methodRaw = String(body.paymentMethod || '').trim().toLowerCase();
-            let paymentMethod = '';
-            if (methodRaw === 'cod' || methodRaw.includes('cash')) paymentMethod = 'Cash on Delivery';
-            else if (methodRaw === 'online' || methodRaw.includes('online')) paymentMethod = 'Online Payment';
-            else return sendError(res, 'Select a payment method: Cash on Delivery or Online Payment', 400);
-
-            const { data: catalog } = await supabase.from('products').select('*');
-            const byId = {};
-            (catalog || []).forEach((p) => { if (p?.id) byId[String(p.id)] = p; });
-
-            const rawItems = body.items || body.products || [];
-            if (!Array.isArray(rawItems) || !rawItems.length) return sendError(res, 'Your cart is empty', 400);
-
-            const lineItems = [];
-            let subtotal = 0;
-            for (const item of rawItems) {
-              const pid = String(item.productId || item.id || '').trim();
-              let qty = Math.max(1, Math.floor(Number(item.quantity) || 1));
-              let prod = pid ? byId[pid] : null;
-              if (!prod) {
-                const nameNeedle = String(item.name || '').trim().toLowerCase();
-                prod = (catalog || []).find((p) => nameNeedle && String(p.name || '').trim().toLowerCase() === nameNeedle) || null;
-              }
-              if (!prod) return sendError(res, `Product not found: ${item.name || pid || 'unknown'}`, 404);
-              if (String(prod.status || 'Active').toLowerCase() === 'inactive') {
-                return sendError(res, `Product unavailable: ${prod.name || pid}`, 400);
-              }
-              const rate = Number(prod.rate || 0);
-              if (rate <= 0) {
-                return sendError(res, `Product "${prod.name || ''}" needs a quote — contact AMZ Prints or use Get a Quote.`, 400);
-              }
-              const minQ = Math.max(1, Number(prod.min_quantity || 1));
-              if (qty < minQ) qty = minQ;
-              lineItems.push({
-                productId: String(prod.id || ''),
-                name: String(prod.name || ''),
-                quantity: qty,
-                rate,
-                size: String(item.size || prod.size || ''),
-                material: String(item.material || prod.material || ''),
-                notes: String(item.notes || ''),
-              });
-              subtotal += rate * qty;
-            }
-
-            let discountAmount = Math.max(0, Number(body.discountAmount != null ? body.discountAmount : body.discount || 0));
-            if (discountAmount > subtotal) discountAmount = subtotal;
-            const deliveryCharges = Math.max(0, Number(body.deliveryCharges != null ? body.deliveryCharges : body.delivery || 0));
-            const totalAmount = Math.max(0, subtotal - discountAmount + deliveryCharges);
-            const paymentStatus = paymentMethod === 'Cash on Delivery' ? 'Unpaid' : 'Payment Pending';
-            const nowStamp = `${today()} ${nowTime()}`;
-            const deliveryAddress = String(body.deliveryAddress || body.address || customer.address || '').trim();
-            const remarks = [
-              'Website order',
-              `Payment: ${paymentMethod}`,
-              `Payment status: ${paymentStatus}`,
-              body.customerNote ? `Note: ${String(body.customerNote).trim()}` : '',
-              discountAmount > 0 ? `Discount: ${discountAmount}` : '',
-              deliveryCharges > 0 ? `Delivery: ${deliveryCharges}` : '',
-            ].filter(Boolean).join(' · ');
-
-            const orderId = await nextOrderId();
-            const row = orderFromBody({
-              customerId: customer.id,
-              customerName: customer.name || '',
-              customerPhone: String(body.customerPhone || customer.phone || '').trim(),
-              customerEmail: customer.email || '',
-              customerAddress: deliveryAddress || customer.address || '',
-              deliveryAddress,
-              products: lineItems,
-              totalAmount,
-              advancePayment: 0,
-              balanceAmount: totalAmount,
-              status: 'Order Received',
-              docType: 'Order',
-              paymentMethod,
-              paymentStatus,
-              paymentHistory: [{
-                status: paymentStatus,
-                method: paymentMethod,
-                amount: 0,
-                at: nowStamp,
-                note: paymentMethod === 'Cash on Delivery'
-                  ? 'Order placed under COD terms'
-                  : 'Online payment selected — order created; payment confirmation pending',
-              }],
-              orderSource: 'Website',
-              subtotal,
-              discountAmount,
-              deliveryCharges,
-              remarks,
-              trackingNumber: `TRK-${Math.floor(1000 + Math.random() * 9000)}`,
-              statusHistory: [{
-                status: 'Order Received',
-                at: nowStamp,
-                note: `Created from website checkout (${paymentMethod}) · ${paymentStatus}`,
-              }],
-              orderId,
-            });
-
-            let { error: orderErr } = await supabase.from('orders').insert(row);
-            if (orderErr) {
-              // Retry without optional commerce columns if schema not migrated yet
-              const fallback = { ...row };
-              delete fallback.payment_status;
-              delete fallback.payment_history;
-              delete fallback.order_source;
-              delete fallback.subtotal;
-              delete fallback.discount_amount;
-              delete fallback.delivery_charges;
-              const retry = await supabase.from('orders').insert(fallback);
-              orderErr = retry.error;
-              if (!orderErr) Object.assign(row, fallback);
-            }
-            if (orderErr) return sendError(res, orderErr.message || 'Could not create order', 500);
-
-            try {
-              await supabase.from('payments').insert({
-                id: id('pay'),
-                date: today(),
-                type: 'inflow',
-                category: 'Website Order',
-                ref_id: orderId,
-                customer_name: row.customer_name || '',
-                customer_id: row.customer_id || '',
-                party_phone: row.customer_phone || '',
-                amount: 0,
-                method: paymentMethod,
-                notes: `${paymentStatus} · website checkout`,
-                balance_due: totalAmount,
-                total_amount: totalAmount,
-              });
-            } catch {
-              /* payment log best-effort */
-            }
-
-            const api = mapOrder(row);
-            return send(res, {
-              ok: true,
-              order: { ...api, paymentStatus, subtotal, discountAmount, deliveryCharges },
-              orderId: api.orderId,
-              trackingNumber: api.trackingNumber,
-              paymentMethod,
-              paymentStatus,
-              totalAmount: api.totalAmount,
-              message: paymentMethod === 'Cash on Delivery'
-                ? 'Order placed under Cash on Delivery terms. Processing begins after payment confirmation per policy.'
-                : 'Order placed. Complete online payment as instructed — processing starts after payment confirmation.',
-            });
+            const out = await createWebsiteStoreOrder(body, customer);
+            return send(res, out);
           }
         } catch (err) {
           return sendError(res, err.message || 'Customer portal error', 400);

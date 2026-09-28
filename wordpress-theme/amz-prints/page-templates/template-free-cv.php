@@ -61,7 +61,7 @@ get_header();
 						</div>
 						<div>
 							<label class="cv-upload-btn">
-								<input type="file" name="photo" accept="image/png,image/jpeg,image/webp" data-cv-photo hidden>
+								<input type="file" name="photo" accept="image/png,image/jpeg,image/webp" data-cv-photo="1" class="cv-sr-file">
 								<span>Upload photo</span>
 							</label>
 							<button type="button" class="cv-photo-remove" data-cv-photo-remove hidden>Remove</button>

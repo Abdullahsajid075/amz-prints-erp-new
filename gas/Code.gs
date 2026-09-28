@@ -2813,6 +2813,9 @@ function handlePublic_(path, method, body) {
   if (method === 'POST' && path === '/public/lead') {
     return createPublicLead_(body);
   }
+  if (method === 'POST' && (path === '/public/website/order' || path === '/public/order')) {
+    return createPublicWebsiteOrder_(body);
+  }
   if (method === 'GET' && path.indexOf('/public/invoice/') === 0) {
     var token = path.replace('/public/invoice/', '');
     var invoices = getSheetRows_(SHEET_NAMES.INVOICES);
@@ -3076,7 +3079,11 @@ function handlePublicCustomer_(path, method, body) {
     var gEmail = resolveGooglePortalEmail_(body);
     var cust = findCustomerByEmail_(gEmail);
     if (!cust) {
-      if (body.createIfMissing) {
+      var shouldCreate = body.createIfMissing !== false
+        && body.createIfMissing !== 0
+        && String(body.createIfMissing).toLowerCase() !== 'false'
+        && String(body.createIfMissing) !== '0';
+      if (shouldCreate) {
         var gName = String(body.name || '').trim() || gEmail.split('@')[0];
         var gPass = Utilities.getUuid().replace(/-/g, '').slice(0, 12);
         var created = createPublicCustomerAccount_({
@@ -3266,8 +3273,33 @@ function createPublicCustomerAccount_(body) {
  */
 function createPublicWebsiteOrder_(body) {
   body = body || {};
-  var customer = validateCustomerToken_(body.token);
-  if (!customer) throw new Error('Please log in to place an order');
+  var kind = String(body.kind || body.source || '').trim().toLowerCase();
+  var isQuote = kind.indexOf('quote') >= 0 || body.allowUnpriced === true || body.allowUnpriced === 'true';
+  var customer = null;
+  try {
+    if (body.token) customer = validateCustomerToken_(body.token);
+  } catch (eTok) { customer = null; }
+  if (!customer) {
+    var gName = String(body.customerName || body.name || '').trim();
+    var gPhone = String(body.customerPhone || body.phone || '').trim();
+    var gEmail = String(body.customerEmail || body.email || '').trim().toLowerCase();
+    if (!gName) throw new Error('Name is required to create the ERP order');
+    if (!gPhone && !gEmail) throw new Error('Phone or email is required');
+    customer = (gEmail && findCustomerByEmail_(gEmail)) || (gPhone && findCustomerByPhone_(gPhone)) || null;
+    if (!customer) {
+      customer = upsertCustomer_({
+        name: gName,
+        phone: gPhone,
+        email: gEmail,
+        address: String(body.deliveryAddress || body.address || '').trim(),
+        inCrm: true,
+        stage: 'customer',
+        notes: isQuote ? 'Website quote' : 'Website order',
+        notifyWhatsApp: true,
+        notifyEmail: true,
+      });
+    }
+  }
 
   // Ensure customer is in CRM when they place an online order
   try {
@@ -3288,11 +3320,12 @@ function createPublicWebsiteOrder_(body) {
   } catch (eCrm) { /* best-effort */ }
 
   var accepted = body.policyAccepted === true || body.policyAccepted === 'true' || body.policyAccepted === 1 || body.policyAccepted === '1';
-  if (!accepted) throw new Error('Please accept the Order Processing Policy before placing your order');
+  if (!accepted && !isQuote) throw new Error('Please accept the Order Processing Policy before placing your order');
 
   var methodRaw = String(body.paymentMethod || '').trim().toLowerCase();
   var paymentMethod = '';
-  if (methodRaw === 'cod' || methodRaw.indexOf('cash') >= 0) paymentMethod = 'Cash on Delivery';
+  if (isQuote || methodRaw.indexOf('quote') >= 0) paymentMethod = 'To be quoted';
+  else if (methodRaw === 'cod' || methodRaw.indexOf('cash') >= 0) paymentMethod = 'Cash on Delivery';
   else if (methodRaw === 'online' || methodRaw.indexOf('online') >= 0) paymentMethod = 'Online Payment';
   else throw new Error('Select a payment method: Cash on Delivery or Online Payment');
 
@@ -3319,12 +3352,31 @@ function createPublicWebsiteOrder_(body) {
         return nameNeedle && String(p.name || '').trim().toLowerCase() === nameNeedle;
       }) || null;
     }
-    if (!prod) throw new Error('Product not found: ' + (item.name || pid || 'unknown'));
+    var postedRate = Number(item.rate != null ? item.rate : (item.price != null ? item.price : 0));
+    if (!prod) {
+      var fallbackName = String(item.name || '').trim();
+      if (!fallbackName || (postedRate <= 0 && !isQuote)) {
+        throw new Error('Product not found: ' + (item.name || pid || 'unknown'));
+      }
+      lineItems.push({
+        productId: pid,
+        name: fallbackName,
+        quantity: qty,
+        rate: postedRate,
+        size: String(item.size || ''),
+        material: String(item.material || ''),
+        notes: String(item.notes || 'Website line (not in ERP catalog)'),
+      });
+      subtotal += postedRate * qty;
+      return;
+    }
     if (String(prod.status || 'Active').toLowerCase() === 'inactive') {
       throw new Error('Product unavailable: ' + (prod.name || pid));
     }
     var rate = Number(prod.rate || prod.baseprice || 0);
-    if (rate <= 0) throw new Error('Product "' + (prod.name || '') + '" needs a quote — contact AMZ Prints or use Get a Quote.');
+    if (!(rate > 0) && postedRate > 0) rate = postedRate;
+    if (rate <= 0 && isQuote) rate = 0;
+    if (rate <= 0 && !isQuote) throw new Error('Product "' + (prod.name || '') + '" needs a quote — contact AMZ Prints or use Get a Quote.');
     var minQ = Math.max(1, Number(prod.minquantity || 1));
     if (qty < minQ) qty = minQ;
     lineItems.push({

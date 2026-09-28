@@ -59,7 +59,7 @@
         ? 'Create an account with email, or continue with Google (Google verifies your email).'
         : (currentTab === 'forgot'
           ? 'We will send a verification code to your email so you can set a new password.'
-          : 'Log in with your email and password, or continue with Google if you already have an account.');
+          : 'Log in with your email and password, or continue with Google. A new Google email creates your AMZ account.');
     }
     try {
       var url = new URL(window.location.href);
@@ -202,10 +202,10 @@
     var redirectField = document.querySelector('[name="redirect"]');
     var redirect = (redirectField && redirectField.value) || '';
     var isSignup = currentTab === 'register';
-    msg(out, isSignup ? 'Google verified. Creating your account…' : 'Verifying your Google account…', false);
+    msg(out, isSignup ? 'Google verified. Creating your account…' : 'Google verified. Signing you in…', false);
     post('amz_prints_customer_google', {
       id_token: pendingGoogleCredential,
-      create_if_missing: isSignup ? '1' : '',
+      create_if_missing: '1',
       redirect: redirect
     }).then(function (res) {
       if (!res || !res.success) {

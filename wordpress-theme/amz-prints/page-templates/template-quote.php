@@ -42,7 +42,7 @@ if ( empty( $product_names ) ) {
 	<div class="container">
 		<p class="page-hero__brand">Amazon Printings (Pvt) Ltd</p>
 		<h1><?php the_title(); ?></h1>
-		<p class="page-hero__lead">Share your project details — we save your request in CRM and open WhatsApp instantly.</p>
+		<p class="page-hero__lead">Share your project details — we save it as an ERP order and open WhatsApp.</p>
 	</div>
 </section>
 
@@ -56,7 +56,7 @@ if ( empty( $product_names ) ) {
 				<li>Needed delivery date</li>
 				<li>Artwork status (ready / need design)</li>
 			</ul>
-			<p class="quote-aside__note">Submit → CRM Lead in ERP + WhatsApp with full details.</p>
+			<p class="quote-aside__note">Submit → ERP Orders + CRM, then WhatsApp with full details.</p>
 			<img class="required-info-preview" src="<?php echo esc_url( $wa_img ); ?>" width="100" height="20" alt="REQUIRED INFO">
 		</div>
 
@@ -110,7 +110,7 @@ if ( empty( $product_names ) ) {
 					<textarea name="details" rows="5" required placeholder="Size, colors, finishes, delivery…"></textarea>
 				</label>
 				<button type="submit" class="btn btn--primary btn--lg">Send on WhatsApp</button>
-				<p class="form-note">Saved as a CRM Lead in ERP, then opens WhatsApp with REQUIRED INFO header.</p>
+				<p class="form-note">Saved as an ERP order (and CRM lead), then opens WhatsApp with REQUIRED INFO header.</p>
 			</form>
 		</div>
 	</div>

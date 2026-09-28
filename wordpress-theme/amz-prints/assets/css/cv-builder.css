@@ -173,7 +173,17 @@
   background: var(--amz-paper-2);
   border: 2px solid var(--amz-line);
 }
-.cv-photo-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.cv-photo-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; position: relative; }
+.cv-sr-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
 
 .cv-templates { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
 .cv-tpl-btn {

@@ -38,7 +38,7 @@ $is_forgot   = ( 'forgot' === $tab );
 			} elseif ( $is_forgot ) {
 				esc_html_e( 'We will send a verification code to your email so you can set a new password.', 'amz-prints' );
 			} else {
-				esc_html_e( 'Log in with your email and password, or continue with Google if you already have an account.', 'amz-prints' );
+				esc_html_e( 'Log in with your email and password, or continue with Google. A new Google email creates your AMZ account.', 'amz-prints' );
 			}
 			?>
 		</p>
@@ -123,7 +123,7 @@ $is_forgot   = ( 'forgot' === $tab );
 			<div class="customer-google-box" data-auth-google <?php echo $is_forgot ? 'hidden' : ''; ?>>
 				<div class="customer-auth-divider"><span><?php esc_html_e( 'or', 'amz-prints' ); ?></span></div>
 				<h3 data-google-login-copy><?php esc_html_e( 'Continue with Google', 'amz-prints' ); ?></h3>
-				<p data-google-login-copy><?php esc_html_e( 'Use the Google account you already signed up with.', 'amz-prints' ); ?></p>
+				<p data-google-login-copy><?php esc_html_e( 'Google verifies your email. If you do not have an AMZ account yet, we create one.', 'amz-prints' ); ?></p>
 				<h3 data-google-register-copy hidden><?php esc_html_e( 'Continue with Google', 'amz-prints' ); ?></h3>
 				<p data-google-register-copy hidden><?php esc_html_e( 'Google will verify your email (code / 2-step on your Google account), then we create your AMZ account.', 'amz-prints' ); ?></p>
 

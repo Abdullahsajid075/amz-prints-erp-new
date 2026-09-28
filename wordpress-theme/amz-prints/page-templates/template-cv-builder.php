@@ -22,6 +22,7 @@ get_header();
 			<button type="button" class="btn btn--ghost btn--sm" data-cv-action="preview"><?php esc_html_e( 'Preview CV', 'amz-prints' ); ?></button>
 			<button type="button" class="btn btn--ghost btn--sm" data-cv-action="print"><?php esc_html_e( 'Print CV', 'amz-prints' ); ?></button>
 			<button type="button" class="btn btn--primary btn--sm" data-cv-action="download"><?php esc_html_e( 'Download CV', 'amz-prints' ); ?></button>
+			<button type="button" class="btn btn--primary btn--sm" data-cv-action="save-erp"><?php esc_html_e( 'Save to AMZ Prints', 'amz-prints' ); ?></button>
 			<button type="button" class="btn btn--ghost btn--sm" data-cv-action="reset"><?php esc_html_e( 'Start Again', 'amz-prints' ); ?></button>
 		</div>
 	</div>

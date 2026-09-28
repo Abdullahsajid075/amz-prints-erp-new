@@ -118,9 +118,10 @@
   function save() {
     try {
       var copy = JSON.parse(JSON.stringify(state));
-      if (copy.photo && copy.photo.length > 120000) copy.photo = copy.photo.slice(0, 0);
+      if (copy.photo && copy.photo.length > 400000) copy.photo = '';
       localStorage.setItem(STORAGE, JSON.stringify(copy));
       if (state.photo) localStorage.setItem(STORAGE + '_photo', state.photo);
+      else localStorage.removeItem(STORAGE + '_photo');
     } catch (e) { /* quota */ }
   }
   try {
@@ -189,7 +190,9 @@
         html += state.photo
           ? '<img class="cv-photo-preview" alt="Profile" src="' + state.photo + '">'
           : '<div class="cv-photo-preview" aria-hidden="true"></div>';
-        html += '<div class="cv-photo-actions"><label class="btn btn--primary btn--sm" style="margin:0">Upload picture<input type="file" accept="image/*" data-photo hidden></label>';
+        html += '<div class="cv-photo-actions">';
+        html += '<input type="file" accept="image/jpeg,image/jpg,image/png,image/webp" data-photo="1" id="cv-photo-input" class="cv-sr-file">';
+        html += '<label class="btn btn--primary btn--sm" style="margin:0" for="cv-photo-input">Upload picture</label>';
         if (state.photo) html += '<button type="button" class="btn btn--ghost btn--sm" data-photo-remove>Remove</button>';
         html += '</div></div>';
       } else if (def.type === 'personal') {
@@ -316,32 +319,45 @@
       renderForm();
       renderPreview();
     }
-    if (t.getAttribute('data-photo')) {
+    if (t.hasAttribute('data-photo')) {
       var file = t.files && t.files[0];
       if (!file) return;
       if (file.size > 8 * 1024 * 1024) {
         alert('Please choose a photo under 8 MB.');
+        t.value = '';
         return;
       }
       var img = new Image();
       var fr = new FileReader();
+      function commitPhoto(dataUrl) {
+        state.photo = dataUrl || '';
+        save();
+        renderForm();
+        renderPreview();
+      }
       fr.onload = function () {
+        var raw = String(fr.result || '');
         img.onload = function () {
-          var canvas = document.createElement('canvas');
-          var size = 480;
-          canvas.width = size;
-          canvas.height = size;
-          var ctx = canvas.getContext('2d');
-          var s = Math.min(img.width, img.height);
-          var sx = (img.width - s) / 2;
-          var sy = (img.height - s) / 2;
-          ctx.drawImage(img, sx, sy, s, s, 0, 0, size, size);
-          state.photo = canvas.toDataURL('image/jpeg', 0.82);
-          save();
-          renderForm();
-          renderPreview();
+          try {
+            var canvas = document.createElement('canvas');
+            var size = 360;
+            canvas.width = size;
+            canvas.height = size;
+            var ctx = canvas.getContext('2d');
+            var s = Math.min(img.width, img.height) || 1;
+            var sx = (img.width - s) / 2;
+            var sy = (img.height - s) / 2;
+            ctx.drawImage(img, sx, sy, s, s, 0, 0, size, size);
+            commitPhoto(canvas.toDataURL('image/jpeg', 0.78));
+          } catch (err) {
+            commitPhoto(raw);
+          }
         };
-        img.src = fr.result;
+        img.onerror = function () {
+          if (/^data:image\/(jpeg|jpg|png|webp)/i.test(raw)) commitPhoto(raw);
+          else alert('Please upload a JPG, PNG, or WebP photo.');
+        };
+        img.src = raw;
       };
       fr.readAsDataURL(file);
     }
@@ -563,6 +579,76 @@
 
   window.addEventListener('resize', fitScale);
 
+  function chipList(val) {
+    return String(val || '').split(/[\n,]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+  }
+
+  function payloadForErp() {
+    var p = state.personal || {};
+    var c = state.contact || {};
+    var langs = (state.languages || []).map(function (row) {
+      return [row.name, row.level].filter(Boolean).join(' — ');
+    }).filter(Boolean);
+    return {
+      fullName: p.fullName || '',
+      headline: p.title || '',
+      email: c.email || '',
+      phone: c.phone || '',
+      city: c.city || p.location || '',
+      summary: state.summary || '',
+      photo: state.photo || '',
+      template: state.template || 'classic',
+      accentColor: state.color || '#F26522',
+      experience: (state.experience || []).map(function (row) {
+        return {
+          role: row.title || '',
+          company: row.org || '',
+          period: [row.start, row.current ? 'Present' : row.end].filter(Boolean).join(' – '),
+          details: row.details || ''
+        };
+      }).filter(function (row) { return row.role || row.company; }),
+      education: (state.education || []).map(function (row) {
+        return {
+          degree: row.title || '',
+          school: row.org || '',
+          year: row.end || row.start || ''
+        };
+      }).filter(function (row) { return row.degree || row.school; }),
+      skills: chipList(state.skills).concat(chipList(state.professionalSkills), chipList(state.technicalSkills)),
+      languages: langs
+    };
+  }
+
+  function saveToErp() {
+    var cfg = window.amzPrints || {};
+    var payload = payloadForErp();
+    if (!payload.fullName) {
+      alert('Please enter your full name before saving.');
+      return;
+    }
+    var btn = document.querySelector('[data-cv-action="save-erp"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+    var body = new FormData();
+    body.append('action', 'amz_prints_submit_cv');
+    body.append('nonce', cfg.cvNonce || '');
+    body.append('cv', JSON.stringify(payload));
+    fetch(cfg.ajaxUrl || '/wp-admin/admin-ajax.php', { method: 'POST', credentials: 'same-origin', body: body })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Save to AMZ Prints'; }
+        if (res && res.success) {
+          var id = (res.data && res.data.cvId) || '';
+          alert('CV saved to AMZ Prints' + (id ? ' (' + id + ')' : '') + '.');
+        } else {
+          alert((res && res.data && res.data.message) || 'Could not save CV. Try again.');
+        }
+      })
+      .catch(function () {
+        if (btn) { btn.disabled = false; btn.textContent = 'Save to AMZ Prints'; }
+        alert('Network error. Could not save CV.');
+      });
+  }
+
   function doPrint() {
     var prev = document.title;
     var name = (state.personal && state.personal.fullName) ? state.personal.fullName : 'CV';
@@ -575,6 +661,7 @@
     btn.addEventListener('click', function () {
       var act = btn.getAttribute('data-cv-action');
       if (act === 'print' || act === 'download') doPrint();
+      if (act === 'save-erp') saveToErp();
       if (act === 'preview') {
         var box = document.getElementById('cv-lightbox');
         var body = document.getElementById('cv-lightbox-body');

@@ -234,6 +234,93 @@ add_action( 'wp_ajax_amz_prints_customer_login', 'amz_prints_ajax_customer_login
 add_action( 'wp_ajax_nopriv_amz_prints_customer_login', 'amz_prints_ajax_customer_login' );
 
 /**
+ * True when ERP has no Google route at all (not "no customer account found").
+ */
+function amz_prints_erp_google_route_missing( $err ) {
+	$err = trim( (string) $err );
+	if ( false !== stripos( $err, 'no customer account' ) || false !== stripos( $err, 'please sign up' ) ) {
+		return false;
+	}
+	if ( 'Not found' === $err ) {
+		return true;
+	}
+	if ( false !== stripos( $err, 'not found: /public/customer/google' ) ) {
+		return true;
+	}
+	if ( false !== stripos( $err, 'script.external_request' ) || false !== stripos( $err, 'UrlFetchApp' ) ) {
+		return true;
+	}
+	return false;
+}
+
+/**
+ * Sign in (or create) an AMZ customer after WordPress verified a Google ID token.
+ */
+function amz_prints_google_issue_account( $google, $new_password = '' ) {
+	$email = strtolower( trim( (string) ( $google['email'] ?? '' ) ) );
+	$name  = trim( (string) ( $google['name'] ?? '' ) );
+	if ( ! $name ) {
+		$name = $email ? strtok( $email, '@' ) : 'Customer';
+	}
+	$body = array(
+		'googleVerified'   => true,
+		'email'            => $email,
+		'name'             => $name,
+		'portalKey'        => amz_prints_customer_portal_key(),
+		'createIfMissing'  => true,
+	);
+	if ( $new_password ) {
+		$body['newPassword'] = $new_password;
+	}
+
+	$result = amz_prints_customer_api( '/public/customer/google', $body );
+	if ( ! is_wp_error( $result ) ) {
+		return $result;
+	}
+
+	$err        = $result->get_error_message();
+	$no_account = ( false !== stripos( $err, 'no customer account' ) || false !== stripos( $err, 'please sign up' ) );
+	if ( $no_account || amz_prints_erp_google_route_missing( $err ) ) {
+		$password = wp_generate_password( 16, false, false );
+		$created  = amz_prints_customer_api(
+			'/public/customer/register',
+			array(
+				'name'     => $name,
+				'email'    => $email,
+				'phone'    => '',
+				'password' => $password,
+				'address'  => '',
+			)
+		);
+		if ( ! is_wp_error( $created ) ) {
+			$created['created'] = true;
+			return $created;
+		}
+		$reg_err = $created->get_error_message();
+		if ( false !== stripos( $reg_err, 'already exists' ) ) {
+			return new WP_Error(
+				'amz_google_exists',
+				sprintf(
+					/* translators: %s: customer email */
+					__( 'Google verified %s. Sign in with your password, or use Forgot password to set a new one.', 'amz-prints' ),
+					$email
+				)
+			);
+		}
+		return $created;
+	}
+
+	if ( false !== stripos( $err, 'portal key' ) ) {
+		return new WP_Error(
+			'amz_portal_key',
+			__( 'Customer portal key does not match the ERP. In WordPress go to Appearance → Customize → Customer Portal and set the same key as the ERP CUSTOMER_PORTAL_KEY.', 'amz-prints' )
+		);
+	}
+
+	return $result;
+}
+
+/**
  * AJAX: Google verify login / password reset
  * Google token is verified in WordPress; ERP receives email + portalKey (no UrlFetchApp).
  */
@@ -247,30 +334,11 @@ function amz_prints_ajax_customer_google() {
 		wp_send_json_error( array( 'message' => $google->get_error_message() ), 400 );
 	}
 
-	$body = array(
-		'googleVerified' => true,
-		'email'          => $google['email'],
-		'name'           => $google['name'],
-		'portalKey'      => amz_prints_customer_portal_key(),
-		'createIfMissing'=> ! empty( $_POST['create_if_missing'] ),
-	);
-	if ( $new_password ) {
-		$body['newPassword'] = $new_password;
-	}
-
-	$result = amz_prints_customer_api( '/public/customer/google', $body );
+	$result = amz_prints_google_issue_account( $google, $new_password );
 	if ( is_wp_error( $result ) ) {
 		$err = $result->get_error_message();
-		if ( false !== stripos( $err, 'script.external_request' ) || false !== stripos( $err, 'UrlFetchApp' ) ) {
-			$err = __( 'ERP still needs the latest Code.gs redeploy (New version). WordPress now verifies Google itself — redeploy Apps Script and try again.', 'amz-prints' );
-		} elseif ( 'Not found' === $err || false !== stripos( $err, 'not found' ) ) {
-			$err = __( 'ERP customer login API not found. Redeploy latest Code.gs (New version) in Apps Script, then try again. Also ensure this Gmail exists on an ERP Customer record.', 'amz-prints' );
-		} elseif ( false !== stripos( $err, 'No customer account' ) || false !== stripos( $err, 'Please sign up' ) ) {
-			$err = sprintf(
-				/* translators: %s: customer email */
-				__( 'No account found for %s. Open Sign up, then continue with Google.', 'amz-prints' ),
-				$google['email']
-			);
+		if ( amz_prints_erp_google_route_missing( $err ) || 'Not found' === $err ) {
+			$err = __( 'Could not create your AMZ account from Google. Try Sign up with email, or contact AMZ Prints.', 'amz-prints' );
 		}
 		wp_send_json_error( array( 'message' => $err ), 400 );
 	}
