@@ -426,7 +426,7 @@ function amz_prints_customer_production_token( $email, $name = '', $phone = '', 
 	$row = amz_prints_local_customer_get( $email );
 	$row = is_array( $row ) ? $row : array();
 	$row['erp_token'] = $token;
-	if ( $created ) {
+	if ( strlen( $pass ) >= 6 ) {
 		$row['erp_sync_pass'] = $pass;
 	}
 	amz_prints_local_customer_save( $email, $row );

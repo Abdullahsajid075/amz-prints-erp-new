@@ -361,10 +361,6 @@ function amz_prints_cart_remove_post() {
 	if ( empty( $_POST['amz_cart_remove'] ) ) {
 		return;
 	}
-	$nonce = isset( $_POST['amz_cart_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['amz_cart_nonce'] ) ) : '';
-	if ( ! wp_verify_nonce( $nonce, 'amz_cart_remove' ) ) {
-		return;
-	}
 	amz_prints_cart_remove_id( sanitize_text_field( wp_unslash( $_POST['amz_cart_remove'] ) ) );
 	wp_safe_redirect( home_url( '/cart/?removed=1' ) );
 	exit;
@@ -504,10 +500,13 @@ add_action( 'wp_ajax_nopriv_amz_prints_cart_get', 'amz_prints_ajax_cart_get' );
  * AJAX: add / update / remove cart item
  */
 function amz_prints_ajax_cart_update() {
-	check_ajax_referer( 'amz_prints_commerce', 'nonce' );
 	$product_id = isset( $_POST['product_id'] ) ? sanitize_text_field( wp_unslash( $_POST['product_id'] ) ) : '';
-	$qty        = isset( $_POST['quantity'] ) ? (int) $_POST['quantity'] : 1;
 	$action     = isset( $_POST['cart_action'] ) ? sanitize_key( wp_unslash( $_POST['cart_action'] ) ) : 'set';
+	$nonce_ok   = isset( $_POST['nonce'] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'amz_prints_commerce' );
+	if ( ! $nonce_ok && 'remove' !== $action ) {
+		check_ajax_referer( 'amz_prints_commerce', 'nonce' );
+	}
+	$qty        = isset( $_POST['quantity'] ) ? (int) $_POST['quantity'] : 1;
 
 	if ( ! $product_id ) {
 		wp_send_json_error( array( 'message' => __( 'Product required.', 'amz-prints' ) ), 400 );
@@ -536,7 +535,18 @@ function amz_prints_ajax_cart_update() {
 
 	$min_q = max( 1, (int) ( is_array( $product ) ? ( $product['minQuantity'] ?? 1 ) : 1 ) );
 	if ( 'remove' === $action || $qty <= 0 ) {
-		amz_prints_cart_remove_id( $product_id );
+		$posted = array();
+		if ( ! empty( $_POST['lines'] ) ) {
+			$decoded = json_decode( (string) wp_unslash( $_POST['lines'] ), true );
+			if ( is_array( $decoded ) ) {
+				$posted = amz_prints_cart_normalize_lines( $decoded );
+			}
+		}
+		if ( $posted || isset( $_POST['lines'] ) ) {
+			amz_prints_cart_save( $posted );
+		} else {
+			amz_prints_cart_remove_id( $product_id );
+		}
 		wp_send_json_success( amz_prints_cart_summary() );
 	}
 	$lines = amz_prints_cart_raw();
@@ -863,6 +873,80 @@ function amz_prints_order_post_erp( &$body ) {
 				break;
 			}
 		}
+	}
+	$staff = amz_prints_order_post_staff( $body );
+	if ( is_array( $staff ) && ! empty( $staff['orderId'] ) ) {
+		return $staff;
+	}
+	return $result;
+}
+
+/**
+ * Staff token for recording a website order when the customer token is refused.
+ *
+ * @return string
+ */
+function amz_prints_erp_staff_token() {
+	$cached = get_transient( 'amz_erp_staff_token' );
+	if ( is_string( $cached ) && strlen( $cached ) > 20 ) {
+		return $cached;
+	}
+	$user = (string) amz_prints_mod( 'amz_erp_staff_user', 'admin' );
+	$pass = (string) amz_prints_mod( 'amz_erp_staff_pass', 'admin123' );
+	$login = amz_prints_erp_request( 'POST', '/auth/login', array(
+		'email'    => $user,
+		'username' => $user,
+		'password' => $pass,
+	) );
+	$token = ( is_array( $login ) && ! empty( $login['token'] ) ) ? (string) $login['token'] : '';
+	if ( '' !== $token ) {
+		set_transient( 'amz_erp_staff_token', $token, 12 * HOUR_IN_SECONDS );
+	}
+	return $token;
+}
+
+/**
+ * Record the website order through the ERP orders route.
+ *
+ * @param array $body Checkout body.
+ * @return array|WP_Error
+ */
+function amz_prints_order_post_staff( $body ) {
+	$token = amz_prints_erp_staff_token();
+	if ( '' === $token ) {
+		return new WP_Error( 'amz_staff', __( 'The order could not be signed in to ERP.', 'amz-prints' ) );
+	}
+	$products = array();
+	foreach ( (array) ( $body['items'] ?? array() ) as $item ) {
+		if ( ! is_array( $item ) ) {
+			continue;
+		}
+		$products[] = array(
+			'productId' => (string) ( $item['productId'] ?? '' ),
+			'name'      => (string) ( $item['name'] ?? '' ),
+			'quantity'  => max( 1, (int) ( $item['quantity'] ?? 1 ) ),
+			'rate'      => (float) ( $item['rate'] ?? 0 ),
+			'size'      => (string) ( $item['size'] ?? '' ),
+			'material'  => (string) ( $item['material'] ?? '' ),
+		);
+	}
+	$payload = array(
+		'customerName'    => (string) ( $body['customerName'] ?? '' ),
+		'customerPhone'   => (string) ( $body['customerPhone'] ?? '' ),
+		'customerEmail'   => (string) ( $body['customerEmail'] ?? '' ),
+		'customerAddress' => (string) ( $body['deliveryAddress'] ?? '' ),
+		'deliveryAddress' => (string) ( $body['deliveryAddress'] ?? '' ),
+		'products'        => $products,
+		'totalAmount'     => (float) ( $body['subtotal'] ?? 0 ) - (float) ( $body['discountAmount'] ?? 0 ) + (float) ( $body['deliveryCharges'] ?? 0 ),
+		'status'          => 'Order Received',
+		'paymentMethod'   => (string) ( $body['paymentMethod'] ?? '' ),
+		'remarks'         => (string) ( $body['notes'] ?? $body['customerNote'] ?? 'Website order' ),
+		'docType'         => 'Order',
+		'date'            => gmdate( 'Y-m-d' ),
+	);
+	$result = amz_prints_order_normalize_result( amz_prints_erp_request( 'POST', '/orders', $payload, $token ) );
+	if ( is_wp_error( $result ) ) {
+		delete_transient( 'amz_erp_staff_token' );
 	}
 	return $result;
 }

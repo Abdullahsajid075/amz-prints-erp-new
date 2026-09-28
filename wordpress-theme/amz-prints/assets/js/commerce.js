@@ -373,12 +373,38 @@
       var input = line.querySelector('[data-cart-qty-input]');
       if (e.target.closest('[data-cart-remove]')) {
         e.preventDefault();
-        cartUpdate(pid, 0, 'remove').then(function () {
-          window.location.replace(window.location.pathname + '?removed=' + Date.now());
+        line.remove();
+        var left = [];
+        cartRoot.querySelectorAll('.cart-line').forEach(function (row) {
+          var qtyInput = row.querySelector('[data-cart-qty-input]');
+          left.push({
+            id: row.getAttribute('data-product-id'),
+            qty: qtyInput ? Math.max(1, parseInt(qtyInput.value, 10) || 1) : 1
+          });
+        });
+        post('amz_prints_cart_update', {
+          product_id: pid,
+          quantity: 0,
+          cart_action: 'remove',
+          cart_token: cartToken(),
+          lines: JSON.stringify(left)
+        }).then(function (res) {
+          if (!res || !res.success) throw new Error('Could not remove item');
+          rememberCart(res.data);
+          updateBadge(res.data.count);
+          renderTotals(res.data);
+          if (!left.length) {
+            var main = cartRoot.querySelector('.commerce-main');
+            if (main) {
+              var home = (window.amzPrints && window.amzPrints.homeUrl) || '/';
+              main.innerHTML = '<div class="commerce-empty"><p>Your cart is empty.</p><a class="btn btn--primary" href="' + home + 'products/">Browse products</a></div>';
+            }
+            var checkout = cartRoot.querySelector('.btn--block');
+            if (checkout) checkout.remove();
+          }
         }).catch(function () {
           var form = e.target.closest('form');
           if (form) form.submit();
-          else alert('Could not remove item');
         });
         return;
       }

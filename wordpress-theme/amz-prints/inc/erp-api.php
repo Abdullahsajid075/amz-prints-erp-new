@@ -69,11 +69,15 @@ function amz_prints_erp_decode_response( $raw, $code = 200 ) {
  * @param array|null $body   JSON body for non-GET
  * @return array|WP_Error
  */
-function amz_prints_erp_request( $method, $path, $body = null ) {
+function amz_prints_erp_request( $method, $path, $body = null, $token = '' ) {
 	$method = strtoupper( (string) $method );
 	$path   = '/' . ltrim( (string) $path, '/' );
 	$api    = amz_prints_erp_api_url();
 	$url    = add_query_arg( 'path', $path, $api );
+	$token  = trim( (string) $token );
+	if ( '' !== $token ) {
+		$url = add_query_arg( 'token', $token, $url );
+	}
 
 	$http_method = $method;
 	if ( ! in_array( $http_method, array( 'GET', 'POST' ), true ) ) {

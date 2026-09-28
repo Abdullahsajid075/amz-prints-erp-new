@@ -39,6 +39,12 @@
 				<li><a class="nav-link-main" href="<?php echo esc_url( home_url( '/products/' ) ); ?>"><?php esc_html_e( 'Products', 'amz-prints' ); ?></a></li>
 				<li><a class="nav-link-main" href="<?php echo esc_url( home_url( '/track-order/' ) ); ?>"><?php esc_html_e( 'Track', 'amz-prints' ); ?></a></li>
 				<li><a class="nav-link-main" href="<?php echo esc_url( home_url( '/contact/' ) ); ?>"><?php esc_html_e( 'Contact', 'amz-prints' ); ?></a></li>
+				<?php if ( function_exists( 'amz_prints_customer_is_logged_in' ) && amz_prints_customer_is_logged_in() ) : ?>
+					<li class="site-nav__account"><a class="nav-link-main" href="<?php echo esc_url( home_url( '/my-account/' ) ); ?>"><?php esc_html_e( 'Account', 'amz-prints' ); ?></a></li>
+				<?php else : ?>
+					<li class="site-nav__account"><a class="nav-link-main" href="<?php echo esc_url( home_url( '/customer-login/' ) ); ?>"><?php esc_html_e( 'Log in', 'amz-prints' ); ?></a></li>
+					<li class="site-nav__account"><a class="nav-link-main" href="<?php echo esc_url( home_url( '/customer-signup/' ) ); ?>"><?php esc_html_e( 'Sign up', 'amz-prints' ); ?></a></li>
+				<?php endif; ?>
 			</ul>
 		</nav>
 
