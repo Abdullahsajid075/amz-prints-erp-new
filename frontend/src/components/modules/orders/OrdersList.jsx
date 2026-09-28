@@ -11,7 +11,7 @@ import { openInvoicesForCustomer } from '@/utils/invoiceOrders';
 import { formatCurrency, formatDate, getStatusColor, invoiceBalanceDue } from '@/utils/helpers';
 import { documentFileName } from '@/utils/printHelpers';
 import { printOrderBookSlip } from '@/utils/orderBookSlip';
-import { ORDER_STATUS, isOpenOrder, isNotStartedOrder, isSettledOrderStatus } from '@/utils/constants';
+import { ORDER_STATUS, isOpenOrder, isNotStartedOrder, isSettledOrderStatus, isWebsiteOrder, isPendingStatus, isPendingWebsiteOrder } from '@/utils/constants';
 import { INVOICE_REQUIRED_MESSAGE, canManuallyDeliver, orderHasInvoice, isReadyForDeliveryStatus } from '@/utils/deliveryRules';
 import { sortBy, pinFirst } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
@@ -19,7 +19,7 @@ import PageHeader from '@/components/shared/PageHeader';
 import { openWhatsAppChat, fillTemplate, buildTemplateVars, resolveWhatsAppTemplate, notifyOrderEvent } from '@/services/notifications';
 import { orderIsDeliveredWithBalance, openUrduBalanceWhatsApp } from '@/utils/customerHelpers';
 import { finishPaymentRecording } from '@/utils/paymentActions';
-import { Plus, Search, Eye, Edit, Copy, Trash2, User, Phone, Mail, MapPin, Calendar, Package, FileText, X, Printer, Receipt, Truck, Link2, Bell, StickyNote, Wallet, Link } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Copy, Trash2, User, Phone, Mail, MapPin, Calendar, Package, FileText, X, Printer, Receipt, Truck, Link2, Bell, StickyNote, Wallet, Link, Globe, CheckCircle2 } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
 
@@ -213,17 +213,56 @@ const OrdersList = () => {
         setViewOrder((prev) => ({ ...prev, status }));
       }
       toast.success(`Status → ${status}`);
-      if (updated.customerPhone || order.customerPhone) {
+      const confirmingWebsite = isPendingStatus(order.status)
+        && String(status) === ORDER_STATUS.RECEIVED
+        && isWebsiteOrder(order);
+      if (isPendingStatus(status)) {
+        toast.message('Website order is Pending — Confirm to send WhatsApp');
+      } else if (updated.customerPhone || order.customerPhone) {
         await notifyOrderEvent({
-          event: 'status',
+          event: confirmingWebsite ? 'website_confirmed' : 'status',
           order: { ...order, ...updated, status },
           openWhatsApp: true,
           sendEmail: false,
         });
-        toast.message('Status WhatsApp opened — tap Send');
+        toast.message(confirmingWebsite
+          ? 'Confirmation WhatsApp opened — tap Send'
+          : 'Status WhatsApp opened — tap Send');
       }
     } catch (err) {
       toast.error(err?.response?.data?.message || 'Could not update status');
+    } finally {
+      setStatusBusyId('');
+    }
+  };
+
+  const confirmWebsiteOrder = async (order) => {
+    if (!isPendingWebsiteOrder(order)) {
+      toast.message('This order is already confirmed');
+      return;
+    }
+    setStatusBusyId(order.id);
+    try {
+      const res = await ordersAPI.updateStatus(order.id, ORDER_STATUS.RECEIVED);
+      const updated = { ...order, ...(res.data || {}), status: ORDER_STATUS.RECEIVED };
+      setOrders((prev) => prev.map((o) => (String(o.id) === String(order.id) ? { ...o, ...updated } : o)));
+      if (viewOrder && String(viewOrder.id) === String(order.id)) {
+        setViewOrder((prev) => ({ ...prev, ...updated }));
+      }
+      toast.success(`${updated.orderId || 'Website order'} confirmed`);
+      if (updated.customerPhone || order.customerPhone) {
+        await notifyOrderEvent({
+          event: 'website_confirmed',
+          order: updated,
+          openWhatsApp: true,
+          sendEmail: false,
+        });
+        toast.message('Confirmation WhatsApp opened — tap Send');
+      } else {
+        toast.message('Confirmed — add a customer phone to send WhatsApp');
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Could not confirm website order');
     } finally {
       setStatusBusyId('');
     }
@@ -632,6 +671,18 @@ const OrdersList = () => {
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">Order</p>
               <h3 className="text-lg font-display font-bold truncate" style={{ color: '#0747a3' }}>{order.orderId}</h3>
+              <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                {isWebsiteOrder(order) && (
+                  <Badge className="bg-sky-100 text-sky-800 text-[9px] px-1.5 py-0 h-4" data-testid={`website-badge-${order.id}`}>
+                    <Globe className="h-2.5 w-2.5 mr-0.5" />Website
+                  </Badge>
+                )}
+                {(order.trackingNumber || isWebsiteOrder(order)) && (
+                  <span className="text-[10px] font-semibold text-slate-500 truncate">
+                    Track {order.trackingNumber || order.orderId}
+                  </span>
+                )}
+              </div>
             </div>
             <Badge className={`${getStatusColor(order.status)} text-[10px] shrink-0 shadow-sm`}>{order.status}</Badge>
           </div>
@@ -663,6 +714,18 @@ const OrdersList = () => {
             </div>
           </div>
           <div className="order-glass-actions">
+            {isPendingWebsiteOrder(order) && (
+              <Button
+                size="sm"
+                className="flex-1 text-white text-xs h-8 rounded-lg shadow-sm"
+                style={{ backgroundColor: '#10B981' }}
+                disabled={!!statusBusyId}
+                onClick={() => confirmWebsiteOrder(order)}
+                data-testid={`confirm-website-${order.id}`}
+              >
+                <CheckCircle2 className="h-3 w-3 mr-1" />Confirm
+              </Button>
+            )}
             <Button size="sm" className="flex-1 text-white text-xs h-8 rounded-lg shadow-sm" style={{ backgroundColor: '#ff6d00' }} onClick={() => handleView(order.id)} data-testid={`view-order-${order.id}`}>
               <Eye className="h-3 w-3 mr-1" />View
             </Button>
@@ -911,11 +974,28 @@ const OrdersList = () => {
                   </div>
                   Order Details
                 </DialogTitle>
-                <DialogDescription className="mt-2">{viewOrder?.orderId} — Complete order information</DialogDescription>
+                <DialogDescription className="mt-2">
+                  {viewOrder?.orderId}
+                  {isWebsiteOrder(viewOrder) ? ' · Website' : ''}
+                  {viewOrder?.trackingNumber ? ` · Track ${viewOrder.trackingNumber}` : ''}
+                  {' — Complete order information'}
+                </DialogDescription>
               </div>
               {viewOrder && (
-                <div className="w-[160px]">
+                <div className="w-[160px] space-y-2">
                   <StatusSelect order={viewOrder} />
+                  {isPendingWebsiteOrder(viewOrder) && (
+                    <Button
+                      size="sm"
+                      className="w-full text-white text-xs h-8 rounded-lg"
+                      style={{ backgroundColor: '#10B981' }}
+                      disabled={!!statusBusyId}
+                      onClick={() => confirmWebsiteOrder(viewOrder)}
+                      data-testid="confirm-website-dialog"
+                    >
+                      <CheckCircle2 className="h-3 w-3 mr-1" />Confirm + WhatsApp
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
@@ -943,6 +1023,7 @@ const OrdersList = () => {
                   <div><p className="text-xs text-gray-500 mb-1">Order Date</p><p className="font-semibold">{formatDate(viewOrder.date)}</p></div>
                   <div><p className="text-xs text-gray-500 mb-1">Delivery Date</p><p className="font-semibold">{formatDate(viewOrder.deliveryDate)}</p></div>
                   <div><p className="text-xs text-gray-500 mb-1">Assigned Designer</p><p className="font-semibold">{viewOrder.assignedDesigner || 'Not assigned'}</p></div>
+                  <div><p className="text-xs text-gray-500 mb-1">Tracking</p><p className="font-semibold">{viewOrder.trackingNumber || viewOrder.orderId || '—'}</p></div>
                 </div>
               </div>
 

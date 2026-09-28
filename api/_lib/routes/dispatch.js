@@ -1396,10 +1396,14 @@ async function dispatch(req, res) {
         const api = mapOrder(order);
         const holder = await findInvoiceHoldingOrder(order);
         const delivered = isDeliveredStatus(api.status);
-        const pipeline = ['Order Received', 'Designing', 'Proof Approval', 'Printing', 'Finishing', 'Packing', 'Ready', 'Delivered'];
         const status = String(api.status || '');
+        const isWeb = /^WEB[-_]/i.test(String(api.orderId || '')) || /website/i.test(String(api.remarks || api.notes || ''));
+        const pipeline = (isWeb || /^pending$|^new$/i.test(status))
+          ? ['Pending', 'Order Received', 'Designing', 'Proof Approval', 'Printing', 'Finishing', 'Packing', 'Ready', 'Delivered']
+          : ['Order Received', 'Designing', 'Proof Approval', 'Printing', 'Finishing', 'Packing', 'Ready', 'Delivered'];
         const cancelled = /cancel/i.test(status);
         let idx = cancelled ? -1 : pipeline.indexOf(status);
+        if (idx < 0 && /^pending$|^new$/i.test(status)) idx = pipeline.indexOf('Pending');
         if (idx < 0 && /ready/i.test(status)) idx = pipeline.indexOf('Ready');
         if (idx < 0 && delivered) idx = pipeline.indexOf('Delivered');
         const timeline = pipeline.map((s, i) => ({
@@ -1717,12 +1721,12 @@ async function dispatch(req, res) {
           advancePayment: 0,
           paymentMethod: isCod ? 'Cash on Delivery' : 'Online Payment',
           remarks: webNotes ? `Website · ${webNotes}` : 'Website order',
-          status: 'Order Received',
+          status: 'Pending',
           docType: 'Order',
         });
         row.order_id = await nextOrderId('WEB');
         row.tracking_number = await nextTrackingNumber();
-        row.status_history = [{ status: row.status, at: `${today()} ${nowTime()}`, note: 'Website order' }];
+        row.status_history = [{ status: row.status, at: `${today()} ${nowTime()}`, note: 'Website order — pending confirmation' }];
         await persistOrderStock(row, { isPos: false });
         try {
           await dbWrite('orders', row, { mode: 'insert' });

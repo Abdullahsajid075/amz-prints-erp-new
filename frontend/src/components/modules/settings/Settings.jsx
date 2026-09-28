@@ -1067,11 +1067,12 @@ const Settings = () => {
                 Write your own messages below — no footer is added automatically. Empty uses the default AMZ template (invoice, reminder, cash in/out still send).
                 Placeholders: {'{Customer Name}'}, {'{Order Number}'}, {'{Tracking Number}'}, {'{Status}'}, {'{Company Name}'}, {'{Invoice Link}'}, {'{payment_amount}'}, {'{balance_due}'}
               </p>
-              {['quotation', 'created', 'Order Received', 'Designing', 'Proof Approval', 'Printing', 'Finishing', 'Packing', 'Ready', 'Delivered', 'Cancelled', 'status', 'invoice_generated', 'payment_reminder', 'balance_reminder', 'payment_received', 'payment_sent'].map((key) => {
+              {['quotation', 'created', 'website_confirmed', 'Order Received', 'Designing', 'Proof Approval', 'Printing', 'Finishing', 'Packing', 'Ready', 'Delivered', 'Cancelled', 'status', 'invoice_generated', 'payment_reminder', 'balance_reminder', 'payment_received', 'payment_sent'].map((key) => {
                 const saved = settings.notifications.whatsappTemplates || {};
                 const labelMap = {
                   quotation: 'Quotation',
                   created: 'Order Created / Received',
+                  website_confirmed: 'Website order confirmed',
                   'Order Received': 'Order Received',
                   status: 'Generic status update',
                   invoice_generated: 'Invoice Generated',

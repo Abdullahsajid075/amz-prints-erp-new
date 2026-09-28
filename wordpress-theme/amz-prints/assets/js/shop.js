@@ -323,6 +323,8 @@
           '<div class="shop-success">' +
             '<h2>Order placed successfully</h2>' +
             '<p>Order <strong>' + (order.orderId || '') + '</strong> is now in the ERP Orders system.</p>' +
+            '<p>Status: <strong>Pending</strong> — our team will confirm it shortly.</p>' +
+            (track ? '<p>Website tracking: <strong>' + track + '</strong></p>' : '') +
             '<p>Payment method: <strong>' + (order.paymentMethod || '') + '</strong></p>' +
             '<p>Payment status: <strong>' + (order.paymentStatus || '') + '</strong></p>' +
             (track ? '<p><a class="btn btn--primary" href="' + (cfg.trackUrl || '/track-order/') + '?code=' + encodeURIComponent(track) + '">Track order</a></p>' : '') +

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,12 +8,14 @@ import { formatCurrency } from '@/utils/helpers';
 import { customerMatchesQuery } from '@/utils/customerSearch';
 import { productMatchesQuery } from '@/utils/productSearch';
 import { printPosSlip, buildPosWhatsAppReceipt } from '@/utils/posSlip';
+import { printStampedReceipt, receiptAcceptAttr, isReceiptUploadFile } from '@/utils/posStampedReceipt';
 import { mergePosSettings, mergeInventorySettings } from '@/utils/moduleSettings';
 import { useBrand } from '@/context/BrandContext';
 import {
   Search, Plus, Minus, Trash2, Printer, PackagePlus, UserPlus, Package, Wrench,
   Lock, Unlock, BookOpen, Settings, Clock, LayoutGrid, Pause, RotateCcw,
   Banknote, CreditCard, Building2, Quote, User, ArrowDownLeft, Coins, ShoppingCart, X,
+  FileUp,
 } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
@@ -71,6 +73,8 @@ const POS = () => {
   const [registerReady, setRegisterReady] = useState(false);
   const [varPick, setVarPick] = useState(null);
   const [cartDrawer, setCartDrawer] = useState(false);
+  const [stampBusy, setStampBusy] = useState(false);
+  const stampInputRef = useRef(null);
 
   const loadProducts = useCallback(async () => {
     try {
@@ -378,6 +382,25 @@ const POS = () => {
     else toast.message('Receipt sent to default printer');
   };
 
+  const stampUploadedReceipt = async (file) => {
+    if (!file) return;
+    if (!isReceiptUploadFile(file)) {
+      toast.error('PDF ya image receipt upload karein');
+      return;
+    }
+    setStampBusy(true);
+    try {
+      const res = await printStampedReceipt(file, { company, posCfg });
+      if (!res?.ok) toast.error('Print dialog blocked — allow printing for POS stamp');
+      else toast.message('Stamped receipt sent to POS printer (services + WR)');
+    } catch (err) {
+      toast.error(err?.message || 'Could not stamp receipt');
+    } finally {
+      setStampBusy(false);
+      if (stampInputRef.current) stampInputRef.current.value = '';
+    }
+  };
+
   const sendPosWhatsApp = (sale, phoneOverride) => {
     const phone = String(phoneOverride || sale?.customerPhone || waPhone || '').trim();
     if (!phone) {
@@ -590,6 +613,23 @@ const POS = () => {
         >
           <Printer className="h-4 w-4 mr-1" />Reprint receipt
         </Button>
+        <Button
+          variant="outline"
+          className="h-10 rounded-xl font-semibold"
+          disabled={stampBusy}
+          onClick={() => stampInputRef.current?.click()}
+          data-testid="pos-stamp-receipt"
+        >
+          <FileUp className="h-4 w-4 mr-1" />{stampBusy ? 'Stamping…' : 'Stamp PDF'}
+        </Button>
+        <input
+          ref={stampInputRef}
+          type="file"
+          accept={receiptAcceptAttr()}
+          className="hidden"
+          data-testid="pos-stamp-file"
+          onChange={(e) => stampUploadedReceipt(e.target.files?.[0])}
+        />
         <Button variant="outline" className="h-10 rounded-xl" onClick={newSale}>
           <Plus className="h-4 w-4 mr-1" />New sale
         </Button>
@@ -1073,6 +1113,16 @@ const POS = () => {
                 <WhatsAppIcon className="h-3.5 w-3.5 mr-1" />WhatsApp
               </Button>
             </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full h-9 rounded-xl font-semibold bg-white/70"
+              disabled={stampBusy}
+              onClick={() => stampInputRef.current?.click()}
+              data-testid="pos-stamp-cart"
+            >
+              <FileUp className="h-4 w-4 mr-1" />{stampBusy ? 'Stamping…' : 'Stamp PDF + WR'}
+            </Button>
             {lastSale ? (
               <div
                 className="rounded-xl px-3 py-2 text-[11px] leading-snug"
@@ -1103,6 +1153,9 @@ const POS = () => {
       <footer className="shrink-0 bg-white border-t px-3 py-2 flex flex-wrap items-center gap-2 text-sm">
         <Button variant="ghost" size="sm" className="h-8 font-semibold" disabled={!lastSale} onClick={() => printReceipt(lastSale)} data-testid="pos-reprint-footer">
           <Printer className="h-3.5 w-3.5 mr-1" />Reprint receipt
+        </Button>
+        <Button variant="ghost" size="sm" className="h-8 font-semibold" disabled={stampBusy} onClick={() => stampInputRef.current?.click()} data-testid="pos-stamp-footer">
+          <FileUp className="h-3.5 w-3.5 mr-1" />Stamp PDF
         </Button>
         <Button variant="ghost" size="sm" className="h-8" disabled={!lastSale} onClick={convertLastToInvoice}>
           <Quote className="h-3.5 w-3.5 mr-1" />Invoice

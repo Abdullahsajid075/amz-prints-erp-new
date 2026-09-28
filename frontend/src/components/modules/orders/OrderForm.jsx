@@ -11,7 +11,7 @@ import { notifyOrderEvent } from '@/services/notifications';
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import ProductPicker from '@/components/shared/ProductPicker';
 import ProductQuickCreate from '@/components/shared/ProductQuickCreate';
-import { ORDER_STATUS } from '@/utils/constants';
+import { ORDER_STATUS, isWebsiteOrder, isPendingStatus } from '@/utils/constants';
 import { formatCurrency } from '@/utils/helpers';
 import { catalogFieldsForOrderLine } from '@/utils/productImage';
 import { tracksInventory } from '@/utils/inventoryTrack';
@@ -428,9 +428,20 @@ const OrderForm = () => {
 
         // Payments live on invoices — no payment slip from the order form.
         const statusChanged = String(prevStatus) !== String(data.status || orderData.status);
-        if (statusChanged) {
-          const notify = await notifyOrderEvent({ event: 'status', order: data, sendEmail: false });
-          toast.message('WhatsApp opened — tap Send (status update)');
+        if (statusChanged && isPendingStatus(data.status)) {
+          toast.message('Saved as Pending — Confirm from Orders to send WhatsApp');
+        } else if (statusChanged) {
+          const confirmingWebsite = isPendingStatus(prevStatus)
+            && String(data.status) === ORDER_STATUS.RECEIVED
+            && isWebsiteOrder(data);
+          const notify = await notifyOrderEvent({
+            event: confirmingWebsite ? 'website_confirmed' : 'status',
+            order: data,
+            sendEmail: false,
+          });
+          toast.message(confirmingWebsite
+            ? 'Confirmation WhatsApp opened — tap Send'
+            : 'WhatsApp opened — tap Send (status update)');
           const gasEmail = server?._notifications?.email;
           if (gasEmail?.ok === false) {
             toast.error(gasEmail.error || 'Status email failed — authorize Mail in Apps Script');
