@@ -272,7 +272,7 @@ async function createWebsiteStoreOrder(body = {}, existingCustomer = null) {
     if (String(prod.status || 'Active').toLowerCase() === 'inactive') {
       throw httpErr(`Product unavailable: ${prod.name || pid}`, 400);
     }
-    let rate = Number(prod.rate || 0) > 0 ? Number(prod.rate || 0) : postedRate;
+    let rate = isQuote ? Math.max(0, postedRate) : (Number(prod.rate || 0) > 0 ? Number(prod.rate || 0) : postedRate);
     if (rate <= 0 && isQuote) rate = 0;
     if (rate <= 0 && !isQuote) {
       throw httpErr(`Product "${prod.name || ''}" needs a quote — contact AMZ Prints or use Get a Quote.`, 400);
