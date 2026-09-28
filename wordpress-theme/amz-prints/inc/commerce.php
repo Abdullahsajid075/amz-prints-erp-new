@@ -10,6 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 const AMZ_PRINTS_CART_COOKIE = 'amz_cart_v1';
+const AMZ_PRINTS_CART_TOKEN  = 'amz_cart_token';
 
 /**
  * Safe product image src (supports https and data:image from ERP).
@@ -179,21 +180,22 @@ function amz_prints_erp_find_product( $product_id ) {
 }
 
 /**
- * Read cart lines from cookie: [ ['id'=>'', 'qty'=>1 ], ... ]
+ * Stable id comparison so a saved line matches the Remove button.
  *
+ * @param string $id Product id.
+ * @return string
+ */
+function amz_prints_cart_id_key( $id ) {
+	return strtolower( (string) preg_replace( '/[^a-z0-9]+/i', '', (string) $id ) );
+}
+
+/**
+ * @param array $rows Raw cart rows.
  * @return array
  */
-function amz_prints_cart_raw() {
-	if ( empty( $_COOKIE[ AMZ_PRINTS_CART_COOKIE ] ) ) {
-		return array();
-	}
-	$raw = wp_unslash( $_COOKIE[ AMZ_PRINTS_CART_COOKIE ] );
-	$data = json_decode( $raw, true );
-	if ( ! is_array( $data ) ) {
-		return array();
-	}
+function amz_prints_cart_normalize_lines( $rows ) {
 	$out = array();
-	foreach ( $data as $row ) {
+	foreach ( (array) $rows as $row ) {
 		if ( ! is_array( $row ) ) {
 			continue;
 		}
@@ -211,6 +213,96 @@ function amz_prints_cart_raw() {
 }
 
 /**
+ * @param bool $create Create a token when one does not exist yet.
+ * @return string
+ */
+function amz_prints_cart_token( $create = false ) {
+	$token = '';
+	if ( ! empty( $_COOKIE[ AMZ_PRINTS_CART_TOKEN ] ) ) {
+		$token = preg_replace( '/[^a-zA-Z0-9]/', '', (string) wp_unslash( $_COOKIE[ AMZ_PRINTS_CART_TOKEN ] ) );
+	}
+	if ( ! $token && ! empty( $_POST['cart_token'] ) ) {
+		$token = preg_replace( '/[^a-zA-Z0-9]/', '', (string) wp_unslash( $_POST['cart_token'] ) );
+	}
+	if ( ! $token && $create ) {
+		$token = wp_generate_password( 20, false, false );
+	}
+	if ( $token ) {
+		$_COOKIE[ AMZ_PRINTS_CART_TOKEN ] = $token;
+	}
+	return (string) $token;
+}
+
+/**
+ * @return array
+ */
+function amz_prints_cart_store() {
+	$all = get_option( 'amz_prints_server_carts', array() );
+	return is_array( $all ) ? $all : array();
+}
+
+/**
+ * @param string $token Cart token.
+ * @param array  $lines Cart lines.
+ */
+function amz_prints_cart_store_write( $token, $lines ) {
+	$token = preg_replace( '/[^a-zA-Z0-9]/', '', (string) $token );
+	if ( ! $token ) {
+		return;
+	}
+	$all = amz_prints_cart_store();
+	$now = time();
+	foreach ( $all as $key => $row ) {
+		$updated = is_array( $row ) ? (int) ( $row['updated'] ?? 0 ) : 0;
+		if ( $updated && ( $now - $updated ) > 14 * DAY_IN_SECONDS ) {
+			unset( $all[ $key ] );
+		}
+	}
+	$all[ $token ] = array(
+		'lines'   => array_values( $lines ),
+		'updated' => $now,
+	);
+	update_option( 'amz_prints_server_carts', $all, false );
+}
+
+/**
+ * Legacy browser cookie, used only until the server cart exists.
+ *
+ * @return array
+ */
+function amz_prints_cart_read_cookie() {
+	if ( empty( $_COOKIE[ AMZ_PRINTS_CART_COOKIE ] ) ) {
+		return array();
+	}
+	$raw  = wp_unslash( $_COOKIE[ AMZ_PRINTS_CART_COOKIE ] );
+	$data = json_decode( $raw, true );
+	return amz_prints_cart_normalize_lines( is_array( $data ) ? $data : array() );
+}
+
+/**
+ * Read cart lines. The server copy wins so a removed item stays removed.
+ *
+ * @return array
+ */
+function amz_prints_cart_raw() {
+	$token = amz_prints_cart_token( false );
+	if ( $token ) {
+		$all = amz_prints_cart_store();
+		if ( isset( $all[ $token ] ) && is_array( $all[ $token ] ) ) {
+			return amz_prints_cart_normalize_lines( $all[ $token ]['lines'] ?? array() );
+		}
+	}
+	$legacy = amz_prints_cart_read_cookie();
+	if ( $legacy ) {
+		$token = amz_prints_cart_token( true );
+		if ( $token ) {
+			amz_prints_cart_store_write( $token, $legacy );
+		}
+	}
+	return $legacy;
+}
+
+/**
  * Persist cart cookie.
  *
  * @param array $lines Cart lines.
@@ -221,43 +313,69 @@ function amz_prints_cart_cookie_args( $expires ) {
 	if ( 'https' === $proto ) {
 		$secure = true;
 	}
-	$paths = array( '/' );
-	if ( defined( 'COOKIEPATH' ) && COOKIEPATH ) {
-		$paths[] = COOKIEPATH;
-	}
-	if ( defined( 'SITECOOKIEPATH' ) && SITECOOKIEPATH ) {
-		$paths[] = SITECOOKIEPATH;
-	}
-	$args = array();
-	foreach ( array_unique( $paths ) as $path ) {
-		$args[] = array(
-			'expires'  => $expires,
-			'path'     => $path,
-			'secure'   => $secure,
-			'httponly' => false,
-			'samesite' => 'Lax',
-		);
-	}
-	return $args;
+	return array(
+		'expires'  => $expires,
+		'path'     => '/',
+		'secure'   => $secure,
+		'httponly' => false,
+		'samesite' => 'Lax',
+	);
 }
 
 function amz_prints_cart_save( $lines ) {
+	$lines   = amz_prints_cart_normalize_lines( $lines );
+	$token   = amz_prints_cart_token( true );
 	$payload = wp_json_encode( array_values( $lines ) );
-	$expire  = time() + ( 14 * DAY_IN_SECONDS );
-	foreach ( amz_prints_cart_cookie_args( $expire ) as $args ) {
-		setcookie( AMZ_PRINTS_CART_COOKIE, $payload, $args );
+	$args    = amz_prints_cart_cookie_args( time() + ( 14 * DAY_IN_SECONDS ) );
+	if ( $token ) {
+		amz_prints_cart_store_write( $token, $lines );
+		setcookie( AMZ_PRINTS_CART_TOKEN, $token, $args );
 	}
+	setcookie( AMZ_PRINTS_CART_COOKIE, $payload, $args );
 	$_COOKIE[ AMZ_PRINTS_CART_COOKIE ] = $payload;
 }
+
+/**
+ * Drop one product from the saved cart.
+ *
+ * @param string $product_id Product id from the cart row.
+ * @return array Remaining lines.
+ */
+function amz_prints_cart_remove_id( $product_id ) {
+	$want = amz_prints_cart_id_key( $product_id );
+	$next = array();
+	foreach ( amz_prints_cart_raw() as $line ) {
+		if ( $want && amz_prints_cart_id_key( $line['id'] ) === $want ) {
+			continue;
+		}
+		$next[] = $line;
+	}
+	amz_prints_cart_save( $next );
+	return $next;
+}
+
+/**
+ * Remove from a normal form post when the cart script does not run.
+ */
+function amz_prints_cart_remove_post() {
+	if ( empty( $_POST['amz_cart_remove'] ) ) {
+		return;
+	}
+	$nonce = isset( $_POST['amz_cart_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['amz_cart_nonce'] ) ) : '';
+	if ( ! wp_verify_nonce( $nonce, 'amz_cart_remove' ) ) {
+		return;
+	}
+	amz_prints_cart_remove_id( sanitize_text_field( wp_unslash( $_POST['amz_cart_remove'] ) ) );
+	wp_safe_redirect( home_url( '/cart/?removed=1' ) );
+	exit;
+}
+add_action( 'init', 'amz_prints_cart_remove_post', 1 );
 
 /**
  * Clear cart.
  */
 function amz_prints_cart_clear() {
-	foreach ( amz_prints_cart_cookie_args( time() - HOUR_IN_SECONDS ) as $args ) {
-		setcookie( AMZ_PRINTS_CART_COOKIE, '', $args );
-	}
-	unset( $_COOKIE[ AMZ_PRINTS_CART_COOKIE ] );
+	amz_prints_cart_save( array() );
 }
 
 /**
@@ -348,6 +466,8 @@ function amz_prints_cart_summary() {
 		'deliveryCharges' => $delivery,
 		'total'           => $total,
 		'currency'        => 'Rs.',
+		'lines'           => amz_prints_cart_raw(),
+		'cartToken'       => amz_prints_cart_token( false ),
 	);
 }
 
@@ -415,21 +535,23 @@ function amz_prints_ajax_cart_update() {
 	}
 
 	$min_q = max( 1, (int) ( is_array( $product ) ? ( $product['minQuantity'] ?? 1 ) : 1 ) );
+	if ( 'remove' === $action || $qty <= 0 ) {
+		amz_prints_cart_remove_id( $product_id );
+		wp_send_json_success( amz_prints_cart_summary() );
+	}
 	$lines = amz_prints_cart_raw();
 	$found = false;
 	$next  = array();
+	$want  = amz_prints_cart_id_key( $product_id );
 
 	foreach ( $lines as $line ) {
-		if ( (string) ( $line['id'] ?? '' ) === (string) $product_id ) {
+		if ( $want && amz_prints_cart_id_key( $line['id'] ) === $want ) {
 			$found = true;
-			if ( 'remove' === $action || $qty <= 0 ) {
-				continue;
-			}
 			if ( 'add' === $action ) {
 				$qty = (int) $line['qty'] + max( 1, $qty );
 			}
 			$next[] = array(
-				'id'  => $product_id,
+				'id'  => (string) $line['id'],
 				'qty' => max( $min_q, $qty ),
 			);
 		} else {

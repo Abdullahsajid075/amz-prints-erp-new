@@ -46,7 +46,11 @@ $cart = function_exists( 'amz_prints_cart_summary' ) ? amz_prints_cart_summary()
 									<button type="button" class="qty-btn" data-cart-qty="-1" aria-label="<?php esc_attr_e( 'Decrease', 'amz-prints' ); ?>">−</button>
 									<input type="number" class="qty-input" min="<?php echo esc_attr( $item['minQuantity'] ); ?>" value="<?php echo esc_attr( $item['quantity'] ); ?>" data-cart-qty-input>
 									<button type="button" class="qty-btn" data-cart-qty="1" aria-label="<?php esc_attr_e( 'Increase', 'amz-prints' ); ?>">+</button>
-									<button type="button" class="cart-line__remove" data-cart-remove><?php esc_html_e( 'Remove', 'amz-prints' ); ?></button>
+									<form class="cart-remove-form" method="post" action="<?php echo esc_url( home_url( '/cart/' ) ); ?>">
+										<?php wp_nonce_field( 'amz_cart_remove', 'amz_cart_nonce' ); ?>
+										<input type="hidden" name="amz_cart_remove" value="<?php echo esc_attr( $item['id'] ); ?>">
+										<button type="submit" class="cart-line__remove" data-cart-remove><?php esc_html_e( 'Remove', 'amz-prints' ); ?></button>
+									</form>
 								</div>
 							</div>
 							<div class="cart-line__total"><?php echo esc_html( amz_prints_money( $item['lineTotal'] ) ); ?></div>

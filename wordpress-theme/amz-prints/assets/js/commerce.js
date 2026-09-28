@@ -48,6 +48,23 @@
     });
   }
 
+  function cartToken() {
+    if (cfg.cartToken) return cfg.cartToken;
+    try { return localStorage.getItem('amz_cart_token') || ''; } catch (err) { return ''; }
+  }
+
+  function rememberCart(data) {
+    if (!data) return;
+    if (data.cartToken) {
+      cfg.cartToken = data.cartToken;
+      try { localStorage.setItem('amz_cart_token', data.cartToken); } catch (err) { /* ignore */ }
+      document.cookie = 'amz_cart_token=' + encodeURIComponent(data.cartToken) + '; path=/; max-age=1209600; SameSite=Lax';
+    }
+    if (Array.isArray(data.lines)) {
+      document.cookie = 'amz_cart_v1=' + encodeURIComponent(JSON.stringify(data.lines)) + '; path=/; max-age=1209600; SameSite=Lax';
+    }
+  }
+
   function cartUpdate(productId, quantity, cartAction) {
     if ((cartAction || 'set') === 'add' && !cfg.profileComplete) {
       if (cfg.profileUrl) window.location.href = cfg.profileUrl;
@@ -58,7 +75,8 @@
     return post('amz_prints_cart_update', {
       product_id: productId,
       quantity: quantity,
-      cart_action: cartAction || 'set'
+      cart_action: cartAction || 'set',
+      cart_token: cartToken()
     }).then(function (res) {
       if (!res || !res.success) {
         var code = res && res.data && res.data.code;
@@ -72,6 +90,7 @@
       }
       updateBadge(res.data.count);
       renderTotals(res.data);
+      rememberCart(res.data);
       return res.data;
     });
   }
@@ -354,16 +373,13 @@
       var input = line.querySelector('[data-cart-qty-input]');
       if (e.target.closest('[data-cart-remove]')) {
         e.preventDefault();
-        cartUpdate(pid, 0, 'remove').then(function (data) {
-          var still = (data && data.items || []).some(function (item) {
-            return String(item.id) === String(pid);
-          });
-          if (still) throw new Error('Could not remove item');
-          line.remove();
-          if (!cartRoot.querySelector('.cart-line')) {
-            window.location.replace(window.location.pathname + '?updated=' + Date.now());
-          }
-        }).catch(function (err) { alert(err.message || 'Could not remove item'); });
+        cartUpdate(pid, 0, 'remove').then(function () {
+          window.location.replace(window.location.pathname + '?removed=' + Date.now());
+        }).catch(function () {
+          var form = e.target.closest('form');
+          if (form) form.submit();
+          else alert('Could not remove item');
+        });
         return;
       }
       var step = e.target.closest('[data-cart-qty]');

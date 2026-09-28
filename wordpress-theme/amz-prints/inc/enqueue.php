@@ -167,6 +167,7 @@ function amz_prints_enqueue_assets() {
 			? amz_prints_customer_profile_url()
 			: ( function_exists( 'amz_prints_customer_signup_url' ) ? amz_prints_customer_signup_url() : home_url( '/customer-signup/' ) ),
 		'signupUrl'  => function_exists( 'amz_prints_customer_signup_url' ) ? amz_prints_customer_signup_url() : home_url( '/customer-signup/' ),
+		'cartToken'  => function_exists( 'amz_prints_cart_token' ) ? amz_prints_cart_token( false ) : '',
 		'products'   => array(),
 	) );
 }
