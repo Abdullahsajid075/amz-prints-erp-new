@@ -27,6 +27,22 @@ Thank you for your trust!
 📍 King Road, Mandi Bahauddin
 🌐 amzprints.com`,
 
+  website_confirmed: `Dear *{CustomerName}*,
+
+Thank you for ordering from *amzprints.com*.
+
+Your website order *#{OrderNo}* has been *confirmed*.
+
+Tracking No: *{Tracking Number}*
+Track your order : {TrackUrl}
+
+We will keep you updated at every stage until completion.
+
+Thank you for your trust!
+
+📍 King Road, Mandi Bahauddin
+🌐 amzprints.com`,
+
   'Order Received': `Dear *{CustomerName}*,
 
 Thank you for choosing *Amazon Printing Services*.
@@ -245,6 +261,7 @@ ${FOOTER}`,
 export const DEFAULT_EMAIL_SUBJECTS = {
   quotation: 'Quotation {OrderNo} | Amazon Printing Services',
   created: 'Order Received — {OrderNo} | Amazon Printing Services',
+  website_confirmed: 'Website order confirmed — {OrderNo} | Amazon Printing Services',
   'Order Received': 'Order Received — {OrderNo} | Amazon Printing Services',
   status: 'Order Update — {OrderNo} is now {Status}',
   Ready: 'Ready for Collection — {OrderNo}',
@@ -356,6 +373,7 @@ export function resolveWhatsAppTemplate(templates, event, status) {
   let found = '';
   if (event === 'quotation') found = pick('quotation');
   else if (event === 'created') found = pick('created', 'Order Received');
+  else if (event === 'website_confirmed') found = pick('website_confirmed', 'created', 'Order Received');
   else if (event === 'invoice' || event === 'invoice_generated') found = pick('invoice_generated', 'invoice');
   else if (event === 'payment_reminder' || event === 'reminder') found = pick('payment_reminder', 'balance_reminder');
   else if (event === 'balance_reminder') found = pick('balance_reminder', 'payment_reminder');

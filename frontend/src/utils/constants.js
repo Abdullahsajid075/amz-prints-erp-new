@@ -18,6 +18,7 @@ export const MODULES = {
 };
 
 export const ORDER_STATUS = {
+  PENDING: 'Pending',
   RECEIVED: 'Order Received',
   DESIGNING: 'Designing',
   PROOF_APPROVAL: 'Proof Approval',
@@ -32,6 +33,7 @@ export const ORDER_STATUS = {
 };
 
 export const OPEN_ORDER_STATUSES = [
+  ORDER_STATUS.PENDING,
   ORDER_STATUS.RECEIVED,
   ORDER_STATUS.DESIGNING,
   ORDER_STATUS.PROOF_APPROVAL,
@@ -67,6 +69,26 @@ export function isOpenOrder(order) {
 export function isNotStartedOrder(order) {
   const s = String(order?.status || '').trim().toLowerCase();
   return !s || s === 'order received' || s === 'received' || s === 'pending' || s === 'new';
+}
+
+export function isPendingStatus(status) {
+  const s = String(status || '').trim().toLowerCase();
+  return s === 'pending' || s === 'new' || s === 'awaiting confirmation';
+}
+
+/** Website checkout jobs — WEB- ids and/or Website remarks. */
+export function isWebsiteOrder(order) {
+  if (!order) return false;
+  const id = String(order.orderId || order.order_id || '').trim();
+  if (/^WEB[-_]/i.test(id)) return true;
+  const remarks = String(order.remarks || order.notes || '');
+  if (/website/i.test(remarks)) return true;
+  const source = String(order.source || order.channel || order.origin || '').trim().toLowerCase();
+  return source === 'website' || source === 'web';
+}
+
+export function isPendingWebsiteOrder(order) {
+  return isWebsiteOrder(order) && isPendingStatus(order?.status);
 }
 
 export const PAYMENT_METHODS = {

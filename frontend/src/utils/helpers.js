@@ -82,6 +82,7 @@ export function invoicePendingScore(invoice) {
 
 export const getStatusColor = (status) => {
   const colors = {
+    'Pending': 'bg-amber-100 text-amber-800',
     'Order Received': 'bg-blue-100 text-blue-800',
     'Designing': 'bg-purple-100 text-purple-800',
     'Proof Approval': 'bg-yellow-100 text-yellow-800',
