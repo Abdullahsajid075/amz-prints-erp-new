@@ -16,12 +16,25 @@
   window.addEventListener('scroll', onScroll, { passive: true });
   onScroll();
 
+  function setNav(open) {
+    if (!toggle || !nav) return;
+    nav.classList.toggle('is-open', open);
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    document.body.classList.toggle('nav-open', open);
+  }
+
   if (toggle && nav) {
-    toggle.addEventListener('click', function () {
-      var open = !nav.classList.contains('is-open');
-      nav.classList.toggle('is-open', open);
-      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-      document.body.classList.toggle('nav-open', open);
+    toggle.addEventListener('click', function (e) {
+      e.stopPropagation();
+      setNav(!nav.classList.contains('is-open'));
+    });
+    nav.addEventListener('click', function (e) {
+      if (e.target === nav || (e.target.closest && e.target.closest('a'))) {
+        setNav(false);
+      }
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') setNav(false);
     });
   }
 
