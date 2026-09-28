@@ -3,7 +3,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, ShoppingCart, Users, Warehouse, FileText,
-  CreditCard, BarChart3, Settings, X, Ticket, Monitor,
+  CreditCard, BarChart3, Settings, X, Ticket,
   Store, Quote, Calculator, Kanban, ShoppingBag, UsersRound, ChevronDown,
   ListTodo, Megaphone, ClipboardCheck,
 } from 'lucide-react';
@@ -11,9 +11,10 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/context/AuthContext';
 import { useBrand } from '@/context/BrandContext';
-import { ordersAPI, productsAPI, purchasesAPI } from '@/services/api';
+import { ordersAPI, productsAPI, purchasesAPI, customersAPI } from '@/services/api';
 import { isOpenOrder } from '@/utils/constants';
 import { buildPurchaseNeeds } from '@/utils/purchaseNeeds';
+import { countOpenCrmQueries } from '@/utils/crmStages';
 
 const menuGroups = [
   {
@@ -29,8 +30,10 @@ const menuGroups = [
     items: [
       { icon: Quote, label: 'Quotation', path: '/quotations', module: 'quotations', testId: 'nav-quotations' },
       { icon: ShoppingCart, label: 'Orders', path: '/orders', module: 'orders', testId: 'nav-orders' },
-      { icon: Ticket, label: 'Token Booking', path: '/tokens', module: 'tokens', testId: 'nav-tokens' },
-      { icon: Monitor, label: 'Counter Screen', path: '/tokens/counter', module: 'tokens', testId: 'nav-token-counter' },
+      { icon: Ticket, label: 'Token', path: '/tokens', module: 'tokens', testId: 'nav-tokens', children: [
+          { label: '1. Booking', path: '/tokens', module: 'tokens', testId: 'nav-token-booking' },
+          { label: '2. Screen', path: '/tokens/counter', module: 'tokens', testId: 'nav-token-counter' },
+        ] },
       { icon: FileText, label: 'Invoices', path: '/invoices', module: 'invoices', testId: 'nav-invoices' },
       { icon: Users, label: 'Customers', path: '/customers', module: 'customers', testId: 'nav-customers' },
       { icon: Kanban, label: 'CRM', path: '/crm', module: 'crm', testId: 'nav-crm' },
@@ -129,6 +132,7 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
   const navigate = useNavigate();
   const [openGroup, setOpenGroup] = useState('');
   const [openOrderCount, setOpenOrderCount] = useState(0);
+  const [openCrmCount, setOpenCrmCount] = useState(0);
   const [ackCount, setAckCount] = useState(0);
   const accent = primary || '#ff6d00';
 
@@ -180,6 +184,24 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
       })
       .catch(() => {
         if (!cancelled) setOpenOrderCount(0);
+      });
+    return () => { cancelled = true; };
+  }, [location.pathname, canAccessModule]);
+
+  useEffect(() => {
+    if (!canAccessModule('crm')) {
+      setOpenCrmCount(0);
+      return undefined;
+    }
+    let cancelled = false;
+    customersAPI.getAll()
+      .then((res) => {
+        if (cancelled) return;
+        const list = Array.isArray(res.data) ? res.data : [];
+        setOpenCrmCount(countOpenCrmQueries(list));
+      })
+      .catch(() => {
+        if (!cancelled) setOpenCrmCount(0);
       });
     return () => { cancelled = true; };
   }, [location.pathname, canAccessModule]);
@@ -332,6 +354,20 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
                                     {openOrderCount > 99 ? '99+' : openOrderCount}
                                   </span>
                                 )}
+                                {item.path === '/crm' && openCrmCount > 0 && (
+                                  <span
+                                    className="ml-auto min-w-[1.25rem] h-5 px-1.5 rounded-full text-[10px] font-bold leading-5 text-center tabular-nums"
+                                    style={{
+                                      backgroundColor: isActive ? 'rgba(255,255,255,0.22)' : accent,
+                                      color: '#fff',
+                                    }}
+                                    title={`${openCrmCount} open CRM queries`}
+                                    aria-label={`${openCrmCount} open CRM queries`}
+                                    data-testid="nav-crm-count"
+                                  >
+                                    {openCrmCount > 99 ? '99+' : openCrmCount}
+                                  </span>
+                                )}
                               </>
                             )}
                           </NavLink>
@@ -345,7 +381,7 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
                             data-testid={item.testId}
                             onClick={() => {
                               toggleGroup(item.path);
-                              if (item.path === '/pos') navigate('/pos');
+                              if (item.path === '/pos' || item.path === '/tokens') navigate(item.path);
                             }}
                             className={cn(
                               'erp-nav-link w-full text-left',
@@ -373,9 +409,10 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
                             <div className="ml-3 pl-2.5 border-l border-white/10 space-y-0.5 py-0.5">
                               {item.children.map((child) => (
                                 <NavLink
-                                  key={child.path}
+                                  key={`${child.path}-${child.label}`}
                                   to={child.path}
                                   end
+                                  data-testid={child.testId}
                                   onClick={() => {
                                     closeSidebar();
                                   }}

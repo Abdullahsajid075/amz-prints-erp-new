@@ -10,7 +10,8 @@ import {
   isWaitingToken, isActiveToken, sortTokensFifo, counterStatusBoard,
 } from '@/utils/tokenAnnounce';
 import { toast } from 'sonner';
-import { ArrowLeft, Bell, CheckCircle2, ShoppingCart, SkipForward, RefreshCw, Loader2, XCircle, Volume2 } from 'lucide-react';
+import { Bell, CheckCircle2, ShoppingCart, SkipForward, RefreshCw, Loader2, XCircle, Volume2 } from 'lucide-react';
+import TokenSectionNav from '@/components/modules/tokens/TokenSectionNav';
 
 const TOKEN_STATUSES = [
   { key: 'waiting', label: 'Waiting', className: 'bg-amber-100 text-amber-800' },
@@ -228,14 +229,11 @@ const CounterScreen = () => {
   return (
     <div className="space-y-6" data-testid="counter-screen">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={() => navigate('/tokens')}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Booking
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold" style={{ color: '#0747a3' }}>Counter Screen</h1>
-            <p className="text-sm text-gray-500">Live queue · voice call · auto-refresh every 12s</p>
+        <div>
+          <h1 className="text-3xl font-bold" style={{ color: '#0747a3' }}>Token</h1>
+          <p className="text-sm text-gray-500">1. Booking · 2. Screen · live queue · voice call · auto-refresh every 12s</p>
+          <div className="mt-3">
+            <TokenSectionNav />
           </div>
         </div>
         <div className="flex items-center gap-2">

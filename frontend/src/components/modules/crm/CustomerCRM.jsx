@@ -414,7 +414,7 @@ const CustomerCRM = () => {
               <StickyNote className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">In pipeline</p>
+              <p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Open queries</p>
               <p className="text-lg font-bold">{stats.active}</p>
             </div>
           </CardContent>

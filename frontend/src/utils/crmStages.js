@@ -25,3 +25,18 @@ export function resolveCrmStages(settingsCrm) {
     }))
     .filter((s) => s.key);
 }
+
+export function isClosedCrmStage(stage) {
+  const key = normalizeStageKey(stage);
+  return key === 'won' || key === 'lost' || key === 'closed';
+}
+
+/** Open CRM queries — in the pipeline, not won/lost. */
+export function isOpenCrmQuery(customer) {
+  if (!customer || customer.inCrm !== true) return false;
+  return !isClosedCrmStage(customer.stage);
+}
+
+export function countOpenCrmQueries(customers = []) {
+  return (Array.isArray(customers) ? customers : []).filter(isOpenCrmQuery).length;
+}
