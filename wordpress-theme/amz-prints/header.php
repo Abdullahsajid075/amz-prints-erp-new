@@ -17,7 +17,6 @@
 
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="amz-progress" id="amz-progress" aria-hidden="true"></div>
-<div class="amz-cursor" id="amz-cursor" aria-hidden="true"></div>
 
 <header class="site-header" id="site-header">
 	<div class="site-header__inner">

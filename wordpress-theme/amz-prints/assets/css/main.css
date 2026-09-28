@@ -218,7 +218,7 @@ p { margin: 0 0 1em; }
   width: var(--amz-progress, 0%);
   background: linear-gradient(90deg, var(--amz-primary), var(--amz-accent), var(--amz-primary));
   background-size: 200% 100%;
-  animation: progressShimmer 2.5s linear infinite;
+  animation: none;
   box-shadow: 0 0 12px var(--amz-primary-glow);
   transition: width 0.12s linear;
 }
@@ -336,7 +336,6 @@ p { margin: 0 0 1em; }
   background: var(--amz-accent);
   color: #fff;
   box-shadow: var(--shadow-orange);
-  animation: dockBounce 3s var(--ease) infinite;
 }
 
 .amz-dock__btn--cart:hover {
@@ -976,7 +975,6 @@ body.nav-open .nav-toggle__bar:nth-child(3) { transform: translateY(-8px) rotate
   opacity: 0.2;
   filter: saturate(1.08) contrast(1.04);
   transform: scale(1.06);
-  animation: heroBgDrift 20s var(--ease) infinite alternate;
   mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.3) 35%, rgba(0,0,0,0.82) 100%);
   -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.3) 35%, rgba(0,0,0,0.82) 100%);
 }
@@ -994,7 +992,7 @@ body.nav-open .nav-toggle__bar:nth-child(3) { transform: translateY(-8px) rotate
   right: -10%;
   top: 6%;
   background: radial-gradient(circle at 40% 40%, rgba(255, 109, 0, 0.32), rgba(255, 109, 0, 0.05) 55%, transparent 75%);
-  animation: inkPulse 9s var(--ease) infinite alternate;
+  animation: none;
 }
 
 .hero__glow--b {
@@ -1003,7 +1001,7 @@ body.nav-open .nav-toggle__bar:nth-child(3) { transform: translateY(-8px) rotate
   left: -8%;
   bottom: -12%;
   background: radial-gradient(circle at 50% 40%, rgba(7, 71, 163, 0.22), transparent 72%);
-  animation: inkPulse 12s var(--ease) infinite alternate-reverse;
+  animation: none;
 }
 
 .hero__mesh {

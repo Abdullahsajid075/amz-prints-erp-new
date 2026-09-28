@@ -775,6 +775,106 @@ function amz_prints_retry_pending_orders() {
 add_action( 'init', 'amz_prints_retry_pending_orders', 30 );
 
 /**
+ * Push website orders that never reached ERP into the Orders list.
+ */
+function amz_prints_backfill_website_orders() {
+	if ( get_transient( 'amz_backfill_orders' ) || ! function_exists( 'amz_prints_erp_request' ) ) {
+		return;
+	}
+	set_transient( 'amz_backfill_orders', 1, 3 * MINUTE_IN_SECONDS );
+	$all = get_option( 'amz_prints_customer_orders', array() );
+	if ( ! is_array( $all ) || ! $all ) {
+		return;
+	}
+	$batch   = array();
+	$index   = array();
+	$changed = false;
+	foreach ( $all as $email => $orders ) {
+		if ( ! is_array( $orders ) ) {
+			continue;
+		}
+		foreach ( $orders as $i => $order ) {
+			if ( ! is_array( $order ) || ! empty( $order['erpSynced'] ) ) {
+				continue;
+			}
+			$order_id = (string) ( $order['orderId'] ?? '' );
+			if ( '' !== $order_id && ! preg_match( '/^WEB-/i', $order_id ) ) {
+				$all[ $email ][ $i ]['erpSynced'] = 1;
+				$changed = true;
+				continue;
+			}
+			$key = 'web-old-' . substr( md5( strtolower( (string) $email ) . '|' . $order_id . '|' . (string) ( $order['createdAt'] ?? $order['date'] ?? '' ) . '|' . (string) ( $order['totalAmount'] ?? '' ) ), 0, 16 );
+			if ( '' === $order_id ) {
+				$order_id = 'WEB-OLD-' . strtoupper( substr( $key, -8 ) );
+				$all[ $email ][ $i ]['orderId'] = $order_id;
+				$changed = true;
+			}
+			$batch[] = array(
+				'websiteKey'     => $key,
+				'sourceId'       => $order_id,
+				'orderId'        => $order_id,
+				'customerEmail'  => (string) $email,
+				'customerName'   => (string) ( $order['name'] ?? '' ),
+				'customerPhone'  => (string) ( $order['phone'] ?? '' ),
+				'address'        => (string) ( $order['address'] ?? '' ),
+				'date'           => (string) ( $order['date'] ?? '' ),
+				'status'         => (string) ( $order['status'] ?? 'Order Received' ),
+				'totalAmount'    => $order['totalAmount'] ?? 0,
+				'balanceAmount'  => $order['balanceAmount'] ?? ( $order['totalAmount'] ?? 0 ),
+				'deliveryCharges'=> $order['deliveryCharges'] ?? 0,
+				'deliveryMethod' => (string) ( $order['deliveryMethod'] ?? '' ),
+				'paymentMethod'  => (string) ( $order['paymentMethod'] ?? '' ),
+				'paymentStatus'  => (string) ( $order['paymentStatus'] ?? '' ),
+				'trackingNumber' => (string) ( $order['trackingNumber'] ?? $order_id ),
+				'items'          => $order['products'] ?? ( $order['items'] ?? array() ),
+			);
+			$index[] = array( $email, $i, $key );
+			if ( count( $batch ) >= 20 ) {
+				break 2;
+			}
+		}
+	}
+	if ( ! $batch ) {
+		if ( $changed ) {
+			update_option( 'amz_prints_customer_orders', $all, false );
+		}
+		return;
+	}
+	$result = amz_prints_erp_request( 'POST', '/public/orders/backfill', array(
+		'portalKey' => function_exists( 'amz_prints_customer_portal_key' ) ? amz_prints_customer_portal_key() : '',
+		'orders'    => $batch,
+	) );
+	if ( is_wp_error( $result ) || empty( $result['imported'] ) || ! is_array( $result['imported'] ) ) {
+		if ( $changed ) {
+			update_option( 'amz_prints_customer_orders', $all, false );
+		}
+		return;
+	}
+	$done = array();
+	foreach ( $result['imported'] as $row ) {
+		if ( ! is_array( $row ) || empty( $row['orderId'] ) || ! empty( $row['error'] ) ) {
+			continue;
+		}
+		$done[ (string) ( $row['sourceId'] ?? '' ) ] = (string) $row['orderId'];
+	}
+	foreach ( $index as $slot ) {
+		list( $email, $i, $key ) = $slot;
+		$source = (string) ( $all[ $email ][ $i ]['orderId'] ?? '' );
+		if ( '' === $source || ! isset( $done[ $source ] ) ) {
+			continue;
+		}
+		$all[ $email ][ $i ]['orderId']   = $done[ $source ];
+		$all[ $email ][ $i ]['erpSynced'] = 1;
+		$all[ $email ][ $i ]['websiteKey'] = $key;
+		$changed = true;
+	}
+	if ( $changed ) {
+		update_option( 'amz_prints_customer_orders', $all, false );
+	}
+}
+add_action( 'init', 'amz_prints_backfill_website_orders', 40 );
+
+/**
  * AJAX: place order (requires customer login)
  */
 function amz_prints_ajax_place_order() {
@@ -1104,6 +1204,7 @@ function amz_prints_ajax_place_order() {
 		'address'         => $address,
 		'fingerprint'     => $fingerprint,
 		'websiteKey'      => $website_key,
+		'erpSynced'       => 1,
 		'createdAt'       => gmdate( 'c' ),
 	);
 

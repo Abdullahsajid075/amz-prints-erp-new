@@ -52,10 +52,10 @@ $slide_copy = array(
 );
 $slide_ids = array( 'amz_hero_image', 'amz_hero_image_2', 'amz_hero_image_3', 'amz_hero_support_1' );
 $fallbacks = array(
-	'https://images.unsplash.com/photo-1562564055-71e051d33c19?auto=format&fit=crop&w=1200&q=80',
-	'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1200&q=80',
-	'https://images.unsplash.com/photo-1626785774573-4b7993143459?auto=format&fit=crop&w=1200&q=80',
-	'https://images.unsplash.com/photo-1586075010923-2dd4570fb338?auto=format&fit=crop&w=1200&q=80',
+	'https://images.unsplash.com/photo-1562564055-71e051d33c19?auto=format&fit=crop&w=960&q=60',
+	'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=960&q=60',
+	'https://images.unsplash.com/photo-1626785774573-4b7993143459?auto=format&fit=crop&w=960&q=60',
+	'https://images.unsplash.com/photo-1586075010923-2dd4570fb338?auto=format&fit=crop&w=960&q=60',
 );
 $hero_slides = array();
 foreach ( $slide_copy as $i => $copy ) {

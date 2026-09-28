@@ -97,8 +97,8 @@ const OrdersList = () => {
   }), [orders, sort]);
 
   const { inProgress, completed } = useMemo(() => {
-    const ip = sortedOrders.filter(o => IN_PROGRESS_STATUSES.includes(o.status));
     const co = sortedOrders.filter(o => COMPLETED_STATUSES.includes(o.status));
+    const ip = sortedOrders.filter(o => !COMPLETED_STATUSES.includes(o.status) && (IN_PROGRESS_STATUSES.includes(o.status) || o.status));
     return { inProgress: ip, completed: co };
   }, [sortedOrders]);
 

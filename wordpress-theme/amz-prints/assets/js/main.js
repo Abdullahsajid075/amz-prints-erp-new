@@ -576,31 +576,6 @@
   window.addEventListener('scroll', updateProgress, { passive: true });
   updateProgress();
 
-  /* Soft cursor orb */
-  var cursor = document.getElementById('amz-cursor');
-  if (cursor && finePointer && !reduceMotion) {
-    var cx = 0, cy = 0, tx = 0, ty = 0, raf = 0;
-    function loopCursor() {
-      cx += (tx - cx) * 0.18;
-      cy += (ty - cy) * 0.18;
-      cursor.style.left = cx + 'px';
-      cursor.style.top = cy + 'px';
-      raf = requestAnimationFrame(loopCursor);
-    }
-    window.addEventListener('pointermove', function (e) {
-      tx = e.clientX;
-      ty = e.clientY;
-      cursor.classList.add('is-on');
-    }, { passive: true });
-    document.addEventListener('pointerover', function (e) {
-      var hot = e.target.closest('a, button, [data-open-product], .shop-card, .mega-card, .btn');
-      cursor.classList.toggle('is-hot', !!hot);
-    });
-    raf = requestAnimationFrame(loopCursor);
-  } else if (cursor) {
-    cursor.remove();
-  }
-
   /* Magnetic buttons */
   if (finePointer && !reduceMotion) {
     document.querySelectorAll('.btn--magnetic').forEach(function (btn) {

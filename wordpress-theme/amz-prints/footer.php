@@ -81,7 +81,7 @@ $cart_n  = function_exists( 'amz_prints_cart_count' ) ? (int) amz_prints_cart_co
 </aside>
 
 <?php get_template_part( 'template-parts/float', 'tools' ); ?>
-<?php get_template_part( 'template-parts/promo', 'popup' ); ?>
+<?php if ( is_front_page() ) { get_template_part( 'template-parts/promo', 'popup' ); } ?>
 <?php get_template_part( 'template-parts/product', 'modal' ); ?>
 
 <?php wp_footer(); ?>

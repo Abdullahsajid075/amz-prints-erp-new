@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const { supabase } = require('../db');
 const { handleLogin, validateToken, sanitizeUser } = require('../lib/auth');
 const { id, today, nowTime, num, truthy, send, sendError } = require('../lib/util');
@@ -337,7 +338,7 @@ async function dispatch(req, res) {
       }
 
       // Customer portal (website account). POST /public/orders is the same checkout.
-      if (path.startsWith('/public/customer/') || (method === 'POST' && path === '/public/orders')) {
+      if (path.startsWith('/public/customer/') || (method === 'POST' && (path === '/public/orders' || path === '/public/orders/backfill'))) {
         const issueCustomerToken = (cust) => Buffer.from(JSON.stringify({
           type: 'customer',
           id: String(cust.id || ''),
@@ -921,6 +922,151 @@ async function dispatch(req, res) {
               trackCode: api.trackingNumber || api.orderId || api.id,
               companyNote: 'For questions, contact Amazon Printing Services with your Order ID.',
             });
+          }
+
+          if (method === 'POST' && path === '/public/orders/backfill') {
+            assertPortalKey(body.portalKey);
+            const incoming = Array.isArray(body.orders) ? body.orders.slice(0, 25) : [];
+            if (!incoming.length) return sendError(res, 'No website orders to import', 400);
+            const imported = [];
+            for (const entry of incoming) {
+              const email = String(entry.customerEmail || entry.email || '').trim().toLowerCase();
+              const sourceId = String(entry.orderId || entry.sourceId || '').trim();
+              const websiteKey = /^web-[a-z0-9-]{8,48}$/i.test(String(entry.websiteKey || ''))
+                ? String(entry.websiteKey).trim()
+                : (`web-old-${crypto.createHash('md5').update(`${email}|${sourceId}|${entry.date || ''}|${entry.totalAmount || ''}`).digest('hex').slice(0, 16)}`);
+              let prior = null;
+              if (/^[A-Za-z0-9-]{4,40}$/.test(sourceId)) {
+                const { data: byId } = await supabase.from('orders').select('*').eq('order_id', sourceId).limit(1);
+                prior = (byId || [])[0] || null;
+              }
+              if (!prior) {
+                const { data: byKey } = await supabase.from('orders').select('*').ilike('remarks', `%${websiteKey}%`).limit(4);
+                prior = (byKey || []).find((row) => String(row.remarks || '').includes(websiteKey)) || null;
+              }
+              if (prior) {
+                const api = mapOrder(prior);
+                imported.push({ sourceId, orderId: api.orderId, duplicate: true });
+                continue;
+              }
+              let customer = null;
+              if (email.includes('@')) {
+                const { data: existingRows } = await supabase.from('customers').select('*').ilike('email', email).limit(5);
+                customer = (existingRows || []).find((c) => String(c.email || '').trim().toLowerCase() === email) || null;
+              }
+                if (!customer && String(entry.customerPhone || entry.phone || '').trim()) {
+                  customer = await upsertCustomerFromOrder({
+                    customerName: entry.customerName || entry.name,
+                    customerPhone: entry.customerPhone || entry.phone,
+                    customerEmail: email,
+                    customerAddress: entry.address || entry.deliveryAddress,
+                  });
+                }
+                if (!customer) {
+                  const created = {
+                    id: id('cust'),
+                    name: String(entry.customerName || entry.name || '').trim() || (email ? email.split('@')[0] : 'Website customer'),
+                    phone: String(entry.customerPhone || entry.phone || '').trim(),
+                    email,
+                    address: String(entry.address || entry.deliveryAddress || '').trim(),
+                    in_crm: true,
+                    notify_whatsapp: true,
+                    notify_email: true,
+                  };
+                  let { error: custErr } = await supabase.from('customers').insert(created);
+                  if (custErr) {
+                    const slim = { ...created, in_crm: false };
+                    const retry = await supabase.from('customers').insert(slim);
+                    custErr = retry.error;
+                    if (!custErr) customer = slim;
+                  } else {
+                    customer = created;
+                  }
+                  if (custErr || !customer) {
+                    imported.push({ sourceId, error: (custErr && custErr.message) || 'Could not create customer' });
+                    continue;
+                  }
+                }
+              const rawItems = Array.isArray(entry.items) ? entry.items : (Array.isArray(entry.products) ? entry.products : []);
+              const lineItems = [];
+              rawItems.forEach((item) => {
+                if (typeof item === 'string') {
+                  const name = item.trim();
+                  if (name) lineItems.push({ productId: '', name, quantity: 1, rate: 0, size: '', material: '' });
+                  return;
+                }
+                if (!item || typeof item !== 'object') return;
+                const name = String(item.name || '').trim();
+                if (!name) return;
+                lineItems.push({
+                  productId: String(item.productId || item.id || ''),
+                  name,
+                  quantity: Math.max(1, Math.floor(Number(item.quantity) || 1)),
+                  rate: Math.max(0, Number(item.rate != null ? item.rate : item.price) || 0),
+                  size: String(item.size || ''),
+                  material: String(item.material || ''),
+                });
+              });
+              const totalAmount = Math.max(0, Number(entry.totalAmount) || 0);
+              if (!lineItems.length) {
+                lineItems.push({ productId: '', name: 'Website order', quantity: 1, rate: totalAmount, size: '', material: '' });
+              }
+              const status = String(entry.status || '').trim() || 'Order Received';
+              const paymentMethod = String(entry.paymentMethod || '').trim() || 'Cash on Delivery';
+              const paymentStatus = String(entry.paymentStatus || '').trim() || 'Pending Verification';
+              const orderId = /^[A-Za-z0-9-]{4,40}$/.test(sourceId) ? sourceId : await nextOrderId('WEB');
+              const remarks = [
+                'Website order',
+                `Website key: ${websiteKey}`,
+                'Imported from the customer website account',
+                entry.deliveryMethod ? `Delivery: ${entry.deliveryMethod}` : '',
+                entry.deliveryCharges != null ? `Delivery charges: ${entry.deliveryCharges}` : '',
+              ].filter(Boolean).join(' · ');
+              const nowStamp = `${entry.date || today()} ${nowTime()}`;
+              const row = orderFromBody({
+                customerId: customer.id,
+                customerName: String(entry.customerName || entry.name || customer.name || '').trim(),
+                customerPhone: String(entry.customerPhone || entry.phone || customer.phone || '').trim(),
+                customerEmail: email || customer.email || '',
+                customerAddress: String(entry.address || entry.deliveryAddress || customer.address || '').trim(),
+                deliveryAddress: String(entry.address || entry.deliveryAddress || '').trim(),
+                products: lineItems,
+                totalAmount,
+                advancePayment: 0,
+                balanceAmount: entry.balanceAmount != null ? Number(entry.balanceAmount) : totalAmount,
+                status,
+                docType: 'Order',
+                paymentMethod,
+                paymentStatus,
+                orderSource: 'Website',
+                subtotal: entry.subtotal != null ? Number(entry.subtotal) : totalAmount,
+                discountAmount: Number(entry.discount || entry.discountAmount || 0),
+                deliveryCharges: Number(entry.deliveryCharges || 0),
+                remarks,
+                date: String(entry.date || today()),
+                trackingNumber: String(entry.trackingNumber || sourceId || orderId),
+                statusHistory: [{ status, at: nowStamp, note: 'Imported from the customer website account' }],
+                orderId,
+              });
+              let { error: orderErr } = await supabase.from('orders').insert(row);
+              if (orderErr) {
+                const fallback = { ...row };
+                delete fallback.payment_status;
+                delete fallback.payment_history;
+                delete fallback.order_source;
+                delete fallback.subtotal;
+                delete fallback.discount_amount;
+                delete fallback.delivery_charges;
+                const retry = await supabase.from('orders').insert(fallback);
+                orderErr = retry.error;
+              }
+              if (orderErr) {
+                imported.push({ sourceId, error: orderErr.message || 'Could not create order' });
+                continue;
+              }
+              imported.push({ sourceId, orderId, duplicate: false });
+            }
+            return send(res, { ok: true, imported });
           }
 
           if (method === 'POST' && (path === '/public/customer/order' || path === '/public/orders')) {
