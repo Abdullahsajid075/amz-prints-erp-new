@@ -344,7 +344,7 @@ const OrdersList = () => {
 
   const openPayment = (order) => {
     if (!order?.invoiceId) {
-      toast.error('Pehle invoice create karein — advance / payment invoice par record hogi');
+      toast.error('Create the invoice first — advance and payments are recorded on the invoice');
       return;
     }
     const balance = Math.max(0, orderDisplayTotal(order) - Number(order.advancePayment || 0));
@@ -444,7 +444,7 @@ const OrdersList = () => {
         { name: full.customerName, phone: full.customerPhone, customerCode: full.customerCode },
         { outstanding, orderId: full.orderId || full.id },
       );
-      if (result?.ok) toast.message('WhatsApp opened — Urdu balance reminder (tap Send)');
+      if (result?.ok) toast.message('WhatsApp opened — remaining balance reminder (tap Send)');
       else toast.error('Could not open WhatsApp');
     } catch (err) {
       console.error(err);
@@ -651,7 +651,7 @@ const OrdersList = () => {
       const res = await invoicesAPI.getAll();
       const open = openInvoicesForCustomer(res.data || [], order);
       if (!open.length) {
-        toast.message('Is customer ki koi open invoice nahi — naya invoice ban raha hai');
+        toast.message('No open invoice for this customer — creating a new invoice');
         await handleGenerateInvoice(order);
         return;
       }
@@ -819,8 +819,8 @@ const OrdersList = () => {
               {hasAdvanceReceived(order) ? 'Advance paid' : 'Advance'}
             </Button>
             {orderIsDeliveredWithBalance(order) && (
-              <Button type="button" size="sm" variant="outline" className="flex-1 min-w-[30%] h-7 text-[10px] px-1.5 text-green-800 border-green-200/80 bg-white/40 hover:bg-green-50" title="WhatsApp: Urdu remaining balance reminder" onClick={() => handleUrduBalanceRequest(order)} data-testid={`balance-urdu-${order.id}`}>
-                <WhatsAppIcon className="h-3 w-3 mr-1 shrink-0" />باقی رقم
+              <Button type="button" size="sm" variant="outline" className="flex-1 min-w-[30%] h-7 text-[10px] px-1.5 text-green-800 border-green-200/80 bg-white/40 hover:bg-green-50" title="WhatsApp: remaining balance reminder" onClick={() => handleUrduBalanceRequest(order)} data-testid={`balance-urdu-${order.id}`}>
+                <WhatsAppIcon className="h-3 w-3 mr-1 shrink-0" />Balance due
               </Button>
             )}
           </div>
@@ -1152,9 +1152,9 @@ const OrdersList = () => {
                     variant="outline"
                     className="text-green-800 border-green-200"
                     onClick={() => handleUrduBalanceRequest(viewOrder)}
-                    title="Urdu WhatsApp — remaining balance"
+                    title="WhatsApp — remaining balance"
                   >
-                    <WhatsAppIcon className="h-4 w-4 mr-1" />باقی رقم (WhatsApp)
+                    <WhatsAppIcon className="h-4 w-4 mr-1" />Balance due (WhatsApp)
                   </Button>
                 )}
                 <Button variant="outline" className="text-green-700" onClick={() => handleWhatsApp(viewOrder)}><WhatsAppIcon className="h-4 w-4 mr-1" />WhatsApp</Button>

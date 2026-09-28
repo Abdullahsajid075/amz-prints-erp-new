@@ -165,7 +165,7 @@ const POSStatement = () => {
             <div>
               <p className="text-[11px] uppercase tracking-[0.22em] font-bold text-amber-200/80">Counter register</p>
               <h1 className="text-3xl font-black">POS Statement</h1>
-              <p className="text-white/70 mt-1">Har POS sale — cashier name, customer, items, amount</p>
+              <p className="text-white/70 mt-1">Every POS sale — cashier, customer, items, amount</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">

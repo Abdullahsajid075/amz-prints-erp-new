@@ -325,11 +325,11 @@ const OrderForm = () => {
     e.preventDefault();
     if (!requireCustomer(formData)) return;
     if (!catalog.length) {
-      toast.error('Pehle catalog me product add karein');
+      toast.error('Add a product to the catalog first');
       return;
     }
     if (!formData.products.every(lineHasCatalogProduct)) {
-      toast.error('Har item pe catalog se product select karein (optional name allowed nahi)');
+      toast.error('Select a catalog product on every line (typed names are not allowed)');
       return;
     }
     if (isEdit && !orderId) {
@@ -384,7 +384,7 @@ const OrderForm = () => {
       });
       const shortLines = cleanProducts.filter((p) => (Number(p.backorder) || 0) > 0);
       if (shortLines.length) {
-        toast.message(`${shortLines.map((p) => p.name).join(', ')} stock short — order book ho jayega. Deliver tabhi hoga jab purchase receive ho. Acknowledgments → Need to purchase.`);
+        toast.message(`${shortLines.map((p) => p.name).join(', ')} is short on stock — the order will still be booked. Delivery waits until the purchase is received. Acknowledgments → Need to purchase.`);
       }
 
       const totalAmount = cleanProducts.reduce((t, p) => t + (p.quantity * p.rate), 0);
@@ -725,7 +725,7 @@ const OrderForm = () => {
           <CardContent className="space-y-3 pt-0">
             {!catalog.length && (
               <div className="rounded-xl border border-dashed border-orange-300 bg-orange-50/60 p-4 text-center space-y-2">
-                <p className="text-sm text-gray-700">Catalog khali hai — pehle product add karein, phir order book karein.</p>
+                <p className="text-sm text-gray-700">The catalog is empty — add a product first, then book the order.</p>
                 <Button type="button" size="sm" style={{ backgroundColor: accent }} className="text-white" onClick={goAddProduct}>
                   <PackagePlus className="h-4 w-4 mr-1.5" />
                   Add New Product
@@ -831,7 +831,7 @@ const OrderForm = () => {
                       );
                     })()}
                     {!lineHasCatalogProduct(product) && (
-                      <p className="text-[11px] text-red-600 mt-1">Product select karna lazmi hai</p>
+                      <p className="text-[11px] text-red-600 mt-1">Product selection is required</p>
                     )}
                   </div>
                   <div>
@@ -919,7 +919,7 @@ const OrderForm = () => {
               </div>
             </div>
             <p className="text-xs text-gray-500">
-              Order par advance nahi likha jata. Pehle invoice banao — payment usi open invoice par record hogi.
+              Advances are not written on the order. Create the invoice first — payment is recorded on that open invoice.
             </p>
           </CardContent>
         </Card>

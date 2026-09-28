@@ -528,7 +528,7 @@ const InvoiceForm = () => {
     e.preventDefault();
     if (!requireCustomer(formData)) return;
     if (!formData.items.every((line) => lineHasCatalogProduct(line) || String(line.name || '').trim())) {
-      toast.error('Har line pe product name ya catalog select lazmi hai');
+      toast.error('Every line needs a product name or catalog selection');
       return;
     }
     if (isEdit && !invoiceId) {
@@ -922,7 +922,7 @@ const InvoiceForm = () => {
                     </SelectContent>
                   </Select>
                   {!lineHasCatalogProduct(it) && !String(it.name || '').trim() && (
-                    <p className="text-[11px] text-red-600 mt-1">Product select lazmi hai</p>
+                    <p className="text-[11px] text-red-600 mt-1">Product selection is required</p>
                   )}
                   {!lineHasCatalogProduct(it) && String(it.name || '').trim() && (
                     <p className="text-[11px] text-gray-500 mt-1">{it.name}</p>
