@@ -62,7 +62,7 @@ $cart = function_exists( 'amz_prints_cart_summary' ) ? amz_prints_cart_summary()
 				<dl class="commerce-totals" data-cart-totals>
 					<div><dt><?php esc_html_e( 'Subtotal', 'amz-prints' ); ?></dt><dd data-total="subtotal"><?php echo esc_html( amz_prints_money( $cart['subtotal'] ?? 0 ) ); ?></dd></div>
 					<div><dt><?php esc_html_e( 'Discount', 'amz-prints' ); ?></dt><dd data-total="discount"><?php echo esc_html( amz_prints_money( $cart['discount'] ?? 0 ) ); ?></dd></div>
-					<div><dt><?php esc_html_e( 'Delivery', 'amz-prints' ); ?></dt><dd data-total="delivery"><?php echo esc_html( amz_prints_money( $cart['deliveryCharges'] ?? 0 ) ); ?></dd></div>
+					<div><dt><?php esc_html_e( 'Delivery', 'amz-prints' ); ?></dt><dd data-total="delivery"><?php esc_html_e( 'Chosen at checkout', 'amz-prints' ); ?></dd></div>
 					<div class="is-grand"><dt><?php esc_html_e( 'Total', 'amz-prints' ); ?></dt><dd data-total="total"><?php echo esc_html( amz_prints_money( $cart['total'] ?? 0 ) ); ?></dd></div>
 				</dl>
 				<?php if ( ! empty( $cart['items'] ) ) : ?>

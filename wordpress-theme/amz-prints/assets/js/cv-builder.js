@@ -530,42 +530,93 @@
       range.insertNode(el);
     }
   }
+  function selectedBlocks(host, range) {
+    var nodes = [];
+    function consider(el) {
+      if (!el || el === host || !host.contains(el)) return;
+      try {
+        if (!range.intersectsNode(el)) return;
+      } catch (err) {
+        return;
+      }
+      var tag = el.tagName;
+      if (tag === 'UL' || tag === 'OL') {
+        Array.prototype.forEach.call(el.children, function (child) {
+          if (child.tagName === 'LI') consider(child);
+        });
+        return;
+      }
+      if ((tag === 'DIV') && el.querySelector('p, div, ul, ol')) {
+        Array.prototype.forEach.call(el.children, consider);
+        return;
+      }
+      if (tag === 'P' || tag === 'DIV' || tag === 'LI' || tag === 'BLOCKQUOTE') nodes.push(el);
+    }
+    Array.prototype.forEach.call(host.children, consider);
+    if (!nodes.length) {
+      var block = ensureBlock(host, range);
+      if (block) nodes.push(block);
+    }
+    return nodes;
+  }
   function shiftIndent(host, dir) {
     var range = rangeInHost(host);
     if (!range) return;
-    var block = ensureBlock(host, range);
-    if (!block) return;
-    var cur = parseInt(block.style.marginLeft || '0', 10) || 0;
-    var next = Math.max(0, Math.min(160, cur + (dir * 24)));
-    block.style.marginLeft = next ? (next + 'px') : '';
+    selectedBlocks(host, range).forEach(function (block) {
+      var cur = parseInt(block.style.marginLeft || '0', 10) || 0;
+      var next = Math.max(0, Math.min(160, cur + (dir * 24)));
+      block.style.marginLeft = next ? (next + 'px') : '';
+    });
+  }
+  function listTypeOf(el) {
+    var list = el && el.tagName === 'LI' ? el.parentElement : null;
+    if (!list || (list.tagName !== 'UL' && list.tagName !== 'OL')) return '';
+    return String(list.style.listStyleType || '').toLowerCase();
+  }
+  function unwrapListItem(li) {
+    var list = li.parentNode;
+    var p = document.createElement('p');
+    p.innerHTML = li.innerHTML || '<br>';
+    if (li.style.textAlign) p.style.textAlign = li.style.textAlign;
+    if (li.style.marginLeft) p.style.marginLeft = li.style.marginLeft;
+    if (list && list.parentNode) list.parentNode.insertBefore(p, list);
+    li.remove();
+    if (list && !list.querySelector('li') && list.parentNode) list.remove();
   }
   function applyListStyle(host, style) {
     var range = rangeInHost(host);
     if (!range) return;
     var ordered = style === 'decimal' || style === 'lower-alpha' || style === 'upper-alpha' || style === 'lower-roman' || style === 'upper-roman';
-    var node = range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement;
-    var existing = node && node.closest ? node.closest('ul,ol') : null;
-    if (existing && host.contains(existing)) {
-      var replacement = document.createElement(ordered ? 'ol' : 'ul');
-      replacement.style.listStyleType = style;
-      while (existing.firstChild) replacement.appendChild(existing.firstChild);
-      existing.parentNode.replaceChild(replacement, existing);
+    var blocks = selectedBlocks(host, range);
+    if (!blocks.length) return;
+    var already = blocks.every(function (el) {
+      return el.tagName === 'LI' && listTypeOf(el) === style;
+    });
+    if (already) {
+      blocks.slice().forEach(unwrapListItem);
       return;
     }
-    var li = document.createElement('li');
+    var lis = blocks.map(function (el) {
+      if (el.tagName === 'LI') return el;
+      var li = document.createElement('li');
+      li.innerHTML = el.innerHTML || el.textContent || '<br>';
+      if (el.style && el.style.textAlign) li.style.textAlign = el.style.textAlign;
+      if (el.style && el.style.marginLeft) li.style.marginLeft = el.style.marginLeft;
+      el.parentNode.insertBefore(li, el);
+      el.remove();
+      return li;
+    });
     var list = document.createElement(ordered ? 'ol' : 'ul');
     list.style.listStyleType = style;
-    if (range.collapsed) {
-      var block = blockForRange(host, range);
-      if (!block) return;
-      li.innerHTML = block.innerHTML;
-      list.appendChild(li);
-      block.parentNode.replaceChild(list, block);
-      return;
-    }
-    li.appendChild(range.extractContents());
-    list.appendChild(li);
-    range.insertNode(list);
+    lis[0].parentNode.insertBefore(list, lis[0]);
+    lis.forEach(function (li) { list.appendChild(li); });
+  }
+  function applyAlign(host, align) {
+    var range = rangeInHost(host);
+    if (!range) return;
+    selectedBlocks(host, range).forEach(function (block) {
+      block.style.textAlign = align;
+    });
   }
   function applyTool(btn) {
     var host = richHost();
@@ -584,13 +635,7 @@
     else if (cmd === 'italic') wrapSelection(host, 'i');
     else if (cmd === 'underline') wrapSelection(host, 'u');
     else if (cmd === 'indent' || cmd === 'outdent') shiftIndent(host, cmd === 'indent' ? 1 : -1);
-    if (align) {
-      var live = rangeInHost(host);
-      if (live) {
-        var block = ensureBlock(host, live);
-        if (block) block.style.textAlign = align;
-      }
-    }
+    if (align) applyAlign(host, align);
     if (list) applyListStyle(host, list);
     val(host.getAttribute('data-path'), sanitizeRich(host.innerHTML));
   }
@@ -618,12 +663,21 @@
     if (t.getAttribute('data-color-picker') != null) {
       state.color = t.value;
       save();
-      renderForm();
       renderPreview();
+      editor.querySelectorAll('[data-color]').forEach(function (swatch) {
+        swatch.classList.toggle('is-active', swatch.getAttribute('data-color').toLowerCase() === String(state.color).toLowerCase());
+      });
     }
   });
   editor.addEventListener('change', function (e) {
     var t = e.target;
+    if (t.getAttribute('data-color-picker') != null) {
+      state.color = t.value;
+      save();
+      renderForm();
+      renderPreview();
+      return;
+    }
     if (t.getAttribute('data-enable')) {
       state.enabled[t.getAttribute('data-enable')] = t.checked;
       save();
@@ -1295,11 +1349,27 @@
             scale: 2,
             useCORS: true,
             backgroundColor: '#ffffff',
-            logging: false
+            logging: false,
+            onclone: function (doc) {
+              var style = doc.createElement('style');
+              style.textContent = '.cv-page,.cv-rail,.cv-main,.cv-sec,.cv-item-cv,.cv-rich{overflow:hidden !important;max-width:100% !important;}' +
+                '.cv-page p,.cv-page li,.cv-name,.cv-role,.cv-contact-line,.cv-chip{overflow-wrap:anywhere !important;word-break:break-word !important;max-width:100% !important;}' +
+                '.cv-page ul,.cv-page ol{list-style-position:inside !important;padding-left:0.35em !important;margin-left:0 !important;}' +
+                '.cv-main,.cv-rail{box-sizing:border-box !important;}';
+              doc.head.appendChild(style);
+            }
           }).then(function (canvas) {
             var img = canvas.toDataURL('image/jpeg', 0.92);
             if (idx > 0) pdf.addPage();
-            pdf.addImage(img, 'JPEG', 0, 0, 595.28, 841.89);
+            var pageW = 595.28;
+            var pageH = 841.89;
+            var canvasRatio = canvas.width / canvas.height;
+            var pageRatio = pageW / pageH;
+            var drawW = pageW;
+            var drawH = pageH;
+            if (canvasRatio > pageRatio) drawH = pageW / canvasRatio;
+            else drawW = pageH * canvasRatio;
+            pdf.addImage(img, 'JPEG', (pageW - drawW) / 2, (pageH - drawH) / 2, drawW, drawH);
           });
         });
       });

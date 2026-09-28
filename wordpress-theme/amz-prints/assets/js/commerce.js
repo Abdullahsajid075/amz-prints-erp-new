@@ -37,14 +37,14 @@
     var root = document.querySelector('[data-cart-totals]');
     if (!root || !summary) return;
     var map = {
-      subtotal: summary.subtotal,
-      discount: summary.discount,
-      delivery: summary.deliveryCharges,
-      total: summary.total
+      subtotal: money(summary.subtotal),
+      discount: money(summary.discount),
+      delivery: 'Chosen at checkout',
+      total: money(summary.total)
     };
     Object.keys(map).forEach(function (k) {
       var el = root.querySelector('[data-total="' + k + '"]');
-      if (el) el.textContent = money(map[k]);
+      if (el) el.textContent = map[k];
     });
   }
 
@@ -353,9 +353,16 @@
       var pid = line.getAttribute('data-product-id');
       var input = line.querySelector('[data-cart-qty-input]');
       if (e.target.closest('[data-cart-remove]')) {
-        cartUpdate(pid, 0, 'remove').then(function (res) {
-          if (!res || !res.success) throw new Error((res && res.data && res.data.message) || 'Could not remove item');
-          window.location.reload();
+        e.preventDefault();
+        cartUpdate(pid, 0, 'remove').then(function (data) {
+          var still = (data && data.items || []).some(function (item) {
+            return String(item.id) === String(pid);
+          });
+          if (still) throw new Error('Could not remove item');
+          line.remove();
+          if (!cartRoot.querySelector('.cart-line')) {
+            window.location.replace(window.location.pathname + '?updated=' + Date.now());
+          }
         }).catch(function (err) { alert(err.message || 'Could not remove item'); });
         return;
       }
@@ -405,7 +412,8 @@
       var goods = Math.max(0, subtotal - discount);
       var delivery = null;
       if (method === 'pickup') delivery = 0;
-      if (method === 'home' && zone === 'inside') delivery = 250;
+      if (method === 'home' && zone !== 'outside') delivery = 250;
+      if (method === 'home' && zone === 'outside') delivery = 0;
       var total = delivery == null ? goods : Math.round((goods + delivery) * 100) / 100;
       var advance = Math.round(total * 50) / 100;
       return { method: method, zone: zone, delivery: delivery, total: total, advance: advance, balance: Math.round((total - advance) * 100) / 100 };

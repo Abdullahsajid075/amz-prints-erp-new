@@ -215,16 +215,38 @@ function amz_prints_cart_raw() {
  *
  * @param array $lines Cart lines.
  */
+function amz_prints_cart_cookie_args( $expires ) {
+	$secure = is_ssl();
+	$proto  = isset( $_SERVER['HTTP_X_FORWARDED_PROTO'] ) ? strtolower( (string) $_SERVER['HTTP_X_FORWARDED_PROTO'] ) : '';
+	if ( 'https' === $proto ) {
+		$secure = true;
+	}
+	$paths = array( '/' );
+	if ( defined( 'COOKIEPATH' ) && COOKIEPATH ) {
+		$paths[] = COOKIEPATH;
+	}
+	if ( defined( 'SITECOOKIEPATH' ) && SITECOOKIEPATH ) {
+		$paths[] = SITECOOKIEPATH;
+	}
+	$args = array();
+	foreach ( array_unique( $paths ) as $path ) {
+		$args[] = array(
+			'expires'  => $expires,
+			'path'     => $path,
+			'secure'   => $secure,
+			'httponly' => false,
+			'samesite' => 'Lax',
+		);
+	}
+	return $args;
+}
+
 function amz_prints_cart_save( $lines ) {
 	$payload = wp_json_encode( array_values( $lines ) );
 	$expire  = time() + ( 14 * DAY_IN_SECONDS );
-	setcookie( AMZ_PRINTS_CART_COOKIE, $payload, array(
-		'expires'  => $expire,
-		'path'     => '/',
-		'secure'   => is_ssl(),
-		'httponly' => false,
-		'samesite' => 'Lax',
-	) );
+	foreach ( amz_prints_cart_cookie_args( $expire ) as $args ) {
+		setcookie( AMZ_PRINTS_CART_COOKIE, $payload, $args );
+	}
 	$_COOKIE[ AMZ_PRINTS_CART_COOKIE ] = $payload;
 }
 
@@ -232,13 +254,9 @@ function amz_prints_cart_save( $lines ) {
  * Clear cart.
  */
 function amz_prints_cart_clear() {
-	setcookie( AMZ_PRINTS_CART_COOKIE, '', array(
-		'expires'  => time() - HOUR_IN_SECONDS,
-		'path'     => '/',
-		'secure'   => is_ssl(),
-		'httponly' => false,
-		'samesite' => 'Lax',
-	) );
+	foreach ( amz_prints_cart_cookie_args( time() - HOUR_IN_SECONDS ) as $args ) {
+		setcookie( AMZ_PRINTS_CART_COOKIE, '', $args );
+	}
 	unset( $_COOKIE[ AMZ_PRINTS_CART_COOKIE ] );
 }
 
@@ -318,8 +336,9 @@ function amz_prints_cart_summary() {
 	}
 
 	$discount = amz_prints_cart_discount_amount( $subtotal );
-	$delivery = amz_prints_cart_delivery_charge( max( 0, $subtotal - $discount ) );
-	$total    = max( 0, $subtotal - $discount + $delivery );
+	// Delivery is chosen at checkout. Home delivery adds PKR 250 only after the customer selects it.
+	$delivery = 0;
+	$total    = max( 0, $subtotal - $discount );
 
 	return array(
 		'items'           => $items,
@@ -401,7 +420,7 @@ function amz_prints_ajax_cart_update() {
 	$next  = array();
 
 	foreach ( $lines as $line ) {
-		if ( $line['id'] === $product_id ) {
+		if ( (string) ( $line['id'] ?? '' ) === (string) $product_id ) {
 			$found = true;
 			if ( 'remove' === $action || $qty <= 0 ) {
 				continue;
@@ -652,7 +671,10 @@ function amz_prints_order_error_is_retryable( $result ) {
 	$data = $result->get_error_data();
 	$code = is_array( $data ) && isset( $data['status'] ) ? (int) $data['status'] : 0;
 	$msg  = $result->get_error_message();
-	if ( 404 === $code || false !== stripos( $msg, 'Not found' ) ) {
+	if ( false !== stripos( $msg, 'Product not found' ) || false !== stripos( $msg, 'Product unavailable' ) || false !== stripos( $msg, 'needs a quote' ) || false !== stripos( $msg, 'accept the' ) || false !== stripos( $msg, 'Select a payment' ) || false !== stripos( $msg, 'advance' ) || false !== stripos( $msg, 'delivery' ) ) {
+		return false;
+	}
+	if ( 404 === $code && ( 'Not found' === $msg || false !== stripos( $msg, 'Not found' ) ) ) {
 		return true;
 	}
 	if ( 401 === $code || false !== stripos( $msg, 'Login required' ) || false !== stripos( $msg, 'Please log in' ) ) {
@@ -1228,8 +1250,12 @@ function amz_prints_ajax_place_order() {
 		update_option( 'amz_prints_pending_orders', $pending, false );
 		amz_prints_notify_website_order( $notice, false );
 		delete_transient( $lock_key );
+		$detail = is_wp_error( $result ) ? $result->get_error_message() : '';
+		if ( $detail && ( false !== stripos( $detail, 'log in' ) || false !== stripos( $detail, 'login required' ) ) ) {
+			$detail = __( 'Please log out, log in again, and place the order once more.', 'amz-prints' );
+		}
 		wp_send_json_error( array(
-			'message' => __( 'Your order was not confirmed because it could not be recorded yet. Your cart is unchanged. Please try again in a moment.', 'amz-prints' ),
+			'message' => $detail ? $detail : __( 'Your order was not confirmed because it could not be recorded yet. Your cart is unchanged. Please try again in a moment.', 'amz-prints' ),
 		), 503 );
 	}
 

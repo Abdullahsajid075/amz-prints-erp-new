@@ -48,7 +48,7 @@ $checkout_token = function_exists( 'wp_generate_password' ) ? wp_generate_passwo
 						<a class="btn btn--primary" href="<?php echo esc_url( amz_prints_customer_login_url( amz_prints_checkout_url() ) ); ?>"><?php esc_html_e( 'Log in to continue', 'amz-prints' ); ?></a>
 					</div>
 				<?php else : ?>
-					<form class="checkout-form" id="amz-checkout-form">
+					<form class="checkout-form" id="amz-checkout-form" autocomplete="off">
 						<input type="hidden" name="checkout_token" value="<?php echo esc_attr( $checkout_token ); ?>">
 						<div class="checkout-block">
 							<h2><?php esc_html_e( 'Customer', 'amz-prints' ); ?></h2>

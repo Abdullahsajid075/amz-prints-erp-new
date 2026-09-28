@@ -340,6 +340,7 @@ async function dispatch(req, res) {
       // Customer portal (website account). POST /public/orders is the same checkout.
       if (path.startsWith('/public/customer/') || (method === 'POST' && (path === '/public/orders' || path === '/public/orders/backfill'))) {
         const issueCustomerToken = (cust) => Buffer.from(JSON.stringify({
+          typ: 'customer',
           type: 'customer',
           id: String(cust.id || ''),
           email: String(cust.email || '').trim().toLowerCase(),
@@ -350,11 +351,12 @@ async function dispatch(req, res) {
           if (!raw) return null;
           try {
             const payload = JSON.parse(Buffer.from(String(raw), 'base64url').toString('utf8'));
-            if (payload.type !== 'customer') return null;
+            const kind = payload.typ || payload.type;
+            if (kind !== 'customer') return null;
             if (payload.exp && Date.now() > payload.exp) return null;
             const { data } = await supabase.from('customers').select('*').eq('id', payload.id).maybeSingle();
             if (!data) return null;
-            if (String(data.email || '').trim().toLowerCase() !== String(payload.email || '').toLowerCase()) return null;
+            if (payload.email && String(data.email || '').trim().toLowerCase() !== String(payload.email || '').toLowerCase()) return null;
             return data;
           } catch {
             return null;

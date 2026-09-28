@@ -321,7 +321,7 @@
 .cv-page .cv-rich [style*="text-align:justify"],
 .cv-page .cv-rich [style*="text-align: justify"] { text-align: justify !important; }
 .cv-page .cv-rich ul,
-.cv-page .cv-rich ol { list-style-position: outside; }
+.cv-page .cv-rich ol { list-style-position: inside; padding-left: 0.15em; margin-left: 0; }
 .cv-page .cv-rich [style*="list-style-type:disc"],
 .cv-page .cv-rich [style*="list-style-type: disc"] { list-style-type: disc !important; }
 .cv-page .cv-rich [style*="list-style-type:circle"],
