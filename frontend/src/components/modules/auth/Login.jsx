@@ -8,6 +8,8 @@ import { Lock, Mail, AlertCircle, Package } from 'lucide-react';
 import { authAPI } from '@/services/api';
 import { tokenStorage } from '@/services/tokenStorage';
 import { clearGasCache } from '@/services/gasClient';
+import { markHomeToOpenAfterLogin } from '@/context/HomeLauncherContext';
+import { ERP_LEGAL_NAME } from '@/utils/erpApps';
 
 const BRAND_CACHE_KEY = 'amz_erp_brand_v2';
 
@@ -59,6 +61,7 @@ const Login = () => {
       tokenStorage.setToken(token);
       tokenStorage.setUser(user || null);
       clearGasCache();
+      markHomeToOpenAfterLogin();
       window.location.assign('/dashboard');
     } catch (error) {
       setLoginError(
@@ -76,9 +79,9 @@ const Login = () => {
         className="relative hidden lg:flex flex-col justify-between p-10 xl:p-14 text-white overflow-hidden"
         style={{
           background: `
-            radial-gradient(800px 480px at 10% 20%, ${accent}55, transparent 55%),
-            radial-gradient(600px 400px at 90% 80%, rgba(255,255,255,0.08), transparent 50%),
-            linear-gradient(155deg, #0747a3 0%, #05357c 55%, #042a63 100%)
+            radial-gradient(800px 480px at 10% 20%, rgba(255,255,255,0.22), transparent 55%),
+            radial-gradient(600px 400px at 90% 80%, rgba(7,71,163,0.45), transparent 50%),
+            linear-gradient(165deg, #ff8a1a 0%, #ff6d00 42%, #e85d00 78%, #0747a3 140%)
           `,
         }}
       >
@@ -102,8 +105,8 @@ const Login = () => {
         </div>
 
         <div className="relative z-10 max-w-lg">
-          <p className="text-[11px] uppercase tracking-[0.2em] font-bold text-white/60 mb-3">
-            Press Ops
+          <p className="text-[11px] uppercase tracking-[0.2em] font-bold text-white/70 mb-3">
+            {ERP_LEGAL_NAME}
           </p>
           <h1 className="font-display text-4xl xl:text-5xl font-bold leading-[1.05] tracking-tight">
             {company.name || 'AMZ Prints'}
@@ -145,7 +148,7 @@ const Login = () => {
               <p className="font-display font-bold text-ink text-lg leading-tight">
                 {company.name || 'AMZ Prints'}
               </p>
-              <p className="text-xs text-slate-500">Press Ops</p>
+              <p className="text-xs text-slate-500">{ERP_LEGAL_NAME}</p>
             </div>
           </div>
 

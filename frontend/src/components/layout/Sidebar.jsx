@@ -3,7 +3,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, ShoppingCart, Users, Warehouse, FileText,
-  CreditCard, BarChart3, Settings, X, Ticket,
+  CreditCard, BarChart3, Settings, X, Ticket, Home,
   Store, Quote, Calculator, Kanban, ShoppingBag, UsersRound, ChevronDown,
   ListTodo, Megaphone, ClipboardCheck,
 } from 'lucide-react';
@@ -15,6 +15,8 @@ import { ordersAPI, productsAPI, purchasesAPI, customersAPI } from '@/services/a
 import { isOpenOrder } from '@/utils/constants';
 import { buildPurchaseNeeds, buildLowQuantityAlerts } from '@/utils/purchaseNeeds';
 import { countOpenCrmQueries } from '@/utils/crmStages';
+import { useHomeLauncher } from '@/context/HomeLauncherContext';
+import { ERP_LEGAL_NAME } from '@/utils/erpApps';
 
 const menuGroups = [
   {
@@ -128,6 +130,7 @@ const pathMatches = (base, pathname) => {
 const Sidebar = ({ isOpen, closeSidebar }) => {
   const { company, primary } = useBrand();
   const { canAccessModule } = useAuth();
+  const { openHome } = useHomeLauncher();
   const location = useLocation();
   const navigate = useNavigate();
   const [openGroup, setOpenGroup] = useState('');
@@ -277,8 +280,8 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
                 <p className="font-display font-bold text-sm text-white truncate">
                   {company.name || 'AMZ Prints'}
                 </p>
-                <p className="text-[10px] text-sidebar-muted font-medium tracking-wide uppercase">
-                  Press Ops
+                <p className="text-[10px] text-sidebar-muted font-medium tracking-wide leading-snug">
+                  {ERP_LEGAL_NAME}
                 </p>
               </div>
             </div>
@@ -294,6 +297,19 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
 
           <ScrollArea className="flex-1 px-2.5 py-3">
             <nav className="space-y-4">
+              <button
+                type="button"
+                data-testid="sidebar-open-home"
+                onClick={() => {
+                  openHome();
+                  closeSidebar();
+                }}
+                className="erp-nav-link w-full text-left text-white shadow-md"
+                style={{ backgroundColor: accent }}
+              >
+                <Home className="h-4 w-4 shrink-0 text-white" />
+                <span className="flex-1 truncate">Home</span>
+              </button>
               {visibleGroups.map((group) => (
                 <div key={group.id}>
                   {group.label && (
@@ -445,8 +461,8 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
           </ScrollArea>
 
           <div className="px-3 py-3 border-t border-sidebar-border shrink-0">
-            <p className="text-[10px] text-sidebar-muted text-center tracking-wide">
-              AMZ Press Ops
+            <p className="text-[10px] text-sidebar-muted text-center tracking-wide leading-snug">
+              {ERP_LEGAL_NAME}
             </p>
           </div>
         </div>

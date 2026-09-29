@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
 import ModuleGuard from '@/components/ModuleGuard';
+import ErpHomeLauncher from './ErpHomeLauncher';
 
 class PageErrorBoundary extends Component {
   constructor(props) {
@@ -53,6 +54,7 @@ const MainLayout = () => {
 
   return (
     <div className="min-h-screen erp-shell">
+      <ErpHomeLauncher />
       <Navbar toggleSidebar={toggleSidebar} />
       <Sidebar isOpen={sidebarOpen} closeSidebar={closeSidebar} />
 

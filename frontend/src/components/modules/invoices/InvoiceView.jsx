@@ -9,6 +9,7 @@ import { lookupCustomerPhone, firstPhone } from '@/utils/notifyPhone';
 import { formatCurrency, formatDate, invoiceOrderIds, invoiceLineItems } from '@/utils/helpers';
 import { documentFileName, printIsolatedNode } from '@/utils/printHelpers';
 import { useBrand } from '@/context/BrandContext';
+import { ERP_LEGAL_NAME } from '@/utils/erpApps';
 import { ArrowLeft, Printer, Copy, Download, CheckCircle2, Edit } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
@@ -22,6 +23,9 @@ const InvoiceView = ({ isPublic = false }) => {
 
   const template = brand?.invoice?.template || 'bold';
   const accent = primary || '#ff6d00';
+  const brandBlue = '#0747a3';
+  const orangeBlue = `linear-gradient(90deg, ${accent} 0%, ${brandBlue} 100%)`;
+  const blueOrange = `linear-gradient(90deg, ${brandBlue} 0%, ${accent} 100%)`;
   const showQR = brand?.invoice?.showQR !== false;
   const showStamp = brand?.invoice?.showStamp !== false;
   const showSignature = brand?.invoice?.showSignature !== false;
@@ -166,9 +170,11 @@ const InvoiceView = ({ isPublic = false }) => {
   const printFitClass = fitOnePage ? ' invoice-fit-one-page' : ' invoice-multi-page';
 
   const headerPad = template === 'minimal' ? 'p-6' : 'p-8';
-  const tableHeadBg = template === 'bold' ? accent : template === 'minimal' ? '#fff' : '#0747a3';
-  const tableHeadColor = template === 'minimal' ? '#0747a3' : '#fff';
+  const tableHeadStyle = template === 'minimal'
+    ? { backgroundColor: '#fff', color: brandBlue }
+    : { background: blueOrange, color: '#fff' };
   const tableHeadClass = template === 'minimal' ? 'border-b-2 border-gray-800' : '';
+  const brandTitle = company.name || ERP_LEGAL_NAME;
 
   const LogoBlock = () => (
     company?.logo ? (
@@ -247,16 +253,21 @@ const InvoiceView = ({ isPublic = false }) => {
         style={template === 'bold' ? { borderColor: accent } : undefined}
       >
         {template !== 'minimal' && (
-          <div className="h-1.5 inv-accent-bar" style={{ background: template === 'modern' ? accent : `linear-gradient(90deg, ${accent} 0%, #0747a3 50%, ${accent} 100%)` }} />
+          <div className="h-1.5 inv-accent-bar" style={{ background: `linear-gradient(90deg, ${accent} 0%, ${brandBlue} 50%, ${accent} 100%)` }} />
         )}
 
         <div className={`${headerPad} inv-section flex justify-between items-start gap-4 ${template === 'minimal' ? 'border-b border-gray-300' : 'border-b border-orange-100'}`}>
           <div className={`flex items-center gap-3 min-w-0 ${template === 'modern' ? 'flex-row-reverse' : ''}`}>
             <LogoBlock />
             <div className={`min-w-0 ${template === 'modern' ? 'text-right' : ''}`}>
-              <h1 className="inv-brand-name text-xl font-bold leading-tight truncate" style={{ color: '#0747a3' }}>
-                {company.name || 'AMZ Prints'}
+              <h1 className="inv-brand-name text-xl font-bold leading-tight truncate" style={{ color: brandBlue }}>
+                {brandTitle}
               </h1>
+              {brandTitle !== ERP_LEGAL_NAME && (
+                <p className="inv-muted text-[11px] font-semibold mt-0.5" style={{ color: accent }}>
+                  {ERP_LEGAL_NAME}
+                </p>
+              )}
               <p className="inv-muted text-xs text-gray-600 mt-0.5">{company.tagline || 'Professional Printing & Advertising Services'}</p>
               <div className="inv-muted text-[11px] text-gray-500 mt-1.5 space-y-0.5 leading-snug">
                 {company.address && <p>{company.address}</p>}
@@ -270,7 +281,7 @@ const InvoiceView = ({ isPublic = false }) => {
           <div className="text-right shrink-0">
             <div
               className={`inline-block px-3 py-1.5 ${template === 'modern' ? 'rounded-full' : template === 'minimal' ? '' : 'rounded-md'}`}
-              style={template === 'minimal' ? undefined : { backgroundColor: accent }}
+              style={template === 'minimal' ? undefined : { background: orangeBlue }}
             >
               <p className={`text-[10px] uppercase tracking-wider ${template === 'minimal' ? 'text-gray-500' : 'text-white/80'}`}>Invoice</p>
               <p className={`inv-doc-no text-base font-bold leading-tight ${template === 'minimal' ? '' : 'text-white'}`} style={template === 'minimal' ? { color: accent } : undefined}>
@@ -292,7 +303,7 @@ const InvoiceView = ({ isPublic = false }) => {
         <div className={`${headerPad} inv-section grid grid-cols-1 md:grid-cols-2 gap-4 border-b border-gray-200`}>
           <div>
             <p className="text-[10px] uppercase tracking-wider font-semibold mb-1" style={{ color: accent }}>Bill To</p>
-            <p className="inv-customer font-bold text-base leading-snug" style={{ color: '#0747a3' }}>{invoice.customerName}</p>
+            <p className="inv-customer font-bold text-base leading-snug" style={{ color: brandBlue }}>{invoice.customerName}</p>
             {invoice.customerAddress && <p className="text-xs text-gray-600 mt-0.5">{invoice.customerAddress}</p>}
             {invoice.customerPhone && <p className="text-xs text-gray-600">{invoice.customerPhone}</p>}
             {invoice.customerEmail && <p className="text-xs text-gray-600">{invoice.customerEmail}</p>}
@@ -315,7 +326,7 @@ const InvoiceView = ({ isPublic = false }) => {
         <div className={headerPad + ' inv-section'}>
           <table className="w-full inv-table">
             <thead>
-              <tr style={{ backgroundColor: tableHeadBg, color: tableHeadColor }} className={tableHeadClass}>
+              <tr style={tableHeadStyle} className={tableHeadClass}>
                 <th className="text-left p-2 text-[10px] uppercase tracking-wider font-semibold">#</th>
                 <th className="text-left p-2 text-[10px] uppercase tracking-wider font-semibold">Description</th>
                 <th className="text-right p-2 text-[10px] uppercase tracking-wider font-semibold">Qty</th>
@@ -331,7 +342,7 @@ const InvoiceView = ({ isPublic = false }) => {
                   <tr key={item.id || `${item.name}-${item.quantity}-${item.rate}-${i}`} className="border-b border-gray-100">
                     <td className="p-2 text-xs text-gray-600">{i + 1}</td>
                     <td className="p-2">
-                      <p className="font-semibold text-xs" style={{ color: '#0747a3' }}>{item.name}</p>
+                      <p className="font-semibold text-xs" style={{ color: brandBlue }}>{item.name}</p>
                       {itemMeta && <p className="text-[11px] text-gray-500 mt-0.5">{itemMeta}</p>}
                       {lineNote && (
                         <p className="text-[11px] text-gray-600 mt-0.5 whitespace-pre-line leading-snug">{lineNote}</p>
@@ -351,12 +362,12 @@ const InvoiceView = ({ isPublic = false }) => {
           <div className="space-y-3">
             {invoice.notes && (
               <div>
-                <p className="text-[10px] uppercase tracking-wider font-bold mb-1" style={{ color: '#0747a3' }}>Notes</p>
+                <p className="text-[10px] uppercase tracking-wider font-bold mb-1" style={{ color: brandBlue }}>Notes</p>
                 <p className="text-xs text-gray-600">{invoice.notes}</p>
               </div>
             )}
             <div className={`p-3 ${template === 'minimal' ? 'border border-gray-300' : 'bg-gray-50 rounded-md border border-gray-200'}`}>
-              <p className="text-[10px] uppercase tracking-wider font-bold mb-1" style={{ color: '#0747a3' }}>Terms & Conditions</p>
+              <p className="text-[10px] uppercase tracking-wider font-bold mb-1" style={{ color: brandBlue }}>Terms & Conditions</p>
               <p className="text-[11px] text-gray-600 leading-relaxed whitespace-pre-line">{terms}</p>
             </div>
           </div>
@@ -389,7 +400,7 @@ const InvoiceView = ({ isPublic = false }) => {
                 <span>Advance adjustment recorded on ledger</span>
               </div>
             )}
-            <div className={`inv-total-row flex justify-between py-2 px-2.5 ${template === 'modern' ? 'rounded-full' : 'rounded-md'}`} style={{ backgroundColor: accent }}>
+            <div className={`inv-total-row flex justify-between py-2 px-2.5 ${template === 'modern' ? 'rounded-full' : 'rounded-md'}`} style={{ background: orangeBlue }}>
               <span className="text-sm font-bold text-white uppercase">Grand Total</span>
               <span className="inv-total text-lg font-bold text-white">{formatCurrency((invoice.totalAmount || 0) + (invoice.previousBalance || 0))}</span>
             </div>
@@ -397,8 +408,8 @@ const InvoiceView = ({ isPublic = false }) => {
               <span className="text-xs text-gray-600">Paid Amount</span>
               <span className="text-xs font-semibold text-green-700">{formatCurrency(invoice.paidAmount || 0)}</span>
             </div>
-            <div className="inv-balance-row flex justify-between py-2 border-t-2 mt-1" style={{ borderColor: '#0747a3' }}>
-              <span className="text-sm font-bold" style={{ color: '#0747a3' }}>Balance Due</span>
+            <div className="inv-balance-row flex justify-between py-2 border-t-2 mt-1" style={{ borderColor: brandBlue }}>
+              <span className="text-sm font-bold" style={{ color: brandBlue }}>Balance Due</span>
               <span className="inv-total text-lg font-bold" style={{ color: balance > 0 ? '#EF4444' : '#10B981' }}>
                 {formatCurrency(balance)}
               </span>
@@ -416,7 +427,7 @@ const InvoiceView = ({ isPublic = false }) => {
                   ) : (
                     <div className="inv-stamp-fallback">
                       <div>
-                        <p className="text-[10px] font-extrabold leading-tight">{company.name || 'AMZ Prints'}</p>
+                        <p className="text-[10px] font-extrabold leading-tight">{brandTitle}</p>
                         <p className="text-[8px] mt-0.5">Official Stamp</p>
                       </div>
                     </div>
@@ -428,7 +439,7 @@ const InvoiceView = ({ isPublic = false }) => {
                   {company?.signature ? (
                     <img src={company.signature} alt="Authorized signature" />
                   ) : (
-                    <div className="italic text-2xl font-bold pb-1 opacity-80" style={{ fontFamily: '"Brush Script MT", "Segoe Script", cursive', color: '#0747a3' }}>
+                    <div className="italic text-2xl font-bold pb-1 opacity-80" style={{ fontFamily: '"Brush Script MT", "Segoe Script", cursive', color: brandBlue }}>
                       {company.authorizedSignatory || 'Authorized Person'}
                     </div>
                   )}
@@ -470,9 +481,9 @@ const InvoiceView = ({ isPublic = false }) => {
           </div>
         )}
 
-        <div className="p-2.5 text-center border-t border-gray-100 invoice-print-footer" style={{ backgroundColor: template === 'bold' ? accent : '#F5F7FB' }}>
-          <p className={`text-[10px] ${template === 'bold' ? 'text-white' : 'text-gray-500'}`}>
-            {company.name || 'AMZ Prints'}
+        <div className="p-2.5 text-center border-t border-gray-100 invoice-print-footer" style={{ background: template === 'minimal' ? '#F5F7FB' : orangeBlue }}>
+          <p className={`text-[10px] ${template === 'minimal' ? 'text-gray-500' : 'text-white'}`}>
+            {ERP_LEGAL_NAME}
             {company.phone ? ` · ${company.phone}` : ''}
             {company.website ? ` · ${company.website}` : ''}
             {' · '}Thank you for your business

@@ -1,6 +1,6 @@
 /** Canonical AMZ Prints ERP operator manual — used on-screen, print, and download. */
 
-export const GUIDE_VERSION = '2.2';
+export const GUIDE_VERSION = '2.3';
 export const GUIDE_EFFECTIVE = 'September 2026';
 
 export const GUIDE_SECTIONS = [
@@ -9,7 +9,8 @@ export const GUIDE_SECTIONS = [
     title: '1. System overview',
     audience: 'All staff',
     body: [
-      'AMZ Prints ERP is the operational system of record for Amazon Printing Services. It covers the full commercial cycle: enquiry → quotation → token / POS / order → production → invoice → collection, plus purchasing, HR, inventory, and reporting.',
+      'AMZ Prints ERP is the operational system of record for Amazon Printings (PVT) Ltd. It covers the full commercial cycle: enquiry → quotation → token / POS / order → production → invoice → collection, plus purchasing, HR, inventory, and reporting.',
+      'After sign-in, the Apps home window opens with every module as an icon. Close it with the small X — it slides up. Re-open Home from the top bar or the sidebar. Module features and routes stay the same.',
       'Live data is stored in the company database (not Google Sheets). Sheets remain a read-only historical backup. Do not treat the old sheet as the current balance.',
       'Each login is limited to the modules assigned by Admin. If a menu item is missing, request access in Settings → Users rather than sharing another person’s password.',
     ],

@@ -11,9 +11,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Menu, LogOut, Settings } from 'lucide-react';
+import { Menu, LogOut, Settings, Home } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { ERP_LEGAL_NAME } from '@/utils/erpApps';
 import NotificationBell from '@/components/layout/NotificationBell';
+import { useHomeLauncher } from '@/context/HomeLauncherContext';
 
 const TITLE_MAP = [
   { match: '/dashboard', title: 'Dashboard' },
@@ -52,6 +54,7 @@ const Navbar = ({ toggleSidebar }) => {
   const { user, logout } = useAuth();
   const { company, primary } = useBrand();
   const navigate = useNavigate();
+  const { openHome } = useHomeLauncher();
   const location = useLocation();
   const displayName = getUserDisplayName(user);
   const accent = primary || '#ff6d00';
@@ -109,7 +112,7 @@ const Navbar = ({ toggleSidebar }) => {
             </div>
             <div className="min-w-0">
               <p className="text-[10px] uppercase tracking-[0.14em] font-semibold text-slate-400 leading-none mb-0.5 hidden sm:block">
-                {company.name || 'AMZ Prints'} · Ops
+                {ERP_LEGAL_NAME}
               </p>
               <h1 className="font-display text-base sm:text-lg font-bold text-ink truncate leading-tight">
                 {pageTitle}
@@ -119,6 +122,17 @@ const Navbar = ({ toggleSidebar }) => {
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 rounded-xl"
+            title="Apps home"
+            onClick={openHome}
+            data-testid="open-erp-home"
+          >
+            <Home className="h-4.5 w-4" style={{ color: accent }} />
+          </Button>
           <NotificationBell />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
