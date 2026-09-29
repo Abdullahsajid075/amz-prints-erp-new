@@ -18,6 +18,7 @@ import NotificationBell from '@/components/layout/NotificationBell';
 import { useHomeLauncher } from '@/context/HomeLauncherContext';
 
 const TITLE_MAP = [
+  { match: '/dashboard/ops', title: 'Overview' },
   { match: '/dashboard', title: 'Dashboard' },
   { match: '/quotations', title: 'Quotations' },
   { match: '/orders', title: 'Orders' },
@@ -76,7 +77,7 @@ const Navbar = ({ toggleSidebar }) => {
 
   return (
     <nav
-      className="fixed top-0 left-0 right-0 lg:left-[260px] h-14 z-50 border-b border-black/[0.06] bg-white/85 backdrop-blur-md"
+      className="fixed top-0 left-0 right-0 h-14 z-50 border-b border-black/[0.06] bg-white/85 backdrop-blur-md"
       data-testid="navbar"
     >
       <div className="h-full px-3 sm:px-4 flex items-center justify-between gap-3">
@@ -84,7 +85,7 @@ const Navbar = ({ toggleSidebar }) => {
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden shrink-0 h-9 w-9"
+            className="shrink-0 h-9 w-9"
             onClick={toggleSidebar}
             data-testid="sidebar-toggle"
           >

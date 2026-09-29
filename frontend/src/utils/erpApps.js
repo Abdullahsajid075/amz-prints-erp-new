@@ -8,7 +8,7 @@ export const ERP_LEGAL_NAME = 'Amazon Printings (PVT) Ltd';
 
 /** Same ERP modules as the sidebar — icons only, no feature changes. */
 export const ERP_HOME_APPS = [
-  { id: 'dashboard', label: 'Dashboard', path: '/dashboard', module: 'dashboard', icon: LayoutDashboard, tint: '#ff6d00', group: 'main' },
+  { id: 'overview', label: 'Overview', path: '/dashboard/ops', module: 'dashboard', icon: LayoutDashboard, tint: '#ff6d00', group: 'main' },
   { id: 'orders', label: 'Orders', path: '/orders', module: 'orders', icon: ShoppingCart, tint: '#0747a3', group: 'main' },
   { id: 'pos', label: 'POS', path: '/pos', module: 'pos', icon: Store, tint: '#ff6d00', group: 'main' },
   { id: 'invoices', label: 'Invoices', path: '/invoices', module: 'invoices', icon: FileText, tint: '#0747a3', group: 'main' },

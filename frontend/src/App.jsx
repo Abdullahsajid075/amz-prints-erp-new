@@ -10,6 +10,7 @@ import Login from '@/components/modules/auth/Login';
 import { HomeLauncherProvider } from '@/context/HomeLauncherContext';
 import MainLayout from '@/components/layout/MainLayout';
 import Dashboard from '@/components/modules/dashboard/Dashboard';
+import ErpHomeLauncher from '@/components/layout/ErpHomeLauncher';
 import OrdersList from '@/components/modules/orders/OrdersList';
 import OrderForm from '@/components/modules/orders/OrderForm';
 import DeliverySlip from '@/components/modules/orders/DeliverySlip';
@@ -143,7 +144,8 @@ function App() {
         {/* Protected app */}
         <Route path="/" element={<AuthenticatedApp />}>
           <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="dashboard" element={<ErpHomeLauncher />} />
+          <Route path="dashboard/ops" element={<Dashboard />} />
 
           <Route path="quotations" element={<Quotations />} />
           <Route path="quotations/new" element={<QuotationForm />} />
