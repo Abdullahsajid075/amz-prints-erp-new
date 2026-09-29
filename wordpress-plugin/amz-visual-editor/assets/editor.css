@@ -1,0 +1,122 @@
+body.amz-ve-on { cursor: default; }
+
+body.amz-ve-on h1,
+body.amz-ve-on h2,
+body.amz-ve-on h3,
+body.amz-ve-on h4,
+body.amz-ve-on h5,
+body.amz-ve-on h6,
+body.amz-ve-on p,
+body.amz-ve-on a,
+body.amz-ve-on button,
+body.amz-ve-on li,
+body.amz-ve-on figcaption,
+body.amz-ve-on span,
+body.amz-ve-on strong,
+body.amz-ve-on label,
+body.amz-ve-on img {
+  outline: 1px dashed transparent;
+  outline-offset: 2px;
+}
+
+body.amz-ve-on .amz-ve-hot {
+  outline: 2px solid #ff6d00 !important;
+  outline-offset: 2px;
+  cursor: pointer;
+  background: rgba(255, 109, 0, 0.08);
+}
+
+.amz-ve-bar,
+.amz-ve-pop {
+  font-family: Manrope, "Segoe UI", sans-serif;
+  color: #111;
+}
+
+.amz-ve-bar {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 100000;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 12px;
+  background: #111;
+  color: #fff;
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+}
+
+.amz-ve-bar strong { font-size: 14px; }
+.amz-ve-bar p {
+  margin: 0;
+  flex: 1 1 220px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 13px;
+  background: transparent;
+  outline: none !important;
+}
+
+.amz-ve-bar button,
+.amz-ve-pop button {
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.amz-ve-save { background: #ff6d00; color: #fff; }
+.amz-ve-exit,
+.amz-ve-cancel { background: #fff; color: #111; }
+.amz-ve-status { font-size: 13px; color: #fff; }
+
+.amz-ve-pop {
+  position: fixed;
+  z-index: 100001;
+  width: min(360px, calc(100vw - 24px));
+  padding: 14px;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.25);
+}
+
+.amz-ve-pop h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.amz-ve-pop label {
+  display: block;
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.amz-ve-pop textarea,
+.amz-ve-pop input {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  box-sizing: border-box;
+  border: 1px solid #d7d7d7;
+  border-radius: 8px;
+  padding: 8px;
+  font: inherit;
+  font-size: 14px;
+}
+
+.amz-ve-pop textarea { min-height: 90px; resize: vertical; }
+
+.amz-ve-pop__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.amz-ve-apply { background: #0747a3; color: #fff; }
