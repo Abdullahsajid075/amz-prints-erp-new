@@ -264,6 +264,12 @@ function productFromBody(b = {}, rid) {
   };
 }
 
+function posReceiptRef(orderId) {
+  const raw = String(orderId || '').trim();
+  const core = raw.replace(/^POSR[-_]?/i, '').trim();
+  return core ? `POSR-${core}` : 'POSR';
+}
+
 module.exports = {
   isAdminRole,
   userLabel,
@@ -291,4 +297,5 @@ module.exports = {
   embedPhotoInNotes,
   customerPhoto,
   withCustomerPhoto,
+  posReceiptRef,
 };

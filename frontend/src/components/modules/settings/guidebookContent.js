@@ -73,7 +73,7 @@ export const GUIDE_SECTIONS = [
     body: [
       'An order is the job card. Required: customer (or walk-in), products, totals, delivery date when Settings require it.',
       'Advance payment reduces the order balance. Remaining balance is what the customer still owes on that job until it is covered by an invoice payment or customer credit.',
-      'Status flow (typical): Order Received → Designing / Proof → Printing / Finishing / Packing → Ready → Delivered. Cancelled jobs drop out of receivables.',
+      'Status flow (typical): Order Received → Designing / Proof → Printing → Ready for Delivery → Delivered. Cancelled jobs drop out of receivables.',
       'Assign a designer when artwork is needed. Update status as work moves — dashboard pipeline and WhatsApp templates depend on the current status.',
       'Tracking number can be sent to the customer. Delivery slip is printable from the order.',
     ],
@@ -132,6 +132,7 @@ export const GUIDE_SECTIONS = [
       'Products store rates, sale price, category, photos, and “show on website”. Keep names consistent with what appears on quotations and the public catalogue.',
       'Website catalog rule: Show on website Off hides the product on amzprints.com. On requires an HD photo and a description. Incomplete items stay hidden. Off is never auto-published.',
       'Inventory lists only products that have Track inventory on. Services have no quantity and never appear in inventory. Each product has its own Track inventory switch — if it is off, sales continue without stock.',
+      'On-hand quantity normally changes only when a purchase is Received, a POS sale completes, or a job is delivered. To correct stock by hand, turn on Inventory Mode in Product settings (or Settings → Products). The dashboard shows an Inventory Mode tag with a live countdown of days, hours, minutes, and seconds. When the timer ends, manual stock edits lock again.',
       'POS opens as a dedicated till window (not an ERP tab). Register, slip QRs, and service cards live in POS settings. Statement stays under Accounts.',
       'Printing Cost Calculator is a planning tool for media, size, and quantity. Transfer the result into a quotation/order; the calculator itself does not post stock or AR.',
     ],

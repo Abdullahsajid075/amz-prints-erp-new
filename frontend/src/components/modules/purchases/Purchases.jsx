@@ -798,8 +798,8 @@ const Purchases = () => {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle className="text-2xl font-bold" style={{ color: '#0747a3' }}>{editing ? 'Edit PO' : 'New Purchase Order'}</DialogTitle></DialogHeader>
-          <form onSubmit={handleSave} className="space-y-4 mt-4">
-            <div className="grid grid-cols-2 gap-4">
+          <form onSubmit={handleSave} className="space-y-3 mt-2">
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <Label>Vendor *</Label>
@@ -875,7 +875,7 @@ const Purchases = () => {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-gray-500 mt-1">
-                  Only open orders (not Delivered / Completed / Closed / Cancelled). Auto-updates to &quot;Ready for Delivery&quot; when PO is received.
+                  Only open orders (not Delivered / Cancelled). Auto-updates to &quot;Ready for Delivery&quot; when PO is received.
                 </p>
                 {!linkableOrders.length && (
                   <p className="text-[11px] text-amber-700 mt-1">No open customer orders available to link.</p>

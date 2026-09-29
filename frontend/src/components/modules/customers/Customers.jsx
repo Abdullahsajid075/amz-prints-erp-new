@@ -21,14 +21,14 @@ import { QRCodeCanvas } from 'qrcode.react';
 import CustomerIdCard from '@/components/modules/customers/CustomerIdCard';
 import Barcode from '@/components/shared/Barcode';
 import {
-  isCustomerBlocked, canUnblockCustomer, customerDisplayCode,
+  isCustomerBlocked, canUnblockCustomer, customerDisplayCode, customerHasPendingPayment,
   openUrduBalanceWhatsApp, openCustomerWelcomeWhatsApp, openLedgerWhatsApp,
 } from '@/utils/customerHelpers';
 import { openBlankWhatsAppTab } from '@/services/notifications';
 import { useAuth } from '@/context/AuthContext';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
-import { Plus, Search, User, TrendingUp, X, Save, BookOpen, Bell, Kanban, ShieldBan, Wallet, QrCode, Camera } from 'lucide-react';
+import { Plus, Search, User, TrendingUp, X, Save, BookOpen, Bell, Kanban, ShieldBan, Wallet, QrCode, Camera, IdCard, Download, Edit, Trash2 } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
 
@@ -71,6 +71,7 @@ const Customers = () => {
   const [paySaving, setPaySaving] = useState(false);
   const [imageBusy, setImageBusy] = useState(false);
   const [qrCustomer, setQrCustomer] = useState(null);
+  const [cardCustomer, setCardCustomer] = useState(null);
   const [qrPng, setQrPng] = useState('');
   const qrCanvasWrap = React.useRef(null);
   const photoFileRef = React.useRef(null);
@@ -190,6 +191,10 @@ const Customers = () => {
   };
 
   const printCardFor = async (c) => {
+    if (!customerHasPendingPayment(c)) {
+      toast.error('Customer cards open only when a payment is pending. Advance-paid accounts do not get a card.');
+      return;
+    }
     try {
       const res = await printCustomerCard({
         customer: { ...c, customerCode: customerDisplayCode(c), photo: c.photo || '' },
@@ -447,29 +452,67 @@ const Customers = () => {
                 <Button onClick={openCreate} style={{ backgroundColor: '#ff6d00' }} className="text-white"><Plus className="h-4 w-4 mr-2" />Add First Customer</Button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" data-testid="customer-directory-table">
-                {sorted.map((c) => (
-                  <CustomerIdCard
-                    key={c.id}
-                    customer={c}
-                    canUnblock={canUnblock}
-                    imageBusy={imageBusy}
-                    balanceSending={balanceSending}
-                    onPhoto={() => {
-                      setPhotoTarget(c);
-                      photoFileRef.current?.click();
-                    }}
-                    onLedger={() => openLedger(c)}
-                    onPrint={() => printCardFor(c)}
-                    onQr={() => openQr(c)}
-                    onBalanceWa={() => sendBalanceRequest(c, c.outstanding)}
-                    onPay={() => openCustomerPayment(c)}
-                    onBlock={() => openBlockDialog(c)}
-                    onUnblock={() => handleUnblock(c)}
-                    onEdit={() => openEdit(c)}
-                    onDelete={() => handleDelete(c.id)}
-                  />
-                ))}
+              <div className="overflow-x-auto" data-testid="customer-directory-table">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs uppercase tracking-wide text-slate-500 border-b">
+                      <th className="py-2 px-2">Customer</th>
+                      <th className="py-2 px-2">Phone</th>
+                      <th className="py-2 px-2">City</th>
+                      <th className="py-2 px-2 text-right">Balance</th>
+                      <th className="py-2 px-2 text-right">Advance</th>
+                      <th className="py-2 px-2 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sorted.map((c) => {
+                      const pending = customerHasPendingPayment(c);
+                      const blocked = isCustomerBlocked(c);
+                      return (
+                        <tr key={c.id} className="border-b last:border-0 hover:bg-orange-50/40" data-testid={`customer-row-${c.id}`}>
+                          <td className="py-2 px-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="w-8 h-8 rounded-lg overflow-hidden bg-slate-100 shrink-0 flex items-center justify-center text-xs font-bold" style={{ color: '#0747a3' }}>
+                                {c.photo ? <img src={c.photo} alt="" className="w-full h-full object-cover" /> : (c.name || 'C').charAt(0).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-semibold truncate">{c.name}</p>
+                                <p className="text-[11px] text-slate-500 font-mono">{customerDisplayCode(c)}</p>
+                                {blocked ? <span className="text-[10px] font-bold text-red-600">Blocked</span> : null}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-2 px-2 text-slate-600">{c.phone || '—'}</td>
+                          <td className="py-2 px-2 text-slate-600">{c.city || '—'}</td>
+                          <td className={`py-2 px-2 text-right font-bold ${pending ? 'text-rose-600' : 'text-emerald-700'}`}>{formatCurrency(c.outstanding)}</td>
+                          <td className="py-2 px-2 text-right text-sky-700">{formatCurrency(c.creditBalance)}</td>
+                          <td className="py-2 px-2">
+                            <div className="flex flex-wrap justify-end gap-1">
+                              <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => openLedger(c)} title="Ledger"><BookOpen className="h-4 w-4" /></Button>
+                              <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => openEdit(c)} title="Edit"><Edit className="h-4 w-4" /></Button>
+                              <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => openCustomerPayment(c)} title="Payment"><Wallet className="h-4 w-4" /></Button>
+                              {pending ? (
+                                <>
+                                  <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => setCardCustomer(c)} title="View card"><IdCard className="h-4 w-4" /></Button>
+                                  <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => printCardFor(c)} title="Download / print card"><Download className="h-4 w-4" /></Button>
+                                </>
+                              ) : (
+                                <span className="text-[10px] text-slate-400 self-center px-1">Card locked</span>
+                              )}
+                              <Button size="sm" variant="ghost" className="h-8 px-2 text-green-600" onClick={() => sendBalanceRequest(c, c.outstanding)} disabled={balanceSending} title="WhatsApp"><WhatsAppIcon className="h-4 w-4" /></Button>
+                              {blocked && canUnblock ? (
+                                <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => handleUnblock(c)} title="Unblock"><ShieldBan className="h-4 w-4" /></Button>
+                              ) : (
+                                <Button size="sm" variant="ghost" className="h-8 px-2 text-rose-600" onClick={() => openBlockDialog(c)} title="Block"><ShieldBan className="h-4 w-4" /></Button>
+                              )}
+                              <Button size="sm" variant="ghost" className="h-8 px-2 text-rose-600" onClick={() => handleDelete(c.id)} title="Delete"><Trash2 className="h-4 w-4" /></Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
         </CardContent>
@@ -721,6 +764,23 @@ const Customers = () => {
               {blockSaving ? 'Blocking…' : 'Block Customer'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!cardCustomer} onOpenChange={(open) => { if (!open) setCardCustomer(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Customer card</DialogTitle>
+            <DialogDescription>Print or download this card. Only customers with a pending balance have a card.</DialogDescription>
+          </DialogHeader>
+          {cardCustomer && (
+            <CustomerIdCard
+              customer={cardCustomer}
+              company={company}
+              onPrint={() => printCardFor(cardCustomer)}
+              onDownload={() => printCardFor(cardCustomer)}
+            />
+          )}
         </DialogContent>
       </Dialog>
 

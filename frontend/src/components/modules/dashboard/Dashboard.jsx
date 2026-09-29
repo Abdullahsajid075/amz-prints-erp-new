@@ -9,6 +9,7 @@ import { asApiList, buildDashboardFromLists, dashboardLooksEmpty } from '@/utils
 import { useAuth, getUserDisplayName } from '@/context/AuthContext';
 import { useBrand } from '@/context/BrandContext';
 import ReceivablesDialog from '@/components/shared/ReceivablesDialog';
+import InventoryModeTag from '@/components/modules/dashboard/InventoryModeTag';
 import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
 import {
   TrendingUp, TrendingDown, ShoppingCart, CheckCircle, DollarSign,
@@ -312,6 +313,7 @@ const Dashboard = () => {
 
   return (
     <div className="erp-page space-y-5 relative" data-testid="dashboard">
+      <InventoryModeTag />
       {loading && (
         <div className="absolute inset-0 z-10 bg-white/50 backdrop-blur-[1px] rounded-2xl pointer-events-none" />
       )}

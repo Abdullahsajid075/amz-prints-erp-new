@@ -22,6 +22,7 @@ import {
 import { toast } from 'sonner';
 import { DEFAULT_PRODUCT_CATEGORIES, DEFAULT_PRODUCT_MATERIALS, mergeInventorySettings } from '@/utils/moduleSettings';
 import { isServiceItem, tracksInventory } from '@/utils/inventoryTrack';
+import useInventoryMode from '@/hooks/useInventoryMode';
 
 const PRODUCT_SORT_OPTS = [
   { value: 'name', label: 'Name' },
@@ -94,6 +95,7 @@ const Products = () => {
     categories: PRODUCT_CATEGORIES,
     materials: MATERIALS,
   });
+  const { active: allowManualStock } = useInventoryMode();
 
   const isService = String(formData.productType || '').toLowerCase() === 'service';
 
@@ -251,6 +253,7 @@ const Products = () => {
           price: v.price === '' || v.price == null ? null : Number(v.price),
           sku: String(v.sku || '').trim(),
           stock: (() => {
+            if (allowManualStock) return Math.max(0, Number(v.stock) || 0);
             const existingVar = (editingProduct?.variations || []).find((x) => String(x.id) === String(v.id));
             if (existingVar) return Math.max(0, Number(existingVar.stock) || 0);
             return 0;
@@ -303,7 +306,9 @@ const Products = () => {
             material: formData.material || '',
             size: formData.size || '',
             minQuantity: formData.minQuantity || 1,
-            stock: editingProduct ? Math.max(0, Math.floor(Number(editingProduct.stock) || 0)) : 0,
+            stock: allowManualStock
+              ? Math.max(0, Math.floor(Number(formData.stock) || 0))
+              : (editingProduct ? Math.max(0, Math.floor(Number(editingProduct.stock) || 0)) : 0),
             trackInventory: formData.trackInventory !== false,
             images,
             active: formData.active !== false,
@@ -877,15 +882,19 @@ const Products = () => {
                 </div>
                 {formData.trackInventory !== false ? (
                   <div>
-                    <Label>On-hand (from purchases)</Label>
+                    <Label>{allowManualStock ? 'On-hand (Inventory Mode)' : 'On-hand (from purchases)'}</Label>
                     <Input
                       type="number"
-                      value={editingProduct ? Math.max(0, Number(editingProduct.stock) || 0) : 0}
-                      disabled
+                      min="0"
+                      value={formData.stock}
+                      disabled={!allowManualStock}
+                      onChange={(e) => setFormData({ ...formData, stock: Math.max(0, Number(e.target.value) || 0) })}
                       data-testid="product-stock-input"
                     />
                     <p className="text-[11px] text-gray-500 mt-1">
-                      Manual add/remove is locked. Receive a purchase order to increase quantity.
+                      {allowManualStock
+                        ? 'Inventory Mode is on. Set the correct on-hand quantity, then save.'
+                        : 'Manual add/remove is locked. Turn on Inventory Mode in Product settings to correct stock, or receive a purchase order.'}
                     </p>
                   </div>
                 ) : (
@@ -930,7 +939,7 @@ const Products = () => {
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <Label className="text-sm font-semibold">Variations</Label>
-                  <p className="text-[11px] text-gray-500">Size, color, material, price, and SKU — used in orders, POS, and price tags. Quantity comes from purchases.</p>
+                  <p className="text-[11px] text-gray-500">Size, color, material, price, and SKU — used in orders, POS, and price tags. {allowManualStock ? 'Inventory Mode is on — you can correct variation quantities.' : 'Quantity comes from purchases.'}</p>
                 </div>
                 <Button
                   type="button"
@@ -1027,9 +1036,15 @@ const Products = () => {
                         <Label className="text-[11px]">On-hand</Label>
                         <Input
                           type="number"
-                          value={Number(v.stock) || 0}
-                          disabled
-                          title="Quantity updates when a purchase is received"
+                          min="0"
+                          value={v.stock}
+                          disabled={!allowManualStock}
+                          title={allowManualStock ? 'Correct on-hand stock' : 'Quantity updates when a purchase is received'}
+                          onChange={(e) => setFormData((prev) => {
+                            const variations = [...(prev.variations || [])];
+                            variations[idx] = { ...variations[idx], stock: e.target.value };
+                            return { ...prev, variations };
+                          })}
                         />
                       </div>
                       <div className="md:col-span-4">

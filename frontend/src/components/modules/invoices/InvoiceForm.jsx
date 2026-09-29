@@ -55,6 +55,7 @@ const emptyInvoice = {
   discount: 0,
   previousBalance: 0,
   paidAmount: 0,
+  orderAdvances: {},
   status: 'Unpaid',
   notes: 'Thank you for your business!',
 };
@@ -254,6 +255,7 @@ const InvoiceForm = () => {
         discount: Number(inv.discount) || 0,
         previousBalance: Number(inv.previousBalance) || 0,
         paidAmount: Number(inv.paidAmount) || 0,
+        orderAdvances: {},
         status: inv.status || 'Unpaid',
         notes: inv.notes || '',
         shareToken: inv.shareToken || '',
@@ -349,7 +351,7 @@ const InvoiceForm = () => {
         ...f,
         ...next,
         previousBalance: prev,
-        ...(changed && !isEdit ? { items: [emptyItem()], orderIds: [], orderId: '', paidAmount: 0 } : {}),
+        ...(changed && !isEdit ? { items: [emptyItem()], orderIds: [], orderId: '', paidAmount: 0, orderAdvances: {} } : {}),
       };
     });
   };
@@ -409,6 +411,7 @@ const InvoiceForm = () => {
         emptyLines = true;
         return prev;
       }
+      const advance = Math.max(0, Number(order.advancePayment || 0));
       added = true;
       const items = isPlaceholderItems(prev.items) ? newLines : [...prev.items, ...newLines];
       const orderIds = [...(prev.orderIds || []).filter(Boolean).map(String), oid];
@@ -417,7 +420,8 @@ const InvoiceForm = () => {
         items,
         orderIds,
         orderId: prev.orderId || oid,
-        paidAmount: Number(prev.paidAmount || 0) + Number(order.advancePayment || 0),
+        paidAmount: Number(prev.paidAmount || 0) + advance,
+        orderAdvances: { ...(prev.orderAdvances || {}), [oid]: advance },
       };
     });
     if (emptyLines) toast.error(`Order ${oid} has no line items`);
@@ -430,11 +434,16 @@ const InvoiceForm = () => {
     setFormData((prev) => {
       const orderIds = (prev.orderIds || []).map(String).filter((id) => id !== key);
       const items = (prev.items || []).filter((it) => String(it.sourceOrderId || '') !== key);
+      const taken = Number((prev.orderAdvances || {})[key] || 0);
+      const nextAdvances = { ...(prev.orderAdvances || {}) };
+      delete nextAdvances[key];
       return {
         ...prev,
         orderIds,
         orderId: orderIds[0] || '',
         items: items.length ? items : [emptyItem()],
+        paidAmount: Math.max(0, Number(prev.paidAmount || 0) - taken),
+        orderAdvances: nextAdvances,
       };
     });
   };
@@ -516,6 +525,7 @@ const InvoiceForm = () => {
   const total = subtotal + tax - (formData.discount || 0);
   const grandTotal = total + (formData.previousBalance || 0);
   const creditUse = isEdit ? 0 : Math.max(0, Number(applyCredit) || 0);
+  const orderAdvanceTotal = Object.values(formData.orderAdvances || {}).reduce((s, n) => s + (Number(n) || 0), 0);
   const balance = grandTotal - (formData.paidAmount || 0) - creditUse;
 
   const derivedStatus = () => {
@@ -704,7 +714,7 @@ const InvoiceForm = () => {
   }
 
   return (
-    <div className="space-y-4 pb-8" data-testid="invoice-form">
+    <div className="space-y-3 pb-6" data-testid="invoice-form">
       <div className="rounded-2xl border border-orange-100 bg-white overflow-hidden shadow-sm">
         <div className="h-1.5" style={{ backgroundColor: accent }} />
         <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -739,9 +749,9 @@ const InvoiceForm = () => {
         </div>
       </div>
 
-      <form id="invoice-form-el" onSubmit={handleSave} className="space-y-4">
+      <form id="invoice-form-el" onSubmit={handleSave} className="space-y-3">
         <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
           <Card className="border-orange-100/80 shadow-sm rounded-2xl">
             <CardHeader className="py-3"><CardTitle className="text-base">Customer</CardTitle></CardHeader>
             <CardContent className="pt-0 space-y-3">
@@ -984,7 +994,7 @@ const InvoiceForm = () => {
         <Card className="border-orange-100/80 shadow-sm rounded-2xl">
           <CardHeader className="py-3"><CardTitle className="text-base">Totals & Payment</CardTitle></CardHeader>
           <CardContent className="pt-0">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -999,6 +1009,11 @@ const InvoiceForm = () => {
                 <div>
                   <Label className="text-xs">Paid Amount</Label>
                   <Input type="number" min="0" step="0.01" value={formData.paidAmount} onChange={(e) => setFormData((f) => ({ ...f, paidAmount: parseFloat(e.target.value) || 0 }))} data-testid="paid-input" />
+                  {orderAdvanceTotal > 0.009 ? (
+                    <p className="text-[11px] text-emerald-700 mt-1">Includes {formatCurrency(orderAdvanceTotal)} received when the order was booked.</p>
+                  ) : (
+                    <p className="text-[11px] text-slate-500 mt-1">Add linked orders to bring in booking payments automatically.</p>
+                  )}
                 </div>
                 <div>
                   <Label className="text-xs">Notes</Label>
@@ -1019,7 +1034,10 @@ const InvoiceForm = () => {
                   <span className="font-bold text-white uppercase text-sm">Grand Total</span>
                   <span className="font-bold text-white text-lg">{formatCurrency(grandTotal)}</span>
                 </div>
-                <div className="flex justify-between text-sm"><span className="text-gray-600">Paid (cash)</span><span className="font-semibold text-green-700">{formatCurrency(formData.paidAmount || 0)}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-gray-600">Paid</span><span className="font-semibold text-green-700">{formatCurrency(formData.paidAmount || 0)}</span></div>
+                {orderAdvanceTotal > 0.009 && (
+                  <div className="flex justify-between text-[11px] text-emerald-800"><span>of which order payments</span><span>{formatCurrency(orderAdvanceTotal)}</span></div>
+                )}
                 {creditUse > 0 && (
                   <div className="flex justify-between text-sm"><span className="text-gray-600">Advance applied</span><span className="font-semibold text-emerald-800">-{formatCurrency(creditUse)}</span></div>
                 )}

@@ -92,7 +92,6 @@ export const getStatusColor = (status) => {
     'Ready': 'bg-green-100 text-green-800',
     'Ready for Delivery': 'bg-green-100 text-green-800',
     'Delivered': 'bg-emerald-100 text-emerald-800',
-    'Closed': 'bg-slate-200 text-slate-800',
     'Cancelled': 'bg-red-100 text-red-800'
   };
   return colors[status] || 'bg-gray-100 text-gray-800';

@@ -25,6 +25,7 @@ import { migrateThemeColors } from '@/utils/brandColors';
 import { getAssignableModules, hasFullAccess, normalizePermissions } from '@/utils/permissions';
 import GuideBook from '@/components/modules/settings/GuideBook';
 import ReceivablesDialog from '@/components/shared/ReceivablesDialog';
+import InventoryModeCard from '@/components/modules/inventory/InventoryModeCard';
 
 const defaultSettings = {
   company: { name: 'Amazon Printing Services', tagline: 'Professional Printing & Advertising Services', address: 'King Road, Mandi Bahauddin', phone: '', email: 'amazonprinting@gmail.com', website: 'amzprints.com', taxId: '', authorizedSignatory: 'Authorized Person', logo: '', stamp: '', signature: '' },
@@ -661,6 +662,11 @@ const Settings = () => {
                   . POS receipt and register live in{' '}
                   <a className="underline" href="/pos/settings">POS settings</a>.
                 </p>
+                <InventoryModeCard
+                  compact
+                  value={settings.inventory?.inventoryMode}
+                  onChange={(inventoryMode) => update('inventory', 'inventoryMode', inventoryMode)}
+                />
                 <div>
                   <Label>Categories</Label>
                   <div className="flex flex-wrap gap-2 mt-2">
@@ -1067,7 +1073,7 @@ const Settings = () => {
                 Write your own messages below — no footer is added automatically. Empty uses the default AMZ template (invoice, reminder, cash in/out still send).
                 Placeholders: {'{Customer Name}'}, {'{Order Number}'}, {'{Tracking Number}'}, {'{Status}'}, {'{Company Name}'}, {'{Invoice Link}'}, {'{payment_amount}'}, {'{balance_due}'}
               </p>
-              {['quotation', 'created', 'website_confirmed', 'Order Received', 'Designing', 'Proof Approval', 'Printing', 'Finishing', 'Packing', 'Ready', 'Delivered', 'Cancelled', 'status', 'invoice_generated', 'payment_reminder', 'balance_reminder', 'payment_received', 'payment_sent'].map((key) => {
+              {['quotation', 'created', 'website_confirmed', 'Order Received', 'Designing', 'Proof Approval', 'Printing', 'Ready for Delivery', 'Delivered', 'Cancelled', 'status', 'invoice_generated', 'payment_reminder', 'balance_reminder', 'payment_received', 'payment_sent'].map((key) => {
                 const saved = settings.notifications.whatsappTemplates || {};
                 const labelMap = {
                   quotation: 'Quotation',

@@ -2632,6 +2632,11 @@ function invoiceTotalDue_(inv) {
   return Number(inv.total || inv.totalamount || 0) + Number(inv.previousbalance || 0);
 }
 
+function posReceiptRef_(orderId) {
+  var raw = String(orderId || '').replace(/^POSR[-_]?/i, '').trim();
+  return raw ? ('POSR-' + raw) : 'POSR';
+}
+
 function invoiceStatusFromPaid_(totalDue, paid) {
   paid = Number(paid || 0);
   totalDue = Number(totalDue || 0);
@@ -2790,10 +2795,20 @@ function withInvoiceMeta_(api, map) {
 function withAdvanceInvoice_(apiOrder, sheetRecord, extraPayment) {
   extraPayment = Number(extraPayment || 0);
   if (isQuotation_(sheetRecord)) return withInvoiceMeta_(apiOrder);
+  var dt = String((sheetRecord && sheetRecord.doctype) || '').toLowerCase();
   var advance = Number((sheetRecord && sheetRecord.advancepayment) || 0);
+  if (dt !== 'pos') {
+    return withInvoiceMeta_(apiOrder);
+  }
   if (!(advance > 0) && extraPayment <= 0) return withInvoiceMeta_(apiOrder);
   try {
-    ensureInvoicedForAdvance_(sheetRecord, extraPayment, { skipOrderSnapshot: true });
+    ensureInvoicedForAdvance_(sheetRecord, extraPayment, {
+      skipOrderSnapshot: true,
+      method: sheetRecord.paymentmethod || 'Cash',
+      notes: 'POS Sale ' + (sheetRecord.orderid || sheetRecord.id),
+      refId: posReceiptRef_(sheetRecord.orderid || sheetRecord.id),
+      category: 'POS Sale',
+    });
   } catch (eInv) {
     apiOrder = apiOrder || {};
     apiOrder._invoiceError = String(eInv.message || eInv);
@@ -3008,6 +3023,8 @@ function ensureInvoicedForAdvance_(order, extraPayment, opts) {
     date: opts.date || order.date || nowDate_(),
     skipOrderSnapshot: opts.skipOrderSnapshot !== false,
     orderId: order.orderid || order.id,
+    refId: opts.refId || '',
+    category: opts.category || '',
   });
   return pay.invoice || inv;
 }
@@ -3058,8 +3075,8 @@ function recordInvoicePayment_(invoiceId, body) {
   var paymentRow = appendPaymentsSheetRow_({
     id: payId,
     date: payDate,
-    category: 'Invoice Payment',
-    refId: inv.invoiceno || inv.id,
+    category: body.category || 'Invoice Payment',
+    refId: body.refId || body.reference || inv.invoiceno || inv.id,
     customerId: inv.customerid || '',
     customerName: inv.customername || '',
     customerPhone: inv.customerphone || '',
@@ -4174,7 +4191,7 @@ function getSettings_() {
   if (Object.prototype.hasOwnProperty.call(obj, 'companyStamp')) obj.company.stamp = obj.companyStamp || '';
   if (Object.prototype.hasOwnProperty.call(obj, 'companySignature')) obj.company.signature = obj.companySignature || '';
 
-  ['invoice', 'theme', 'orders', 'customers', 'crm', 'products', 'payments', 'users', 'notifications', 'system', 'designers', 'employees'].forEach(function (sec) {
+  ['invoice', 'theme', 'orders', 'customers', 'crm', 'products', 'inventory', 'pos', 'payments', 'users', 'notifications', 'system', 'designers', 'employees'].forEach(function (sec) {
     if (typeof obj[sec] === 'string') obj[sec] = parseSettingsValue_(obj[sec]);
   });
 
@@ -4186,6 +4203,37 @@ function getSettings_() {
   if (!obj.theme.accent) obj.theme.accent = '#10B981';
 
   return obj;
+}
+
+function inventoryModeAllowsManualStock_() {
+  var settings = {};
+  try { settings = getSettings_() || {}; } catch (eSet) { return false; }
+  var inv = settings.inventory;
+  if (typeof inv === 'string') {
+    try { inv = JSON.parse(inv); } catch (eInv) { inv = {}; }
+  }
+  if (!inv || typeof inv !== 'object') inv = {};
+  var mode = inv.inventoryMode || settings.inventoryMode || {};
+  if (typeof mode === 'string') {
+    try { mode = JSON.parse(mode); } catch (eMode) { mode = {}; }
+  }
+  if (!mode || !mode.active) return false;
+  var ends = Date.parse(String(mode.endsAt || ''));
+  return isFinite(ends) && ends > Date.now();
+}
+
+function lockProductStock_(next, existing) {
+  next = next || {};
+  if (inventoryModeAllowsManualStock_()) {
+    next.stock = Math.max(0, Number(next.stock || 0));
+    return next;
+  }
+  if (!existing || !existing.id) {
+    next.stock = 0;
+    return next;
+  }
+  next.stock = Number(existing.stock || 0);
+  return next;
 }
 
 function updateSettings_(body) {
@@ -4212,7 +4260,7 @@ function updateSettings_(body) {
   var incoming = body && typeof body === 'object' ? body : {};
   var payload = Object.assign({}, existing, incoming);
 
-  ['company', 'invoice', 'theme', 'orders', 'customers', 'crm', 'products', 'payments', 'users', 'notifications', 'system', 'designers', 'employees'].forEach(function (sec) {
+  ['company', 'invoice', 'theme', 'orders', 'customers', 'crm', 'products', 'inventory', 'pos', 'payments', 'users', 'notifications', 'system', 'designers', 'employees'].forEach(function (sec) {
     var base = (existing[sec] && typeof existing[sec] === 'object') ? existing[sec] : {};
     var next = (incoming[sec] && typeof incoming[sec] === 'object') ? incoming[sec] : null;
     if (next) payload[sec] = Object.assign({}, base, next);
@@ -4872,10 +4920,12 @@ function toPublicTrackOrder_(o) {
   var api = toApiOrder_(o);
   var pipeline = [
     'Order Received', 'Designing', 'Proof Approval', 'Printing',
-    'Finishing', 'Packing', 'Ready', 'Delivered'
+    'Ready for Delivery', 'Delivered'
   ];
   var status = String(api.status || '');
   var cancelled = status.toLowerCase() === 'cancelled';
+  if (/^ready$/i.test(status)) status = 'Ready for Delivery';
+  if (/^(finishing|packing)$/i.test(status)) status = 'Printing';
   var idx = cancelled ? -1 : pipeline.indexOf(status);
   if (idx < 0 && !cancelled) {
     for (var i = 0; i < pipeline.length; i++) {
@@ -5204,7 +5254,7 @@ function handleProducts_(path, method, body) {
   if (path === '/products') {
     if (method === 'GET') return rows.map(toApiProduct_);
     if (method === 'POST') {
-      var created = normalizeProduct_(body || {});
+      var created = lockProductStock_(normalizeProduct_(body || {}), null);
       appendObject_(sheet, SHEET_NAMES.PRODUCTS, created);
       var apiCreated = toApiProduct_(created);
       if ((body && (body.image || body.photo)) && !apiCreated.image) {
@@ -5220,7 +5270,7 @@ function handleProducts_(path, method, body) {
 
   if (method === 'GET') return toApiProduct_(rows[index]);
   if (method === 'PUT') {
-    var updated = normalizeProduct_(body || {}, rows[index]);
+    var updated = lockProductStock_(normalizeProduct_(body || {}, rows[index]), rows[index]);
     updated.id = rows[index].id;
     updateObjectProps_(sheet, SHEET_NAMES.PRODUCTS, rows[index]._row, updated);
     var apiUpdated = toApiProduct_(updated);

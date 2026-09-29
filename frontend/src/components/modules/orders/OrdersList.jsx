@@ -11,7 +11,7 @@ import { openInvoicesForCustomer } from '@/utils/invoiceOrders';
 import { formatCurrency, formatDate, getStatusColor, invoiceBalanceDue } from '@/utils/helpers';
 import { documentFileName } from '@/utils/printHelpers';
 import { printOrderBookSlip } from '@/utils/orderBookSlip';
-import { ORDER_STATUS, isOpenOrder, isNotStartedOrder, isSettledOrderStatus, isWebsiteOrder, isPendingStatus, isPendingWebsiteOrder } from '@/utils/constants';
+import { ORDER_STATUS, ORDER_STATUS_OPTIONS, isOpenOrder, isNotStartedOrder, isSettledOrderStatus, isWebsiteOrder, isPendingStatus, isPendingWebsiteOrder, normalizeOrderStatus } from '@/utils/constants';
 import { INVOICE_REQUIRED_MESSAGE, STOCK_REQUIRED_MESSAGE, canManuallyDeliver, isReadyForDeliveryStatus } from '@/utils/deliveryRules';
 import { sortBy, pinFirst } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
@@ -31,7 +31,7 @@ const ORDER_SORT_OPTS = [
   { value: 'totalAmount', label: 'Amount' },
 ];
 
-const COMPLETED_STATUSES = ['Delivered', 'Closed', 'Cancelled'];
+const COMPLETED_STATUSES = ['Delivered', 'Cancelled'];
 
 const isLockedOrder = (order) => /^(delivered|completed|complete)$/i.test(String(order?.status || ''));
 
@@ -103,7 +103,7 @@ const OrdersList = () => {
         return !/pos\s*sale/i.test(String(o.remarks || ''));
       });
       if (filters.status) {
-        list = list.filter((o) => String(o.status || '') === String(filters.status));
+        list = list.filter((o) => normalizeOrderStatus(o.status) === normalizeOrderStatus(filters.status));
       }
       if (filters.payment === 'pending') {
         list = list.filter((o) => {
@@ -280,7 +280,7 @@ const OrdersList = () => {
       toast.message('This order is already delivered');
       return;
     }
-    if (!window.confirm(`Confirm delivery of ${order.orderId || order.id}? This will mark the order Delivered and Closed.`)) {
+    if (!window.confirm(`Confirm delivery of ${order.orderId || order.id}? This will mark the order Delivered.`)) {
       return;
     }
     setStatusBusyId(order.id);
@@ -310,7 +310,7 @@ const OrdersList = () => {
 
   const StatusSelect = ({ order, compact }) => (
     <Select
-      value={order.status || ORDER_STATUS.RECEIVED}
+      value={normalizeOrderStatus(order.status) || ORDER_STATUS.RECEIVED}
       disabled={!!statusBusyId}
       onValueChange={(v) => changeOrderStatus(order, v)}
     >
@@ -321,9 +321,9 @@ const OrdersList = () => {
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {Object.values(ORDER_STATUS).map((s) => {
+        {ORDER_STATUS_OPTIONS.map((s) => {
           const gate = canManuallyDeliver(order, catalog);
-          const deliverChoice = s === ORDER_STATUS.DELIVERED || s === ORDER_STATUS.CLOSED;
+          const deliverChoice = s === ORDER_STATUS.DELIVERED;
           const blocked = deliverChoice && !gate.ok;
           const label = !blocked
             ? s
@@ -852,7 +852,7 @@ const OrdersList = () => {
             <SelectTrigger className="rounded-xl" data-testid="status-filter"><SelectValue placeholder="All Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
-              {Object.values(ORDER_STATUS).map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              {ORDER_STATUS_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filters.payment || 'all'} onValueChange={(v) => setFilters({ ...filters, payment: v === 'all' ? undefined : v })}>

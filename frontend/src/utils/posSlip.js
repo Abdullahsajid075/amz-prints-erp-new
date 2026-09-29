@@ -2,6 +2,7 @@ import { formatCurrency } from '@/utils/helpers';
 import { barcodeBlock, printHtml, printOnLoadScript, POS_MAJOR_SERVICES, documentFileName, SLIP_QR_CSS } from '@/utils/printHelpers';
 import { buildSlipQrs, slipWebsiteUrl, verifyUrlForSlip } from '@/utils/slipQr';
 import { mergePosSettings } from '@/utils/moduleSettings';
+import { parsePosCashier } from '@/utils/posSale';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -32,6 +33,8 @@ export function saleFromPosOrder(order = {}) {
       ? Number(order.changeBack)
       : (changeMatch ? Number(changeMatch[1]) : 0),
     paymentMethod: order.paymentMethod || methodFromRemarks || 'Cash',
+    cashier: order.cashier || order.soldBy || '',
+    soldBy: order.soldBy || order.cashier || '',
     customerName: order.customerName || 'Walk-in',
     customerPhone: order.customerPhone || '',
     date: order.date || '',
@@ -128,6 +131,7 @@ export async function printPosSlip(sale, { company = {}, posCfg } = {}) {
       <div class="meta">Customer: ${escapeHtml(sale.customerName || 'Walk-in')}</div>
       <div class="meta">Phone: ${escapeHtml(sale.customerPhone || '—')}</div>
       <div class="meta">Pay: ${escapeHtml(sale.paymentMethod || 'Cash')}</div>
+      <div class="meta">Cashier: ${escapeHtml(parsePosCashier(sale) || sale.cashier || sale.soldBy || 'Cashier')}</div>
       <div class="meta">Date: ${escapeHtml(sale.date || new Date().toLocaleString())}</div>
       <hr />
       <table>

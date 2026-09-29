@@ -1,5 +1,30 @@
 /** Shared POS sale helpers — statement, till, and slip. */
 
+/** Payments ledger reference for a POS sale: POSR- + order number. */
+export function posReceiptRef(orderId) {
+  const raw = String(orderId || '').trim();
+  const core = raw.replace(/^POSR[-_]?/i, '').trim();
+  return core ? `POSR-${core}` : 'POSR';
+}
+
+export function isPosPayment(payment = {}) {
+  const cat = String(payment.category || '').toLowerCase();
+  const notes = String(payment.notes || '');
+  const ref = String(payment.reference || payment.refId || payment.refid || '');
+  if (/^posr\b/i.test(ref) || cat === 'pos sale' || /pos\s*sale/i.test(notes)) return true;
+  return false;
+}
+
+export function displayPaymentRef(payment = {}) {
+  const raw = String(payment.reference || payment.refId || payment.refid || '').trim();
+  if (/^POSR[-_]?/i.test(raw)) return posReceiptRef(raw);
+  if (!isPosPayment(payment)) return raw;
+  const notes = String(payment.notes || '');
+  const fromNotes = notes.match(/\b(?:order|sale)\s+([A-Z0-9][A-Z0-9/_-]*)/i);
+  return posReceiptRef(fromNotes ? fromNotes[1] : raw);
+}
+
+
 export function isPosOrder(o) {
   const dt = String(o?.docType || o?.doctype || '').toLowerCase();
   if (dt === 'pos') return true;

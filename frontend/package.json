@@ -67,7 +67,7 @@
     "start": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node src/utils/ackAlerts.selftest.js && node src/utils/purchaseNeeds.selftest.js && node src/utils/deliveryRules.selftest.js && node src/utils/tokenAnnounce.selftest.js && node src/utils/priceTags.selftest.js && node src/utils/websiteOrder.selftest.js && node src/utils/posStampedReceipt.selftest.js && node src/utils/crmQueries.selftest.js && node src/utils/productSearch.selftest.js && node src/utils/moduleSettings.selftest.js"
+    "test": "node src/utils/ackAlerts.selftest.js && node src/utils/purchaseNeeds.selftest.js && node src/utils/deliveryRules.selftest.js && node src/utils/tokenAnnounce.selftest.js && node src/utils/priceTags.selftest.js && node src/utils/websiteOrder.selftest.js && node src/utils/posStampedReceipt.selftest.js && node src/utils/crmQueries.selftest.js && node src/utils/productSearch.selftest.js && node src/utils/moduleSettings.selftest.js && node src/utils/orderStatus.selftest.js && node src/utils/posSale.selftest.js && node src/utils/inventoryMode.selftest.js"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",

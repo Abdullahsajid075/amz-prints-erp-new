@@ -93,42 +93,46 @@ export async function printCustomerCard({ customer, company, qrUrl, outstanding,
   <style>
     @page { size: 85.6mm 54mm; margin: 0; }
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; background: #fff; }
+    body { margin: 0; font-family: 'Plus Jakarta Sans', 'Segoe UI', Arial, sans-serif; color: #1C2430; background: #fff; }
     .card {
       width: 85.6mm; height: 54mm;
-      border-radius: 3.2mm; overflow: hidden;
-      border: 0.35mm solid #0747a3;
+      border-radius: 3.6mm; overflow: hidden;
+      border: 0.25mm solid rgba(24,32,43,0.12);
       display: flex; flex-direction: column;
-      background: #fff;
+      background:
+        radial-gradient(42mm 22mm at 0% 0%, rgba(255,109,0,0.10), transparent 55%),
+        radial-gradient(38mm 20mm at 100% 0%, rgba(7,71,163,0.08), transparent 50%),
+        #ffffff;
     }
     .top {
-      background: linear-gradient(115deg, #05357c 0%, #0747a3 55%, #ff6d00 160%);
-      color: #fff; padding: 2.4mm 3.2mm;
+      background: #0747a3;
+      color: #fff; padding: 2.2mm 3.2mm 1.8mm;
       display: flex; align-items: center; justify-content: space-between; gap: 2mm;
     }
-    .logo { height: 9mm; max-width: 22mm; object-fit: contain; background: #fff; border-radius: 1.2mm; padding: 0.6mm; }
-    .brand-name { font-size: 3.4mm; font-weight: 800; letter-spacing: 0.02em; line-height: 1.15; }
-    .brand-sub { font-size: 2mm; opacity: .85; letter-spacing: .12em; text-transform: uppercase; margin-top: 0.4mm; }
-    .mid { flex: 1; display: grid; grid-template-columns: 14mm 1fr 18mm; gap: 2.4mm; padding: 2.2mm 3mm 1.2mm; align-items: center; }
+    .accent { height: 1.1mm; background: #ff6d00; }
+    .logo { height: 8.5mm; max-width: 22mm; object-fit: contain; background: #fff; border-radius: 1.2mm; padding: 0.5mm; }
+    .brand-name { font-size: 3.6mm; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
+    .brand-sub { font-size: 1.8mm; opacity: .85; letter-spacing: .14em; text-transform: uppercase; margin-top: 0.3mm; }
+    .mid { flex: 1; display: grid; grid-template-columns: 14mm 1fr 18mm; gap: 2.4mm; padding: 2mm 3mm 1mm; align-items: center; }
     .dp {
-      width: 14mm; height: 16mm; object-fit: cover; border-radius: 1.4mm;
-      border: 0.3mm solid #dbe3ef; background: #f1f5f9;
+      width: 14mm; height: 16mm; object-fit: cover; border-radius: 1.6mm;
+      border: 0.25mm solid rgba(24,32,43,0.10); background: #F4F6F9;
     }
     .dp-ph {
-      width: 14mm; height: 16mm; border-radius: 1.4mm;
-      background: #e8eef7; color: #0747a3; display: flex; align-items: center; justify-content: center;
+      width: 14mm; height: 16mm; border-radius: 1.6mm;
+      background: #EEF1F5; color: #0747a3; display: flex; align-items: center; justify-content: center;
       font-weight: 800; font-size: 5mm;
     }
-    .k { font-size: 1.7mm; color: #64748b; text-transform: uppercase; letter-spacing: .08em; }
-    .v { font-size: 2.7mm; font-weight: 700; margin: 0 0 1.1mm; line-height: 1.2; }
-    .code { font-family: ui-monospace, Consolas, monospace; color: #ff6d00; font-size: 2.4mm; }
+    .k { font-size: 1.6mm; color: #5B6B82; text-transform: uppercase; letter-spacing: .1em; }
+    .v { font-size: 2.8mm; font-weight: 700; margin: 0 0 1mm; line-height: 1.15; color: #0747a3; }
+    .code { font-family: ui-monospace, Consolas, monospace; color: #ff6d00; font-size: 2.5mm; }
     .qr { width: 18mm; height: 18mm; display: block; background: #fff; }
-    .qr-cap { font-size: 1.6mm; text-align: center; font-weight: 800; letter-spacing: .08em; color: #0747a3; margin-top: 0.4mm; }
-    .bc { text-align: center; padding: 0 3mm 0.8mm; }
-    .bc svg { max-width: 100%; height: 9mm; }
+    .qr-cap { font-size: 1.5mm; text-align: center; font-weight: 800; letter-spacing: .1em; color: #0747a3; margin-top: 0.3mm; }
+    .bc { text-align: center; padding: 0 3mm 0.6mm; }
+    .bc svg { max-width: 100%; height: 8mm; }
     .foot {
-      background: #f8fafc; border-top: 0.25mm solid #e2e8f0;
-      padding: 1.3mm 3mm; font-size: 1.8mm; color: #475569;
+      background: #F4F6F9; border-top: 0.2mm solid rgba(24,32,43,0.08);
+      padding: 1.2mm 3mm; font-size: 1.8mm; color: #5B6B82;
       display: flex; justify-content: space-between; gap: 2mm;
     }
   </style>
@@ -145,6 +149,7 @@ export async function printCustomerCard({ customer, company, qrUrl, outstanding,
       </div>
       <div style="text-align:right;font-size:2mm;opacity:.9">ID<br/><strong class="code" style="color:#fff">${esc(code)}</strong></div>
     </div>
+    <div class="accent"></div>
     <div class="mid">
       ${photo
         ? `<img class="dp" src="${esc(photo)}" alt=""/>`
@@ -161,8 +166,8 @@ export async function printCustomerCard({ customer, company, qrUrl, outstanding,
     </div>
     <div class="bc">${barcodeBlock(code || 'AMZ', { id: 'cust-barcode', height: 28 })}</div>
     <div class="foot">
-      <span>Scan QR → Customer Portal · barcode = ID</span>
-      <span>Due ${esc(outstanding ?? '—')} · Adv ${esc(creditBalance ?? '—')}</span>
+      <span>Scan QR → Customer Portal</span>
+      <span>Balance due ${esc(outstanding ?? '—')}</span>
     </div>
   </div>
   <script>window.onload=function(){setTimeout(function(){window.print()},280)}</script>

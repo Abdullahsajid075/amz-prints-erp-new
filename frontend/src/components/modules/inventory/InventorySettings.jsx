@@ -8,9 +8,11 @@ import { Badge } from '@/components/ui/badge';
 import { productsAPI, settingsAPI } from '@/services/api';
 import { clearGasCache } from '@/services/gasClient';
 import { mergeInventorySettings, mergePosSettings, normalizeCatalogItems, posStickerPayload, POS_STICKER_PRESETS } from '@/utils/moduleSettings';
+import { DEFAULT_INVENTORY_MODE, inventoryModeIsActive } from '@/utils/inventoryMode';
 import { collectPriceTagCopies, printPriceTags } from '@/utils/priceTags';
 import { useBrand } from '@/context/BrandContext';
 import ProductVariationsPanel from '@/components/modules/inventory/ProductVariationsPanel';
+import InventoryModeCard from '@/components/modules/inventory/InventoryModeCard';
 import { ArrowLeft, Plus, Save, X, Printer, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -117,6 +119,7 @@ const InventorySettings = () => {
           materials,
           categoryItems: categories,
           materialItems: materials,
+          inventoryMode: form.inventoryMode || DEFAULT_INVENTORY_MODE,
         },
         products: {
           ...(raw.products && typeof raw.products === 'object' ? raw.products : {}),
@@ -164,12 +167,17 @@ const InventorySettings = () => {
             <ArrowLeft className="h-4 w-4 mr-1" />Inventory
           </Button>
           <h1 className="text-2xl font-bold mt-3" style={{ color: '#0747a3' }}>Product settings</h1>
-          <p className="text-sm text-slate-500">Categories, materials, variations, stock rules, and POS sticker-roll tags.</p>
+          <p className="text-sm text-slate-500">Categories, materials, variations, stock rules, Inventory Mode, and POS sticker-roll tags.</p>
         </div>
         <Button className="text-white" style={{ backgroundColor: '#ff6d00' }} onClick={save} disabled={saving}>
           <Save className="h-4 w-4 mr-1" />{saving ? 'Saving…' : 'Save'}
         </Button>
       </div>
+
+      <InventoryModeCard
+        value={form.inventoryMode || DEFAULT_INVENTORY_MODE}
+        onChange={(inventoryMode) => setForm((p) => ({ ...p, inventoryMode }))}
+      />
 
       <div className="rounded-2xl border bg-white p-5 space-y-4">
         <div className="flex items-center justify-between">
@@ -213,6 +221,7 @@ const InventorySettings = () => {
 
       <ProductVariationsPanel
         products={products}
+        allowManualStock={inventoryModeIsActive(form.inventoryMode)}
         onSaved={(updated) => setProducts((prev) => prev.map((p) => (p.id === updated.id ? { ...p, ...updated } : p)))}
       />
 

@@ -14,6 +14,7 @@ import { lookupCustomerPhone, firstPhone } from '@/utils/notifyPhone';
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 import { sortBy } from '@/utils/sortBy';
+import { displayPaymentRef } from '@/utils/posSale';
 import SortBar from '@/components/shared/SortBar';
 import PageHeader from '@/components/shared/PageHeader';
 import { useBrand } from '@/context/BrandContext';
@@ -28,7 +29,7 @@ const PAYMENT_SORT_OPTS = [
   { value: 'type', label: 'Type' },
 ];
 
-const CATEGORIES = ['Invoice Payment', 'Purchase Payment', 'Expense Payment', 'Refund', 'Other Income', 'Owner Deposit', 'Owner Withdrawal'];
+const CATEGORIES = ['Invoice Payment', 'POS Sale', 'Purchase Payment', 'Expense Payment', 'Refund', 'Other Income', 'Owner Deposit', 'Owner Withdrawal'];
 const TYPES = [
   { key: 'inflow', label: 'Money In', color: '#10B981', icon: ArrowDownLeft },
   { key: 'outflow', label: 'Money Out', color: '#EF4444', icon: ArrowUpRight }
@@ -552,7 +553,7 @@ const Payments = () => {
             <div key={p.id} className="flex flex-wrap items-center gap-2 bg-white rounded-xl border px-3 py-2 text-sm">
               <span className="font-semibold flex-1">{p.party || 'Customer'}</span>
               <span>{formatCurrency(p.balanceDue || p.amount)} · {p.method} · {formatDate(p.date)}</span>
-              <span className="text-xs text-slate-500">{p.reference || p.id}</span>
+              <span className="text-xs text-slate-500">{displayPaymentRef(p) || p.id}</span>
               <Button size="sm" onClick={() => openAllocate(p)}>Allocate</Button>
             </div>
           ))}
@@ -646,7 +647,7 @@ const Payments = () => {
                           </td>
                           <td className="py-3 px-3 text-sm">{p.category}</td>
                           <td className="py-3 px-3 text-sm font-medium">{p.party}</td>
-                          <td className="py-3 px-3 text-xs" style={{ color: '#ff6d00' }}>{p.reference || '-'}</td>
+                          <td className="py-3 px-3 text-xs" style={{ color: '#ff6d00' }}>{displayPaymentRef(p) || '-'}</td>
                           <td className="py-3 px-3"><Badge variant="outline" className="text-xs gap-1"><Building className="h-3 w-3" />{p.method}</Badge></td>
                           <td className={`py-3 px-3 text-right font-bold ${isIn ? 'text-emerald-700' : 'text-rose-600'}`}>{isIn ? '+' : '-'}{formatCurrency(p.amount)}</td>
                           <td className="py-3 px-3 text-right">

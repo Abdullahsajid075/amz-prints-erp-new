@@ -23,14 +23,45 @@ export const ORDER_STATUS = {
   DESIGNING: 'Designing',
   PROOF_APPROVAL: 'Proof Approval',
   PRINTING: 'Printing',
-  FINISHING: 'Finishing',
-  PACKING: 'Packing',
-  READY: 'Ready',
-  READY_FOR_DELIVERY: 'Ready for Delivery',
+  READY: 'Ready for Delivery',
   DELIVERED: 'Delivered',
-  CLOSED: 'Closed',
-  CANCELLED: 'Cancelled'
+  CANCELLED: 'Cancelled',
 };
+
+/** Legacy labels folded into the live statuses (dropdown shows one of each). */
+const ORDER_STATUS_ALIASES = {
+  Ready: ORDER_STATUS.READY,
+  'Ready for Delivery': ORDER_STATUS.READY,
+  Finishing: ORDER_STATUS.PRINTING,
+  Packing: ORDER_STATUS.PRINTING,
+  'Finishing and packing': ORDER_STATUS.PRINTING,
+  'Finishing and Packing': ORDER_STATUS.PRINTING,
+  Closed: ORDER_STATUS.DELIVERED,
+  Complete: ORDER_STATUS.DELIVERED,
+  Completed: ORDER_STATUS.DELIVERED,
+};
+
+export function normalizeOrderStatus(status) {
+  const raw = String(status || '').trim();
+  if (!raw) return ORDER_STATUS.RECEIVED;
+  if (ORDER_STATUS_ALIASES[raw]) return ORDER_STATUS_ALIASES[raw];
+  const lower = raw.toLowerCase();
+  if (lower === 'ready' || lower === 'ready for delivery') return ORDER_STATUS.READY;
+  if (lower === 'finishing' || lower === 'packing' || lower === 'finishing and packing') return ORDER_STATUS.PRINTING;
+  if (lower === 'closed' || lower === 'complete' || lower === 'completed') return ORDER_STATUS.DELIVERED;
+  return raw;
+}
+
+export const ORDER_STATUS_OPTIONS = [
+  ORDER_STATUS.PENDING,
+  ORDER_STATUS.RECEIVED,
+  ORDER_STATUS.DESIGNING,
+  ORDER_STATUS.PROOF_APPROVAL,
+  ORDER_STATUS.PRINTING,
+  ORDER_STATUS.READY,
+  ORDER_STATUS.DELIVERED,
+  ORDER_STATUS.CANCELLED,
+];
 
 export const OPEN_ORDER_STATUSES = [
   ORDER_STATUS.PENDING,
@@ -38,10 +69,7 @@ export const OPEN_ORDER_STATUSES = [
   ORDER_STATUS.DESIGNING,
   ORDER_STATUS.PROOF_APPROVAL,
   ORDER_STATUS.PRINTING,
-  ORDER_STATUS.FINISHING,
-  ORDER_STATUS.PACKING,
   ORDER_STATUS.READY,
-  ORDER_STATUS.READY_FOR_DELIVERY,
 ];
 
 export function isBookingOrder(order) {
@@ -60,8 +88,7 @@ export function isSettledOrderStatus(status) {
 export function isOpenOrder(order) {
   if (!isBookingOrder(order)) return false;
   if (isSettledOrderStatus(order?.status)) return false;
-  const s = String(order?.status || '').trim().toLowerCase();
-  if (s === 'ready for delivery') return true;
+  const s = normalizeOrderStatus(order?.status).toLowerCase();
   return OPEN_ORDER_STATUSES.some((st) => st.toLowerCase() === s);
 }
 

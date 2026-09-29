@@ -1,4 +1,5 @@
 import { POS_MAJOR_SERVICES } from './printHelpers.js';
+import { DEFAULT_INVENTORY_MODE, parseInventoryMode } from './inventoryMode.js';
 
 export const DEFAULT_PRODUCT_CATEGORIES = [
   'Business Cards', 'Flyers & Brochures', 'Posters', 'Banners', 'Stickers & Labels',
@@ -17,6 +18,7 @@ export const DEFAULT_INVENTORY_SETTINGS = {
   defaultLowStock: 5,
   categories: DEFAULT_PRODUCT_CATEGORIES,
   materials: DEFAULT_PRODUCT_MATERIALS,
+  inventoryMode: DEFAULT_INVENTORY_MODE,
 };
 
 export const POS_STICKER_PRESETS = [
@@ -142,6 +144,7 @@ export function mergeInventorySettings(api = {}) {
     materials: activeCatalogNames(inv.materials || prod.materials, DEFAULT_PRODUCT_MATERIALS),
     categoryItems: normalizeCatalogItems(inv.categoryItems || inv.categories || prod.categories, DEFAULT_PRODUCT_CATEGORIES),
     materialItems: normalizeCatalogItems(inv.materialItems || inv.materials || prod.materials, DEFAULT_PRODUCT_MATERIALS),
+    inventoryMode: parseInventoryMode(inv.inventoryMode || api.inventoryMode),
   };
 }
 

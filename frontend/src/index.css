@@ -255,7 +255,7 @@ code {
   align-items: center;
 }
 
-/* Invoice stamp + overlapping bold signature */
+/* Invoice stamp sits on top of the right-side signature */
 .inv-auth {
   position: relative;
   min-height: 132px;
@@ -264,12 +264,12 @@ code {
 
 .inv-stamp {
   position: absolute;
-  left: 38%;
-  bottom: 6px;
+  right: 42px;
+  bottom: 22px;
   width: 128px;
-  z-index: 1;
-  opacity: 0.86;
-  transform: rotate(-14deg);
+  z-index: 6;
+  opacity: 0.92;
+  transform: rotate(-12deg);
   pointer-events: none;
 }
 
@@ -300,7 +300,7 @@ code {
   position: absolute;
   right: 12px;
   bottom: 2px;
-  z-index: 4;
+  z-index: 3;
   width: 220px;
   text-align: center;
 }
@@ -460,7 +460,9 @@ code {
   }
   .invoice-container .inv-stamp {
     width: 96px !important;
-    left: 50% !important;
+    left: auto !important;
+    right: 36px !important;
+    z-index: 6 !important;
   }
   .invoice-container .inv-stamp img,
   .invoice-container .inv-stamp-fallback {

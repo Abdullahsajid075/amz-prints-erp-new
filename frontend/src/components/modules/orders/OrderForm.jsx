@@ -11,7 +11,7 @@ import { notifyOrderEvent } from '@/services/notifications';
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import ProductPicker from '@/components/shared/ProductPicker';
 import ProductQuickCreate from '@/components/shared/ProductQuickCreate';
-import { ORDER_STATUS, isWebsiteOrder, isPendingStatus } from '@/utils/constants';
+import { ORDER_STATUS, ORDER_STATUS_OPTIONS, isWebsiteOrder, isPendingStatus, normalizeOrderStatus } from '@/utils/constants';
 import { formatCurrency } from '@/utils/helpers';
 import { catalogFieldsForOrderLine } from '@/utils/productImage';
 import { tracksInventory } from '@/utils/inventoryTrack';
@@ -388,7 +388,7 @@ const OrderForm = () => {
       }
 
       const totalAmount = cleanProducts.reduce((t, p) => t + (p.quantity * p.rate), 0);
-      const advancePayment = linkedInvoiceId ? (Number(formData.advancePayment) || 0) : 0;
+      const advancePayment = Math.max(0, Number(formData.advancePayment) || 0);
       const orderData = {
         id: isEdit ? orderId : formData.id,
         orderId: formData.orderId || undefined,
@@ -523,7 +523,7 @@ const OrderForm = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-4 pb-8" data-testid="order-form">
+    <div className="max-w-4xl mx-auto space-y-3 pb-6" data-testid="order-form">
       <div className="rounded-2xl border border-orange-100 bg-white overflow-hidden shadow-sm">
         <div className="h-1.5" style={{ backgroundColor: accent }} />
         <div className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -562,10 +562,10 @@ const OrderForm = () => {
         </div>
       </div>
 
-      <form id="order-form-el" onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <form id="order-form-el" onSubmit={handleSubmit} className="space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <Card className="border-orange-100/80 shadow-sm rounded-2xl">
-            <CardHeader className="py-3"><CardTitle className="text-base">Customer</CardTitle></CardHeader>
+            <CardHeader className="py-2.5"><CardTitle className="text-base">Customer</CardTitle></CardHeader>
             <CardContent className="pt-0">
               <CustomerPicker
                 customers={customers}
@@ -621,7 +621,7 @@ const OrderForm = () => {
           </Card>
 
           <Card className="border-orange-100/80 shadow-sm rounded-2xl">
-            <CardHeader className="py-3"><CardTitle className="text-base">Order Details</CardTitle></CardHeader>
+            <CardHeader className="py-2.5"><CardTitle className="text-base">Order Details</CardTitle></CardHeader>
             <CardContent className="pt-0 space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -671,18 +671,18 @@ const OrderForm = () => {
                 <div className="sm:col-span-2">
                   <Label className="text-xs">Status</Label>
                   <Select
-                    value={formData.status || ORDER_STATUS.RECEIVED}
+                    value={normalizeOrderStatus(formData.status) || ORDER_STATUS.RECEIVED}
                     onValueChange={(value) => setFormData((prev) => ({ ...prev, status: value }))}
                   >
                     <SelectTrigger data-testid="status-select"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {Object.values(ORDER_STATUS).map((status) => {
+                      {ORDER_STATUS_OPTIONS.map((status) => {
                         const gate = canManuallyDeliver({
                           ...formData,
                           invoiceId: linkedInvoiceId,
                           products: formData.products,
                         }, catalog);
-                        const deliverChoice = status === ORDER_STATUS.DELIVERED || status === ORDER_STATUS.CLOSED;
+                        const deliverChoice = status === ORDER_STATUS.DELIVERED;
                         const blocked = deliverChoice && !gate.ok;
                         const label = !blocked
                           ? status
@@ -894,7 +894,7 @@ const OrderForm = () => {
 
         <Card className="border-orange-200 shadow-sm rounded-2xl overflow-hidden">
           <div className="h-1" style={{ backgroundColor: accent }} />
-          <CardHeader className="py-3"><CardTitle className="text-base">Payment summary</CardTitle></CardHeader>
+          <CardHeader className="py-2.5"><CardTitle className="text-base">Payment summary</CardTitle></CardHeader>
           <CardContent className="pt-0 space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="rounded-xl p-3 bg-[#FFF6ED] border border-orange-100">
@@ -902,14 +902,13 @@ const OrderForm = () => {
                 <p className="font-bold text-xl" style={{ color: accent }}>{formatCurrency(calculateTotal())}</p>
               </div>
               <div>
-                <Label className="text-xs">Received (invoice)</Label>
+                <Label className="text-xs">Received at booking</Label>
                 <Input
                   type="number"
                   min="0"
                   step="0.01"
                   value={formData.advancePayment}
                   onChange={(e) => setFormData((prev) => ({ ...prev, advancePayment: parseFloat(e.target.value) || 0 }))}
-                  disabled
                   data-testid="advance-payment-input"
                 />
               </div>
@@ -919,7 +918,7 @@ const OrderForm = () => {
               </div>
             </div>
             <p className="text-xs text-gray-500">
-              Advances are not written on the order. Create the invoice first — payment is recorded on that open invoice.
+              Amount received now is stored on the order and added as paid when you create the invoice, so the remaining balance is clear.
             </p>
           </CardContent>
         </Card>
