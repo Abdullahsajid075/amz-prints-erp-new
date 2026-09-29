@@ -78,11 +78,55 @@ body.amz-ve-on .amz-ve-hot {
 .amz-ve-pop {
   position: fixed;
   z-index: 100001;
-  width: min(360px, calc(100vw - 24px));
+  width: min(380px, calc(100vw - 24px));
+  max-height: min(70vh, 560px);
+  overflow: auto;
   padding: 14px;
   background: #fff;
   border-radius: 14px;
   box-shadow: 0 16px 50px rgba(0, 0, 0, 0.25);
+}
+
+.amz-ve-mover {
+  position: fixed;
+  z-index: 100000;
+  display: flex;
+  gap: 6px;
+}
+
+.amz-ve-mover button {
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 12px;
+  background: #0747a3;
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+body.amz-ve-on .stage__panel {
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+}
+
+body.amz-ve-on .stage__slide {
+  position: relative !important;
+  inset: auto !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  transform: none !important;
+  margin: 0 0 12px;
+}
+
+body.amz-ve-on .stage__photo,
+body.amz-ve-on .stage__copy {
+  transform: none !important;
+  opacity: 1 !important;
+  animation: none !important;
 }
 
 .amz-ve-pop h3 {
@@ -98,7 +142,8 @@ body.amz-ve-on .amz-ve-hot {
 }
 
 .amz-ve-pop textarea,
-.amz-ve-pop input {
+.amz-ve-pop input,
+.amz-ve-pop select {
   display: block;
   width: 100%;
   margin-top: 4px;
@@ -108,6 +153,7 @@ body.amz-ve-on .amz-ve-hot {
   padding: 8px;
   font: inherit;
   font-size: 14px;
+  background: #fff;
 }
 
 .amz-ve-pop textarea { min-height: 90px; resize: vertical; }
