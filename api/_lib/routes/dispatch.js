@@ -52,6 +52,7 @@ const {
   applyOnHandDelta,
   inventoryModeIsActive,
 } = require('../lib/inventoryStock');
+const { planInvoiceAfterOrderCancel } = require('../lib/orderCancelInvoice');
 
 function expenseIsApproved(row) {
   if (!row) return false;
@@ -1010,9 +1011,87 @@ async function findInvoiceHoldingOrder(order, exceptId = '') {
   const { data: invoices } = await supabase.from('invoices').select('*');
   return (invoices || []).find((inv) => {
     if (exceptId && String(inv.id) === String(exceptId)) return false;
+    if (isCancelledStatus(inv.status)) return false;
     const ids = collectOrderIds({}, inv).map(String);
     return keys.some((k) => ids.includes(k) || String(inv.order_id) === k);
   }) || null;
+}
+
+async function syncInvoiceAfterOrderCancelled(order, user) {
+  const holder = await findInvoiceHoldingOrder(order);
+  if (!holder) {
+    await supabase.from('orders').update({
+      advance_payment: 0,
+      balance_amount: 0,
+    }).eq('id', order.id);
+    return { action: 'none', message: '' };
+  }
+  const plan = planInvoiceAfterOrderCancel(holder, order);
+  const history = Array.isArray(holder.payment_history) ? [...holder.payment_history] : [];
+  const reverseAmt = num(plan.reversePaid);
+  if (reverseAmt > 0.009) {
+    history.push({
+      id: id('pay'),
+      date: today(),
+      amount: reverseAmt,
+      applied: -reverseAmt,
+      extra: 0,
+      method: 'Reversal',
+      notes: `Payment reversed — order ${order.order_id || order.id} cancelled`,
+      orderId: order.order_id || order.id,
+      reversal: true,
+    });
+    await supabase.from('payments').insert({
+      id: id('pay'),
+      date: today(),
+      type: 'outflow',
+      category: 'Invoice Reversal',
+      ref_id: holder.invoice_no || holder.id,
+      customer_name: holder.customer_name || '',
+      customer_id: holder.customer_id || '',
+      party_phone: holder.customer_phone || '',
+      amount: reverseAmt,
+      method: 'Reversal',
+      notes: `Payment reversed — order ${order.order_id || order.id} cancelled`,
+      balance_due: 0,
+      total_amount: reverseAmt,
+    });
+  }
+  const creditExtra = num(plan.creditExtra);
+  if (creditExtra > 0.009 && holder.customer_id) {
+    const cust = await loadCustomer(holder.customer_id);
+    if (cust) {
+      await supabase.from('customers').update({
+        credit_balance: num(cust.credit_balance) + creditExtra,
+      }).eq('id', cust.id);
+    }
+  }
+  await supabase.from('invoices').update({
+    items: plan.items,
+    order_ids: plan.orderIds,
+    order_id: plan.orderIds[0] || holder.order_id || '',
+    subtotal: plan.subtotal,
+    total: plan.total,
+    paid: plan.paid,
+    status: plan.status,
+    notes: plan.notes,
+    payment_history: history,
+  }).eq('id', holder.id);
+  await supabase.from('orders').update({
+    advance_payment: 0,
+    balance_amount: 0,
+  }).eq('id', order.id);
+  if (!plan.cancelInvoice) {
+    const { data: latest } = await supabase.from('invoices').select('*').eq('id', holder.id).maybeSingle();
+    await syncLinkedOrderBalances(latest);
+  }
+  return {
+    action: plan.action,
+    invoiceNo: plan.invoiceNo,
+    reversed: reverseAmt,
+    message: plan.message,
+    recordedBy: userLabel(user),
+  };
 }
 
 async function assertOrderCanBeDelivered(order) {
@@ -1213,6 +1292,7 @@ async function recordInvoicePayment(invoiceId, body = {}, user) {
     extra,
     method: body.method || 'Cash',
     notes: body.notes || '',
+    orderId: body.orderId || body.order_id || body.linkedOrderId || '',
     locked: true,
   });
   const status = invoiceStatusFromPaid(totalDue, paidAfter);
@@ -2884,9 +2964,18 @@ async function dispatch(req, res) {
         if (wasCancelled && !nowCancelled && statusIsPos) {
           await persistOrderStock(existing, { isPos: true, oldLines: [] });
         }
-        await supabase.from('orders').update({ status, status_history: hist }).eq('id', existing.id);
+        let invoiceSync = null;
+        if (!wasCancelled && nowCancelled) {
+          invoiceSync = await syncInvoiceAfterOrderCancelled({ ...existing, status }, user);
+        }
+        const orderPatch = { status, status_history: hist };
+        if (!wasCancelled && nowCancelled) {
+          orderPatch.advance_payment = 0;
+          orderPatch.balance_amount = 0;
+        }
+        await supabase.from('orders').update(orderPatch).eq('id', existing.id);
         const { data } = await supabase.from('orders').select('*').eq('id', existing.id).maybeSingle();
-        return send(res, await withInvoiceMeta(mapOrder(data)));
+        return send(res, { ...(await withInvoiceMeta(mapOrder(data))), invoiceSync });
       }
       if (action === 'deliver' && (method === 'PATCH' || method === 'POST')) {
         try {
@@ -2955,6 +3044,11 @@ async function dispatch(req, res) {
             if (putIsPos || isDeliveredStatus(existing.status)) {
               await syncProductStock(existing.products, [], { allowShortage: true });
             }
+            const invoiceSync = await syncInvoiceAfterOrderCancelled({ ...existing, ...row, status: row.status }, user);
+            row.advance_payment = 0;
+            row.balance_amount = 0;
+            await supabase.from('orders').update(row).eq('id', existing.id);
+            return send(res, { ...mapOrder(row), invoiceSync });
           } else if (putIsPos) {
             await persistOrderStock(row, { isPos: true, oldLines: existing.products });
           } else {

@@ -108,6 +108,189 @@ code {
   .erp-nav-link {
     @apply flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium transition-all duration-200;
   }
+
+  .erp-home-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3.4rem 1.15rem 1.4rem;
+    overflow: auto;
+    background:
+      radial-gradient(720px 420px at 12% 8%, rgba(255, 255, 255, 0.18), transparent 55%),
+      radial-gradient(640px 380px at 88% 92%, rgba(7, 71, 163, 0.35), transparent 50%),
+      linear-gradient(165deg, #ff8a1a 0%, #ff6d00 42%, #e85d00 72%, #0747a3 140%);
+  }
+  .erp-home-enter {
+    animation: erp-home-in 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .erp-home-leave {
+    animation: erp-home-out 0.4s cubic-bezier(0.4, 0, 1, 1) forwards;
+    pointer-events: none;
+  }
+  @keyframes erp-home-in {
+    from { transform: translateY(-18%); opacity: 0; }
+    to { transform: none; opacity: 1; }
+  }
+  @keyframes erp-home-out {
+    to { transform: translateY(-110%); opacity: 0; }
+  }
+  .erp-home-topbrand {
+    position: absolute;
+    top: 1.1rem;
+    right: 1.15rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    z-index: 3;
+  }
+  .erp-home-headline {
+    position: relative;
+    z-index: 2;
+    font-family: Outfit, 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-size: clamp(1.55rem, 3.2vw, 2.35rem);
+    font-weight: 800;
+    color: #fff;
+    text-align: center;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin: 0 0 0.2rem;
+    max-width: 22rem;
+    text-shadow: 0 8px 24px rgba(7, 71, 163, 0.25);
+  }
+  .erp-home-sub {
+    position: relative;
+    z-index: 2;
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin: 0 0 0.65rem;
+    text-align: center;
+  }
+  .erp-home-legal {
+    position: relative;
+    z-index: 2;
+    margin: 0.9rem 0 0;
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .erp-home-glow {
+    position: absolute;
+    width: 280px;
+    height: 280px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+    filter: blur(12px);
+    bottom: 8%;
+    left: 50%;
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+  .erp-home-float {
+    position: absolute;
+    width: 180px;
+    border-radius: 1.1rem;
+    padding: 0.9rem 1rem;
+    background: rgba(255, 255, 255, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    backdrop-filter: blur(10px);
+    flex-direction: column;
+  }
+  .erp-home-float-left { left: max(1.5rem, calc(50% - 380px)); top: 22%; }
+  .erp-home-float-right { right: max(1.5rem, calc(50% - 380px)); bottom: 22%; }
+  .erp-home-float-expense {
+    right: max(1.5rem, calc(50% - 360px));
+    top: 18%;
+    width: 168px;
+  }
+  .erp-home-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    height: 42px;
+    margin-top: 0.55rem;
+  }
+  .erp-home-bars span {
+    flex: 1;
+    border-radius: 4px 4px 0 0;
+    background: linear-gradient(180deg, #fff 0%, #0747a3 160%);
+    opacity: 0.9;
+  }
+  .erp-home-bars span:nth-child(1) { height: 38%; }
+  .erp-home-bars span:nth-child(2) { height: 62%; }
+  .erp-home-bars span:nth-child(3) { height: 48%; }
+  .erp-home-bars span:nth-child(4) { height: 86%; }
+  .erp-home-bars span:nth-child(5) { height: 70%; }
+  .erp-home-bars span:nth-child(6) { height: 54%; }
+  .erp-home-phone {
+    position: relative;
+    z-index: 2;
+    width: min(100%, 380px);
+    max-height: calc(100vh - 6.25rem);
+    overflow: auto;
+    border-radius: 1.75rem;
+    background: #fff;
+    box-shadow: 0 28px 64px rgba(28, 36, 48, 0.28);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+  }
+  .erp-home-phone-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.9rem 1rem 0.85rem;
+    border-radius: 1.75rem 1.75rem 0 0;
+  }
+  .erp-home-close {
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    flex-shrink: 0;
+  }
+  .erp-home-close:hover { background: rgba(255, 255, 255, 0.32); }
+  .erp-home-phone-body { padding: 0.7rem 0.85rem 0.85rem; }
+  .erp-home-app {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.28rem;
+    padding: 0.42rem 0.15rem 0.32rem;
+    border-radius: 0.9rem;
+    background: #f7f8fb;
+    border: 1px solid rgba(7, 71, 163, 0.06);
+  }
+  .erp-home-app:hover {
+    background: #fff7f0;
+    border-color: rgba(255, 109, 0, 0.28);
+  }
+  .erp-home-app-icon {
+    width: 2.05rem;
+    height: 2.05rem;
+    border-radius: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .erp-home-app-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: #334155;
+    letter-spacing: 0.01em;
+    text-align: center;
+    line-height: 1.15;
+  }
 }
 
 @layer base {
@@ -259,13 +442,13 @@ code {
 .inv-auth {
   position: relative;
   min-height: 132px;
-  margin-top: -42px;
+  margin-top: -12px;
 }
 
 .inv-stamp {
   position: absolute;
-  right: 42px;
-  bottom: 22px;
+  right: 130px;
+  bottom: 18px;
   width: 128px;
   z-index: 6;
   opacity: 0.92;
@@ -341,7 +524,7 @@ code {
 /* Print styles for invoice / quotation — fit A4, compact chrome, strong totals */
 @media print {
   @page { size: A4; margin: 10mm 9mm 12mm 9mm; }
-  .no-print, nav, aside, header, .erp-shell > nav, .erp-shell > aside { display: none !important; }
+  .no-print, nav, aside, header, .erp-shell > nav, .erp-shell > aside, .erp-home-overlay { display: none !important; }
   body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   main { padding: 0 !important; margin: 0 !important; }
   .erp-shell { background: white !important; }
@@ -456,12 +639,12 @@ code {
   }
   .invoice-container .inv-auth {
     min-height: 108px !important;
-    margin-top: -28px !important;
+    margin-top: -8px !important;
   }
   .invoice-container .inv-stamp {
     width: 96px !important;
     left: auto !important;
-    right: 36px !important;
+    right: 110px !important;
     z-index: 6 !important;
   }
   .invoice-container .inv-stamp img,
@@ -543,13 +726,16 @@ code {
   }
   .invoice-fit-one-page .inv-auth {
     min-height: 92px !important;
-    margin-top: -22px !important;
+    margin-top: -6px !important;
   }
   .invoice-fit-one-page .inv-stamp,
   .invoice-fit-one-page .inv-stamp img,
   .invoice-fit-one-page .inv-stamp-fallback {
     width: 78px !important;
     max-height: 78px !important;
+  }
+  .invoice-fit-one-page .inv-stamp {
+    right: 96px !important;
   }
   .invoice-fit-one-page .inv-sign img {
     max-height: 52px !important;

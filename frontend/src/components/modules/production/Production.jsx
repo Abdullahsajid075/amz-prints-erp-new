@@ -47,8 +47,9 @@ const Production = () => {
 
   const moveOrder = async (order, newStatus) => {
     try {
-      await ordersAPI.update(order.id, { ...order, status: newStatus });
+      const res = await ordersAPI.update(order.id, { ...order, status: newStatus });
       toast.success(`${order.orderId} → ${newStatus}`);
+      if (res.data?.invoiceSync?.message) toast.message(res.data.invoiceSync.message);
       fetchOrders();
     } catch (err) { console.error(err); toast.error('Failed to update status'); }
   };

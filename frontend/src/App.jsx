@@ -7,6 +7,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { NotificationProvider } from '@/context/NotificationCenter';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Login from '@/components/modules/auth/Login';
+import { HomeLauncherProvider } from '@/context/HomeLauncherContext';
 import MainLayout from '@/components/layout/MainLayout';
 import Dashboard from '@/components/modules/dashboard/Dashboard';
 import OrdersList from '@/components/modules/orders/OrdersList';
@@ -55,7 +56,9 @@ function AuthenticatedApp() {
       <AuthProvider>
         <NotificationProvider>
           <ProtectedRoute>
-            <MainLayout />
+            <HomeLauncherProvider>
+              <MainLayout />
+            </HomeLauncherProvider>
           </ProtectedRoute>
           <Toaster position="top-right" richColors closeButton />
         </NotificationProvider>
@@ -66,7 +69,7 @@ function AuthenticatedApp() {
 
 function App() {
   useEffect(() => {
-    document.title = 'AMAZON ERP';
+    document.title = 'Amazon Printings (PVT) Ltd';
   }, []);
 
   return (

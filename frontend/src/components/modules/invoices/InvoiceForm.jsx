@@ -716,7 +716,7 @@ const InvoiceForm = () => {
   return (
     <div className="space-y-3 pb-6" data-testid="invoice-form">
       <div className="rounded-2xl border border-orange-100 bg-white overflow-hidden shadow-sm">
-        <div className="h-1.5" style={{ backgroundColor: accent }} />
+        <div className="h-1.5" style={{ background: `linear-gradient(90deg, ${accent} 0%, #0747a3 100%)` }} />
         <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <Button variant="outline" size="sm" onClick={() => navigate('/invoices')} data-testid="back-invoices">
@@ -725,7 +725,7 @@ const InvoiceForm = () => {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <Receipt className="h-5 w-5 shrink-0" style={{ color: accent }} />
-                <h1 className="text-xl sm:text-2xl font-bold truncate" style={{ color: '#1F2937' }}>
+                <h1 className="text-xl sm:text-2xl font-bold truncate" style={{ color: '#0747a3' }}>
                   {isEdit ? 'Edit Invoice' : 'New Invoice'}
                 </h1>
               </div>
