@@ -5,9 +5,10 @@ import { Input } from '@/components/ui/input';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { productsAPI, purchasesAPI, ordersAPI, settingsAPI } from '@/services/api';
-import { Warehouse, Search, Package, Settings } from 'lucide-react';
+import { Warehouse, Search, Package, Settings, Save } from 'lucide-react';
 import { mergeInventorySettings } from '@/utils/moduleSettings';
 import { isServiceItem, tracksInventory } from '@/utils/inventoryTrack';
+import useInventoryMode from '@/hooks/useInventoryMode';
 import { toast } from 'sonner';
 
 const UPCOMING_STATUSES = new Set(['Ordered', 'Partial Paid']);
@@ -31,6 +32,9 @@ const Inventory = () => {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [lowDefault, setLowDefault] = useState(5);
+  const [draftStock, setDraftStock] = useState({});
+  const [savingId, setSavingId] = useState('');
+  const { active: allowManualStock } = useInventoryMode();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -43,6 +47,7 @@ const Inventory = () => {
       setProducts(prodRes.data || []);
       setPurchases(purchRes.data || []);
       setOrders(ordRes.data || []);
+      setDraftStock({});
     } catch (err) {
       console.error(err);
       toast.error('Failed to load inventory');
@@ -107,6 +112,25 @@ const Inventory = () => {
       });
   }, [products, upcomingByProduct, reservedByProduct, search, lowDefault]);
 
+  const saveStock = async (product) => {
+    const next = Math.max(0, Number(draftStock[product.id] != null ? draftStock[product.id] : product.stock) || 0);
+    setSavingId(product.id);
+    try {
+      await productsAPI.update(product.id, { ...product, stock: next });
+      toast.success(`${product.name}: on-hand set to ${next}`);
+      setProducts((prev) => prev.map((p) => (p.id === product.id ? { ...p, stock: next } : p)));
+      setDraftStock((prev) => {
+        const copy = { ...prev };
+        delete copy[product.id];
+        return copy;
+      });
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Could not update stock');
+    } finally {
+      setSavingId('');
+    }
+  };
+
   const stats = {
     total: rows.length,
     inStock: rows.filter((r) => r.badge.label === 'In Stock').length,
@@ -120,7 +144,11 @@ const Inventory = () => {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-3xl font-bold" style={{ color: '#0747a3' }}>Inventory</h1>
-            <p className="text-gray-600 mt-1">On-hand quantity updates when a purchase is Received. Manual add/remove is locked. POS and delivery consume stock.</p>
+            <p className="text-gray-600 mt-1">
+              {allowManualStock
+                ? 'Inventory Mode is on. You can correct on-hand stock until the countdown ends. POS and delivery still consume stock.'
+                : 'On-hand quantity updates when a purchase is Received. Manual add/remove is locked. Turn on Inventory Mode in Product settings to correct stock.'}
+            </p>
           </div>
           <Button asChild variant="outline">
             <Link to="/warehouse/inventory/settings"><Settings className="h-4 w-4 mr-1" />Product settings</Link>
@@ -184,7 +212,32 @@ const Inventory = () => {
                         <p className="font-semibold" style={{ color: '#0747a3' }}>{p.name}</p>
                         <p className="text-xs text-gray-500">{[p.sku, p.category].filter(Boolean).join(' · ')}</p>
                       </td>
-                      <td className="py-3 px-3 text-right font-bold">{p.stock}</td>
+                      <td className="py-3 px-3 text-right font-bold">
+                        {allowManualStock ? (
+                          <div className="inline-flex items-center justify-end gap-1">
+                            <Input
+                              type="number"
+                              min="0"
+                              className="h-8 w-20 text-right"
+                              value={draftStock[p.id] != null ? draftStock[p.id] : p.stock}
+                              onChange={(e) => setDraftStock((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                              data-testid={`inventory-stock-input-${p.id}`}
+                            />
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-8 text-white"
+                              style={{ backgroundColor: '#ff6d00' }}
+                              disabled={savingId === p.id}
+                              onClick={() => saveStock(p)}
+                            >
+                              <Save className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        ) : (
+                          p.stock
+                        )}
+                      </td>
                       <td className="py-3 px-3 text-right text-gray-600">{p.reserved}</td>
                       <td className="py-3 px-3 text-right text-blue-700">{p.upcoming || 0}</td>
                       <td className="py-3 px-3">

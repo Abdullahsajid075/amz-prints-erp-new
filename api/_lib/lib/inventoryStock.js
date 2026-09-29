@@ -78,16 +78,72 @@ function orderDeliveryShortages(order, catalog = []) {
 function mergeVariationStocks(incomingVars, existingVars) {
   const existing = Array.isArray(existingVars) ? existingVars : [];
   const incoming = Array.isArray(incomingVars) ? incomingVars : [];
-  return incoming.map((v, i) => {
+  return incoming.map((v) => {
     const match = existing.find((e) => String(e.id) === String(v.id)) || null;
     return { ...v, stock: match ? num(match.stock) : 0 };
   });
 }
 
-/** Product form cannot set quantity. Create starts at 0; update keeps live on-hand. */
-function preserveProductStock(incoming, existing) {
+function asSettingsObject(raw) {
+  if (!raw) return {};
+  if (typeof raw === 'object' && !Array.isArray(raw)) return raw;
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
+function parseInventoryMode(raw) {
+  const src = asSettingsObject(raw);
+  const nested = asSettingsObject(src.inventoryMode);
+  const mode = Object.keys(nested).length ? nested : src;
+  return {
+    active: !!mode.active,
+    startedAt: mode.startedAt || '',
+    endsAt: mode.endsAt || '',
+    durationHours: Math.max(1, Number(mode.durationHours) || 24),
+  };
+}
+
+function inventoryModeFromSettings(settings = {}) {
+  const obj = asSettingsObject(settings);
+  const inv = asSettingsObject(obj.inventory);
+  if (inv.inventoryMode != null) return parseInventoryMode(inv.inventoryMode);
+  if (obj.inventoryMode != null) return parseInventoryMode(obj.inventoryMode);
+  return parseInventoryMode(inv);
+}
+
+function inventoryModeIsActive(settingsOrMode, now = Date.now()) {
+  const mode = settingsOrMode && (settingsOrMode.inventory != null || settingsOrMode.inventoryMode != null)
+    ? inventoryModeFromSettings(settingsOrMode)
+    : parseInventoryMode(settingsOrMode);
+  if (!mode.active) return false;
+  const ends = Date.parse(String(mode.endsAt || ''));
+  return Number.isFinite(ends) && ends > now;
+}
+
+function clampOnHand(value) {
+  const n = num(value);
+  return n > 0 ? n : 0;
+}
+
+/** Product form cannot set quantity unless Inventory Mode is on. Create starts at 0; update keeps live on-hand. */
+function preserveProductStock(incoming, existing, options = {}) {
   if (!incoming) return incoming;
   const next = { ...incoming };
+  const allowManual = options.allowManualStock === true;
+  if (allowManual) {
+    next.stock = clampOnHand(next.stock);
+    if (Array.isArray(next.variations)) {
+      next.variations = next.variations.map((v) => ({ ...v, stock: clampOnHand(v.stock) }));
+    }
+    return next;
+  }
   if (!existing) {
     next.stock = 0;
     next.variations = mergeVariationStocks(next.variations, []);
@@ -128,6 +184,9 @@ module.exports = {
   findCatalogProduct,
   orderDeliveryShortages,
   mergeVariationStocks,
+  parseInventoryMode,
+  inventoryModeFromSettings,
+  inventoryModeIsActive,
   preserveProductStock,
   applyOnHandDelta,
 };

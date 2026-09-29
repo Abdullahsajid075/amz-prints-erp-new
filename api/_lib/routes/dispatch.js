@@ -50,6 +50,7 @@ const {
   orderDeliveryShortages,
   preserveProductStock,
   applyOnHandDelta,
+  inventoryModeIsActive,
 } = require('../lib/inventoryStock');
 
 function expenseIsApproved(row) {
@@ -293,6 +294,15 @@ async function saveSettingsObject(incoming = {}) {
     });
   }
   return getSettingsObject();
+}
+
+async function allowManualInventoryStock() {
+  try {
+    const settings = await getSettingsObject();
+    return inventoryModeIsActive(settings);
+  } catch {
+    return false;
+  }
 }
 
 function orderFromBody(body = {}, existing = {}) {
@@ -2515,7 +2525,9 @@ async function dispatch(req, res) {
         return send(res, { ...sync, count: products.length, products });
       }
       if (path === '/products' && method === 'POST') {
-        const row = preserveProductStock(productFromBody(body), null);
+        const row = preserveProductStock(productFromBody(body), null, {
+          allowManualStock: await allowManualInventoryStock(),
+        });
         if (!row.id) row.id = id('prod');
         await saveProductRow(row, { mode: 'insert' });
         const { data: created } = await supabase.from('products').select('*').eq('id', row.id).maybeSingle();
@@ -2528,7 +2540,9 @@ async function dispatch(req, res) {
         const variations = Array.isArray(body.variations) ? body.variations : [];
         const { data: existing } = await supabase.from('products').select('*').eq('id', rid).maybeSingle();
         if (!existing) return sendError(res, 'Not found', 404);
-        const locked = preserveProductStock({ ...existing, variations }, existing).variations;
+        const locked = preserveProductStock({ ...existing, variations }, existing, {
+          allowManualStock: await allowManualInventoryStock(),
+        }).variations;
         await supabase.from('products').update({ variations: locked }).eq('id', rid);
         const { data } = await supabase.from('products').select('*').eq('id', rid).maybeSingle();
         await syncWebsiteCatalogFlags(data ? [data] : [existing]);
@@ -2542,7 +2556,9 @@ async function dispatch(req, res) {
       if (method === 'PUT' || method === 'PATCH') {
         const { data: existing } = await supabase.from('products').select('*').eq('id', rid).maybeSingle();
         if (!existing) return sendError(res, 'Not found', 404);
-        const row = preserveProductStock(productFromBody(body, rid), existing);
+        const row = preserveProductStock(productFromBody(body, rid), existing, {
+          allowManualStock: await allowManualInventoryStock(),
+        });
         delete row.id;
         await saveProductRow(row, { mode: 'update', id: rid });
         const { data } = await supabase.from('products').select('*').eq('id', rid).maybeSingle();

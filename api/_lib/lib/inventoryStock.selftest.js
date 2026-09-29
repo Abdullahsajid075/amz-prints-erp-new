@@ -8,6 +8,7 @@ const {
   orderDeliveryShortages,
   preserveProductStock,
   applyOnHandDelta,
+  inventoryModeIsActive,
 } = require('./inventoryStock');
 
 function assert(cond, msg) {
@@ -59,6 +60,29 @@ const updated = preserveProductStock(
   { stock: 7, variations: [{ id: 'v1', name: 'A4', stock: 3 }] },
 );
 assert(updated.stock === 7 && updated.variations[0].stock === 3, 'update keeps live stock');
+
+const t0 = Date.parse('2026-09-29T12:00:00.000Z');
+assert(!inventoryModeIsActive({ active: false, endsAt: '2026-09-30T12:00:00.000Z' }, t0), 'flag off');
+assert(inventoryModeIsActive({
+  inventory: { inventoryMode: { active: true, endsAt: '2026-09-30T12:00:00.000Z' } },
+}, t0), 'settings window on');
+assert(!inventoryModeIsActive({
+  inventory: { inventoryMode: { active: true, endsAt: '2026-09-29T11:00:00.000Z' } },
+}, t0), 'expired window');
+
+const corrected = preserveProductStock(
+  { name: 'Mug', stock: 40, variations: [{ id: 'v1', stock: 9 }] },
+  { stock: 7, variations: [{ id: 'v1', stock: 3 }] },
+  { allowManualStock: true },
+);
+assert(corrected.stock === 40 && corrected.variations[0].stock === 9, 'inventory mode allows correction');
+
+const createdOpen = preserveProductStock(
+  { name: 'Mug', stock: 12, variations: [{ id: 'v1', stock: 5 }] },
+  null,
+  { allowManualStock: true },
+);
+assert(createdOpen.stock === 12 && createdOpen.variations[0].stock === 5, 'inventory mode create stock');
 
 const afterRecv = applyOnHandDelta(mug, { qty: 5 });
 assert(afterRecv.stock === 7, 'receive increments');

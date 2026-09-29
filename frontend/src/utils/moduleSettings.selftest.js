@@ -1,4 +1,4 @@
-import { mergePosSettings, posStickerPayload, POS_STICKER_PRESETS } from './moduleSettings.js';
+import { mergePosSettings, mergeInventorySettings, posStickerPayload, POS_STICKER_PRESETS } from './moduleSettings.js';
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -26,5 +26,11 @@ assert(posWins.barcodeScan === false, 'scan can be turned off');
 const payload = posStickerPayload(fresh);
 assert(payload.widthMm === 80 && payload.heightMm === 40 && payload.showBarcode === true, 'print payload');
 assert(POS_STICKER_PRESETS[0].widthMm === 80, 'first preset is POS roll');
+
+const inv = mergeInventorySettings({
+  inventory: { inventoryMode: { active: true, durationHours: 8, endsAt: '2026-09-30T12:00:00.000Z' } },
+});
+assert(inv.inventoryMode.active === true && inv.inventoryMode.durationHours === 8, 'inventory mode merged');
+assert(mergeInventorySettings({}).inventoryMode.active === false, 'inventory mode default off');
 
 console.log('moduleSettings sticker ok');

@@ -35,7 +35,7 @@ function normalizeVariations(list) {
     .filter((v) => v.name || v.size || v.color || v.sku);
 }
 
-export default function ProductVariationsPanel({ products = [], onSaved }) {
+export default function ProductVariationsPanel({ products = [], onSaved, allowManualStock = false }) {
   const goods = useMemo(
     () => (Array.isArray(products) ? products : []).filter((p) => p && !isServiceItem(p)),
     [products]
@@ -89,7 +89,10 @@ export default function ProductVariationsPanel({ products = [], onSaved }) {
       <div>
         <h2 className="font-semibold text-lg">Product variations</h2>
         <p className="text-sm text-slate-500">
-          Size, color, material, price, and SKU — used in orders, POS, and price tags. Quantity updates when a purchase is received.
+          Size, color, material, price, and SKU — used in orders, POS, and price tags.
+          {allowManualStock
+            ? ' Inventory Mode is on — you can correct variation on-hand quantities.'
+            : ' Quantity updates when a purchase is received.'}
         </p>
       </div>
       <div className="max-w-md">
@@ -158,7 +161,14 @@ export default function ProductVariationsPanel({ products = [], onSaved }) {
                   </div>
                   <div>
                     <Label className="text-[11px]">On-hand</Label>
-                    <Input type="number" value={Number(v.stock) || 0} disabled title="Quantity updates when a purchase is received" />
+                    <Input
+                      type="number"
+                      min="0"
+                      value={v.stock}
+                      disabled={!allowManualStock}
+                      title={allowManualStock ? 'Correct on-hand stock' : 'Quantity updates when a purchase is received'}
+                      onChange={(e) => updateRow(idx, 'stock', e.target.value)}
+                    />
                   </div>
                   <div>
                     <Button type="button" size="icon" variant="ghost" className="h-9 w-9" onClick={() => setRows((prev) => prev.filter((_, i) => i !== idx))}>

@@ -25,6 +25,7 @@ import { migrateThemeColors } from '@/utils/brandColors';
 import { getAssignableModules, hasFullAccess, normalizePermissions } from '@/utils/permissions';
 import GuideBook from '@/components/modules/settings/GuideBook';
 import ReceivablesDialog from '@/components/shared/ReceivablesDialog';
+import InventoryModeCard from '@/components/modules/inventory/InventoryModeCard';
 
 const defaultSettings = {
   company: { name: 'Amazon Printing Services', tagline: 'Professional Printing & Advertising Services', address: 'King Road, Mandi Bahauddin', phone: '', email: 'amazonprinting@gmail.com', website: 'amzprints.com', taxId: '', authorizedSignatory: 'Authorized Person', logo: '', stamp: '', signature: '' },
@@ -661,6 +662,11 @@ const Settings = () => {
                   . POS receipt and register live in{' '}
                   <a className="underline" href="/pos/settings">POS settings</a>.
                 </p>
+                <InventoryModeCard
+                  compact
+                  value={settings.inventory?.inventoryMode}
+                  onChange={(inventoryMode) => update('inventory', 'inventoryMode', inventoryMode)}
+                />
                 <div>
                   <Label>Categories</Label>
                   <div className="flex flex-wrap gap-2 mt-2">
