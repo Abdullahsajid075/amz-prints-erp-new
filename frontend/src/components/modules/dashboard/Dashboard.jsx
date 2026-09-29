@@ -10,6 +10,7 @@ import { useAuth, getUserDisplayName } from '@/context/AuthContext';
 import { useBrand } from '@/context/BrandContext';
 import ReceivablesDialog from '@/components/shared/ReceivablesDialog';
 import InventoryModeTag from '@/components/modules/dashboard/InventoryModeTag';
+import ErpHomeLauncher from '@/components/layout/ErpHomeLauncher';
 import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
 import {
   TrendingUp, TrendingDown, ShoppingCart, CheckCircle, DollarSign,
@@ -232,6 +233,19 @@ const Dashboard = () => {
   useEffect(() => { fetchDashboardData(); }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const scrollOps = () => {
+      if (window.location.hash !== '#dashboard-ops') return;
+      window.requestAnimationFrame(() => {
+        document.getElementById('dashboard-ops')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    };
+    scrollOps();
+    window.addEventListener('hashchange', scrollOps);
+    return () => window.removeEventListener('hashchange', scrollOps);
+  }, []);
+
+  useEffect(() => {
     if (!canAccessModule('tasks')) {
       setTaskSummary(null);
       return undefined;
@@ -312,7 +326,9 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="erp-page space-y-5 relative" data-testid="dashboard">
+    <div>
+      <ErpHomeLauncher />
+      <div className="erp-page space-y-5 relative px-4 sm:px-6 py-5 sm:py-6 max-w-[1600px] mx-auto" data-testid="dashboard" id="dashboard-ops">
       <InventoryModeTag />
       {loading && (
         <div className="absolute inset-0 z-10 bg-white/50 backdrop-blur-[1px] rounded-2xl pointer-events-none" />
@@ -848,6 +864,7 @@ const Dashboard = () => {
         </Panel>
       </section>
       <ReceivablesDialog open={receivablesOpen} onOpenChange={setReceivablesOpen} />
+    </div>
     </div>
   );
 };

@@ -4,7 +4,7 @@ import { useAuth, getUserDisplayName } from '@/context/AuthContext';
 import { useBrand } from '@/context/BrandContext';
 import { ERP_HOME_APPS, ERP_LEGAL_NAME } from '@/utils/erpApps';
 
-/** Full-window Apps dashboard — not a phone mockup. Modules are unchanged. */
+/** Full-width Apps strip. Used on the dashboard above the original KPI view. */
 const ErpHomeLauncher = () => {
   const navigate = useNavigate();
   const { user, canAccessModule } = useAuth();
@@ -19,6 +19,13 @@ const ErpHomeLauncher = () => {
   const more = apps.filter((a) => a.group === 'more');
 
   const openApp = (app) => {
+    if (app.id === 'overview') {
+      const el = document.getElementById('dashboard-ops');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+    }
     navigate(app.path);
   };
 
@@ -35,7 +42,7 @@ const ErpHomeLauncher = () => {
             data-testid={`erp-home-app-${app.id}`}
           >
             <span className="erp-home-app-icon" style={{ backgroundColor: `${app.tint}18`, color: app.tint }}>
-              <Icon className="h-6 w-6" />
+              <Icon className="h-7 w-7" />
             </span>
             <span className="erp-home-app-label">{app.label}</span>
           </button>
@@ -45,7 +52,7 @@ const ErpHomeLauncher = () => {
   );
 
   return (
-    <div className="erp-home-page" data-testid="erp-home-launcher" aria-label="ERP dashboard">
+    <div className="erp-home-page" data-testid="erp-home-launcher" aria-label="ERP apps">
       <div className="erp-home-glow" />
 
       <div className="erp-home-topbrand">
@@ -63,41 +70,24 @@ const ErpHomeLauncher = () => {
       </div>
 
       <h1 className="erp-home-headline">Welcome, {name}</h1>
-      <p className="erp-home-sub">Open an app to continue — every module stays the same</p>
-
-      <div className="hidden xl:flex erp-home-float erp-home-float-left">
-        <p className="text-[10px] uppercase tracking-wider font-bold text-white/80">Customer</p>
-        <p className="text-lg font-display font-bold text-white mt-1">Balances</p>
-        <p className="text-xs text-white/70 mt-1">Open Customers from Apps</p>
-      </div>
-      <div className="hidden xl:flex erp-home-float erp-home-float-right">
-        <p className="text-[10px] uppercase tracking-wider font-bold text-white/80">Bills</p>
-        <p className="text-lg font-display font-bold text-white mt-1">Invoices</p>
-        <p className="text-xs text-white/70 mt-1">Orange + blue print set</p>
-      </div>
-      <div className="hidden xl:flex erp-home-float erp-home-float-expense">
-        <p className="text-[10px] uppercase tracking-wider font-bold text-white/80">Expense</p>
-        <div className="erp-home-bars" aria-hidden="true">
-          <span /><span /><span /><span /><span /><span />
-        </div>
-      </div>
+      <p className="erp-home-sub">Open an app, or scroll for the operations dashboard</p>
 
       <div className="erp-home-panel" data-testid="erp-home-window">
         <div className="erp-home-panel-bar" style={{ background: `linear-gradient(90deg, ${accent} 0%, #0747a3 100%)` }}>
           <div className="min-w-0">
             <p className="text-[10px] uppercase tracking-[0.16em] font-bold text-white/80">Welcome</p>
-            <h2 className="font-display text-xl font-bold text-white truncate leading-tight">{name}</h2>
+            <h2 className="font-display text-xl sm:text-2xl font-bold text-white truncate leading-tight">{name}</h2>
           </div>
           <div className="flex items-center gap-2 min-w-0">
             {company?.logo ? (
-              <img src={company.logo} alt="" className="h-9 w-auto max-w-[72px] object-contain bg-white rounded-md p-0.5" />
+              <img src={company.logo} alt="" className="h-10 w-auto max-w-[88px] object-contain bg-white rounded-md p-0.5" />
             ) : (
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-display font-bold" style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-display font-bold" style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}>
                 A
               </div>
             )}
             <div className="min-w-0 hidden sm:block">
-              <p className="font-display font-bold text-[13px] leading-tight text-white">{legal}</p>
+              <p className="font-display font-bold text-sm leading-tight text-white">{legal}</p>
               <p className="text-[10px] text-white/75 truncate">{brandName}</p>
             </div>
           </div>
@@ -108,7 +98,7 @@ const ErpHomeLauncher = () => {
           {renderGrid(main)}
           {more.length > 0 && (
             <>
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 mt-6 mb-3">More</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 mt-5 mb-3">More</p>
               {renderGrid(more)}
             </>
           )}
