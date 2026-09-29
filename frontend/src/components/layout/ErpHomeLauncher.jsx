@@ -107,7 +107,7 @@ const ErpHomeLauncher = () => {
           </div>
 
           <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 mb-2">Apps</p>
-          <div className="grid grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-3 gap-2">
             {main.map((app) => {
               const Icon = app.icon;
               return (
@@ -130,7 +130,7 @@ const ErpHomeLauncher = () => {
           {more.length > 0 && (
             <>
               <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 mt-4 mb-2">More</p>
-              <div className="grid grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-3 gap-2">
                 {more.map((app) => {
                   const Icon = app.icon;
                   return (
