@@ -259,13 +259,13 @@ code {
 .inv-auth {
   position: relative;
   min-height: 132px;
-  margin-top: -42px;
+  margin-top: -12px;
 }
 
 .inv-stamp {
   position: absolute;
-  right: 42px;
-  bottom: 22px;
+  right: 130px;
+  bottom: 18px;
   width: 128px;
   z-index: 6;
   opacity: 0.92;
@@ -456,12 +456,12 @@ code {
   }
   .invoice-container .inv-auth {
     min-height: 108px !important;
-    margin-top: -28px !important;
+    margin-top: -8px !important;
   }
   .invoice-container .inv-stamp {
     width: 96px !important;
     left: auto !important;
-    right: 36px !important;
+    right: 110px !important;
     z-index: 6 !important;
   }
   .invoice-container .inv-stamp img,
@@ -543,13 +543,16 @@ code {
   }
   .invoice-fit-one-page .inv-auth {
     min-height: 92px !important;
-    margin-top: -22px !important;
+    margin-top: -6px !important;
   }
   .invoice-fit-one-page .inv-stamp,
   .invoice-fit-one-page .inv-stamp img,
   .invoice-fit-one-page .inv-stamp-fallback {
     width: 78px !important;
     max-height: 78px !important;
+  }
+  .invoice-fit-one-page .inv-stamp {
+    right: 96px !important;
   }
   .invoice-fit-one-page .inv-sign img {
     max-height: 52px !important;

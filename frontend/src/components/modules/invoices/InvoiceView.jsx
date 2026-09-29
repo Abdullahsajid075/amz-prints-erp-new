@@ -303,6 +303,7 @@ const InvoiceView = ({ isPublic = false }) => {
               className={`text-xs px-2.5 py-0.5 ${
                 invoice.status === 'Paid' ? 'bg-green-100 text-green-800' :
                 invoice.status === 'Partial' ? 'bg-yellow-100 text-yellow-800' :
+                /cancel/i.test(String(invoice.status || '')) ? 'bg-slate-200 text-slate-700' :
                 'bg-red-100 text-red-800'
               }`}
             >

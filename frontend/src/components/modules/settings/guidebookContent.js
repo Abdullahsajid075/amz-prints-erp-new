@@ -86,6 +86,7 @@ export const GUIDE_SECTIONS = [
       'Invoices are the commercial document for AR. One invoice may cover one or more orders (order IDs are stored on the invoice).',
       'Previous balance on an invoice is the customer’s already-open AR at billing time. Total due = invoice total + previous balance − paid.',
       'Record collections against the invoice (not only as a loose note). Partial payments set status to Partial; full settlement sets Paid.',
+      'If an order is cancelled, its invoice is cancelled too when it only covers that order. If the invoice lists several orders, only the cancelled order is removed and paid amounts for that order are reversed. Remaining orders and their payments stay on the invoice.',
       'Print or share the branded PDF/HTML invoice. Logo, stamp, signature, tax, and terms come from Settings → Company / Invoice.',
       'Do not create a second invoice for the same order unless Admin is splitting or correcting a voided document.',
     ],

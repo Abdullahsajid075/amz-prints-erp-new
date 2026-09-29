@@ -2235,6 +2235,11 @@ function handleOrderById_(path, method, body) {
     updateObjectProps_(sheet, SHEET_NAMES.ORDERS, orders[index]._row, { status: body.status });
     orders[index].status = body.status;
     var apiStatus = toApiOrder_(orders[index]);
+    var nowCancelled = /cancel/i.test(String(body.status || ''));
+    var wasCancelled = /cancel/i.test(String(prevStatus || ''));
+    if (!wasCancelled && nowCancelled) {
+      apiStatus.invoiceSync = applyCancelledOrderToInvoice_(orders[index]);
+    }
     if (String(prevStatus) !== String(body.status)) {
       return withNotifications_(apiStatus, 'status');
     }
@@ -2276,6 +2281,9 @@ function handleOrderById_(path, method, body) {
     var extraAdv = Math.max(0, Number(apiUpdated.advancePayment || 0) - Number(prev.advancePayment || 0));
     apiUpdated = withAdvanceInvoice_(apiUpdated, updated, extraAdv);
     if (String(prev.status || '') !== String(apiUpdated.status || '')) {
+      if (!/cancel/i.test(String(prev.status || '')) && /cancel/i.test(String(apiUpdated.status || ''))) {
+        apiUpdated.invoiceSync = applyCancelledOrderToInvoice_(updated);
+      }
       return withNotifications_(apiUpdated, 'status');
     }
     return apiUpdated;
@@ -2990,8 +2998,136 @@ function createInvoiceFromOrder_(order) {
 
 function findInvoiceForOrder_(order) {
   if (!order) return null;
-  var map = buildOrderInvoiceMap_();
-  return map[String(order.orderid || '')] || map[String(order.id || '')] || null;
+  var rows = [];
+  try { rows = getSheetRows_(SHEET_NAMES.INVOICES); } catch (eFind) { return null; }
+  var keys = [order.orderid, order.id].filter(Boolean).map(String);
+  for (var i = 0; i < rows.length; i++) {
+    var inv = rows[i];
+    if (/cancel|void/i.test(String(inv.status || ''))) continue;
+    var ids = parseInvoiceOrderIds_(inv);
+    for (var k = 0; k < keys.length; k++) {
+      if (ids.indexOf(keys[k]) >= 0 || String(inv.orderid || '') === keys[k]) return inv;
+    }
+  }
+  return null;
+}
+
+function applyCancelledOrderToInvoice_(order) {
+  if (!order) return { action: 'none', message: '' };
+  var keys = [String(order.orderid || ''), String(order.id || '')].filter(Boolean);
+  var orderSheet = getSheet_(SHEET_NAMES.ORDERS);
+  var orders = getSheetRows_(SHEET_NAMES.ORDERS);
+  var oidx = orders.findIndex(function (o) {
+    return String(o.id) === String(order.id) || String(o.orderid) === String(order.orderid || order.id);
+  });
+  if (oidx >= 0) {
+    updateObjectProps_(orderSheet, SHEET_NAMES.ORDERS, orders[oidx]._row, {
+      advancepayment: 0,
+      balanceamount: 0,
+    });
+    invalidateSheetCache_(SHEET_NAMES.ORDERS);
+  }
+  var inv = findInvoiceForOrder_(order);
+  if (!inv) return { action: 'none', message: '' };
+  var ids = parseInvoiceOrderIds_(inv).filter(function (id) { return keys.indexOf(String(id)) < 0; });
+  var items = inv.items;
+  if (typeof items === 'string') {
+    try { items = JSON.parse(items); } catch (eItems) { items = []; }
+  }
+  if (!Array.isArray(items)) items = [];
+  var tagged = items.some(function (it) {
+    return !!(it && (it.sourceOrderId || it.source_order_id || it.orderId));
+  });
+  if (tagged) {
+    items = items.filter(function (it) {
+      var src = String((it && (it.sourceOrderId || it.source_order_id || it.orderId)) || '');
+      if (!src) return true;
+      return keys.indexOf(src) < 0;
+    });
+  }
+  var history = parsePaymentHistory_(inv.paymenthistory);
+  var paid = Number(inv.paid || 0);
+  var reverse = 0;
+  history.forEach(function (h) {
+    if (!h || Number(h.applied) < 0 || h.reversal) return;
+    var oid = String(h.orderId || h.orderid || '');
+    var notes = String(h.notes || '');
+    var hit = keys.indexOf(oid) >= 0;
+    if (!hit) {
+      for (var i = 0; i < keys.length; i++) {
+        if (keys[i] && notes.indexOf(keys[i]) >= 0) hit = true;
+      }
+    }
+    if (hit) reverse += Number(h.applied != null ? h.applied : h.amount) || 0;
+  });
+  var cancelWhole = ids.length === 0;
+  if (!(reverse > 0) && cancelWhole) reverse = paid;
+  if (!(reverse > 0)) reverse = Math.min(Number(order.advancepayment || order.advancePayment || 0), paid);
+  if (reverse > paid) reverse = paid;
+  var orderTotal = Number(order.totalamount || order.total || 0);
+  var prevTotal = Number(inv.total || inv.totalamount || 0);
+  var prevSub = Number(inv.subtotal != null ? inv.subtotal : prevTotal);
+  var nextTotal = cancelWhole ? 0 : Math.max(0, prevTotal - orderTotal);
+  var nextSub = cancelWhole ? 0 : Math.max(0, prevSub - orderTotal);
+  var nextPaid = cancelWhole ? 0 : Math.max(0, paid - reverse);
+  var due = nextTotal + Number(inv.previousbalance || 0);
+  if (!cancelWhole && nextPaid > due + 0.009) {
+    addCustomerCredit_(inv.customerid, nextPaid - due, 'Credit from cancelled order ' + (order.orderid || order.id));
+    nextPaid = due;
+  }
+  if (reverse > 0.009) {
+    history.push({
+      date: nowDate_(),
+      amount: reverse,
+      applied: -reverse,
+      method: 'Reversal',
+      notes: 'Payment reversed — order ' + (order.orderid || order.id) + ' cancelled',
+      orderId: order.orderid || order.id,
+      reversal: true,
+    });
+    appendPaymentsSheetRow_({
+      type: 'outflow',
+      category: 'Invoice Reversal',
+      refId: inv.invoiceno || inv.id,
+      customerId: inv.customerid,
+      customerName: inv.customername,
+      customerPhone: inv.customerphone,
+      amount: reverse,
+      method: 'Reversal',
+      notes: 'Payment reversed — order ' + (order.orderid || order.id) + ' cancelled',
+      totalAmount: reverse,
+    });
+  }
+  var status = cancelWhole ? 'Cancelled' : invoiceStatusFromPaid_(due, nextPaid);
+  var oidLabel = order.orderid || order.id;
+  var tag = cancelWhole
+    ? '[ORDER_CANCELLED] Invoice cancelled because order ' + oidLabel + ' was cancelled.'
+    : '[ORDER_CANCELLED] Removed cancelled order ' + oidLabel + '.';
+  var note = String(inv.notes || '').trim();
+  if (note.indexOf('[ORDER_CANCELLED]') < 0 || note.indexOf(String(oidLabel)) < 0) {
+    note = note ? (note + ' ' + tag) : tag;
+  }
+  var sheet = getSheet_(SHEET_NAMES.INVOICES);
+  updateObjectProps_(sheet, SHEET_NAMES.INVOICES, inv._row, {
+    items: cancelWhole ? [] : items,
+    orderids: ids,
+    orderid: ids[0] || '',
+    subtotal: nextSub,
+    total: nextTotal,
+    paid: nextPaid,
+    status: status,
+    notes: note,
+    paymenthistory: history,
+  });
+  invalidateSheetCache_(SHEET_NAMES.INVOICES);
+  return {
+    action: cancelWhole ? 'cancelled-invoice' : 'removed-from-invoice',
+    invoiceNo: inv.invoiceno || inv.id,
+    reversed: reverse,
+    message: cancelWhole
+      ? ('Invoice ' + (inv.invoiceno || inv.id) + ' cancelled. Paid amount for this order was reversed.')
+      : ('Cancelled order ' + oidLabel + ' removed from invoice ' + (inv.invoiceno || inv.id) + '. Paid amount for this order was reversed.'),
+  };
 }
 
 function findOrCreateInvoiceForOrder_(order) {
@@ -3062,6 +3198,7 @@ function recordInvoicePayment_(invoiceId, body) {
     extra: extra,
     method: body.method || 'Cash',
     notes: body.notes || '',
+    orderId: body.orderId || body.orderid || body.linkedOrderId || '',
     locked: true,
   });
   var status = invoiceStatusFromPaid_(totalDue, paidAfter);

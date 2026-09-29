@@ -421,6 +421,7 @@ const OrderForm = () => {
         toast.success('Order updated successfully');
         const server = updated.data || {};
         if (server._invoiceError) toast.error(server._invoiceError);
+        else if (server.invoiceSync?.message) toast.message(server.invoiceSync.message);
         else if (server.invoiceNumber) toast.message(`Invoice ${server.invoiceNumber} linked to this order`);
         const data = {
           ...orderData,

@@ -215,6 +215,9 @@ const OrdersList = () => {
         setViewOrder((prev) => ({ ...prev, status }));
       }
       toast.success(`Status → ${status}`);
+      if (/cancel/i.test(String(status)) && updated.invoiceSync?.message) {
+        toast.message(updated.invoiceSync.message);
+      }
       const confirmingWebsite = isPendingStatus(order.status)
         && String(status) === ORDER_STATUS.RECEIVED
         && isWebsiteOrder(order);
