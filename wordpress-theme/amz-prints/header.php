@@ -49,7 +49,6 @@
 		</nav>
 
 		<div class="site-header__actions">
-			<a class="btn btn--primary btn--sm header-cv" href="<?php echo esc_url( home_url( '/create-free-cv/' ) ); ?>"><?php esc_html_e( 'Free CV', 'amz-prints' ); ?></a>
 			<?php $amz_cart_n = function_exists( 'amz_prints_cart_count' ) ? amz_prints_cart_count() : 0; ?>
 			<a class="header-cart" href="<?php echo esc_url( home_url( '/cart/' ) ); ?>" aria-label="<?php esc_attr_e( 'Cart', 'amz-prints' ); ?>">
 				<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M7 18a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm10 0a2 2 0 1 0 .001 4A2 2 0 0 0 17 18zM6.2 6l.4 2h13.1l-1.5 7H8.1L6.2 6zM5.2 4H2V2h4l.4 2H22l-2.2 10H7.4L5.2 4z"/></svg>

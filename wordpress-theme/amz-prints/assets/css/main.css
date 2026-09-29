@@ -667,7 +667,7 @@ body:not(.amz-home) .site-header {
   gap: 0.7rem;
   flex-shrink: 0;
 }
-.header-cv { white-space: nowrap; }
+.header-cv { display: none !important; }
 .header-cart {
   position: relative;
   display: inline-flex;

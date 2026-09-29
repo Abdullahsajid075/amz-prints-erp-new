@@ -143,7 +143,6 @@ $featured_services = array_slice( $catalog, 0, 4 );
 			<h2><?php esc_html_e( 'Build your free CV', 'amz-prints' ); ?></h2>
 			<p><?php esc_html_e( 'Create a professional A4 resume online, then print it with us if you want a finished copy.', 'amz-prints' ); ?></p>
 		</div>
-		<a class="btn btn--primary btn--lg" href="<?php echo esc_url( home_url( '/create-free-cv/' ) ); ?>"><?php esc_html_e( 'Create Free CV', 'amz-prints' ); ?></a>
 	</div>
 </section>
 

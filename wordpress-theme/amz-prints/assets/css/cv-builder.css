@@ -129,6 +129,19 @@
   border-radius: 10px;
   background: #fff;
   line-height: 1.45;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: manual;
+}
+.cv-rich-box p,
+.cv-rich-box div {
+  margin: 0 0 0.45rem;
+  text-align: left;
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: manual;
 }
 .cv-rich-box:focus { outline: 2px solid var(--amz-primary, #0747a3); outline-offset: 1px; }
 .cv-rich-box ul,
@@ -306,12 +319,24 @@
 .cv-page ul { padding-left: 1.15em; margin: 0.6mm 0 0; }
 .cv-page p,
 .cv-page li,
+.cv-page .cv-rich,
+.cv-page .cv-rich p,
+.cv-page .cv-rich div,
 .cv-item-cv p,
 .cv-item-cv li {
-  text-align: justify;
-  text-justify: inter-word;
-  hyphens: auto;
+  text-align: left;
+  text-justify: auto;
+  hyphens: manual;
+  overflow-wrap: break-word;
+  word-break: normal;
+  white-space: normal;
+  max-width: 100%;
 }
+.cv-page .cv-rich > p,
+.cv-page .cv-rich > div {
+  margin: 0 0 2.4mm;
+}
+.cv-page .cv-rich > :last-child { margin-bottom: 0; }
 .cv-page .cv-rich [style*="text-align:left"],
 .cv-page .cv-rich [style*="text-align: left"] { text-align: left !important; hyphens: manual !important; }
 .cv-page .cv-rich [style*="text-align:center"],
@@ -319,7 +344,11 @@
 .cv-page .cv-rich [style*="text-align:right"],
 .cv-page .cv-rich [style*="text-align: right"] { text-align: right !important; hyphens: manual !important; }
 .cv-page .cv-rich [style*="text-align:justify"],
-.cv-page .cv-rich [style*="text-align: justify"] { text-align: justify !important; }
+.cv-page .cv-rich [style*="text-align: justify"] {
+  text-align: justify !important;
+  text-justify: inter-word;
+  hyphens: manual !important;
+}
 .cv-page .cv-rich ul,
 .cv-page .cv-rich ol { list-style-position: inside; padding-left: 0.15em; margin-left: 0; }
 .cv-page .cv-rich [style*="list-style-type:disc"],
@@ -383,8 +412,8 @@ img.cv-photo-preview {
   height: 72px;
   max-width: none;
 }
-.cv-name { font-weight: 800; line-height: 1.1; letter-spacing: -0.02em; overflow-wrap: anywhere; }
-.cv-role { font-weight: 600; opacity: 0.92; margin-top: 2mm; overflow-wrap: anywhere; }
+.cv-name { font-weight: 800; line-height: 1.1; letter-spacing: -0.02em; overflow-wrap: break-word; word-break: normal; }
+.cv-role { font-weight: 600; opacity: 0.92; margin-top: 2mm; overflow-wrap: break-word; word-break: normal; }
 .cv-sec { margin: 0 0 4.2mm; break-inside: avoid; page-break-inside: avoid; }
 .cv-sec h2 {
   font-size: 11pt;
@@ -400,7 +429,8 @@ img.cv-photo-preview {
   width: 100%;
   margin: 0 0 3mm;
   text-align: left;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 .cv-item-cv strong { display: block; font-size: 10.5pt; line-height: 1.25; }
 .cv-item-cv em {
@@ -414,7 +444,7 @@ img.cv-photo-preview {
 }
 .cv-item-cv p, .cv-item-cv li { font-size: 9.3pt; line-height: 1.4; }
 .cv-sec { width: 100%; }
-.cv-contact-line { overflow-wrap: anywhere; }
+.cv-contact-line { overflow-wrap: break-word; word-break: normal; }
 .cv-chips { display: flex; flex-wrap: wrap; gap: 1.4mm; }
 .cv-chip {
   border: 1px solid var(--cv-accent);
@@ -476,7 +506,9 @@ img.cv-photo-preview {
   background: var(--cv-accent);
   color: #fff;
   border: 0;
-  display: inline-block;
+  display: block;
+  width: fit-content;
+  max-width: 100%;
   padding: 1mm 3.2mm;
   border-radius: 99px;
   font-size: 9pt;
