@@ -133,7 +133,7 @@ const Customers = () => {
         ? res.data
         : (res.data?.data || res.data);
       if (!payload || (!payload.customer && !payload.statement)) {
-        toast.error('Ledger load nahi hua');
+        toast.error('Could not load ledger');
         setLedger(null);
       } else {
         setLedger({
@@ -258,7 +258,7 @@ const Customers = () => {
     try {
       const pendingWindow = openBlankWhatsAppTab();
       const result = openUrduBalanceWhatsApp(customer, { outstanding: amount, pendingWindow });
-      if (result?.ok) toast.message('WhatsApp opened — tap Send (Urdu balance reminder)');
+      if (result?.ok) toast.message('WhatsApp opened — tap Send (remaining balance reminder)');
       else toast.error('Could not open WhatsApp — check customer phone / allow popups');
     } finally {
       setBalanceSending(false);
@@ -275,7 +275,7 @@ const Customers = () => {
     setBalanceSending(true);
     try {
       const result = openLedgerWhatsApp(customer, ledger);
-      if (result?.ok) toast.message('WhatsApp opened — tap Send for khata / ledger');
+      if (result?.ok) toast.message('WhatsApp opened — tap Send for the customer ledger');
       else toast.error('Could not open WhatsApp — check customer phone / allow popups');
     } finally {
       setBalanceSending(false);
@@ -608,7 +608,7 @@ const Customers = () => {
                         data-testid="send-balance-request"
                       >
                         <WhatsAppIcon className="h-4 w-4 mr-2" />
-                        {balanceSending ? 'Opening…' : 'باقی رقم — WhatsApp (Urdu)'}
+                        {balanceSending ? 'Opening…' : 'Balance due — WhatsApp'}
                       </Button>
                     </>
                   )}

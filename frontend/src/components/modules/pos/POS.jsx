@@ -6,7 +6,7 @@ import { productsAPI, ordersAPI, invoicesAPI, customersAPI, posRegisterAPI, sett
 import { applyServerNotificationHint, openWhatsAppChat } from '@/services/notifications';
 import { formatCurrency } from '@/utils/helpers';
 import { customerMatchesQuery } from '@/utils/customerSearch';
-import { productMatchesQuery } from '@/utils/productSearch';
+import { findProductByBarcode, productMatchesQuery } from '@/utils/productSearch';
 import { printPosSlip, buildPosWhatsAppReceipt } from '@/utils/posSlip';
 import { printStampedReceipt, receiptAcceptAttr, isReceiptUploadFile } from '@/utils/posStampedReceipt';
 import { mergePosSettings, mergeInventorySettings } from '@/utils/moduleSettings';
@@ -195,7 +195,7 @@ const POS = () => {
     if (!tracksInventory(product)) return true;
     const stock = availableStock(product, variationId);
     if (stock <= 0) {
-      toast.error(`POS sale nahi ho sakti — ${product.name} stock 0. Order book karein.`);
+      toast.error(`POS sale cannot proceed — ${product.name} has 0 stock. Book an order instead.`);
       return false;
     }
     if (nextQty > stock) {
@@ -207,7 +207,7 @@ const POS = () => {
 
   const addToCart = (product, variation = null) => {
     if (!register.current) {
-      toast.error('Pehle cash register open karein');
+      toast.error('Open the cash register first');
       setOpenDlg(true);
       return;
     }
@@ -246,6 +246,15 @@ const POS = () => {
     });
     setVarPick(null);
     if (typeof window !== 'undefined' && window.innerWidth < 640) setCartDrawer(true);
+  };
+
+  const scanBarcodeIntoCart = (rawCode) => {
+    if (posCfg.barcodeScan === false) return false;
+    const hit = findProductByBarcode(products, rawCode);
+    if (!hit) return false;
+    addToCart(hit.product, hit.variation);
+    setSearch('');
+    return true;
   };
 
   const lineKeyOf = (item) => `${item.productId}::${item.variationId || ''}`;
@@ -371,7 +380,7 @@ const POS = () => {
 
   const printReceipt = async (sale) => {
     if (!sale) {
-      toast.error('Koi recent sale nahi — pehle complete sale karein');
+      toast.error('No recent sale — complete a sale first');
       return;
     }
     const res = await printPosSlip({
@@ -385,7 +394,7 @@ const POS = () => {
   const stampUploadedReceipt = async (file) => {
     if (!file) return;
     if (!isReceiptUploadFile(file)) {
-      toast.error('PDF ya image receipt upload karein');
+      toast.error('Upload a PDF or image receipt');
       return;
     }
     setStampBusy(true);
@@ -422,7 +431,7 @@ const POS = () => {
       return;
     }
     if (!register.current) {
-      toast.error('Pehle cash register open karein — opening float required');
+      toast.error('Open the cash register first — opening float is required');
       setOpenDlg(true);
       return;
     }
@@ -433,7 +442,7 @@ const POS = () => {
       return stock <= 0 || item.quantity > stock;
     });
     if (blocked) {
-      toast.error(`POS sale nahi ho sakti — ${blocked.name} stock 0 / short. Order book karein.`);
+      toast.error(`POS sale cannot proceed — ${blocked.name} is out of stock or short. Book an order instead.`);
       return;
     }
     setCheckingOut(true);
@@ -598,9 +607,18 @@ const POS = () => {
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
           <Input
             className="pl-10 h-10 bg-[#f4f6f8] border-slate-200 rounded-xl"
-            placeholder="Search product (e.g. Visiting Card, Mug, T-shirt…)"
+            placeholder={posCfg.barcodeScan !== false ? 'Search or scan barcode…' : 'Search product (e.g. Visiting Card, Mug, T-shirt…)'}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter') return;
+              const code = search.trim();
+              if (!code) return;
+              if (scanBarcodeIntoCart(code)) {
+                e.preventDefault();
+              }
+            }}
+            autoComplete="off"
             data-testid="pos-search"
           />
         </div>
@@ -669,8 +687,8 @@ const POS = () => {
                 <div className="mx-auto mb-4 h-12 w-12 rounded-2xl flex items-center justify-center text-white" style={{ backgroundColor: accent }}>
                   <Lock className="h-6 w-6" />
                 </div>
-                <h2 className="text-xl font-black">Register band hai</h2>
-                <p className="text-sm text-slate-500 mt-2">Sale tabhi hogi jab cash register open ho — pehle opening float declare karein.</p>
+                <h2 className="text-xl font-black">Register is closed</h2>
+                <p className="text-sm text-slate-500 mt-2">Sales start after the cash register is opened — declare the opening float first.</p>
                 <Button className="mt-5 text-white" style={{ backgroundColor: accent }} onClick={() => setOpenDlg(true)}>
                   <Unlock className="h-4 w-4 mr-2" />Open register
                 </Button>
@@ -721,7 +739,7 @@ const POS = () => {
                     >
                       <button
                         type="button"
-                        onClick={() => (outOfStock ? toast.error(`POS sale nahi ho sakti — ${p.name} stock 0. Order book karein.`) : addToCart(p))}
+                        onClick={() => (outOfStock ? toast.error(`POS sale cannot proceed — ${p.name} has 0 stock. Book an order instead.`) : addToCart(p))}
                         className="w-full text-left"
                       >
                         <div className="relative aspect-square w-full bg-slate-50 overflow-hidden">
@@ -1025,8 +1043,8 @@ const POS = () => {
               {' · '}bill <strong style={{ color: accent }}>{formatCurrency(payable)}</strong>
               {' · '}
               {isShortPay
-                ? <span className="text-rose-700">abhi {formatCurrency(dueLeft)} dena baqi</span>
-                : <span className="text-emerald-700">change {formatCurrency(changeBack)} wapas</span>}
+                ? <span className="text-rose-700">{formatCurrency(dueLeft)} still due</span>
+                : <span className="text-emerald-700">change {formatCurrency(changeBack)}</span>}
             </p>
 
             <div className="grid grid-cols-3 gap-1.5">

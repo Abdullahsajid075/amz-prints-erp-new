@@ -18,7 +18,7 @@ export function normalizeWhatsAppPhone(phone) {
 function clipWhatsAppText(text) {
   const raw = String(text || '');
   if (raw.length <= 1800) return raw;
-  return `${raw.slice(0, 1750)}\n\n…(baqi ledger ERP mein dekhein)`;
+  return `${raw.slice(0, 1750)}\n\n…(see the remaining ledger in the ERP)`;
 }
 
 /** Prefer native app; never send users to web.whatsapp.com */

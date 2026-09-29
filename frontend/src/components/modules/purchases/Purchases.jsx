@@ -379,11 +379,11 @@ const Purchases = () => {
   const handleSave = async (e) => {
     e.preventDefault();
     if (!formData.vendorId) {
-      toast.error('Vendor select karein — ya pehle Add New Vendor');
+      toast.error('Select a vendor — or add a new vendor first');
       return;
     }
     if (!formData.items.every((it) => it.productId)) {
-      toast.error('Har line pe product select karein — ya Add New Product');
+      toast.error('Select a catalog product on every line — or add a new product');
       return;
     }
     const missingVar = formData.items.find((it) => {
@@ -392,13 +392,13 @@ const Purchases = () => {
       return vars.length > 0 && !it.variationId;
     });
     if (missingVar) {
-      toast.error(`Variation select karein — ${missingVar.name || 'item'}`);
+      toast.error(`Select a variation — ${missingVar.name || 'item'}`);
       return;
     }
     setSaving(true);
     const vendor = vendors.find((v) => String(v.id) === String(formData.vendorId));
     if (!vendor) {
-      toast.error('Selected vendor not found — list refresh karke dubara select karein');
+      toast.error('Selected vendor not found — refresh the list and select again');
       setSaving(false);
       return;
     }
@@ -836,7 +836,7 @@ const Purchases = () => {
                 ) : null}
                 {!vendors.length && (
                   <p className="text-[11px] text-red-600 mt-1">
-                    Koi vendor nahi —{' '}
+                    No vendors yet —{' '}
                     <button type="button" className="underline font-medium" onClick={() => navigate('/accounts/vendors?new=1')}>
                       Add New Vendor
                     </button>

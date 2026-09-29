@@ -245,11 +245,11 @@ const QuotationForm = ({ printMode = false }) => {
   const handleSave = async () => {
     if (!requireCustomer(form)) return;
     if (!catalog.length) {
-      toast.error('Pehle catalog me product add karein');
+      toast.error('Add a product to the catalog first');
       return;
     }
     if (!form.products.every(lineHasCatalogProduct)) {
-      toast.error('Har item pe catalog se product select karein');
+      toast.error('Select a catalog product on every line');
       return;
     }
     if (isEdit && !quotationId) {
@@ -281,11 +281,11 @@ const QuotationForm = ({ printMode = false }) => {
   const convertToOrder = async () => {
     if (!requireCustomer(form)) return;
     if (!catalog.length) {
-      toast.error('Pehle catalog me product add karein');
+      toast.error('Add a product to the catalog first');
       return;
     }
     if (!form.products.every(lineHasCatalogProduct)) {
-      toast.error('Har item pe catalog se product select karein');
+      toast.error('Select a catalog product on every line');
       return;
     }
     setSaving(true);
@@ -563,7 +563,7 @@ const QuotationForm = ({ printMode = false }) => {
           <CardContent className="space-y-3 pt-0">
             {!catalog.length && (
               <div className="rounded-xl border border-dashed border-orange-300 bg-orange-50/60 p-3 text-center space-y-2">
-                <p className="text-sm text-gray-700">Catalog empty — pehle product add karein.</p>
+                <p className="text-sm text-gray-700">The catalog is empty — add a product first.</p>
                 <Button type="button" size="sm" style={{ backgroundColor: accent }} className="text-white" onClick={goAddProduct}>
                   <PackagePlus className="h-4 w-4 mr-1" />Add New Product
                 </Button>
@@ -590,7 +590,7 @@ const QuotationForm = ({ printMode = false }) => {
                       </SelectContent>
                     </Select>
                     {!lineHasCatalogProduct(line) && (
-                      <p className="text-[11px] text-red-600 mt-1">Product select lazmi hai</p>
+                      <p className="text-[11px] text-red-600 mt-1">Product selection is required</p>
                     )}
                   </div>
                   <div className="md:col-span-2">

@@ -1,4 +1,4 @@
-import { POS_MAJOR_SERVICES } from '@/utils/printHelpers';
+import { POS_MAJOR_SERVICES } from './printHelpers.js';
 
 export const DEFAULT_PRODUCT_CATEGORIES = [
   'Business Cards', 'Flyers & Brochures', 'Posters', 'Banners', 'Stickers & Labels',
@@ -19,6 +19,12 @@ export const DEFAULT_INVENTORY_SETTINGS = {
   materials: DEFAULT_PRODUCT_MATERIALS,
 };
 
+export const POS_STICKER_PRESETS = [
+  { id: 'pos80', label: 'POS 80×40 mm', widthMm: 80, heightMm: 40 },
+  { id: '50x30', label: '50×30 mm', widthMm: 50, heightMm: 30 },
+  { id: '40x30', label: '40×30 mm', widthMm: 40, heightMm: 30 },
+];
+
 export const DEFAULT_POS_SETTINGS = {
   requireRegister: true,
   showCalculator: true,
@@ -27,7 +33,53 @@ export const DEFAULT_POS_SETTINGS = {
   poweredBy: 'Powered By Amazon ERP',
   slipServices: POS_MAJOR_SERVICES,
   defaultPayment: 'Cash',
+  barcodeScan: true,
+  stickerWidthMm: 80,
+  stickerHeightMm: 40,
+  stickerMarginMm: 2,
+  showBarcode: true,
 };
+
+/** Inventory tags print on the POS 80mm sticker roll (CODE128). */
+export function posStickerPayload(cfg = {}) {
+  const widthMm = Number(cfg.stickerWidthMm ?? cfg.widthMm) || 80;
+  const heightMm = Number(cfg.stickerHeightMm ?? cfg.heightMm) || 40;
+  const marginRaw = Number(cfg.stickerMarginMm ?? cfg.marginMm);
+  return {
+    widthMm,
+    heightMm,
+    marginMm: Number.isFinite(marginRaw) ? marginRaw : 2,
+    showBarcode: cfg.showBarcode !== false,
+  };
+}
+
+function stickerFromApi(pos, tags) {
+  if (pos.stickerWidthMm != null || pos.stickerHeightMm != null) {
+    return {
+      stickerWidthMm: Number(pos.stickerWidthMm) || 80,
+      stickerHeightMm: Number(pos.stickerHeightMm) || 40,
+      stickerMarginMm: Number.isFinite(Number(pos.stickerMarginMm)) ? Number(pos.stickerMarginMm) : 2,
+      showBarcode: pos.showBarcode !== false,
+    };
+  }
+  const w = Number(tags.widthMm);
+  const h = Number(tags.heightMm);
+  // Old inventory default was 40×25 — migrate to the POS 80mm sticker roll.
+  if ((w === 40 && h === 25) || !(w > 0 && h > 0)) {
+    return {
+      stickerWidthMm: 80,
+      stickerHeightMm: 40,
+      stickerMarginMm: Number.isFinite(Number(tags.marginMm)) ? Number(tags.marginMm) : 2,
+      showBarcode: tags.showBarcode !== false,
+    };
+  }
+  return {
+    stickerWidthMm: w,
+    stickerHeightMm: h,
+    stickerMarginMm: Number.isFinite(Number(tags.marginMm)) ? Number(tags.marginMm) : 2,
+    showBarcode: tags.showBarcode !== false,
+  };
+}
 
 function asObject(raw) {
   if (!raw) return {};
@@ -95,6 +147,8 @@ export function mergeInventorySettings(api = {}) {
 
 export function mergePosSettings(api = {}) {
   const pos = asObject(api.pos);
+  const tags = asObject(api.priceTags);
+  const sticker = stickerFromApi(pos, tags);
   return {
     ...DEFAULT_POS_SETTINGS,
     ...pos,
@@ -105,5 +159,7 @@ export function mergePosSettings(api = {}) {
     poweredBy: String(pos.poweredBy || DEFAULT_POS_SETTINGS.poweredBy),
     slipServices: asStringList(pos.slipServices, POS_MAJOR_SERVICES),
     defaultPayment: pos.defaultPayment || 'Cash',
+    barcodeScan: pos.barcodeScan !== false,
+    ...sticker,
   };
 }

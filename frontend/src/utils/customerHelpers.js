@@ -42,12 +42,12 @@ export function buildUrduBalanceMessage({ customerName, customerCode, outstandin
   const amount = formatCurrency(outstanding || 0);
   const ref = orderId || invoiceNumber || '';
   return (
-    `Assalam-o-Alaikum ${name},\n\n`
-    + `Amazon Printing Services ki taraf se narm reminder hai ke aap ka *baqi balance ${amount}* abhi tak wajib-ul-ada hai.\n\n`
-    + `Baraye meharbani jald az jald payment arrange karein.\n\n`
+    `Dear ${name},\n\n`
+    + `This is a reminder from Amazon Printing Services that your *remaining balance of ${amount}* is still due.\n\n`
+    + `Please arrange payment as soon as possible.\n\n`
     + (ref ? `Order / Invoice: ${ref}\n` : '')
     + (code ? `Customer ID: ${code}\n` : '')
-    + `\nShukriya!\nAmazon Printing Services\n📍 King Road, Mandi Bahauddin`
+    + `\nThank you!\nAmazon Printing Services\n📍 King Road, Mandi Bahauddin`
   );
 }
 
@@ -82,12 +82,12 @@ export function buildLedgerWhatsAppMessage(customer, ledger) {
     return `• ${dt} ${part} ${dr}${cr}${bal}`.replace(/\s+/g, ' ').trim();
   });
   return (
-    `Assalam-o-Alaikum ${name},\n\n`
-    + `Amazon Printing Services — *Khata / Ledger*\n`
+    `Dear ${name},\n\n`
+    + `Amazon Printing Services — *Account / Ledger*\n`
     + (code ? `Customer ID: ${code}\n` : '')
-    + `\nTotal billed: *${billed}*\nPaid: *${paid}*\nCredit: ${credit}\n*Baqi balance: ${outstanding}*\n\n`
-    + (lines.length ? `Statement:\n${lines.join('\n')}\n\n` : 'Abhi statement lines nahi hain.\n\n')
-    + `Shukriya!\n📍 King Road, Mandi Bahauddin\n🌐 amzprints.com`
+    + `\nTotal billed: *${billed}*\nPaid: *${paid}*\nCredit: ${credit}\n*Remaining balance: ${outstanding}*\n\n`
+    + (lines.length ? `Statement:\n${lines.join('\n')}\n\n` : 'No statement lines yet.\n\n')
+    + `Thank you!\n📍 King Road, Mandi Bahauddin\n🌐 amzprints.com`
   );
 }
 
@@ -102,11 +102,11 @@ export function buildWelcomeMessage(customer) {
   const name = customer?.name || 'Customer';
   const code = customerDisplayCode(customer);
   return (
-    `Assalam-o-Alaikum ${name}!\n\n`
-    + `Amazon Printing Services mein *khush amdeed*.\n\n`
-    + `Aap ka Customer ID: *${code}*\n`
-    + `Is number ko office tracking ke liye save rakhein.\n\n`
-    + `Shukriya!\n📍 King Road, Mandi Bahauddin\n🌐 amzprints.com`
+    `Dear ${name}!\n\n`
+    + `Welcome to *Amazon Printing Services*.\n\n`
+    + `Your Customer ID: *${code}*\n`
+    + `Please save this number for office tracking.\n\n`
+    + `Thank you!\n📍 King Road, Mandi Bahauddin\n🌐 amzprints.com`
   );
 }
 

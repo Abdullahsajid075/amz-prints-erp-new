@@ -263,9 +263,9 @@ const Products = () => {
       const ready = isCatalogReady({ ...formData, images });
       const showOnWebsite = ready && formData.showOnWebsite !== false;
       if (!ready) {
-        toast.message('Website se hide — HD photo aur description dono zaroori hain');
+        toast.message('Hidden from website — an HD photo and description are both required');
       } else if (!showOnWebsite) {
-        toast.message('Website se hide — Show on website Off hai');
+        toast.message('Hidden from website — Show on website is Off');
       }
       const payload = service
         ? {
@@ -344,7 +344,7 @@ const Products = () => {
 
   const setWebsiteVisibility = async (product, visible) => {
     if (visible && !isCatalogReady(product)) {
-      toast.error('Pehle HD image aur description add karein');
+      toast.error('Add an HD image and description first');
       return;
     }
     try {
@@ -373,7 +373,7 @@ const Products = () => {
       });
       try { await productsAPI.publishWebsite(); } catch { /* listing refresh is enough */ }
       clearGasCache();
-      toast.success(visible ? `${product.name} website par show` : `${product.name} website se hide`);
+      toast.success(visible ? `${product.name} shown on website` : `${product.name} hidden from website`);
       fetchProducts();
     } catch (err) {
       toast.error(err?.response?.data?.message || 'Website visibility update failed');
@@ -700,7 +700,7 @@ const Products = () => {
               <div>
                 <Label htmlFor="show-on-website" className="text-sm font-semibold">Show on website</Label>
                 <p className="text-[11px] text-gray-500 mt-0.5">
-                  Off = website se hide. On tabhi chalega jab HD photo + description hon. Incomplete auto-hide.
+                  Off = hidden from the website. On only works with an HD photo and description. Incomplete items stay hidden.
                 </p>
               </div>
               <Switch
@@ -708,7 +708,7 @@ const Products = () => {
                 checked={isCatalogReady(formData) && formData.showOnWebsite !== false}
                 onCheckedChange={(v) => {
                   if (v && !isCatalogReady(formData)) {
-                    toast.error('Pehle HD image aur description add karein');
+                    toast.error('Add an HD image and description first');
                     setFormData({ ...formData, showOnWebsite: false, showOnTop: false });
                     return;
                   }

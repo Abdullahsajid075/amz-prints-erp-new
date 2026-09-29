@@ -138,7 +138,7 @@ export default function CustomerIdCard({
               className="h-8 w-8 text-green-700"
               disabled={balanceSending}
               onClick={onBalanceWa}
-              title="باقی رقم — WhatsApp"
+              title="Balance due — WhatsApp"
               data-testid={`balance-wa-${customer.id}`}
             >
               <WhatsAppIcon className="h-4 w-4" />

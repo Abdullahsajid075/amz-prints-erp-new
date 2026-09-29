@@ -1,24 +1,4 @@
-function collectPriceTagCopies(products = [], { allowZeroStock = false } = {}) {
-  const tags = [];
-  (Array.isArray(products) ? products : []).forEach((product) => {
-    if (!product || /service/i.test(String(product.productType || product.category || ''))) return;
-    const variations = Array.isArray(product.variations) ? product.variations : [];
-    if (variations.length) {
-      variations.forEach((variation) => {
-        const qty = Math.max(0, Math.floor(Number(variation.stock ?? 0) || 0));
-        const copies = qty > 0 ? qty : (allowZeroStock ? 1 : 0);
-        if (!(copies > 0)) return;
-        tags.push({ name: `${product.name} · ${variation.name}`, copies });
-      });
-      return;
-    }
-    const qty = Math.max(0, Math.floor(Number(product.stock ?? 0) || 0));
-    const copies = qty > 0 ? qty : (allowZeroStock ? 1 : 0);
-    if (!(copies > 0)) return;
-    tags.push({ name: product.name, copies });
-  });
-  return tags;
-}
+import { collectPriceTagCopies, productBarcodeCode, buildPriceTagHtml } from './priceTags.js';
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -43,8 +23,20 @@ assert(
   'variation zero allowed'
 );
 
-const blackCss = 'color: #000 !important';
-assert(blackCss.includes('#000'), 'black ink');
-assert('A012 PLEASE PROCEED TO THE Table 01'.includes('PLEASE PROCEED TO THE'), 'announce leftover check');
+const tagged = collectPriceTagCopies([{ id: 'p1', name: 'Mug', sku: 'MUG-01', stock: 1 }], { allowZeroStock: true })[0];
+assert(tagged.barcode === 'MUG-01', 'sku is barcode');
+assert(productBarcodeCode({ id: 'p9' }) === 'p9', 'id fallback');
+assert(productBarcodeCode({ sku: 'BASE' }, { sku: 'VAR-A' }) === 'VAR-A', 'variation sku');
+
+const html = buildPriceTagHtml([{ name: 'Mug', price: 100, sku: 'MUG-01', barcode: 'MUG-01' }], {
+  widthMm: 80,
+  heightMm: 40,
+  showBarcode: true,
+});
+assert(html.includes('80mm 40mm'), 'POS sticker page size');
+assert(html.includes('JsBarcode'), 'barcode engine');
+assert(html.includes('CODE128'), 'CODE128');
+assert(html.includes('MUG-01'), 'barcode value');
+assert(html.includes('color: #000 !important'), 'black ink');
 
 console.log('priceTags ok');

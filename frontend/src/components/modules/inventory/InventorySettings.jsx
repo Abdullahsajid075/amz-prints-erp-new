@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { productsAPI, settingsAPI } from '@/services/api';
 import { clearGasCache } from '@/services/gasClient';
-import { mergeInventorySettings, normalizeCatalogItems } from '@/utils/moduleSettings';
+import { mergeInventorySettings, mergePosSettings, normalizeCatalogItems, posStickerPayload, POS_STICKER_PRESETS } from '@/utils/moduleSettings';
 import { collectPriceTagCopies, printPriceTags } from '@/utils/priceTags';
 import { useBrand } from '@/context/BrandContext';
 import ProductVariationsPanel from '@/components/modules/inventory/ProductVariationsPanel';
@@ -88,7 +88,7 @@ const InventorySettings = () => {
   const [saving, setSaving] = useState(false);
   const [products, setProducts] = useState([]);
   const [selected, setSelected] = useState({});
-  const [tagCfg, setTagCfg] = useState({ widthMm: 40, heightMm: 25, marginMm: 2, showBarcode: true });
+  const [tagCfg, setTagCfg] = useState({ widthMm: 80, heightMm: 40, marginMm: 2, showBarcode: true });
 
   useEffect(() => {
     settingsAPI.get().then((res) => {
@@ -96,8 +96,8 @@ const InventorySettings = () => {
       setRaw(data);
       const merged = mergeInventorySettings(data);
       setForm(merged);
-      const price = data.priceTags && typeof data.priceTags === 'object' ? data.priceTags : {};
-      setTagCfg((c) => ({ ...c, ...price }));
+      const posMerged = mergePosSettings(data);
+      setTagCfg(posStickerPayload(posMerged));
     }).catch(() => toast.error('Could not load inventory settings'));
     productsAPI.getAll().then((res) => setProducts(Array.isArray(res.data) ? res.data : [])).catch(() => {});
   }, []);
@@ -126,6 +126,13 @@ const InventorySettings = () => {
           materials,
         },
         priceTags: tagCfg,
+        pos: {
+          ...(raw.pos && typeof raw.pos === 'object' ? raw.pos : {}),
+          stickerWidthMm: tagCfg.widthMm,
+          stickerHeightMm: tagCfg.heightMm,
+          stickerMarginMm: tagCfg.marginMm,
+          showBarcode: tagCfg.showBarcode !== false,
+        },
       });
       clearGasCache();
       toast.success('Product settings saved');
@@ -145,7 +152,7 @@ const InventorySettings = () => {
     } else if (result?.ok === false) {
       toast.error('Allow popups to print price tags');
     } else {
-      toast.success(`${copies} black price tag(s) sent to printer`);
+      toast.success(`${copies} POS sticker(s) sent to the printer`);
     }
   };
 
@@ -157,7 +164,7 @@ const InventorySettings = () => {
             <ArrowLeft className="h-4 w-4 mr-1" />Inventory
           </Button>
           <h1 className="text-2xl font-bold mt-3" style={{ color: '#0747a3' }}>Product settings</h1>
-          <p className="text-sm text-slate-500">Categories, materials, variations, stock rules, and black POS price tags.</p>
+          <p className="text-sm text-slate-500">Categories, materials, variations, stock rules, and POS sticker-roll tags.</p>
         </div>
         <Button className="text-white" style={{ backgroundColor: '#ff6d00' }} onClick={save} disabled={saving}>
           <Save className="h-4 w-4 mr-1" />{saving ? 'Saving…' : 'Save'}
@@ -211,21 +218,39 @@ const InventorySettings = () => {
 
       <div className="rounded-2xl border bg-white p-5 space-y-4" data-testid="price-tag-settings">
         <div>
-          <h2 className="font-semibold text-lg">Price tags / POS sticker roll</h2>
+          <h2 className="font-semibold text-lg">Inventory tags — POS sticker roll</h2>
           <p className="text-sm text-slate-500">
-            Tags print in <strong>black ink</strong> on a white sticker (screen orange is only the ERP theme).
-            One sticker per stock unit. Services are skipped. Variations print separately.
-            Selected products print 1 black tag even if stock is 0.
+            Tags print on the <strong>80mm POS thermal printer</strong> in <strong>black ink</strong> with a CODE128 barcode.
+            Size is shared with POS settings. One sticker per stock unit. Services are skipped. Variations print separately.
+            Selected products print 1 black tag even if stock is 0. Scan the barcode at POS to add the product.
           </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {POS_STICKER_PRESETS.map((preset) => {
+            const active = Number(tagCfg.widthMm) === preset.widthMm && Number(tagCfg.heightMm) === preset.heightMm;
+            return (
+              <Button
+                key={preset.id}
+                type="button"
+                size="sm"
+                variant={active ? 'default' : 'outline'}
+                className={active ? 'text-white' : ''}
+                style={active ? { backgroundColor: '#ff6d00' } : undefined}
+                onClick={() => setTagCfg((c) => ({ ...c, widthMm: preset.widthMm, heightMm: preset.heightMm }))}
+              >
+                {preset.label}
+              </Button>
+            );
+          })}
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div>
             <Label>Width (mm)</Label>
-            <Input type="number" min="20" value={tagCfg.widthMm} onChange={(e) => setTagCfg((c) => ({ ...c, widthMm: Number(e.target.value) || 40 }))} />
+            <Input type="number" min="20" value={tagCfg.widthMm} onChange={(e) => setTagCfg((c) => ({ ...c, widthMm: Number(e.target.value) || 80 }))} />
           </div>
           <div>
             <Label>Height (mm)</Label>
-            <Input type="number" min="15" value={tagCfg.heightMm} onChange={(e) => setTagCfg((c) => ({ ...c, heightMm: Number(e.target.value) || 25 }))} />
+            <Input type="number" min="15" value={tagCfg.heightMm} onChange={(e) => setTagCfg((c) => ({ ...c, heightMm: Number(e.target.value) || 40 }))} />
           </div>
           <div>
             <Label>Margin (mm)</Label>
@@ -234,7 +259,7 @@ const InventorySettings = () => {
           <div className="flex items-end pb-1">
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={tagCfg.showBarcode !== false} onChange={(e) => setTagCfg((c) => ({ ...c, showBarcode: e.target.checked }))} />
-              Show SKU
+              Show barcode
             </label>
           </div>
         </div>
