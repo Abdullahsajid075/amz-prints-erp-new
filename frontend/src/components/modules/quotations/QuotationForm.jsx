@@ -467,7 +467,7 @@ const QuotationForm = ({ printMode = false }) => {
   }
 
   return (
-    <div className="space-y-4 pb-8" data-testid="quotation-form">
+    <div className="space-y-3 pb-6" data-testid="quotation-form">
       <div className="rounded-2xl border border-orange-100 bg-white overflow-hidden shadow-sm">
         <div className="h-1.5" style={{ backgroundColor: accent }} />
         <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

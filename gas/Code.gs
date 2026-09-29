@@ -2632,6 +2632,11 @@ function invoiceTotalDue_(inv) {
   return Number(inv.total || inv.totalamount || 0) + Number(inv.previousbalance || 0);
 }
 
+function posReceiptRef_(orderId) {
+  var raw = String(orderId || '').replace(/^POSR[-_]?/i, '').trim();
+  return raw ? ('POSR-' + raw) : 'POSR';
+}
+
 function invoiceStatusFromPaid_(totalDue, paid) {
   paid = Number(paid || 0);
   totalDue = Number(totalDue || 0);
@@ -2790,10 +2795,20 @@ function withInvoiceMeta_(api, map) {
 function withAdvanceInvoice_(apiOrder, sheetRecord, extraPayment) {
   extraPayment = Number(extraPayment || 0);
   if (isQuotation_(sheetRecord)) return withInvoiceMeta_(apiOrder);
+  var dt = String((sheetRecord && sheetRecord.doctype) || '').toLowerCase();
   var advance = Number((sheetRecord && sheetRecord.advancepayment) || 0);
+  if (dt !== 'pos') {
+    return withInvoiceMeta_(apiOrder);
+  }
   if (!(advance > 0) && extraPayment <= 0) return withInvoiceMeta_(apiOrder);
   try {
-    ensureInvoicedForAdvance_(sheetRecord, extraPayment, { skipOrderSnapshot: true });
+    ensureInvoicedForAdvance_(sheetRecord, extraPayment, {
+      skipOrderSnapshot: true,
+      method: sheetRecord.paymentmethod || 'Cash',
+      notes: 'POS Sale ' + (sheetRecord.orderid || sheetRecord.id),
+      refId: posReceiptRef_(sheetRecord.orderid || sheetRecord.id),
+      category: 'POS Sale',
+    });
   } catch (eInv) {
     apiOrder = apiOrder || {};
     apiOrder._invoiceError = String(eInv.message || eInv);
@@ -3008,6 +3023,8 @@ function ensureInvoicedForAdvance_(order, extraPayment, opts) {
     date: opts.date || order.date || nowDate_(),
     skipOrderSnapshot: opts.skipOrderSnapshot !== false,
     orderId: order.orderid || order.id,
+    refId: opts.refId || '',
+    category: opts.category || '',
   });
   return pay.invoice || inv;
 }
@@ -3058,8 +3075,8 @@ function recordInvoicePayment_(invoiceId, body) {
   var paymentRow = appendPaymentsSheetRow_({
     id: payId,
     date: payDate,
-    category: 'Invoice Payment',
-    refId: inv.invoiceno || inv.id,
+    category: body.category || 'Invoice Payment',
+    refId: body.refId || body.reference || inv.invoiceno || inv.id,
     customerId: inv.customerid || '',
     customerName: inv.customername || '',
     customerPhone: inv.customerphone || '',
@@ -4872,10 +4889,12 @@ function toPublicTrackOrder_(o) {
   var api = toApiOrder_(o);
   var pipeline = [
     'Order Received', 'Designing', 'Proof Approval', 'Printing',
-    'Finishing', 'Packing', 'Ready', 'Delivered'
+    'Ready for Delivery', 'Delivered'
   ];
   var status = String(api.status || '');
   var cancelled = status.toLowerCase() === 'cancelled';
+  if (/^ready$/i.test(status)) status = 'Ready for Delivery';
+  if (/^(finishing|packing)$/i.test(status)) status = 'Printing';
   var idx = cancelled ? -1 : pipeline.indexOf(status);
   if (idx < 0 && !cancelled) {
     for (var i = 0; i < pipeline.length; i++) {

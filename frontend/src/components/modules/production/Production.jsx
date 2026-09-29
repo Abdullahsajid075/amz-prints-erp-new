@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ordersAPI } from '@/services/api';
 import { formatCurrency, formatDate } from '@/utils/helpers';
+import { normalizeOrderStatus } from '@/utils/constants';
 import { Factory, User, Calendar, Eye, ChevronRight, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -13,9 +14,7 @@ const STAGES = [
   { key: 'Designing', label: 'Designing', color: '#8B5CF6' },
   { key: 'Proof Approval', label: 'Proof Approval', color: '#F59E0B' },
   { key: 'Printing', label: 'Printing', color: '#ff6d00' },
-  { key: 'Finishing', label: 'Finishing', color: '#EC4899' },
-  { key: 'Packing', label: 'Packing', color: '#06B6D4' },
-  { key: 'Ready', label: 'Ready', color: '#10B981' }
+  { key: 'Ready for Delivery', label: 'Ready for Delivery', color: '#10B981' },
 ];
 
 const Production = () => {
@@ -36,7 +35,7 @@ const Production = () => {
 
   const byStage = useMemo(() => {
     const map = {};
-    STAGES.forEach(s => { map[s.key] = orders.filter(o => o.status === s.key); });
+    STAGES.forEach(s => { map[s.key] = orders.filter(o => normalizeOrderStatus(o.status) === s.key); });
     return map;
   }, [orders]);
 

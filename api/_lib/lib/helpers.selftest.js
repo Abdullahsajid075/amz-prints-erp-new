@@ -1,4 +1,4 @@
-const { parseImages, isRealProductPhoto, isWebsiteCatalogReady, isListedOnWebsite, collectOrderIds, invoiceStatusFromPaid, hashPortalPassword, checkPortalPassword, makePortalPassword } = require('./helpers');
+const { parseImages, isRealProductPhoto, isWebsiteCatalogReady, isListedOnWebsite, collectOrderIds, invoiceStatusFromPaid, hashPortalPassword, checkPortalPassword, makePortalPassword, posReceiptRef } = require('./helpers');
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -28,4 +28,6 @@ assert(checkPortalPassword(stored, 'secret123'), 'portal hash');
 assert(!checkPortalPassword(stored, 'nope'), 'portal reject');
 assert(checkPortalPassword('plain', 'plain'), 'legacy plaintext portal');
 assert(hashPortalPassword('x', 's').length === 64, 'sha256 hex');
+assert(posReceiptRef('POS-22') === 'POSR-POS-22', 'posr ref');
+assert(posReceiptRef('POSR-POS-22') === 'POSR-POS-22', 'posr idempotent');
 console.log('helpers ok');

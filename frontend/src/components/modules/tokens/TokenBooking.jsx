@@ -437,7 +437,7 @@ const TokenBooking = () => {
   const nextWaiting = useMemo(() => sortTokensFifo(tokens.filter(isWaitingToken))[0] || null, [tokens]);
 
   return (
-    <div className="space-y-6" data-testid="token-booking">
+    <div className="space-y-3" data-testid="token-booking">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold" style={{ color: '#0747a3' }}>Token</h1>
@@ -538,7 +538,7 @@ const TokenBooking = () => {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -547,7 +547,7 @@ const TokenBooking = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label>Phone *</Label>

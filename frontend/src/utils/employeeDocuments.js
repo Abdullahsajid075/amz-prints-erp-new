@@ -90,26 +90,32 @@ export function printEmployeeCard(emp, company = {}, { autoPrint = true } = {}) 
     box-shadow: 0 2px 8px rgba(0,0,0,.18);
     page-break-inside: avoid;
   }
-  .accent { height: 7px; background: linear-gradient(90deg, #ff6d00, #cc5700); }
-  .front, .back { height: calc(100% - 7px); padding: 8px 9px; display: flex; flex-direction: column; }
+  .accent { height: 8px; background: linear-gradient(90deg, #ff6d00, #cc5700); }
+  .front, .back { height: calc(100% - 8px); padding: 8px 9px; display: flex; flex-direction: column; }
   .brand { display: flex; align-items: center; gap: 6px; border-bottom: 1px solid rgba(0,0,0,.12); padding-bottom: 5px; }
-  .logo { max-height: 28px; max-width: 72px; object-fit: contain; }
-  .logo-text { font-size: 11px; font-weight: 800; letter-spacing: .04em; color: #ff6d00; }
-  .brand small { display: block; font-size: 7px; color: #555; line-height: 1.2; }
-  .title { text-align: center; font-size: 8px; letter-spacing: .18em; text-transform: uppercase; color: #444; margin: 6px 0 4px; font-weight: 700; }
+  .logo { max-height: 32px; max-width: 80px; object-fit: contain; }
+  .logo-text { font-size: 13px; font-weight: 800; letter-spacing: .04em; color: #ff6d00; }
+  .brand small { display: block; font-size: 8px; color: #555; line-height: 1.2; }
+  .title { text-align: center; font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: #1a1a1a; margin: 6px 0 5px; font-weight: 800; }
   .photo-row { display: flex; gap: 7px; align-items: flex-start; }
-  .photo { width: 58px; height: 70px; object-fit: cover; border: 1px solid #333; background: #fff; }
-  .ph { display: flex; align-items: center; justify-content: center; font-size: 8px; color: #999; }
+  .photo { width: 62px; height: 76px; object-fit: cover; border: 1px solid #333; background: #fff; }
+  .ph { display: flex; align-items: center; justify-content: center; font-size: 9px; color: #999; }
   .meta { flex: 1; min-width: 0; }
-  .name { font-size: 13px; font-weight: 800; line-height: 1.15; margin: 0 0 2px; }
-  .desig { font-size: 9px; color: #ff6d00; font-weight: 700; margin-bottom: 4px; }
-  .row { font-size: 8px; line-height: 1.35; margin: 1px 0; }
-  .row b { display: inline-block; min-width: 42px; color: #555; font-weight: 600; }
+  .name { font-size: 16px; font-weight: 800; line-height: 1.12; margin: 0 0 2px; }
+  .desig { font-size: 11px; color: #ff6d00; font-weight: 800; margin-bottom: 5px; }
+  .row { font-size: 10px; line-height: 1.4; margin: 2px 0; }
+  .row b { display: inline-block; min-width: 46px; color: #555; font-weight: 700; }
   .barcode-wrap { text-align: center; margin-top: auto; padding-top: 4px; }
   .barcode-wrap svg { max-width: 100%; }
-  .valid { font-size: 7.5px; text-align: center; margin-top: 3px; color: #333; }
-  .label { position: absolute; top: 10px; right: 8px; font-size: 7px; opacity: .45; letter-spacing: .1em; }
-  .back .rules { font-size: 8px; line-height: 1.4; color: #333; margin: 6px 0; flex: 1; }
+  .valid { font-size: 9px; text-align: center; margin-top: 3px; color: #333; font-weight: 700; }
+  .label { position: absolute; top: 10px; right: 8px; font-size: 8px; opacity: .45; letter-spacing: .1em; }
+  .auth { position: relative; min-height: 54px; margin-top: 4px; }
+  .auth-stamp { position: absolute; right: 18px; bottom: 10px; width: 52px; z-index: 4; transform: rotate(-12deg); opacity: .9; }
+  .auth-stamp img { width: 52px; height: auto; }
+  .auth-sign { position: absolute; right: 4px; bottom: 0; z-index: 2; width: 88px; text-align: center; }
+  .auth-sign img { max-height: 28px; max-width: 88px; object-fit: contain; }
+  .auth-sign p { font-size: 7px; margin: 0; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+  .back .rules { font-size: 9px; line-height: 1.4; color: #333; margin: 6px 0; flex: 1; }
   .back .rules li { margin: 0 0 3px 14px; }
   .verify-box { display: flex; gap: 8px; align-items: center; border-top: 1px solid rgba(0,0,0,.12); padding-top: 6px; margin-top: auto; }
   .verify-box p { font-size: 7.5px; margin: 0; line-height: 1.3; color: #333; }
@@ -126,7 +132,7 @@ export function printEmployeeCard(emp, company = {}, { autoPrint = true } = {}) 
     <div class="accent"></div>
     <div class="front">
       <span class="label">FRONT</span>
-      <div class="brand">${logo}<div><strong style="font-size:10px">${esc(c.name)}</strong><small>${esc(c.tagline)}</small></div></div>
+      <div class="brand">${logo}<div><strong style="font-size:12px">${esc(c.name)}</strong><small>${esc(c.tagline)}</small></div></div>
       <div class="title">Employee Identity Card</div>
       <div class="photo-row">
         ${photo}
@@ -139,8 +145,15 @@ export function printEmployeeCard(emp, company = {}, { autoPrint = true } = {}) 
           <div class="row"><b>Phone</b> ${esc(emp.phone || '—')}</div>
         </div>
       </div>
-      ${barcodeBlock(code, { id: 'bc-card', height: 28 })}
+      ${barcodeBlock(code, { id: 'bc-card', height: 32 })}
       <div class="valid">Valid: ${esc(fmtDate(emp.validFrom))} — ${esc(fmtDate(emp.validUntil || 'Open'))}</div>
+      <div class="auth">
+        ${c.stamp ? `<div class="auth-stamp"><img src="${esc(c.stamp)}" alt="stamp"/></div>` : ''}
+        <div class="auth-sign">
+          ${c.signature ? `<img src="${esc(c.signature)}" alt="signature"/>` : ''}
+          <p>${esc(c.signatory)}</p>
+        </div>
+      </div>
     </div>
   </div>
 

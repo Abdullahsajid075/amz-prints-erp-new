@@ -36,6 +36,11 @@ export function customerDisplayCode(customer) {
   return customer?.customerCode || customer?.customercode || customer?.id || '—';
 }
 
+/** Physical customer card is only for balances still due — not for advance-paid / settled customers. */
+export function customerHasPendingPayment(customer) {
+  return Number(customer?.outstanding) > 0.009;
+}
+
 export function buildUrduBalanceMessage({ customerName, customerCode, outstanding, orderId, invoiceNumber } = {}) {
   const name = customerName || 'Customer';
   const code = customerCode || '';

@@ -73,7 +73,7 @@ export const GUIDE_SECTIONS = [
     body: [
       'An order is the job card. Required: customer (or walk-in), products, totals, delivery date when Settings require it.',
       'Advance payment reduces the order balance. Remaining balance is what the customer still owes on that job until it is covered by an invoice payment or customer credit.',
-      'Status flow (typical): Order Received → Designing / Proof → Printing / Finishing / Packing → Ready → Delivered. Cancelled jobs drop out of receivables.',
+      'Status flow (typical): Order Received → Designing / Proof → Printing → Ready for Delivery → Delivered. Cancelled jobs drop out of receivables.',
       'Assign a designer when artwork is needed. Update status as work moves — dashboard pipeline and WhatsApp templates depend on the current status.',
       'Tracking number can be sent to the customer. Delivery slip is printable from the order.',
     ],

@@ -679,8 +679,8 @@ const POS = () => {
         </div>
       </header>
 
-      <div className="flex-1 min-h-0 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(280px,400px)]">
-        <section className="min-h-0 flex flex-col p-3 gap-3 relative">
+      <div className="flex-1 min-h-0 grid grid-cols-1 sm:grid-cols-[minmax(280px,380px)_minmax(0,1fr)]">
+        <section className="min-h-0 flex flex-col p-3 gap-3 relative sm:order-2">
           {!registerOpen && (
             <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/80 backdrop-blur-[2px] p-6" data-testid="pos-register-lock">
               <div className="max-w-md w-full rounded-2xl border bg-white p-8 text-center shadow-xl">
@@ -830,7 +830,7 @@ const POS = () => {
         ) : null}
 
         <aside
-          className={`min-h-0 h-full overflow-y-auto flex flex-col relative z-40 bg-white transition-transform duration-200
+          className={`min-h-0 h-full overflow-y-auto flex flex-col relative z-40 bg-white transition-transform duration-200 sm:order-1
             max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:h-[min(88vh,760px)] max-sm:rounded-t-3xl max-sm:shadow-2xl
             ${cartDrawer ? 'max-sm:translate-y-0' : 'max-sm:translate-y-full max-sm:pointer-events-none'}
             sm:translate-y-0 sm:pointer-events-auto sm:static`}
@@ -839,8 +839,8 @@ const POS = () => {
             background: 'linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(244,247,255,0.88) 55%, rgba(255,255,255,0.92) 100%)',
             backdropFilter: 'blur(22px)',
             WebkitBackdropFilter: 'blur(22px)',
-            boxShadow: '-18px 0 48px rgba(7,71,163,0.14), inset 1px 0 0 rgba(255,255,255,0.85)',
-            borderLeft: '1px solid rgba(255,255,255,0.65)',
+            boxShadow: '18px 0 48px rgba(7,71,163,0.14), inset -1px 0 0 rgba(255,255,255,0.85)',
+            borderRight: '1px solid rgba(255,255,255,0.65)',
           }}
         >
           <div className="px-4 py-3 border-b border-white/60 flex items-center justify-between">
@@ -1168,33 +1168,33 @@ const POS = () => {
         </aside>
       </div>
 
-      <footer className="shrink-0 bg-white border-t px-3 py-2 flex flex-wrap items-center gap-2 text-sm">
-        <Button variant="ghost" size="sm" className="h-8 font-semibold" disabled={!lastSale} onClick={() => printReceipt(lastSale)} data-testid="pos-reprint-footer">
-          <Printer className="h-3.5 w-3.5 mr-1" />Reprint receipt
+      <footer className="shrink-0 bg-[#FFF4EB] border-t-2 px-3 py-2.5 flex flex-wrap items-center gap-2 text-sm" style={{ borderColor: accent }}>
+        <Button variant="outline" size="sm" className="h-9 px-3 font-bold rounded-xl border-2 shadow-sm" style={{ borderColor: accent, color: accent, backgroundColor: '#fff' }} disabled={!lastSale} onClick={() => printReceipt(lastSale)} data-testid="pos-reprint-footer">
+          <Printer className="h-4 w-4 mr-1" />Reprint receipt
         </Button>
-        <Button variant="ghost" size="sm" className="h-8 font-semibold" disabled={stampBusy} onClick={() => stampInputRef.current?.click()} data-testid="pos-stamp-footer">
-          <FileUp className="h-3.5 w-3.5 mr-1" />Stamp PDF
+        <Button variant="outline" size="sm" className="h-9 px-3 font-bold rounded-xl border-2 shadow-sm" style={{ borderColor: accent, color: accent, backgroundColor: '#fff' }} disabled={stampBusy} onClick={() => stampInputRef.current?.click()} data-testid="pos-stamp-footer">
+          <FileUp className="h-4 w-4 mr-1" />Stamp PDF
         </Button>
-        <Button variant="ghost" size="sm" className="h-8" disabled={!lastSale} onClick={convertLastToInvoice}>
-          <Quote className="h-3.5 w-3.5 mr-1" />Invoice
+        <Button variant="outline" size="sm" className="h-9 px-3 font-bold rounded-xl border-2 shadow-sm" style={{ borderColor: accent, color: accent, backgroundColor: '#fff' }} disabled={!lastSale} onClick={convertLastToInvoice}>
+          <Quote className="h-4 w-4 mr-1" />Invoice
         </Button>
-        <Button variant="ghost" size="sm" className="h-8" onClick={() => { setCustomerId(WALK_IN.id); toast.message('Walk-in selected'); }}>
-          <User className="h-3.5 w-3.5 mr-1" />Walk-in
+        <Button variant="outline" size="sm" className="h-9 px-3 font-bold rounded-xl border-2 shadow-sm" style={{ borderColor: accent, color: accent, backgroundColor: '#fff' }} onClick={() => { setCustomerId(WALK_IN.id); toast.message('Walk-in selected'); }}>
+          <User className="h-4 w-4 mr-1" />Walk-in
         </Button>
-        <Button variant="ghost" size="sm" className="h-8 text-rose-600" onClick={clearCart}>
-          <Trash2 className="h-3.5 w-3.5 mr-1" />Clear cart
+        <Button variant="outline" size="sm" className="h-9 px-3 font-bold rounded-xl border-2 shadow-sm text-rose-700" style={{ borderColor: '#e11d48', backgroundColor: '#fff' }} onClick={clearCart}>
+          <Trash2 className="h-4 w-4 mr-1" />Clear cart
         </Button>
-        <Button variant="ghost" size="sm" className="h-8" disabled={!lastSale} onClick={() => lastSale && sendPosWhatsApp(lastSale)}>
-          <WhatsAppIcon className="h-3.5 w-3.5 mr-1" />WhatsApp
+        <Button variant="outline" size="sm" className="h-9 px-3 font-bold rounded-xl border-2 shadow-sm" style={{ borderColor: accent, color: accent, backgroundColor: '#fff' }} disabled={!lastSale} onClick={() => lastSale && sendPosWhatsApp(lastSale)}>
+          <WhatsAppIcon className="h-4 w-4 mr-1" />WhatsApp
         </Button>
-        <Button variant="ghost" size="sm" className="h-8" onClick={() => navigate('/accounts/pos-statement')}>
-          <BookOpen className="h-3.5 w-3.5 mr-1" />Statement
+        <Button variant="outline" size="sm" className="h-9 px-3 font-bold rounded-xl border-2 shadow-sm" style={{ borderColor: accent, color: accent, backgroundColor: '#fff' }} onClick={() => navigate('/accounts/pos-statement')}>
+          <BookOpen className="h-4 w-4 mr-1" />Statement
         </Button>
-        <Button variant="ghost" size="sm" className="h-8" onClick={() => navigate('/pos/settings')}>
-          <Settings className="h-3.5 w-3.5 mr-1" />Settings
+        <Button variant="outline" size="sm" className="h-9 px-3 font-bold rounded-xl border-2 shadow-sm" style={{ borderColor: accent, color: accent, backgroundColor: '#fff' }} onClick={() => navigate('/pos/settings')}>
+          <Settings className="h-4 w-4 mr-1" />Settings
         </Button>
-        <span className="ml-auto text-slate-500">
-          Items: <strong className="text-slate-800">{cart.length}</strong>
+        <span className="ml-auto text-slate-700 font-semibold">
+          Items: <strong className="text-slate-900">{cart.length}</strong>
           {' · '}
           <strong style={{ color: accent }}>{formatCurrency(payable)}</strong>
         </span>

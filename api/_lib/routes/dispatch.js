@@ -17,7 +17,7 @@ const {
   makePortalPassword, checkPortalPassword, portalPasswordFromRow, issueCustomerToken, parseCustomerToken,
   sanitizePortalCustomer, isBlocked, productFromBody,
   withCustomerPhoto, customerPhoto, isWebsiteCatalogReady, isListedOnWebsite,
-  isServiceProduct, productTracksInventory,
+  isServiceProduct, productTracksInventory, posReceiptRef,
 } = require('../lib/helpers');
 const {
   computeCustomerLedger,
@@ -1216,8 +1216,8 @@ async function recordInvoicePayment(invoiceId, body = {}, user) {
     id: payId,
     date: payDate,
     type: 'inflow',
-    category: 'Invoice Payment',
-    ref_id: inv.invoice_no || inv.id,
+    category: body.category || 'Invoice Payment',
+    ref_id: body.refId || body.reference || inv.invoice_no || inv.id,
     customer_name: inv.customer_name || '',
     customer_id: inv.customer_id || '',
     party_phone: inv.customer_phone || '',
@@ -1516,8 +1516,8 @@ async function dispatch(req, res) {
         const status = String(api.status || '');
         const isWeb = /^WEB[-_]/i.test(String(api.orderId || '')) || /website/i.test(String(api.remarks || api.notes || ''));
         const pipeline = (isWeb || /^pending$|^new$/i.test(status))
-          ? ['Pending', 'Order Received', 'Designing', 'Proof Approval', 'Printing', 'Finishing', 'Packing', 'Ready', 'Delivered']
-          : ['Order Received', 'Designing', 'Proof Approval', 'Printing', 'Finishing', 'Packing', 'Ready', 'Delivered'];
+          ? ['Pending', 'Order Received', 'Designing', 'Proof Approval', 'Printing', 'Ready for Delivery', 'Delivered']
+          : ['Order Received', 'Designing', 'Proof Approval', 'Printing', 'Ready for Delivery', 'Delivered'];
         const cancelled = /cancel/i.test(status);
         let idx = cancelled ? -1 : pipeline.indexOf(status);
         if (idx < 0 && /^pending$|^new$/i.test(status)) idx = pipeline.indexOf('Pending');
@@ -2781,9 +2781,6 @@ async function dispatch(req, res) {
         if (docType !== 'pos' && isDeliveredStatus(row.status)) {
           return sendError(res, INVOICE_REQUIRED_MESSAGE, 400);
         }
-        if (docType !== 'pos' && num(row.advance_payment) > 0) {
-          return sendError(res, 'Create the invoice before recording an advance payment', 400);
-        }
         await persistOrderStock(row, { isPos: docType === 'pos' });
         const { error } = await supabase.from('orders').insert(row);
         if (error) {
@@ -2791,6 +2788,28 @@ async function dispatch(req, res) {
             try { await syncProductStock(row.products, []); } catch { /* keep original insert error */ }
           }
           throw error;
+        }
+        if (docType === 'pos') {
+          const posRef = posReceiptRef(row.order_id || row.id);
+          try {
+            await supabase.from('payments').insert({
+              id: id('pay'),
+              date: row.date || today(),
+              type: 'inflow',
+              category: 'POS Sale',
+              ref_id: posRef,
+              customer_name: row.customer_name || 'Walk-in',
+              customer_id: row.customer_id || '',
+              party_phone: row.customer_phone || '',
+              amount: num(row.advance_payment || row.total_amount),
+              method: row.payment_method || body.paymentMethod || 'Cash',
+              notes: `POS Sale ${row.order_id || row.id}`,
+              balance_due: 0,
+              total_amount: num(row.total_amount),
+            });
+          } catch (payErr) {
+            console.warn('POS payment row failed', payErr);
+          }
         }
         const mapped = await withInvoiceMeta(mapOrder(row));
         mapped.creditApplied = num(body.applyCredit);
