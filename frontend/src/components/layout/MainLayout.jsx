@@ -1,9 +1,8 @@
-import React, { Component, useState } from 'react';
+import React, { Component, useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
 import ModuleGuard from '@/components/ModuleGuard';
-import ErpHomeLauncher from './ErpHomeLauncher';
 
 class PageErrorBoundary extends Component {
   constructor(props) {
@@ -49,17 +48,35 @@ const MainLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
 
-  const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
+  const toggleSidebar = () => setSidebarOpen((open) => !open);
   const closeSidebar = () => setSidebarOpen(false);
+  const openSidebar = () => setSidebarOpen(true);
+
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
+
+  const isAppsHome = location.pathname === '/dashboard';
+  const isPos = location.pathname === '/pos' || location.pathname.startsWith('/pos/counter');
 
   return (
     <div className="min-h-screen erp-shell">
-      <ErpHomeLauncher />
-      <Navbar toggleSidebar={toggleSidebar} />
-      <Sidebar isOpen={sidebarOpen} closeSidebar={closeSidebar} />
+      <Navbar toggleSidebar={toggleSidebar} sidebarOpen={sidebarOpen} />
+      <Sidebar
+        isOpen={sidebarOpen}
+        closeSidebar={closeSidebar}
+        openSidebar={openSidebar}
+        toggleSidebar={toggleSidebar}
+      />
 
-      <main className="pt-14 lg:pl-[260px] min-h-screen" data-testid="main-content">
-        {location.pathname === '/pos' || location.pathname.startsWith('/pos/counter') ? (
+      <main className="pt-14 min-h-screen" data-testid="main-content">
+        {isAppsHome ? (
+          <ModuleGuard>
+            <PageErrorBoundary resetKey={location.pathname}>
+              <Outlet />
+            </PageErrorBoundary>
+          </ModuleGuard>
+        ) : isPos ? (
           <div className="h-[calc(100vh-3.5rem)] overflow-hidden">
             <ModuleGuard>
               <PageErrorBoundary resetKey={location.pathname}>

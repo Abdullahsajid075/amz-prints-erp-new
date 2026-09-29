@@ -1,46 +1,22 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 
-const SHOW_KEY = 'amz_erp_show_home';
 const HomeLauncherContext = createContext(null);
 
-export function shouldOpenHomeAfterLogin() {
-  try {
-    return sessionStorage.getItem(SHOW_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
 export function markHomeToOpenAfterLogin() {
-  try { sessionStorage.setItem(SHOW_KEY, '1'); } catch { /* ignore */ }
-}
-
-export function clearHomeAfterLoginFlag() {
-  try { sessionStorage.removeItem(SHOW_KEY); } catch { /* ignore */ }
+  /* Dashboard is the Apps home — login already lands on /dashboard. */
 }
 
 export function HomeLauncherProvider({ children }) {
-  const [open, setOpen] = useState(() => shouldOpenHomeAfterLogin());
-  const [leaving, setLeaving] = useState(false);
+  const navigate = useNavigate();
 
   const openHome = useCallback(() => {
-    setLeaving(false);
-    setOpen(true);
-  }, []);
-
-  const closeHome = useCallback(() => {
-    if (leaving) return;
-    setLeaving(true);
-    clearHomeAfterLoginFlag();
-    window.setTimeout(() => {
-      setOpen(false);
-      setLeaving(false);
-    }, 420);
-  }, [leaving]);
+    navigate('/dashboard');
+  }, [navigate]);
 
   const value = useMemo(
-    () => ({ open, leaving, openHome, closeHome }),
-    [open, leaving, openHome, closeHome]
+    () => ({ openHome, closeHome: () => {} }),
+    [openHome]
   );
 
   return (
@@ -53,12 +29,7 @@ export function HomeLauncherProvider({ children }) {
 export function useHomeLauncher() {
   const ctx = useContext(HomeLauncherContext);
   if (!ctx) {
-    return {
-      open: false,
-      leaving: false,
-      openHome: () => {},
-      closeHome: () => {},
-    };
+    return { openHome: () => {}, closeHome: () => {} };
   }
   return ctx;
 }

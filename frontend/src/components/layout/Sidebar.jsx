@@ -3,9 +3,9 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, ShoppingCart, Users, Warehouse, FileText,
-  CreditCard, BarChart3, Settings, X, Ticket, Home,
+  CreditCard, BarChart3, Settings, X, Ticket,
   Store, Quote, Calculator, Kanban, ShoppingBag, UsersRound, ChevronDown,
-  ListTodo, Megaphone, ClipboardCheck,
+  ListTodo, Megaphone, ClipboardCheck, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -15,7 +15,6 @@ import { ordersAPI, productsAPI, purchasesAPI, customersAPI } from '@/services/a
 import { isOpenOrder } from '@/utils/constants';
 import { buildPurchaseNeeds, buildLowQuantityAlerts } from '@/utils/purchaseNeeds';
 import { countOpenCrmQueries } from '@/utils/crmStages';
-import { useHomeLauncher } from '@/context/HomeLauncherContext';
 import { ERP_LEGAL_NAME } from '@/utils/erpApps';
 
 const menuGroups = [
@@ -127,10 +126,9 @@ const pathMatches = (base, pathname) => {
   return pathname.startsWith(`${base}/`);
 };
 
-const Sidebar = ({ isOpen, closeSidebar }) => {
+const Sidebar = ({ isOpen, closeSidebar, toggleSidebar }) => {
   const { company, primary } = useBrand();
   const { canAccessModule } = useAuth();
-  const { openHome } = useHomeLauncher();
   const location = useLocation();
   const navigate = useNavigate();
   const [openGroup, setOpenGroup] = useState('');
@@ -245,15 +243,27 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
     <>
       {isOpen && (
         <div
-          className="fixed inset-0 bg-ink/50 backdrop-blur-[2px] z-40 lg:hidden"
+          className="fixed inset-0 bg-ink/40 backdrop-blur-[2px] z-40"
           onClick={closeSidebar}
+          data-testid="sidebar-backdrop"
         />
       )}
+      <button
+        type="button"
+        className="erp-sidebar-arrow"
+        style={{ left: isOpen ? 244 : 0 }}
+        onClick={toggleSidebar}
+        aria-label={isOpen ? 'Hide menus' : 'Show menus'}
+        aria-expanded={isOpen}
+        data-testid="sidebar-arrow"
+      >
+        {isOpen ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+      </button>
       <aside
         className={cn(
-          'fixed top-0 left-0 bottom-0 w-[260px] z-40 transform transition-transform duration-300 ease-out',
-          'bg-sidebar text-sidebar-foreground border-r border-sidebar-border',
-          isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+          'erp-sidebar fixed top-14 left-0 bottom-0 w-[260px] z-40 transform transition-transform duration-300 ease-out',
+          'text-white border-r border-white/15',
+          isOpen ? 'translate-x-0' : '-translate-x-full'
         )}
         data-testid="sidebar"
       >
@@ -280,7 +290,7 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
                 <p className="font-display font-bold text-sm text-white truncate">
                   {company.name || 'AMZ Prints'}
                 </p>
-                <p className="text-[10px] text-sidebar-muted font-medium tracking-wide leading-snug">
+                <p className="text-[10px] text-white/70 font-medium tracking-wide leading-snug">
                   {ERP_LEGAL_NAME}
                 </p>
               </div>
@@ -288,7 +298,7 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
             <Button
               variant="ghost"
               size="icon"
-              className="lg:hidden text-white/80 hover:text-white hover:bg-white/10 h-8 w-8"
+              className="text-white/80 hover:text-white hover:bg-white/10 h-8 w-8"
               onClick={closeSidebar}
             >
               <X className="h-4 w-4" />
@@ -297,23 +307,10 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
 
           <ScrollArea className="flex-1 px-2.5 py-3">
             <nav className="space-y-4">
-              <button
-                type="button"
-                data-testid="sidebar-open-home"
-                onClick={() => {
-                  openHome();
-                  closeSidebar();
-                }}
-                className="erp-nav-link w-full text-left text-white shadow-md"
-                style={{ backgroundColor: accent }}
-              >
-                <Home className="h-4 w-4 shrink-0 text-white" />
-                <span className="flex-1 truncate">Home</span>
-              </button>
               {visibleGroups.map((group) => (
                 <div key={group.id}>
                   {group.label && (
-                    <p className="px-2.5 mb-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-sidebar-muted/80">
+                    <p className="px-2.5 mb-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-white/60">
                       {group.label}
                     </p>
                   )}
@@ -331,21 +328,22 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
                           <NavLink
                             key={item.path}
                             to={item.path}
+                            end={item.path === '/dashboard'}
                             onClick={closeSidebar}
                             data-testid={item.testId}
                             className={({ isActive }) => cn(
                               'erp-nav-link',
                               isActive
                                 ? 'text-white shadow-md'
-                                : 'text-sidebar-muted hover:text-white hover:bg-white/[0.06]'
+                                : 'text-white/75 hover:text-white hover:bg-white/[0.12]'
                             )}
                             style={({ isActive }) => ({
-                              backgroundColor: isActive ? accent : undefined,
+                              backgroundColor: isActive ? '#0747a3' : undefined,
                             })}
                           >
                             {({ isActive }) => (
                               <>
-                                <item.icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-white' : 'text-sidebar-muted')} />
+                                <item.icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-white' : 'text-white/75')} />
                                 <span className="flex-1 truncate">{item.label}</span>
                                 {item.path === '/acknowledgments' && ackCount > 0 && (
                                   <span
@@ -406,21 +404,21 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
                               'erp-nav-link w-full text-left',
                               groupActive
                                 ? 'text-white'
-                                : 'text-sidebar-muted hover:text-white hover:bg-white/[0.06]'
+                                : 'text-white/75 hover:text-white hover:bg-white/[0.12]'
                             )}
                             style={{
-                              backgroundColor: groupActive ? `${accent}22` : undefined,
-                              boxShadow: groupActive ? `inset 3px 0 0 ${accent}` : undefined,
+                              backgroundColor: groupActive ? 'rgba(7, 71, 163, 0.45)' : undefined,
+                              boxShadow: groupActive ? 'inset 3px 0 0 #0747a3' : undefined,
                             }}
                             aria-expanded={expanded}
                           >
-                            <item.icon className={cn('h-4 w-4 shrink-0', groupActive ? 'text-white' : 'text-sidebar-muted')} />
+                            <item.icon className={cn('h-4 w-4 shrink-0', groupActive ? 'text-white' : 'text-white/75')} />
                             <span className="flex-1">{item.label}</span>
                             <ChevronDown
                               className={cn(
                                 'h-3.5 w-3.5 shrink-0 transition-transform duration-200',
                                 expanded ? 'rotate-180' : '',
-                                groupActive ? 'text-white/80' : 'text-sidebar-muted'
+                                groupActive ? 'text-white/80' : 'text-white/60'
                               )}
                             />
                           </button>
@@ -439,11 +437,10 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
                                     'block text-[12.5px] py-1.5 px-2.5 rounded-md transition-colors',
                                     isActive
                                       ? 'font-semibold text-white'
-                                      : 'text-sidebar-muted hover:text-white hover:bg-white/[0.05]'
+                                      : 'text-white/70 hover:text-white hover:bg-white/[0.08]'
                                   )}
                                   style={({ isActive }) => ({
-                                    backgroundColor: isActive ? `${accent}33` : undefined,
-                                    color: isActive ? accent : undefined,
+                                    backgroundColor: isActive ? '#0747a3' : undefined,
                                   })}
                                 >
                                   {child.label}
@@ -461,7 +458,7 @@ const Sidebar = ({ isOpen, closeSidebar }) => {
           </ScrollArea>
 
           <div className="px-3 py-3 border-t border-sidebar-border shrink-0">
-            <p className="text-[10px] text-sidebar-muted text-center tracking-wide leading-snug">
+            <p className="text-[10px] text-white/70 text-center tracking-wide leading-snug">
               {ERP_LEGAL_NAME}
             </p>
           </div>

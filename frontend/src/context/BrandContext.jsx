@@ -127,7 +127,6 @@ export const BrandProvider = ({ children }) => {
     if (theme?.primary) root.style.setProperty('--brand-primary', theme.primary);
     if (theme?.secondary) {
       root.style.setProperty('--brand-secondary', theme.secondary);
-      root.style.setProperty('--sidebar', theme.secondary);
     }
     if (theme?.accent) root.style.setProperty('--brand-accent', theme.accent);
   }, []);
