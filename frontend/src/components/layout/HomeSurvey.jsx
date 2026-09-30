@@ -14,6 +14,8 @@ const STEPS = [
     path: '/customers',
     color: '#0747a3',
     bars: [42, 68, 36, 88, 54],
+    place: { top: '34%', left: '1.5rem', right: 'auto', bottom: 'auto' },
+    cardClass: 'erp-survey-card-balances',
   },
   {
     id: 'bills',
@@ -24,6 +26,8 @@ const STEPS = [
     path: '/invoices',
     color: '#ff6d00',
     bars: [55, 30, 78, 46, 92],
+    place: { top: '26%', right: '1.5rem', left: 'auto', bottom: 'auto' },
+    cardClass: 'erp-survey-card-bills',
   },
   {
     id: 'expense',
@@ -34,6 +38,8 @@ const STEPS = [
     path: '/accounts/expenses',
     color: '#0EA5E9',
     bars: [28, 60, 44, 80, 50],
+    place: { bottom: '6%', right: '2rem', left: 'auto', top: 'auto' },
+    cardClass: 'erp-survey-card-expense',
   },
 ];
 
@@ -108,10 +114,11 @@ const HomeSurvey = ({ user, autoStart = false }) => {
             return (
               <article
                 key={card.id}
-                className={`erp-survey-card erp-survey-card-${card.id} ${active ? 'is-active' : 'is-dim'}`}
+                className={`erp-survey-card ${card.cardClass} ${active ? 'is-active' : 'is-dim'}`}
                 style={{
                   background: `linear-gradient(160deg, ${card.color} 0%, ${card.color}bb 100%)`,
                   zIndex: active ? 34 : 28,
+                  ...card.place,
                 }}
                 data-testid={`erp-survey-card-${card.id}`}
               >
