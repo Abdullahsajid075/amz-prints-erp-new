@@ -26,40 +26,14 @@ $certs = array(
 );
 ?>
 
-<section class="page-hero page-hero--nadra">
+<section class="section section--nadra-cert">
 	<div class="container">
-		<p class="page-hero__brand"><?php echo esc_html( amz_prints_mod( 'amz_company_name', 'AMZ Prints' ) ); ?></p>
-		<p class="page-hero__kicker"><?php esc_html_e( 'Authorized Partner', 'amz-prints' ); ?></p>
-		<h1><?php the_title(); ?></h1>
-		<p class="page-hero__lead"><?php echo esc_html( amz_prints_mod( 'amz_nadra_lead', 'Official NADRA e-services facilitation — trusted, authorized, and customer-friendly.' ) ); ?></p>
-	</div>
-</section>
-
-<section class="section">
-	<div class="container nadra-partner reveal" data-reveal>
-		<div class="nadra-partner__badge" aria-hidden="true">
-			<div class="nadra-seal">
-				<span class="nadra-seal__ring"></span>
-				<span class="nadra-seal__core">NADRA</span>
-				<span class="nadra-seal__sub">Authorized Partner</span>
-			</div>
-		</div>
-		<div class="nadra-partner__copy">
-			<h2><?php esc_html_e( 'We’re an authorized NADRA partner', 'amz-prints' ); ?></h2>
-			<p><?php echo esc_html( amz_prints_mod( 'amz_nadra_blurb', 'AMZ Prints is an authorized partner for NADRA e-services. Citizens can visit our counter for guided support on identity and registration services — with clear process, trained staff, and professional document handling.' ) ); ?></p>
-			<ul class="check-list">
-				<li><?php esc_html_e( 'Authorized partner status', 'amz-prints' ); ?></li>
-				<li><?php esc_html_e( 'Trained customer service team', 'amz-prints' ); ?></li>
-				<li><?php esc_html_e( 'Transparent steps & documentation help', 'amz-prints' ); ?></li>
-				<li><?php esc_html_e( 'Combined with our printing expertise', 'amz-prints' ); ?></li>
-			</ul>
-			<?php
-			$cert_img = absint( amz_prints_mod( 'amz_nadra_cert_image', 0 ) );
-			if ( $cert_img ) :
-				echo wp_get_attachment_image( $cert_img, 'large', false, array( 'class' => 'nadra-cert-photo' ) );
-			endif;
-			?>
-		</div>
+		<h1 class="amz-cert-page-title"><?php the_title(); ?></h1>
+		<?php
+		if ( function_exists( 'amz_prints_nadra_certificate' ) ) {
+			amz_prints_nadra_certificate();
+		}
+		?>
 	</div>
 </section>
 

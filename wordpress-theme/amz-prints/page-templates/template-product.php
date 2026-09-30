@@ -20,7 +20,6 @@ if ( $product ) {
 
 <section class="page-hero page-hero--compact">
 	<div class="container">
-		<p class="page-hero__brand"><?php echo esc_html( amz_prints_mod( 'amz_company_name', 'AMZ Prints' ) ); ?></p>
 		<h1><?php echo $product ? esc_html( $product['name'] ) : esc_html__( 'Product', 'amz-prints' ); ?></h1>
 	</div>
 </section>

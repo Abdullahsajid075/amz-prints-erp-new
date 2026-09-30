@@ -249,6 +249,12 @@ function amz_prints_customize_register( $wp_customize ) {
 		'type'        => 'textarea',
 	) );
 
+	$wp_customize->add_section( 'amz_service_images', array(
+		'title'       => __( 'Service Images', 'amz-prints' ),
+		'description' => __( 'Upload, replace, or remove the photo for each service. The control shows a preview. Saving a photo does not change the service name or description. Remove the photo to return to the current catalog image.', 'amz-prints' ),
+		'priority'    => 32,
+	) );
+
 	if ( function_exists( 'amz_prints_services_catalog' ) ) {
 		foreach ( amz_prints_services_catalog() as $svc_row ) {
 			$sid = isset( $svc_row['slug'] ) ? (string) $svc_row['slug'] : '';
@@ -260,9 +266,10 @@ function amz_prints_customize_register( $wp_customize ) {
 				'sanitize_callback' => 'absint',
 			) );
 			$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'amz_svc_img_' . $sid, array(
-				'label'     => sprintf( __( 'Service image — %s', 'amz-prints' ), $svc_row['en'] ?? $sid ),
-				'section'   => 'amz_hero',
-				'mime_type' => 'image',
+				'label'       => sprintf( __( 'Service image — %s', 'amz-prints' ), $svc_row['en'] ?? $sid ),
+				'description' => __( 'Select a new image to replace this one, or use Remove to clear it.', 'amz-prints' ),
+				'section'     => 'amz_service_images',
+				'mime_type'   => 'image',
 			) ) );
 		}
 	}
@@ -429,15 +436,75 @@ function amz_prints_customize_register( $wp_customize ) {
 		'type'    => 'textarea',
 	) );
 
+	$wp_customize->add_setting( 'amz_nadra_cert_title', array(
+		'default'           => 'Authorized NADRA Partner',
+		'sanitize_callback' => 'sanitize_text_field',
+	) );
+	$wp_customize->add_control( 'amz_nadra_cert_title', array(
+		'label'   => __( 'Certificate title', 'amz-prints' ),
+		'section' => 'amz_nadra',
+		'type'    => 'text',
+	) );
+
+	$wp_customize->add_setting( 'amz_nadra_cert_note', array(
+		'default'           => '',
+		'sanitize_callback' => 'sanitize_textarea_field',
+	) );
+	$wp_customize->add_control( 'amz_nadra_cert_note', array(
+		'label'       => __( 'Certificate note', 'amz-prints' ),
+		'description' => __( 'Optional. Enter only wording that is already printed on the certificate. Leave empty if you do not have that text.', 'amz-prints' ),
+		'section'     => 'amz_nadra',
+		'type'        => 'textarea',
+	) );
+
 	$wp_customize->add_setting( 'amz_nadra_cert_image', array(
 		'default'           => '',
 		'sanitize_callback' => 'absint',
 	) );
 	$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'amz_nadra_cert_image', array(
-		'label'     => __( 'Partner certificate image', 'amz-prints' ),
-		'section'   => 'amz_nadra',
-		'mime_type' => 'image',
+		'label'       => __( 'Certificate image', 'amz-prints' ),
+		'description' => __( 'Upload, replace, or remove the certificate document. The preview shows in this control. The company name comes from Legal / Full Company Name.', 'amz-prints' ),
+		'section'     => 'amz_nadra',
+		'mime_type'   => 'image',
 	) ) );
+
+	if ( function_exists( 'amz_prints_page_banner_defs' ) ) {
+		$wp_customize->add_section( 'amz_page_banners', array(
+			'title'       => __( 'Page Banners', 'amz-prints' ),
+			'description' => __( 'Titles, descriptions, and images for the Services, Products, Free CV, Track Order, Contact, and My Account banners. Leave the image empty to keep the built-in icon.', 'amz-prints' ),
+			'priority'    => 35,
+		) );
+		foreach ( amz_prints_page_banner_defs() as $banner_key => $banner_def ) {
+			$wp_customize->add_setting( 'amz_banner_' . $banner_key . '_title', array(
+				'default'           => $banner_def['title'],
+				'sanitize_callback' => 'sanitize_text_field',
+			) );
+			$wp_customize->add_control( 'amz_banner_' . $banner_key . '_title', array(
+				'label'   => sprintf( __( '%s banner title', 'amz-prints' ), $banner_def['title'] ),
+				'section' => 'amz_page_banners',
+				'type'    => 'text',
+			) );
+			$wp_customize->add_setting( 'amz_banner_' . $banner_key . '_lead', array(
+				'default'           => $banner_def['lead'],
+				'sanitize_callback' => 'sanitize_textarea_field',
+			) );
+			$wp_customize->add_control( 'amz_banner_' . $banner_key . '_lead', array(
+				'label'   => sprintf( __( '%s banner description', 'amz-prints' ), $banner_def['title'] ),
+				'section' => 'amz_page_banners',
+				'type'    => 'textarea',
+			) );
+			$wp_customize->add_setting( 'amz_banner_' . $banner_key . '_image', array(
+				'default'           => 0,
+				'sanitize_callback' => 'absint',
+			) );
+			$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'amz_banner_' . $banner_key . '_image', array(
+				'label'       => sprintf( __( '%s banner image', 'amz-prints' ), $banner_def['title'] ),
+				'description' => __( 'Optional. Upload to replace the icon. Remove to use the icon again.', 'amz-prints' ),
+				'section'     => 'amz_page_banners',
+				'mime_type'   => 'image',
+			) ) );
+		}
+	}
 
 	$wp_customize->add_setting( 'amz_show_nadra_home', array(
 		'default'           => true,

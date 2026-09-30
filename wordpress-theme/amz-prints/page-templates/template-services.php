@@ -9,13 +9,11 @@ get_header();
 $catalog = amz_prints_services_catalog();
 ?>
 
-<section class="page-hero">
-	<div class="container">
-		<p class="page-hero__brand"><?php echo esc_html( amz_prints_mod( 'amz_company_name', 'AMZ Prints' ) ); ?></p>
-		<h1><?php echo esc_html( amz_t( 'our_services' ) ); ?></h1>
-		<p class="page-hero__lead"><?php echo esc_html( amz_t( 'services_lead' ) ); ?></p>
-	</div>
-</section>
+<?php
+if ( function_exists( 'amz_prints_page_banner' ) ) {
+	amz_prints_page_banner( 'services' );
+}
+?>
 
 <section class="section" style="padding-bottom:0">
 	<div class="container land-quick__grid">

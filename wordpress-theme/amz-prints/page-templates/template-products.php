@@ -17,16 +17,14 @@ foreach ( $erp_products as $p ) {
 }
 ?>
 
-<section class="page-hero page-hero--compact page-hero--shop">
-	<div class="container">
-		<p class="shop-head__eyebrow"><?php esc_html_e( 'Products', 'amz-prints' ); ?></p>
-		<h1><?php echo esc_html( amz_prints_mod( 'amz_products_title', 'Our Products' ) ); ?></h1>
-		<p class="page-hero__lead"><?php echo esc_html( amz_prints_mod( 'amz_products_sub', 'Browse print products and open any item for full details.' ) ); ?></p>
-	</div>
-</section>
+<?php
+if ( function_exists( 'amz_prints_page_banner' ) ) {
+	amz_prints_page_banner( 'products' );
+}
+?>
 
 <section class="section section--shop section--products-page">
-	<div class="container">
+	<div class="container container--banner">
 		<?php if ( empty( $erp_products ) ) : ?>
 			<p class="form-note">
 				<?php esc_html_e( 'Products are updating. Please check again in a moment.', 'amz-prints' ); ?>

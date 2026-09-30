@@ -64,8 +64,6 @@ if ( ! empty( $hero_slides[0]['image'] ) ) {
 
 get_header();
 
-$company  = amz_prints_mod( 'amz_company_name', 'AMZ Prints' );
-$legal    = amz_prints_mod( 'amz_legal_name', 'Amazon Printings (Pvt) Ltd' );
 $catalog = array_slice( amz_prints_services_catalog(), 0, 8 );
 $erp_all = function_exists( 'amz_prints_erp_get_products' ) ? amz_prints_erp_get_products() : array();
 $cats    = array();
@@ -94,7 +92,6 @@ foreach ( $erp_all as $p ) {
 	}
 }
 $photo_products    = array_merge( $photo_products, $photo_rest );
-$photo_loop        = $photo_products ? array_merge( $photo_products, $photo_products ) : array();
 $featured_products = array_slice( $photo_products, 0, 8 );
 $featured_services = array_slice( $catalog, 0, 4 );
 ?>
@@ -145,10 +142,10 @@ $featured_services = array_slice( $catalog, 0, 4 );
 	</div>
 </div>
 
-<?php if ( $photo_loop ) : ?>
+<?php if ( $photo_products && amz_prints_mod( 'amz_show_products', true ) ) : ?>
 	<div class="amz-prodrail" aria-label="<?php esc_attr_e( 'Products with photos', 'amz-prints' ); ?>">
 		<div class="amz-prodrail__track">
-			<?php foreach ( $photo_loop as $product ) : ?>
+			<?php foreach ( array_slice( $photo_products, 0, 8 ) as $product ) : ?>
 				<?php $rail_url = function_exists( 'amz_prints_erp_product_url' ) ? amz_prints_erp_product_url( $product['id'] ?? '' ) : home_url( '/products/' ); ?>
 				<a class="amz-prodrail__card" href="<?php echo esc_url( $rail_url ); ?>">
 					<img src="<?php echo function_exists( 'amz_prints_product_img_src' ) ? amz_prints_product_img_src( $product['image'] ) : esc_url( $product['image'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>" alt="<?php echo esc_attr( $product['name'] ); ?>" loading="lazy" decoding="async" width="160" height="160">
@@ -169,9 +166,9 @@ $featured_services = array_slice( $catalog, 0, 4 );
 	</div>
 </section>
 
-<?php if ( $featured_products ) : ?>
+<?php if ( $featured_products && amz_prints_mod( 'amz_show_products', true ) ) : ?>
 <section class="home-block">
-	<div class="container">
+	<div class="container container--banner">
 		<header class="section-head">
 			<p class="eyebrow"><?php esc_html_e( 'Featured products', 'amz-prints' ); ?></p>
 			<h2><?php esc_html_e( 'Pieces ready to order', 'amz-prints' ); ?></h2>
@@ -185,7 +182,7 @@ $featured_services = array_slice( $catalog, 0, 4 );
 </section>
 <?php endif; ?>
 
-<?php if ( $featured_services ) : ?>
+<?php if ( $featured_services && amz_prints_mod( 'amz_show_services', true ) ) : ?>
 <section class="home-block home-block--services">
 	<div class="container">
 		<header class="section-head">
@@ -278,8 +275,9 @@ $featured_services = array_slice( $catalog, 0, 4 );
 	</div>
 </section>
 
-<?php if ( function_exists( 'amz_prints_home_service_pillars' ) ) { amz_prints_home_service_pillars(); } ?>
+<?php if ( amz_prints_mod( 'amz_show_services', true ) && function_exists( 'amz_prints_home_service_pillars' ) ) { amz_prints_home_service_pillars(); } ?>
 
+<?php if ( amz_prints_mod( 'amz_show_services', true ) ) : ?>
 <section class="section section--services" id="services">
 	<div class="container">
 		<header class="section-head reveal" data-reveal>
@@ -304,10 +302,30 @@ $featured_services = array_slice( $catalog, 0, 4 );
 		</div>
 	</div>
 </section>
+<?php endif; ?>
+
+<?php if ( amz_prints_mod( 'amz_show_process', true ) ) : ?>
+<section class="section section--process" id="process">
+	<div class="container">
+		<header class="section-head reveal" data-reveal>
+			<p class="eyebrow"><?php esc_html_e( 'Process', 'amz-prints' ); ?></p>
+			<h2><?php echo esc_html( amz_prints_mod( 'amz_process_title', 'How it works' ) ); ?></h2>
+			<p><?php echo esc_html( amz_prints_mod( 'amz_process_sub', 'A clear path from brief to finished print.' ) ); ?></p>
+		</header>
+		<ol class="home-process">
+			<li><strong><?php esc_html_e( 'Customer care', 'amz-prints' ); ?></strong><span><?php esc_html_e( 'Call, WhatsApp, or walk in. The brief is written down before the job starts.', 'amz-prints' ); ?></span></li>
+			<li><strong><?php esc_html_e( 'Quote and confirmation', 'amz-prints' ); ?></strong><span><?php esc_html_e( 'Pricing, timeline, and finish are confirmed, then the order gets a tracking ID.', 'amz-prints' ); ?></span></li>
+			<li><strong><?php esc_html_e( 'Design and production', 'amz-prints' ); ?></strong><span><?php esc_html_e( 'Artwork is proofed, then printing, finishing, and quality checks follow.', 'amz-prints' ); ?></span></li>
+			<li><strong><?php esc_html_e( 'Track and delivery', 'amz-prints' ); ?></strong><span><?php esc_html_e( 'Follow the live status, then collect or receive the finished job.', 'amz-prints' ); ?></span></li>
+		</ol>
+		<p class="section-foot"><a class="btn btn--ghost" href="<?php echo esc_url( home_url( '/how-we-work/' ) ); ?>"><?php esc_html_e( 'How we work', 'amz-prints' ); ?></a></p>
+	</div>
+</section>
+<?php endif; ?>
 
 <?php if ( amz_prints_mod( 'amz_show_products', true ) ) : ?>
 <section class="section section--shop" id="products">
-	<div class="container">
+	<div class="container container--banner">
 		<header class="shop-head reveal" data-reveal>
 			<p class="shop-head__eyebrow eyebrow"><?php esc_html_e( 'Ecommerce', 'amz-prints' ); ?></p>
 			<h2><?php echo esc_html( amz_prints_mod( 'amz_products_title', 'Shop print products' ) ); ?></h2>
@@ -357,26 +375,75 @@ $featured_services = array_slice( $catalog, 0, 4 );
 	</div>
 </section>
 
-<?php if ( amz_prints_mod( 'amz_show_nadra_home', true ) ) : ?>
+<?php if ( amz_prints_mod( 'amz_show_nadra_home', true ) && function_exists( 'amz_prints_nadra_certificate' ) ) : ?>
 <section class="section section--nadra-home">
-	<div class="container nadra-home reveal" data-reveal>
-		<div class="nadra-home__seal" aria-hidden="true">
-			<div class="nadra-seal"><span class="nadra-seal__ring"></span><span class="nadra-seal__core">NADRA</span><span class="nadra-seal__sub">Authorized Partner</span></div>
-		</div>
-		<div class="nadra-home__copy">
-			<p class="page-hero__kicker eyebrow"><?php echo esc_html( amz_t( 'nadra' ) ); ?></p>
-			<h2><?php echo esc_html( amz_t( 'nadra' ) ); ?> E-Services</h2>
-			<p><?php echo esc_html( amz_prints_mod( 'amz_nadra_lead', 'Official NADRA e-services facilitation — trusted, authorized, and customer-friendly.' ) ); ?></p>
-			<div class="hero__actions" style="margin-top:1.25rem">
-				<a class="btn btn--nadra btn--magnetic" href="<?php echo esc_url( home_url( '/nadra-e-services/' ) ); ?>"><?php echo esc_html( amz_t( 'learn_more' ) ); ?></a>
-			</div>
-		</div>
+	<div class="container">
+		<?php amz_prints_nadra_certificate(); ?>
+		<p class="section-foot"><a class="btn btn--nadra" href="<?php echo esc_url( home_url( '/nadra-e-services/' ) ); ?>"><?php echo esc_html( amz_t( 'learn_more' ) ); ?></a></p>
 	</div>
 </section>
 <?php endif; ?>
 
+<?php if ( amz_prints_mod( 'amz_show_clients', true ) ) : ?>
+	<?php
+	$client_lines = array_values( array_filter( array_map( 'trim', preg_split( '/\r\n|\r|\n/', (string) amz_prints_mod( 'amz_clients_list', "Honda Atlas\nPepsiCo\nEngro\nJazz\nUnilever\nNestlé\nTelenor\nPackages Ltd" ) ) ) ) );
+	if ( $client_lines ) :
+		?>
+<section class="section section--clients" id="clients">
+	<div class="container">
+		<header class="section-head">
+			<h2><?php echo esc_html( amz_prints_mod( 'amz_clients_title', 'Our Clients' ) ); ?></h2>
+			<p><?php echo esc_html( amz_prints_mod( 'amz_clients_sub', 'Brands that trust AMZ Prints for color-true production and on-time delivery.' ) ); ?></p>
+		</header>
+		<ul class="home-chips">
+			<?php foreach ( $client_lines as $client_name ) : ?>
+				<li><?php echo esc_html( $client_name ); ?></li>
+			<?php endforeach; ?>
+		</ul>
+	</div>
+</section>
+		<?php
+	endif;
+endif;
+?>
+
+<?php if ( amz_prints_mod( 'amz_show_projects', true ) ) : ?>
+	<?php
+	$project_lines = array_values( array_filter( array_map( 'trim', preg_split( '/\r\n|\r|\n/', (string) amz_prints_mod( 'amz_projects_list', "Brand Launch Kit|Packaging|2025\nRetail Campaign Banners|Large Format|2025\nCorporate Identity Suite|Offset|2024\nNADRA Desk Rollout|Public Service|2024\nProduct Catalog Series|Digital|2025\nEvent Branding System|Advertising|2024" ) ) ) ) );
+	if ( $project_lines ) :
+		?>
+<section class="section section--projects" id="projects">
+	<div class="container">
+		<header class="section-head">
+			<h2><?php echo esc_html( amz_prints_mod( 'amz_projects_title', 'Successful Projects' ) ); ?></h2>
+			<p><?php echo esc_html( amz_prints_mod( 'amz_projects_sub', 'Selected work across packaging, large format, branding, and public services.' ) ); ?></p>
+		</header>
+		<div class="home-projects">
+			<?php foreach ( $project_lines as $project_line ) : ?>
+				<?php
+				$parts = array_map( 'trim', explode( '|', $project_line ) );
+				$ptitle = $parts[0] ?? '';
+				if ( '' === $ptitle ) {
+					continue;
+				}
+				?>
+				<article>
+					<strong><?php echo esc_html( $ptitle ); ?></strong>
+					<?php if ( ! empty( $parts[1] ) ) : ?><span><?php echo esc_html( $parts[1] ); ?></span><?php endif; ?>
+					<?php if ( ! empty( $parts[2] ) ) : ?><em><?php echo esc_html( $parts[2] ); ?></em><?php endif; ?>
+				</article>
+			<?php endforeach; ?>
+		</div>
+	</div>
+</section>
+		<?php
+	endif;
+endif;
+?>
+
 <?php if ( function_exists( 'amz_prints_catalog_promo' ) ) { amz_prints_catalog_promo( 'home' ); } ?>
 
+<?php if ( amz_prints_mod( 'amz_show_cta', true ) ) : ?>
 <section class="section section--cta">
 	<div class="container cta-band reveal" data-reveal>
 		<div class="cta-band__copy">
@@ -390,5 +457,6 @@ $featured_services = array_slice( $catalog, 0, 4 );
 		</div>
 	</div>
 </section>
+<?php endif; ?>
 
 <?php get_footer(); ?>

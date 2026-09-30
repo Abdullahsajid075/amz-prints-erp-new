@@ -11,7 +11,6 @@ get_header();
 
 <section class="page-hero page-hero--light">
 	<div class="container">
-		<p class="page-hero__brand">Amazon Printings (Pvt) Ltd</p>
 		<h1>Digital Services Pricing</h1>
 		<p class="page-hero__lead">Transparent starting prices for website and social media packages.</p>
 	</div>

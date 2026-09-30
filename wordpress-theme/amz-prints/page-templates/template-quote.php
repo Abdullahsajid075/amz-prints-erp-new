@@ -39,7 +39,6 @@ if ( empty( $product_names ) ) {
 
 <section class="page-hero page-hero--light">
 	<div class="container">
-		<p class="page-hero__brand">Amazon Printings (Pvt) Ltd</p>
 		<h1><?php the_title(); ?></h1>
 		<p class="page-hero__lead"><?php esc_html_e( 'Share your project details and we will reply on WhatsApp.', 'amz-prints' ); ?></p>
 	</div>

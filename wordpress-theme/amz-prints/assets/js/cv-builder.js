@@ -1318,10 +1318,21 @@
     }, 400);
   }
 
+  function preloadPdfLibs() {
+    loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js').catch(function () {});
+    loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js').catch(function () {});
+  }
+
   function doDownloadPdf() {
     var name = ((state.personal && state.personal.fullName) || 'CV').replace(/[^\w\- ]+/g, '').trim() || 'CV';
     var btn = document.querySelector('[data-cv-action="download"]');
-    if (btn) { btn.disabled = true; btn.textContent = 'Preparing PDF…'; }
+    var label = btn ? btn.textContent : 'Download CV';
+    if (btn) {
+      btn.disabled = true;
+      btn.classList.add('is-busy');
+      btn.textContent = 'Preparing PDF…';
+    }
+    window.setTimeout(function () {
     Promise.all([
       loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'),
       loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
@@ -1346,10 +1357,11 @@
       Array.prototype.forEach.call(shots, function (page, idx) {
         chain = chain.then(function () {
           return html2canvas(page, {
-            scale: 2,
+            scale: 1.25,
             useCORS: true,
             backgroundColor: '#ffffff',
             logging: false,
+            imageTimeout: 1500,
             onclone: function (doc) {
               var style = doc.createElement('style');
               style.textContent = '.cv-page,.cv-rail,.cv-main,.cv-sec,.cv-item-cv,.cv-rich{overflow:hidden !important;max-width:100% !important;box-sizing:border-box !important;}' +
@@ -1362,7 +1374,7 @@
               doc.head.appendChild(style);
             }
           }).then(function (canvas) {
-            var img = canvas.toDataURL('image/jpeg', 0.92);
+            var img = canvas.toDataURL('image/jpeg', 0.82);
             if (idx > 0) pdf.addPage();
             var pageW = 595.28;
             var pageH = 841.89;
@@ -1382,10 +1394,16 @@
         if (stage.parentNode) stage.parentNode.removeChild(stage);
       });
     }).catch(function () {
-      doPrint();
+      var status = document.querySelector('[data-cv-status]');
+      if (status) status.textContent = 'PDF could not be created. Try Download CV again.';
     }).finally(function () {
-      if (btn) { btn.disabled = false; btn.textContent = 'Download CV'; }
+      if (btn) {
+        btn.disabled = false;
+        btn.classList.remove('is-busy');
+        btn.textContent = label || 'Download CV';
+      }
     });
+    }, 30);
   }
 
   window.addEventListener('resize', fitScale);
@@ -1400,7 +1418,8 @@
         pushServer(false).then(function (ok) { if (ok) doPrint(); });
       }
       if (act === 'download') {
-        pushServer(false).then(function (ok) { if (ok) doDownloadPdf(); });
+        pushServer(false);
+        doDownloadPdf();
       }
       if (act === 'preview') {
         var box = document.getElementById('cv-lightbox');
@@ -1438,4 +1457,9 @@
   renderForm();
   renderPreview();
   allowServer = true;
+  if (window.requestIdleCallback) {
+    window.requestIdleCallback(preloadPdfLibs, { timeout: 1200 });
+  } else {
+    window.setTimeout(preloadPdfLibs, 400);
+  }
 })();

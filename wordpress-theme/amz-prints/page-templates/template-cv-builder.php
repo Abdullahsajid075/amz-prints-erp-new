@@ -19,13 +19,15 @@ $cv_saved = function_exists( 'amz_prints_customer_cv_get' ) ? amz_prints_custome
 $cv_state = ( is_array( $cv_saved ) && isset( $cv_saved['state'] ) && is_array( $cv_saved['state'] ) ) ? $cv_saved['state'] : null;
 
 get_header();
+if ( function_exists( 'amz_prints_page_banner' ) ) {
+	amz_prints_page_banner( 'cv' );
+}
 ?>
 
 <div class="cv-portal" id="cv-portal" data-cv-root>
 	<div class="cv-portal__bar">
 		<div class="cv-portal__bar-copy">
 			<p class="cv-portal__free"><?php esc_html_e( 'Free service', 'amz-prints' ); ?></p>
-			<h1><?php esc_html_e( 'Create Free CV', 'amz-prints' ); ?></h1>
 			<p><?php esc_html_e( 'Fill the CV and it stays on this account. Select text to use bold, lists, and alignment. Use Show on CV if you want a photo, or leave it off.', 'amz-prints' ); ?></p>
 		</div>
 		<div class="cv-portal__bar-actions">
@@ -33,7 +35,7 @@ get_header();
 			<span class="cv-save-status" data-cv-status><?php echo $cv_state ? esc_html__( 'Saved on your account', 'amz-prints' ) : esc_html__( 'Not saved yet', 'amz-prints' ); ?></span>
 			<button type="button" class="btn btn--ghost btn--sm" data-cv-action="save"><?php esc_html_e( 'Save CV', 'amz-prints' ); ?></button>
 			<button type="button" class="btn btn--ghost btn--sm" data-cv-action="preview"><?php esc_html_e( 'Preview CV', 'amz-prints' ); ?></button>
-			<button type="button" class="btn btn--ghost btn--sm" data-cv-action="print"><?php esc_html_e( 'Print CV', 'amz-prints' ); ?></button>
+			<button type="button" class="btn btn--ghost btn--sm" data-cv-action="print" hidden><?php esc_html_e( 'Print CV', 'amz-prints' ); ?></button>
 			<button type="button" class="btn btn--primary btn--sm" data-cv-action="download"><?php esc_html_e( 'Download CV', 'amz-prints' ); ?></button>
 			<button type="button" class="btn btn--ghost btn--sm" data-cv-action="reset"><?php esc_html_e( 'Start Again', 'amz-prints' ); ?></button>
 		</div>

@@ -10,7 +10,6 @@ get_header();
 
 <section class="page-hero">
 	<div class="container">
-		<p class="page-hero__brand"><?php echo esc_html( amz_prints_mod( 'amz_company_name', 'AMZ Prints' ) ); ?></p>
 		<h1><?php esc_html_e( 'Services', 'amz-prints' ); ?></h1>
 	</div>
 </section>

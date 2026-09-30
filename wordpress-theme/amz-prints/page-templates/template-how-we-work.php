@@ -55,7 +55,6 @@ $steps = array(
 
 <section class="page-hero">
 	<div class="container">
-		<p class="page-hero__brand"><?php echo esc_html( amz_prints_mod( 'amz_company_name', 'AMZ Prints' ) ); ?></p>
 		<h1><?php the_title(); ?></h1>
 		<p class="page-hero__lead"><?php esc_html_e( 'From first call to final delivery — a clear mechanism built around service, quality, and live tracking.', 'amz-prints' ); ?></p>
 	</div>

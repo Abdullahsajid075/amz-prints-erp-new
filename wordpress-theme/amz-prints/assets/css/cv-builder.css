@@ -1,5 +1,24 @@
 /* Free CV Builder — AMZ Prints */
 
+[data-cv-action="print"] { display: none !important; }
+[data-cv-action="download"].is-busy {
+  position: relative;
+  pointer-events: none;
+}
+[data-cv-action="download"].is-busy::after {
+  content: "";
+  display: inline-block;
+  width: 0.85rem;
+  height: 0.85rem;
+  margin-left: 0.45rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -0.1rem;
+  animation: cvSpin 0.7s linear infinite;
+}
+@keyframes cvSpin { to { transform: rotate(360deg); } }
+
 .amz-cv-builder .amz-dock,
 .amz-cv-builder .float-stack,
 .amz-cv-builder .amz-popup,

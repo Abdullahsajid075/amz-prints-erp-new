@@ -11,7 +11,6 @@ $cart = function_exists( 'amz_prints_cart_summary' ) ? amz_prints_cart_summary()
 
 <section class="page-hero page-hero--compact">
 	<div class="container">
-		<p class="page-hero__brand"><?php echo esc_html( amz_prints_mod( 'amz_company_name', 'AMZ Prints' ) ); ?></p>
 		<h1><?php the_title(); ?></h1>
 		<p class="page-hero__lead"><?php esc_html_e( 'Review items, update quantities, then checkout.', 'amz-prints' ); ?></p>
 	</div>

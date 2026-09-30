@@ -53,32 +53,42 @@ $initial  = strtoupper( substr( $name ? $name : 'A', 0, 1 ) );
 get_header();
 ?>
 
-<section class="page-hero page-hero--light">
-	<div class="container customer-account-hero">
-		<div>
-			<p class="page-hero__brand"><?php echo esc_html( amz_prints_mod( 'amz_company_name', 'AMZ Prints' ) ); ?></p>
-			<h1><?php esc_html_e( 'My Account', 'amz-prints' ); ?></h1>
-			<p class="page-hero__lead">
-				<?php
-				printf(
-					/* translators: %s customer name */
-					esc_html__( 'Welcome, %s — shop, track orders, and manage your customer card.', 'amz-prints' ),
-					esc_html( $name ? $name : $email )
-				);
-				?>
-			</p>
-		</div>
-		<div class="customer-account-hero__actions">
-			<a class="btn btn--primary" href="<?php echo esc_url( home_url( '/products/' ) ); ?>"><?php esc_html_e( 'Shop now', 'amz-prints' ); ?></a>
-			<button type="button" class="btn btn--ghost" id="amz-customer-logout"><?php esc_html_e( 'Log out', 'amz-prints' ); ?></button>
-		</div>
-	</div>
-</section>
+<?php
+if ( function_exists( 'amz_prints_page_banner' ) ) {
+	amz_prints_page_banner( 'account' );
+}
+$profile_ready = function_exists( 'amz_prints_customer_profile_is_complete' ) && amz_prints_customer_profile_is_complete( $customer );
+?>
 
 <section class="section">
 	<div class="container customer-account">
+		<div class="account-split">
+			<article class="customer-panel account-info">
+				<h2><?php esc_html_e( 'Account information', 'amz-prints' ); ?></h2>
+				<ul class="customer-meta">
+					<li><span><?php esc_html_e( 'Name', 'amz-prints' ); ?></span><strong><?php echo esc_html( $name ?: '—' ); ?></strong></li>
+					<li><span><?php esc_html_e( 'Email', 'amz-prints' ); ?></span><strong><?php echo esc_html( $email ?: '—' ); ?></strong></li>
+					<li><span><?php esc_html_e( 'Phone', 'amz-prints' ); ?></span><strong><?php echo esc_html( $phone ?: '—' ); ?></strong></li>
+					<li><span><?php esc_html_e( 'Address', 'amz-prints' ); ?></span><strong><?php echo esc_html( $address ?: '—' ); ?></strong></li>
+					<li><span><?php esc_html_e( 'Card no.', 'amz-prints' ); ?></span><strong><?php echo esc_html( $card_no ?: '—' ); ?></strong></li>
+					<li><span><?php esc_html_e( 'Account status', 'amz-prints' ); ?></span><strong><?php echo esc_html( $profile_ready ? __( 'Profile complete', 'amz-prints' ) : __( 'Profile needs a phone and address', 'amz-prints' ) ); ?></strong></li>
+				</ul>
+			</article>
+			<article class="customer-panel account-actions">
+				<h2><?php esc_html_e( 'Account actions', 'amz-prints' ); ?></h2>
+				<div class="account-actions__list">
+					<a class="btn btn--primary" href="#profile"><?php esc_html_e( 'Edit profile', 'amz-prints' ); ?></a>
+					<a class="btn btn--ghost" href="#orders"><?php esc_html_e( 'Orders', 'amz-prints' ); ?></a>
+					<a class="btn btn--ghost" href="#track"><?php esc_html_e( 'Track orders', 'amz-prints' ); ?></a>
+					<a class="btn btn--ghost" href="<?php echo esc_url( home_url( '/create-free-cv/' ) ); ?>"><?php esc_html_e( 'Free CV', 'amz-prints' ); ?></a>
+					<a class="btn btn--ghost" href="<?php echo esc_url( home_url( '/products/' ) ); ?>"><?php esc_html_e( 'Shop', 'amz-prints' ); ?></a>
+					<button type="button" class="btn btn--ghost" id="amz-customer-logout"><?php esc_html_e( 'Log out', 'amz-prints' ); ?></button>
+				</div>
+			</article>
+		</div>
+
 		<article class="customer-panel" id="profile">
-			<h2><?php esc_html_e( 'Your details', 'amz-prints' ); ?></h2>
+			<h2><?php esc_html_e( 'Edit profile', 'amz-prints' ); ?></h2>
 			<p><?php esc_html_e( 'These details belong to the email you signed in with. Fill every field, add your photo, then save.', 'amz-prints' ); ?></p>
 			<?php $profile_ready = function_exists( 'amz_prints_customer_profile_is_complete' ) && amz_prints_customer_profile_is_complete( $customer ); ?>
 			<?php if ( ! $profile_ready ) : ?>
@@ -319,7 +329,7 @@ get_header();
 			<?php endif; ?>
 		</article>
 
-		<article class="customer-panel reveal" data-reveal>
+		<article class="customer-panel reveal" data-reveal id="orders">
 			<h2><?php esc_html_e( 'Order history', 'amz-prints' ); ?></h2>
 			<?php if ( empty( $orders ) ) : ?>
 				<p class="form-note"><?php esc_html_e( 'No orders found for this account yet.', 'amz-prints' ); ?></p>

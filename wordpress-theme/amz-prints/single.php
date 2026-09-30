@@ -12,7 +12,6 @@ $type = get_post_type();
 
 <section class="page-hero">
 	<div class="container">
-		<p class="page-hero__brand"><?php echo esc_html( amz_prints_mod( 'amz_company_name', 'AMZ Prints' ) ); ?></p>
 		<?php if ( 'amz_service' === $type ) : ?>
 			<p class="page-hero__kicker"><?php esc_html_e( 'Service', 'amz-prints' ); ?></p>
 		<?php elseif ( 'amz_product' === $type ) : ?>

@@ -34,7 +34,6 @@
 		<nav class="site-nav" id="site-nav" aria-label="Primary">
 			<ul class="site-nav__list">
 				<li><a class="nav-link-main" href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php esc_html_e( 'Home', 'amz-prints' ); ?></a></li>
-				<li><a class="nav-link-main" href="<?php echo esc_url( home_url( '/create-free-cv/' ) ); ?>"><?php esc_html_e( 'Free CV', 'amz-prints' ); ?></a></li>
 				<li><a class="nav-link-main" href="<?php echo esc_url( home_url( '/services/' ) ); ?>"><?php esc_html_e( 'Services', 'amz-prints' ); ?></a></li>
 				<li><a class="nav-link-main" href="<?php echo esc_url( home_url( '/products/' ) ); ?>"><?php esc_html_e( 'Products', 'amz-prints' ); ?></a></li>
 				<li><a class="nav-link-main" href="<?php echo esc_url( home_url( '/track-order/' ) ); ?>"><?php esc_html_e( 'Track', 'amz-prints' ); ?></a></li>
