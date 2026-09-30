@@ -5,25 +5,8 @@
  * @package AMZ_Prints
  */
 
-get_header();
-
-$company  = amz_prints_mod( 'amz_company_name', 'AMZ Prints' );
-$legal    = amz_prints_mod( 'amz_legal_name', 'Amazon Printings (Pvt) Ltd' );
 $headline = amz_prints_mod( 'amz_hero_headline', 'Print that moves brands forward.' );
 $sub      = amz_prints_mod( 'amz_hero_sub', 'Offset, digital, large format, packaging, and digital services — crafted with color precision and on-time delivery.' );
-
-$catalog = array_slice( amz_prints_services_catalog(), 0, 8 );
-$erp_all = function_exists( 'amz_prints_erp_get_products' ) ? amz_prints_erp_get_products() : array();
-$cats    = array();
-foreach ( $erp_all as $p ) {
-	$c = trim( (string) ( $p['category'] ?? '' ) );
-	if ( $c ) {
-		$cats[ sanitize_title( $c ) ] = $c;
-	}
-}
-
-$track_url = home_url( '/track-order/' );
-
 $slide_copy = array(
 	array(
 		'kicker' => __( 'Printing', 'amz-prints' ),
@@ -52,10 +35,10 @@ $slide_copy = array(
 );
 $slide_ids = array( 'amz_hero_image', 'amz_hero_image_2', 'amz_hero_image_3', 'amz_hero_support_1' );
 $fallbacks = array(
-	'https://images.unsplash.com/photo-1562564055-71e051d33c19?auto=format&fit=crop&w=960&q=60',
-	'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=960&q=60',
-	'https://images.unsplash.com/photo-1626785774573-4b7993143459?auto=format&fit=crop&w=960&q=60',
-	'https://images.unsplash.com/photo-1586075010923-2dd4570fb338?auto=format&fit=crop&w=960&q=60',
+	'https://images.unsplash.com/photo-1562564055-71e051d33c19?auto=format&fit=crop&w=1280&q=50',
+	'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1280&q=50',
+	'https://images.unsplash.com/photo-1626785774573-4b7993143459?auto=format&fit=crop&w=1280&q=50',
+	'https://images.unsplash.com/photo-1586075010923-2dd4570fb338?auto=format&fit=crop&w=1280&q=50',
 );
 $hero_slides = array();
 foreach ( $slide_copy as $i => $copy ) {
@@ -69,6 +52,32 @@ foreach ( $slide_copy as $i => $copy ) {
 		'tone'   => $copy['tone'],
 	);
 }
+if ( ! empty( $hero_slides[0]['image'] ) ) {
+	add_action(
+		'wp_head',
+		static function () use ( $hero_slides ) {
+			echo '<link rel="preload" as="image" href="' . esc_url( $hero_slides[0]['image'] ) . '" fetchpriority="high">' . "\n";
+		},
+		1
+	);
+}
+
+get_header();
+
+$company  = amz_prints_mod( 'amz_company_name', 'AMZ Prints' );
+$legal    = amz_prints_mod( 'amz_legal_name', 'Amazon Printings (Pvt) Ltd' );
+$catalog = array_slice( amz_prints_services_catalog(), 0, 8 );
+$erp_all = function_exists( 'amz_prints_erp_get_products' ) ? amz_prints_erp_get_products() : array();
+$cats    = array();
+foreach ( $erp_all as $p ) {
+	$c = trim( (string) ( $p['category'] ?? '' ) );
+	if ( $c ) {
+		$cats[ sanitize_title( $c ) ] = $c;
+	}
+}
+
+$track_url = home_url( '/track-order/' );
+
 $strip_raw  = amz_prints_mod( 'amz_running_strip', 'Offset Printing | Digital Printing | Large Format | Packaging | Branding | NADRA e-Services | Free CV | Order Tracking | Shop Online' );
 $strip      = array_values( array_filter( array_map( 'trim', explode( '|', (string) $strip_raw ) ) ) );
 $strip_loop = $strip ? array_merge( $strip, $strip ) : array();
@@ -90,8 +99,8 @@ $featured_products = array_slice( $photo_products, 0, 8 );
 $featured_services = array_slice( $catalog, 0, 4 );
 ?>
 
-<section class="stage" data-hero-rotator data-interval="5000" aria-roledescription="carousel" aria-label="<?php echo esc_attr( $headline ); ?>">
-	<div class="container stage__panel">
+<section class="stage" data-hero-rotator data-interval="7000" aria-roledescription="carousel" aria-label="<?php echo esc_attr( $headline ); ?>">
+	<div class="stage__panel">
 		<?php foreach ( $hero_slides as $i => $slide ) : ?>
 			<article class="stage__slide stage__slide--<?php echo esc_attr( $slide['tone'] ); ?><?php echo 0 === $i ? ' is-active' : ''; ?>" data-slide>
 				<div class="stage__copy">
@@ -103,7 +112,21 @@ $featured_services = array_slice( $catalog, 0, 4 );
 						<a class="btn btn--ghost btn--lg stage__ghost" href="<?php echo esc_url( home_url( '/quote/' ) ); ?>"><?php esc_html_e( 'Get a quote', 'amz-prints' ); ?></a>
 					</div>
 				</div>
-				<div class="stage__photo" style="background-image:url('<?php echo esc_url( $slide['image'] ); ?>')" role="img" aria-label="<?php echo esc_attr( $slide['title'] ); ?>"></div>
+				<div class="stage__photo">
+					<img
+						<?php if ( 0 === $i ) : ?>
+							src="<?php echo esc_url( $slide['image'] ); ?>"
+							fetchpriority="high"
+						<?php else : ?>
+							src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+							data-src="<?php echo esc_url( $slide['image'] ); ?>"
+						<?php endif; ?>
+						alt="<?php echo esc_attr( $slide['title'] ); ?>"
+						width="1280"
+						height="800"
+						decoding="async"
+					>
+				</div>
 			</article>
 		<?php endforeach; ?>
 		<div class="stage__dots">

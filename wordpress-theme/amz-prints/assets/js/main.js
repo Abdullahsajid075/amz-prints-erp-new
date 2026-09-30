@@ -206,53 +206,45 @@
     buildDots();
   })();
 
-  /* Split hero — text up, image left/right, every 10s */
+  /* Homepage banner — one photo first, a short fade, no floating animation */
   var stageRoot = document.querySelector('[data-hero-rotator]');
   if (stageRoot) {
     var stageSlides = Array.prototype.slice.call(stageRoot.querySelectorAll('[data-slide]'));
     var stageDots = Array.prototype.slice.call(stageRoot.querySelectorAll('[data-stage-dot]'));
-    var stageWait = parseInt(stageRoot.getAttribute('data-interval'), 10) || 10000;
+    var stageWait = parseInt(stageRoot.getAttribute('data-interval'), 10) || 7000;
     var stageIndex = 0;
-    var stageDir = 1;
     var stageTimer = null;
-    var stageBusy = false;
-    var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var stageEditing = /(?:\?|&)amz-edit=1(?:&|$)/.test(window.location.search);
+    function stageSrc(slide) {
+      if (!slide) return;
+      var img = slide.querySelector('img[data-src]');
+      if (!img) return;
+      img.src = img.getAttribute('data-src');
+      img.removeAttribute('data-src');
+    }
     function stageShow(next) {
-      if (stageSlides.length < 2 || stageBusy) return;
+      if (stageSlides.length < 2) return;
       var target = (next + stageSlides.length) % stageSlides.length;
       if (target === stageIndex) return;
-      var exitSide = stageDir > 0 ? 'right' : 'left';
-      var enterSide = exitSide === 'right' ? 'left' : 'right';
-      stageDir *= -1;
+      stageSrc(stageSlides[target]);
+      stageSlides[stageIndex].classList.remove('is-active');
+      stageSlides[target].classList.add('is-active');
       stageDots.forEach(function (dot, i) { dot.classList.toggle('is-active', i === target); });
-      if (reduceMotion) {
-        stageSlides[stageIndex].classList.remove('is-active');
-        stageSlides[target].classList.add('is-active');
-        stageIndex = target;
-        return;
-      }
-      stageBusy = true;
-      var prev = stageIndex;
-      stageSlides[target].setAttribute('data-enter', enterSide);
-      stageSlides[target].classList.add('is-active', 'is-enter');
-      window.requestAnimationFrame(function () {
-        window.requestAnimationFrame(function () {
-          stageSlides[prev].setAttribute('data-exit', exitSide);
-          stageSlides[prev].classList.add('is-leaving');
-          stageSlides[target].classList.remove('is-enter');
-          stageSlides[target].removeAttribute('data-enter');
-        });
-      });
-      window.setTimeout(function () {
-        stageSlides[prev].classList.remove('is-active', 'is-leaving');
-        stageSlides[prev].removeAttribute('data-exit');
-        stageIndex = target;
-        stageBusy = false;
-      }, 900);
+      stageIndex = target;
     }
     function stageStart() {
       if (stageTimer) window.clearInterval(stageTimer);
-      if (stageSlides.length > 1) stageTimer = window.setInterval(function () { stageShow(stageIndex + 1); }, stageWait);
+      if (stageSlides.length > 1 && !stageEditing) {
+        stageTimer = window.setInterval(function () { stageShow(stageIndex + 1); }, stageWait);
+      }
+    }
+    if (stageEditing) {
+      stageSlides.forEach(stageSrc);
+    } else {
+      var firstImg = stageSlides[0] && stageSlides[0].querySelector('img');
+      var prefetchNext = function () { stageSrc(stageSlides[1]); };
+      if (firstImg && !firstImg.complete) firstImg.addEventListener('load', prefetchNext, { once: true });
+      else window.setTimeout(prefetchNext, 800);
     }
     stageDots.forEach(function (dot) {
       dot.addEventListener('click', function () {
