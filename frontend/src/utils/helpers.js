@@ -8,13 +8,78 @@ export const formatCurrency = (amount) => {
 
 export const formatDate = (date) => {
   if (!date) return '';
-  const d = new Date(date);
+  const ymd = toDateInputValue(date);
+  if (!ymd) return '';
+  const d = new Date(`${ymd}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleDateString('en-IN', {
     year: 'numeric',
     month: 'short',
     day: 'numeric'
   });
 };
+
+/** Value for `<input type="date">` — always yyyy-MM-dd or empty. */
+export function toDateInputValue(value) {
+  if (value == null || value === '') return '';
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const y = value.getFullYear();
+    const m = String(value.getMonth() + 1).padStart(2, '0');
+    const d = String(value.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  const s = String(value).trim();
+  const iso = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (iso) return iso[1];
+  const months = {
+    jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+    jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12',
+  };
+  const named = s.match(/^(\d{1,2})[-\s]([A-Za-z]{3,})[-\s](\d{4})$/);
+  if (named) {
+    const mon = months[named[2].slice(0, 3).toLowerCase()];
+    if (mon) return `${named[3]}-${mon}-${String(named[1]).padStart(2, '0')}`;
+  }
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+export const PO_WORKFLOW_STATUSES = ['Draft', 'Submitted', 'Received', 'Reversed', 'Cancelled'];
+
+/**
+ * Workflow status only. Payment is paidAmount, not status.
+ * Legacy Ordered / Partial Paid / Fully Paid → Submitted, unless the PO was already received.
+ */
+export function normalizePoStatus(status, extra = {}) {
+  const s = String(status || '').trim();
+  const lower = s.toLowerCase();
+  if (/revers/.test(lower)) return 'Reversed';
+  if (/cancel/.test(lower)) return 'Cancelled';
+  if (lower === 'received' || /^received\b/.test(lower)) return 'Received';
+  const delivered = extra.actualDeliveryDate || extra.actualdeliverydate || extra.actual_delivery_date;
+  const notes = String(extra.notes || '');
+  if ((delivered && String(delivered).trim()) || /\[STOCK_APPLIED\]/i.test(notes)) {
+    return 'Received';
+  }
+  if (!s || lower === 'draft') return 'Draft';
+  if (['ordered', 'purchase order', 'in transit', 'partial paid', 'fully paid', 'partial', 'submitted'].includes(lower)) {
+    return 'Submitted';
+  }
+  return PO_WORKFLOW_STATUSES.includes(s) ? s : 'Submitted';
+}
+
+export function isPoPayable(status, extra = {}) {
+  const n = normalizePoStatus(status, extra);
+  return n !== 'Cancelled' && n !== 'Reversed';
+}
+
+export function isPoReceived(status, extra = {}) {
+  return normalizePoStatus(status, extra) === 'Received';
+}
 
 export const formatDateTime = (date) => {
   if (!date) return '';

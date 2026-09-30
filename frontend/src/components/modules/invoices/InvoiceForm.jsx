@@ -14,6 +14,7 @@ import { notifyOrderEvent, printPaymentSlip, openWhatsAppChat, buildWhatsAppAppU
 import { lookupCustomerPhone, firstPhone } from '@/utils/notifyPhone';
 import CustomerPicker, { requireCustomer } from '@/components/shared/CustomerPicker';
 import { formatCurrency, formatDate } from '@/utils/helpers';
+import { isCancelledOrderStatus } from '@/utils/constants';
 import { catalogFieldsForOrderLine } from '@/utils/productImage';
 import { useBrand } from '@/context/BrandContext';
 import { ArrowLeft, Save, Plus, Trash2, PackagePlus, Receipt, User, GripVertical, X } from 'lucide-react';
@@ -62,7 +63,7 @@ const emptyInvoice = {
 
 const orderRef = (order) => String(order?.orderId || order?.id || '').trim();
 
-const isCancelledOrder = (order) => /cancel/i.test(String(order?.status || ''));
+const isCancelledOrder = (order) => isCancelledOrderStatus(order?.status);
 
 const isPlaceholderItems = (items) => (
   Array.isArray(items)
@@ -399,6 +400,10 @@ const InvoiceForm = () => {
   }));
 
   const addOrderToInvoice = useCallback((order) => {
+    if (isCancelledOrder(order)) {
+      toast.error('Cancelled orders cannot be invoiced.');
+      return;
+    }
     const oid = orderRef(order);
     if (!oid) return;
     let added = false;

@@ -1,4 +1,4 @@
-const { num, truthy } = require('./util');
+const { num, truthy, dateKey } = require('./util');
 const { asArray, uniqueStrings, parseImages, isBlocked, invoiceStatusFromPaid, customerPhoto, stripPhotoFromNotes, isWebsiteCatalogReady } = require('./helpers');
 
 function mapCustomer(row) {
@@ -251,13 +251,13 @@ function mapPurchase(row) {
     id: row.id,
     poNumber: po,
     purchaseNo: po,
-    purchaseDate: date,
-    date,
+    purchaseDate: dateKey(date),
+    date: dateKey(date),
     vendorId: row.vendor_id || '',
     vendorName: row.vendor_name || '',
     vendorInvoiceNumber: row.vendor_invoice_number || '',
-    expectedDeliveryDate: row.expected_delivery_date || '',
-    actualDeliveryDate: row.actual_delivery_date || '',
+    expectedDeliveryDate: dateKey(row.expected_delivery_date),
+    actualDeliveryDate: dateKey(row.actual_delivery_date),
     linkedOrderId: row.linked_order_id || '',
     items: Array.isArray(row.items) ? row.items : asArray(row.items),
     total,

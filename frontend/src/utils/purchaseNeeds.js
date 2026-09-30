@@ -27,7 +27,7 @@ export function isCoveringPurchase(purchase) {
   if (!purchase) return false;
   const s = String(purchase.status || '').trim().toLowerCase();
   if (!s) return true;
-  if (/cancel/.test(s)) return false;
+  if (/cancel|revers/.test(s)) return false;
   if (/received|complete/.test(s)) return false;
   return true;
 }
