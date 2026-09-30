@@ -182,7 +182,7 @@ function computeCompanyReceivables(orders, invoices, customers, payments) {
 }
 
 function purchaseOutstanding(p) {
-  if (!p || isCancelledStatus(p.status)) return 0;
+  if (!p || isCancelledStatus(p.status) || /revers/i.test(String(p.status || ''))) return 0;
   const status = String(p.status || '').toLowerCase();
   if (status.includes('fully paid') || status === 'paid') return 0;
   const total = num(p.total != null ? p.total : p.total_amount);

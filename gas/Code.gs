@@ -2346,13 +2346,13 @@ function toApiPurchase_(p) {
     id: p.id,
     poNumber: po,
     purchaseNo: po,
-    purchaseDate: date,
-    date: date,
+    purchaseDate: dateKey_(date),
+    date: dateKey_(date),
     vendorId: p.vendorid || '',
     vendorName: p.vendorname || '',
     vendorInvoiceNumber: p.vendorinvoicenumber || '',
-    expectedDeliveryDate: p.expecteddeliverydate || '',
-    actualDeliveryDate: p.actualdeliverydate || '',
+    expectedDeliveryDate: dateKey_(p.expecteddeliverydate || ''),
+    actualDeliveryDate: dateKey_(p.actualdeliverydate || ''),
     linkedOrderId: p.linkedorderid || '',
     items: items,
     totalAmount: total,
@@ -2387,7 +2387,7 @@ function normalizePurchase_(body, existing) {
     || existing.purchaseno || existing.ponumber || '';
   if (!po) po = nextPurchaseNo_();
 
-  var date = body.purchaseDate || body.date || existing.date
+  var date = dateKey_(body.purchaseDate || body.date || existing.date)
     || Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Karachi', 'yyyy-MM-dd');
 
   // Always prefer incoming vendor fields on update (do not keep stale vendorName)
@@ -2407,8 +2407,8 @@ function normalizePurchase_(body, existing) {
     paid: Number(paid || 0),
     status: body.status || existing.status || 'Draft',
     vendorinvoicenumber: body.vendorInvoiceNumber != null ? body.vendorInvoiceNumber : (existing.vendorinvoicenumber || ''),
-    expecteddeliverydate: body.expectedDeliveryDate != null ? body.expectedDeliveryDate : (existing.expecteddeliverydate || ''),
-    actualdeliverydate: body.actualDeliveryDate != null ? body.actualDeliveryDate : (existing.actualdeliverydate || ''),
+    expecteddeliverydate: dateKey_(body.expectedDeliveryDate != null ? body.expectedDeliveryDate : (existing.expecteddeliverydate || '')),
+    actualdeliverydate: dateKey_(body.actualDeliveryDate != null ? body.actualDeliveryDate : (existing.actualdeliverydate || '')),
     linkedorderid: body.linkedOrderId != null ? body.linkedOrderId : (existing.linkedorderid || ''),
     notes: body.notes != null ? body.notes : (existing.notes || ''),
   };
@@ -2430,8 +2430,8 @@ function handlePurchasePay_(purchaseId, body) {
     if (index < 0) throw new Error('Purchase not found');
 
     var existing = rows[index];
-    if (/cancel/i.test(String(existing.status || ''))) {
-      throw new Error('Cancelled purchase cannot be paid');
+    if (/cancel|revers/i.test(String(existing.status || ''))) {
+      throw new Error('Cancelled or reversed purchase cannot be paid');
     }
 
     var total = Number(existing.total != null ? existing.total : (existing.totalamount || 0)) || 0;
@@ -2444,12 +2444,8 @@ function handlePurchasePay_(purchaseId, body) {
     }
 
     var paidNext = paidPrev + amount;
-    var fullyPaid = paidNext >= total;
-    var prevStatus = String(existing.status || 'Ordered');
+    var prevStatus = String(existing.status || 'Submitted');
     var nextStatus = prevStatus;
-    if (!/^received$/i.test(prevStatus)) {
-      nextStatus = fullyPaid ? 'Fully Paid' : 'Partial Paid';
-    }
 
     var updated = normalizePurchase_({
       paidAmount: paidNext,

@@ -10,16 +10,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { purchasesAPI, vendorsAPI, ordersAPI, productsAPI, paymentsAPI, expensesAPI, settingsAPI } from '@/services/api';
 import { clearGasCache } from '@/services/gasClient';
-import { formatCurrency, formatDate } from '@/utils/helpers';
+import { formatCurrency, formatDate, toDateInputValue, PO_WORKFLOW_STATUSES, normalizePoStatus, isPoPayable, isPoReceived } from '@/utils/helpers';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
-import { notifyPaymentEvent, openWhatsAppChat, printPaymentSlip } from '@/services/notifications';
+import { openWhatsAppChat } from '@/services/notifications';
+import { finishPaymentRecording } from '@/utils/paymentActions';
 import { useBrand } from '@/context/BrandContext';
+import ProductPicker from '@/components/shared/ProductPicker';
 import { Plus, Search, Eye, Edit, Trash2, ShoppingBag, PackageCheck, Paperclip, AlertTriangle, X, Save, FileText, Link2, PackagePlus, Building2, Truck, CreditCard } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
 
-const PO_STATUS = ['Draft', 'Ordered', 'Partial Paid', 'Fully Paid', 'Received'];
+const PO_STATUS = PO_WORKFLOW_STATUSES;
 
 const PURCHASE_SORT_OPTS = [
   { value: 'date', label: 'Date' },
@@ -43,6 +45,17 @@ const isOpenOrder = (order) => {
   return true;
 };
 
+function vendorPreviousPayable(purchases, vendorId, excludeId) {
+  const vid = String(vendorId || '');
+  if (!vid) return 0;
+  return (purchases || []).reduce((sum, p) => {
+    if (String(p.vendorId || '') !== vid) return sum;
+    if (excludeId && String(p.id) === String(excludeId)) return sum;
+    if (!isPoPayable(p.status, p)) return sum;
+    return sum + Math.max(0, Number(p.totalAmount || 0) - Number(p.paidAmount || 0));
+  }, 0);
+}
+
 const emptyPurchase = {
   vendorId: '', vendorInvoiceNumber: '',
   purchaseDate: new Date().toISOString().split('T')[0],
@@ -58,7 +71,7 @@ const normalizePurchase = (p = {}) => {
   const total = Number(p.totalAmount ?? p.total ?? 0) || 0;
   const paid = Number(p.paidAmount ?? p.paid ?? 0) || 0;
   const po = p.poNumber || p.purchaseNo || p.purchaseno || '';
-  const date = p.purchaseDate || p.date || p.purchasedate || '';
+  const date = toDateInputValue(p.purchaseDate || p.date || p.purchasedate || '');
   let items = p.items;
   if (typeof items === 'string') {
     try { items = JSON.parse(items); } catch { items = []; }
@@ -74,8 +87,8 @@ const normalizePurchase = (p = {}) => {
     vendorId: p.vendorId || p.vendorid || '',
     vendorName: p.vendorName || p.vendorname || '',
     vendorInvoiceNumber: p.vendorInvoiceNumber || p.vendorinvoicenumber || '',
-    expectedDeliveryDate: p.expectedDeliveryDate || p.expecteddeliverydate || '',
-    actualDeliveryDate: p.actualDeliveryDate || p.actualdeliverydate || '',
+    expectedDeliveryDate: toDateInputValue(p.expectedDeliveryDate || p.expecteddeliverydate || ''),
+    actualDeliveryDate: toDateInputValue(p.actualDeliveryDate || p.actualdeliverydate || ''),
     linkedOrderId: p.linkedOrderId || p.linkedorderid || '',
     items: items.map((it, i) => ({
       ...it,
@@ -90,7 +103,7 @@ const normalizePurchase = (p = {}) => {
     })),
     totalAmount: total,
     paidAmount: paid,
-    status: p.status || 'Draft',
+    status: normalizePoStatus(p.status || 'Draft', p),
     notes: p.notes || '',
   };
 };
@@ -199,16 +212,13 @@ const Purchases = () => {
     poNumber: (p) => p.poNumber || '',
   }), [filtered, sort]);
 
-  const isPaidStatus = (s) => s === 'Partial Paid' || s === 'Fully Paid';
-  const isUnpaidLike = (s) => !isPaidStatus(s) && s !== 'Received';
-
   const stats = {
     total: purchases.length,
-    pending: purchases.filter(p => p.status !== 'Received').length,
-    received: purchases.filter(p => p.status === 'Received').length,
+    pending: purchases.filter((p) => isPoPayable(p.status) && !isPoReceived(p.status)).length,
+    received: purchases.filter((p) => isPoReceived(p.status)).length,
     totalValue: purchases.reduce((s, p) => s + (p.totalAmount || 0), 0),
-    unpaid: purchases.filter(p => isUnpaidLike(p.status) || p.status === 'Partial Paid')
-      .reduce((s, p) => s + ((p.totalAmount || 0) - (p.paidAmount || 0)), 0)
+    unpaid: purchases.filter((p) => isPoPayable(p.status))
+      .reduce((s, p) => s + Math.max(0, (p.totalAmount || 0) - (p.paidAmount || 0)), 0),
   };
 
   const openCreate = () => { setEditing(null); setFormData(emptyPurchase); setDialogOpen(true); };
@@ -218,6 +228,10 @@ const Purchases = () => {
     setFormData({
       ...emptyPurchase,
       ...row,
+      purchaseDate: toDateInputValue(row.purchaseDate) || emptyPurchase.purchaseDate,
+      expectedDeliveryDate: toDateInputValue(row.expectedDeliveryDate),
+      actualDeliveryDate: toDateInputValue(row.actualDeliveryDate),
+      status: normalizePoStatus(row.status, row),
       items: (row.items?.length ? row.items : emptyPurchase.items).map((it, i) => ({
         ...it,
         _key: it._key || it.id || `i_${i}`,
@@ -231,21 +245,35 @@ const Purchases = () => {
 
   const calcTotal = () => formData.items.reduce((s, i) => s + (Number(i.quantity) * Number(i.rate)), 0);
 
+  const previousPayable = useMemo(
+    () => vendorPreviousPayable(purchases, formData.vendorId, editing?.id),
+    [purchases, formData.vendorId, editing],
+  );
+
+  const thisPoTotal = calcTotal();
+  const thisPoPaid = Number(formData.paidAmount) || 0;
+  const thisPoDue = Math.max(0, thisPoTotal - thisPoPaid);
+  const totalPayable = previousPayable + thisPoDue;
+
   const updateItem = (i, field, value) => {
     const items = [...formData.items];
     items[i] = { ...items[i], [field]: value };
     setFormData({ ...formData, items });
   };
 
-  const selectProduct = (i, productId) => {
-    const product = products.find(p => p.id === productId);
+  const pickProduct = (i, product) => {
     const items = [...formData.items];
+    if (!product) {
+      items[i] = { ...items[i], productId: '', name: '', variationId: '', variationName: '' };
+      setFormData({ ...formData, items });
+      return;
+    }
     items[i] = {
       ...items[i],
-      productId,
-      name: product?.name || items[i].name,
-      rate: product?.costPrice ?? product?.purchasePrice ?? items[i].rate,
-      unit: product?.unit || items[i].unit || 'piece',
+      productId: product.id,
+      name: product.name || items[i].name,
+      rate: product.costPrice ?? product.purchasePrice ?? items[i].rate,
+      unit: product.unit || items[i].unit || 'piece',
       variationId: '',
       variationName: '',
     };
@@ -328,7 +356,7 @@ const Purchases = () => {
     else toast.message('PO message opened — tap Send');
   };
 
-  const createVendorPayment = async ({ vendorName, vendorPhone, amount, refId, poNumber }) => {
+  const createVendorPayment = async ({ vendorName, vendorPhone, amount, refId, poNumber, method, date, notes, totalAmount, balanceDue }) => {
     if (!paymentsAPI?.create || !(Number(amount) > 0)) return;
     try {
       const payment = {
@@ -336,40 +364,35 @@ const Purchases = () => {
         amount: Number(amount),
         vendorName: vendorName || '',
         refId: refId || poNumber || '',
-        date: new Date().toISOString().split('T')[0],
+        date: date || new Date().toISOString().split('T')[0],
         category: 'Purchase Payment',
-        method: 'Cash',
+        method: method || 'Cash',
         party: vendorName || '',
         partyPhone: vendorPhone || '',
         phone: vendorPhone || '',
         reference: poNumber || refId || '',
-        notes: `Vendor payment — PO ${poNumber || refId || ''}`,
-        totalAmount: Number(amount),
-        balanceDue: 0,
+        notes: notes || `Vendor payment — PO ${poNumber || refId || ''}`,
+        totalAmount: Number(totalAmount != null ? totalAmount : amount),
+        balanceDue: Number(balanceDue != null ? balanceDue : 0),
       };
       const res = await paymentsAPI.create(payment);
       const saved = res?.data || payment;
-
-      if (vendorPhone) {
-        try {
-          await notifyPaymentEvent({
-            ...saved,
-            type: 'outflow',
-            party: vendorName || saved.party,
-            partyPhone: vendorPhone,
-            amount: Number(amount),
-            method: saved.method || 'Cash',
-            reference: poNumber || refId || saved.reference || '',
-            notes: `Payment transfer for PO ${poNumber || refId || ''}`,
-          }, { openWhatsApp: true });
-          toast.success('Payment saved — WhatsApp opened for vendor');
-        } catch (waErr) {
-          console.error('Vendor WhatsApp failed', waErr);
-          toast.message('Payment saved — WhatsApp could not open');
-        }
-      } else {
-        toast.message('Payment saved — add vendor phone to send WhatsApp');
-      }
+      await finishPaymentRecording(saved, {
+        company: company || {},
+        extras: {
+          customerName: vendorName,
+          customerPhone: vendorPhone,
+          reference: poNumber || refId || '',
+          notes: payment.notes,
+          totalAmount: payment.totalAmount,
+          balanceDue: payment.balanceDue,
+          category: 'Purchase Payment',
+        },
+        notify: true,
+        sendEmail: false,
+      });
+      if (vendorPhone) toast.success('Payment saved — slip printed and WhatsApp opened');
+      else toast.message('Payment saved — add vendor phone to send WhatsApp');
     } catch (err) {
       console.error('Payment create failed', err);
       toast.error('Purchase saved but payment record failed');
@@ -404,18 +427,18 @@ const Purchases = () => {
     }
     const totalAmount = calcTotal();
     let paidAmount = Number(formData.paidAmount) || 0;
-    if (formData.status === 'Fully Paid') paidAmount = totalAmount;
+    if (paidAmount > totalAmount) paidAmount = totalAmount;
     const payload = {
       vendorId: String(vendor.id),
       vendorName: String(vendor.name || '').trim(),
       vendorInvoiceNumber: formData.vendorInvoiceNumber || '',
-      purchaseDate: formData.purchaseDate || new Date().toISOString().split('T')[0],
-      date: formData.purchaseDate || new Date().toISOString().split('T')[0],
-      expectedDeliveryDate: formData.expectedDeliveryDate || '',
+      purchaseDate: toDateInputValue(formData.purchaseDate) || new Date().toISOString().split('T')[0],
+      date: toDateInputValue(formData.purchaseDate) || new Date().toISOString().split('T')[0],
+      expectedDeliveryDate: toDateInputValue(formData.expectedDeliveryDate) || '',
       actualDeliveryDate: formData.status === 'Received'
-        ? (formData.actualDeliveryDate || new Date().toISOString().split('T')[0])
-        : (formData.actualDeliveryDate || ''),
-      status: formData.status || 'Draft',
+        ? (toDateInputValue(formData.actualDeliveryDate) || new Date().toISOString().split('T')[0])
+        : (toDateInputValue(formData.actualDeliveryDate) || ''),
+      status: normalizePoStatus(formData.status || 'Draft'),
       linkedOrderId: formData.linkedOrderId || '',
       items: formData.items.map(({ productId, name, quantity, rate, unit, variationId, variationName }) => ({
         productId, name, quantity: Number(quantity) || 0, rate: Number(rate) || 0, unit: unit || 'piece',
@@ -428,14 +451,12 @@ const Purchases = () => {
       paid: paidAmount,
       poNumber: formData.poNumber || editing?.poNumber || '',
       purchaseNo: formData.poNumber || editing?.poNumber || '',
-      paymentStatus: formData.status === 'Fully Paid' ? 'Paid'
-        : formData.status === 'Partial Paid' ? 'Partially Paid'
-          : formData.status === 'Received' && paidAmount >= totalAmount ? 'Paid'
-            : paidAmount > 0 ? 'Partially Paid' : 'Unpaid',
+      paymentStatus: paidAmount >= totalAmount && totalAmount > 0 ? 'Paid'
+        : paidAmount > 0 ? 'Partially Paid' : 'Unpaid',
     };
     try {
       let saved;
-      const wasReceived = editing?.status === 'Received';
+      const wasReceived = isPoReceived(editing?.status);
       if (editing) {
         const res = await purchasesAPI.update(editing.id, payload);
         saved = normalizePurchase(res.data || { ...editing, ...payload });
@@ -444,38 +465,33 @@ const Purchases = () => {
         const res = await purchasesAPI.create(payload);
         saved = normalizePurchase(res.data || payload);
         toast.success('Purchase order created');
-        // Open WhatsApp to vendor with PO details (Ordered / any non-draft, or always on create)
-        if (payload.status !== 'Draft') {
+        if (payload.status === 'Submitted') {
           sendVendorWhatsApp({ ...saved, vendorName: vendor?.name || payload.vendorName }, 'po');
-        } else if (vendor?.phone) {
-          // Still offer PO message for draft if they want — only auto-send when Ordered+
         }
       }
 
-      // When moving Draft → Ordered (or creating as Ordered), notify vendor
       if (
         editing
-        && editing.status === 'Draft'
-        && payload.status !== 'Draft'
-        && payload.status !== 'Received'
+        && normalizePoStatus(editing.status) === 'Draft'
+        && payload.status === 'Submitted'
       ) {
         sendVendorWhatsApp({ ...saved, vendorName: vendor?.name || payload.vendorName }, 'po');
       }
 
-      if (isPaidStatus(formData.status) && paidAmount > 0) {
-        const prevPaid = Number(editing?.paidAmount) || 0;
-        const paymentAmount = editing && isPaidStatus(editing.status)
-          ? Math.max(0, paidAmount - prevPaid)
-          : paidAmount;
-        if (paymentAmount > 0) {
-          await createVendorPayment({
-            vendorName: vendor?.name || payload.vendorName,
-            vendorPhone: vendor?.phone || '',
-            amount: paymentAmount,
-            refId: saved?.id || editing?.id,
-            poNumber: saved?.poNumber || editing?.poNumber,
-          });
-        }
+      const prevPaid = Number(editing?.paidAmount) || 0;
+      const paymentAmount = Math.max(0, paidAmount - prevPaid);
+      if (paymentAmount > 0 && isPoPayable(payload.status)) {
+        await createVendorPayment({
+          vendorName: vendor?.name || payload.vendorName,
+          vendorPhone: vendor?.phone || '',
+          amount: paymentAmount,
+          refId: saved?.id || editing?.id,
+          poNumber: saved?.poNumber || editing?.poNumber,
+          method: 'Cash',
+          date: payload.purchaseDate,
+          totalAmount,
+          balanceDue: Math.max(0, totalAmount - paidAmount),
+        });
       }
 
       if (formData.status === 'Received' && !wasReceived) {
@@ -523,6 +539,10 @@ const Purchases = () => {
 
   const openPayment = (purchase) => {
     const row = normalizePurchase(purchase);
+    if (!isPoPayable(row.status)) {
+      toast.error('Cancelled or reversed purchases cannot be paid');
+      return;
+    }
     const outstanding = Math.max(0, row.totalAmount - row.paidAmount);
     if (!(outstanding > 0)) {
       toast.message('This vendor bill is already fully paid');
@@ -574,9 +594,9 @@ const Purchases = () => {
         console.warn('Atomic pay endpoint unavailable, using fallback', atomicErr);
         const paidAmount = Number(paymentPurchase.paidAmount) + amount;
         const fullyPaid = paidAmount >= Number(paymentPurchase.totalAmount);
-        const purchaseStatus = paymentPurchase.status === 'Received'
+        const purchaseStatus = isPoReceived(paymentPurchase.status)
           ? 'Received'
-          : (fullyPaid ? 'Fully Paid' : 'Partial Paid');
+          : (paymentPurchase.status || 'Submitted');
         await purchasesAPI.update(paymentPurchase.id, {
           ...paymentPurchase,
           paidAmount,
@@ -629,13 +649,23 @@ const Purchases = () => {
         balanceDue: Number(result?.payment?.balanceDue ?? Math.max(0, outstanding - amount)) || 0,
         ...(result?.payment || {}),
       };
-      try { await printPaymentSlip(savedPayment, company || {}); } catch { /* optional */ }
-      if (savedPayment.partyPhone) {
-        try {
-          await notifyPaymentEvent(savedPayment, { openWhatsApp: true });
-        } catch (waErr) {
-          console.warn('Vendor payment WhatsApp failed', waErr);
-        }
+      try {
+        await finishPaymentRecording(savedPayment, {
+          company: company || {},
+          extras: {
+            customerName: paymentPurchase.vendorName,
+            customerPhone: savedPayment.partyPhone,
+            reference: poNumber,
+            notes,
+            totalAmount: savedPayment.totalAmount,
+            balanceDue: savedPayment.balanceDue,
+            category: 'Purchase Payment',
+          },
+          notify: true,
+          sendEmail: false,
+        });
+      } catch (slipErr) {
+        console.warn('Vendor payment slip/WhatsApp failed', slipErr);
       }
 
       clearGasCache();
@@ -653,10 +683,13 @@ const Purchases = () => {
 
   const statusColor = (s) => ({
     Draft: 'bg-gray-100 text-gray-800',
+    Submitted: 'bg-blue-100 text-blue-800',
     Ordered: 'bg-blue-100 text-blue-800',
     'Partial Paid': 'bg-yellow-100 text-yellow-800',
     'Fully Paid': 'bg-emerald-100 text-emerald-800',
     Received: 'bg-green-100 text-green-800',
+    Reversed: 'bg-purple-100 text-purple-800',
+    Cancelled: 'bg-red-100 text-red-800',
     'Purchase Order': 'bg-blue-100 text-blue-800',
     'In Transit': 'bg-yellow-100 text-yellow-800',
   }[s] || 'bg-gray-100');
@@ -722,7 +755,7 @@ const Purchases = () => {
                   </thead>
                   <tbody>
                     {sorted.map(p => {
-                      const isOverdue = p.expectedDeliveryDate && new Date(p.expectedDeliveryDate) < new Date() && p.status !== 'Received';
+                      const isOverdue = p.expectedDeliveryDate && new Date(p.expectedDeliveryDate) < new Date() && isPoPayable(p.status) && !isPoReceived(p.status);
                       return (
                         <tr key={p.id} className="border-b hover:bg-orange-50 transition-colors" data-testid={`purchase-row-${p.id}`}>
                           <td className="py-3 px-3">
@@ -745,10 +778,10 @@ const Purchases = () => {
                           <td className="py-3 px-3 text-right font-bold" style={{ color: '#ff6d00' }}>{formatCurrency(p.totalAmount)}</td>
                           <td className="py-3 px-3">
                             <div className="flex items-center gap-1 justify-end">
-                              {p.status !== 'Received' && (
+                              {!isPoReceived(p.status) && isPoPayable(p.status) && (
                                 <Button size="icon" variant="ghost" onClick={() => markReceived(p)} title="Mark Received"><PackageCheck className="h-4 w-4 text-green-600" /></Button>
                               )}
-                              {Math.max(0, Number(p.totalAmount) - Number(p.paidAmount)) > 0 && (
+                              {isPoPayable(p.status) && Math.max(0, Number(p.totalAmount) - Number(p.paidAmount)) > 0 && (
                                 <Button
                                   size="icon"
                                   variant="ghost"
@@ -769,7 +802,7 @@ const Purchases = () => {
                               >
                                 <WhatsAppIcon className="h-4 w-4" />
                               </Button>
-                              {p.status !== 'Received' && (
+                              {!isPoReceived(p.status) && isPoPayable(p.status) && (
                                 <Button
                                   size="icon"
                                   variant="ghost"
@@ -844,10 +877,29 @@ const Purchases = () => {
                 )}
               </div>
               <div><Label>Vendor Invoice #</Label><Input value={formData.vendorInvoiceNumber} onChange={(e) => setFormData({ ...formData, vendorInvoiceNumber: e.target.value })} /></div>
-              <div><Label>Purchase Date</Label><Input type="date" value={formData.purchaseDate} onChange={(e) => setFormData({ ...formData, purchaseDate: e.target.value })} /></div>
-              <div><Label>Expected Delivery</Label><Input type="date" value={formData.expectedDeliveryDate} onChange={(e) => setFormData({ ...formData, expectedDeliveryDate: e.target.value })} /></div>
+              <div>
+                <Label>Purchase Date</Label>
+                <Input
+                  type="date"
+                  value={toDateInputValue(formData.purchaseDate)}
+                  onChange={(e) => setFormData({ ...formData, purchaseDate: e.target.value })}
+                  data-testid="purchase-date"
+                />
+              </div>
+              <div>
+                <Label>Expected Delivery</Label>
+                <Input
+                  type="date"
+                  value={toDateInputValue(formData.expectedDeliveryDate)}
+                  onChange={(e) => setFormData({ ...formData, expectedDeliveryDate: e.target.value })}
+                  data-testid="expected-delivery-date"
+                />
+              </div>
               <div><Label>Status</Label>
-                <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v })}>
+                <Select
+                  value={PO_STATUS.includes(formData.status) ? formData.status : 'Draft'}
+                  onValueChange={(v) => setFormData({ ...formData, status: v })}
+                >
                   <SelectTrigger data-testid="purchase-status"><SelectValue /></SelectTrigger>
                   <SelectContent>{PO_STATUS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                 </Select>
@@ -902,25 +954,25 @@ const Purchases = () => {
                 </div>
               )}
               <div className="space-y-2">
-                {formData.items.map((item, i) => (
-                  <div key={item._key || item.id || `item-${i}`} className="grid grid-cols-12 gap-2 items-end p-2 border rounded">
-                    <div className="col-span-5">
-                      <Label className="text-xs">Product *</Label>
-                      <Select value={item.productId || undefined} onValueChange={(v) => selectProduct(i, v)}>
-                        <SelectTrigger data-testid={`product-select-${i}`}><SelectValue placeholder="Select product" /></SelectTrigger>
-                        <SelectContent>
-                          {products.map(p => (
-                            <SelectItem key={p.id} value={p.id}>{p.name}{p.sku ? ` (${p.sku})` : ''}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {(() => {
-                      const product = products.find((p) => String(p.id) === String(item.productId));
-                      const vars = Array.isArray(product?.variations) ? product.variations : [];
-                      if (!vars.length) return null;
-                      return (
-                        <div className="col-span-12 sm:col-span-5">
+                {formData.items.map((item, i) => {
+                  const product = products.find((p) => String(p.id) === String(item.productId));
+                  const vars = Array.isArray(product?.variations) ? product.variations : [];
+                  return (
+                    <div key={item._key || item.id || `item-${i}`} className="space-y-2 p-2 border rounded">
+                      <ProductPicker
+                        catalog={products}
+                        value={item.productId || ''}
+                        selectedName={item.name}
+                        onSelect={(p) => pickProduct(i, p)}
+                        onAddNew={() => navigate('/warehouse/products?new=1')}
+                        allowCreate
+                        label="Product * (search and select)"
+                        placeholder="Search and select product…"
+                        testId={`product-select-${i}`}
+                        required
+                      />
+                      {vars.length > 0 && (
+                        <div>
                           <Label className="text-xs">Variation</Label>
                           <Select
                             value={item.variationId || undefined}
@@ -939,16 +991,36 @@ const Purchases = () => {
                             </SelectContent>
                           </Select>
                         </div>
-                      );
-                    })()}
-                    <div className="col-span-2"><Label className="text-xs">Qty</Label><Input type="number" min="1" value={item.quantity} onChange={(e) => updateItem(i, 'quantity', parseInt(e.target.value) || 0)} /></div>
-                    <div className="col-span-2"><Label className="text-xs">Purchase Price</Label><Input type="number" step="0.01" min="0" value={item.rate} onChange={(e) => updateItem(i, 'rate', parseFloat(e.target.value) || 0)} /></div>
-                    <div className="col-span-2"><Label className="text-xs">Subtotal</Label><Input disabled value={formatCurrency(item.quantity * item.rate)} /></div>
-                    <div className="col-span-1"><Button type="button" size="icon" variant="ghost" onClick={() => removeItem(i)}><Trash2 className="h-4 w-4 text-red-600" /></Button></div>
-                  </div>
-                ))}
+                      )}
+                      <div className="grid grid-cols-12 gap-2 items-end">
+                        <div className="col-span-3"><Label className="text-xs">Qty</Label><Input type="number" min="1" value={item.quantity} onChange={(e) => updateItem(i, 'quantity', parseInt(e.target.value) || 0)} /></div>
+                        <div className="col-span-3"><Label className="text-xs">Purchase Price</Label><Input type="number" step="0.01" min="0" value={item.rate} onChange={(e) => updateItem(i, 'rate', parseFloat(e.target.value) || 0)} /></div>
+                        <div className="col-span-4"><Label className="text-xs">Subtotal</Label><Input disabled value={formatCurrency(item.quantity * item.rate)} /></div>
+                        <div className="col-span-2 flex justify-end"><Button type="button" size="icon" variant="ghost" onClick={() => removeItem(i)}><Trash2 className="h-4 w-4 text-red-600" /></Button></div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              <div className="text-right mt-3 pt-3 border-t"><span className="text-sm text-gray-500">Total: </span><span className="text-xl font-bold" style={{ color: '#ff6d00' }}>{formatCurrency(calcTotal())}</span></div>
+              <div className="mt-3 pt-3 border-t space-y-1.5 text-sm" data-testid="po-payable-summary">
+                <div className="flex justify-between text-gray-600">
+                  <span>Previous payable</span>
+                  <span className="font-semibold">{formatCurrency(previousPayable)}</span>
+                </div>
+                <div className="flex justify-between text-gray-600">
+                  <span>This PO payment</span>
+                  <span className="font-semibold">{formatCurrency(thisPoPaid)}</span>
+                </div>
+                <div className="flex justify-between text-gray-600">
+                  <span>This PO remaining</span>
+                  <span className="font-semibold">{formatCurrency(thisPoDue)}</span>
+                </div>
+                <div className="flex justify-between pt-2 border-t">
+                  <span className="text-sm text-gray-700 font-semibold">Total payable</span>
+                  <span className="text-xl font-bold" style={{ color: '#ff6d00' }}>{formatCurrency(totalPayable)}</span>
+                </div>
+                <div className="text-right text-xs text-gray-500">This PO total: {formatCurrency(thisPoTotal)}</div>
+              </div>
             </div>
 
             <div className="p-3 bg-orange-50 rounded border border-orange-200">
@@ -995,14 +1067,24 @@ const Purchases = () => {
                   </tbody>
                 </table>
               </div>
-              <div className="p-3 rounded-lg text-white" style={{ backgroundColor: '#ff6d00' }}>
-                <div className="flex justify-between"><span>Total</span><span className="text-xl font-bold">{formatCurrency(viewData.totalAmount)}</span></div>
-                <div className="flex justify-between"><span>Paid</span><span>{formatCurrency(viewData.paidAmount || 0)}</span></div>
-                <div className="flex justify-between border-t border-white/20 pt-2 mt-2"><span>Balance</span><span className="font-bold">{formatCurrency((viewData.totalAmount || 0) - (viewData.paidAmount || 0))}</span></div>
+              <div className="p-3 rounded-lg text-white" style={{ backgroundColor: '#ff6d00' }} data-testid="po-view-payable-summary">
+                {(() => {
+                  const prev = vendorPreviousPayable(purchases, viewData.vendorId, viewData.id);
+                  const paid = Number(viewData.paidAmount || 0);
+                  const due = Math.max(0, Number(viewData.totalAmount || 0) - paid);
+                  return (
+                    <>
+                      <div className="flex justify-between"><span>Previous payable</span><span>{formatCurrency(prev)}</span></div>
+                      <div className="flex justify-between"><span>This PO payment</span><span>{formatCurrency(paid)}</span></div>
+                      <div className="flex justify-between"><span>This PO remaining</span><span>{formatCurrency(due)}</span></div>
+                      <div className="flex justify-between border-t border-white/20 pt-2 mt-2"><span>Total payable</span><span className="text-xl font-bold">{formatCurrency(prev + due)}</span></div>
+                    </>
+                  );
+                })()}
               </div>
               {viewData.notes && <div><p className="text-xs text-gray-500">Notes</p><p className="text-sm">{viewData.notes}</p></div>}
               <div className="flex flex-wrap gap-2 pt-2 border-t">
-                {Math.max(0, Number(viewData.totalAmount) - Number(viewData.paidAmount)) > 0 && (
+                {isPoPayable(viewData.status) && Math.max(0, Number(viewData.totalAmount) - Number(viewData.paidAmount)) > 0 && (
                   <Button
                     type="button"
                     className="text-white"
@@ -1020,7 +1102,7 @@ const Purchases = () => {
                 >
                   <WhatsAppIcon className="h-4 w-4 mr-2" />Send PO to vendor
                 </Button>
-                {viewData.status !== 'Received' && (
+                {isPoPayable(viewData.status) && !isPoReceived(viewData.status) && (
                   <Button
                     type="button"
                     variant="outline"
@@ -1043,13 +1125,26 @@ const Purchases = () => {
           </DialogHeader>
           {paymentPurchase && (
             <form onSubmit={saveVendorPayment} className="space-y-4 mt-2">
-              <div className="rounded-xl border border-orange-100 bg-orange-50/60 p-3 text-sm">
+              <div className="rounded-xl border border-orange-100 bg-orange-50/60 p-3 text-sm" data-testid="vendor-pay-payable-summary">
                 <p className="font-semibold text-gray-900">{paymentPurchase.vendorName || 'Vendor'}</p>
                 <p className="text-gray-600 mt-1">PO: {paymentPurchase.poNumber || paymentPurchase.purchaseNo || '-'}</p>
-                <div className="mt-3 flex justify-between">
-                  <span className="text-gray-600">Balance due</span>
-                  <strong style={{ color: '#ff6d00' }}>{formatCurrency(Math.max(0, paymentPurchase.totalAmount - paymentPurchase.paidAmount))}</strong>
-                </div>
+                {(() => {
+                  const prev = vendorPreviousPayable(purchases, paymentPurchase.vendorId, paymentPurchase.id);
+                  const thisRemaining = Math.max(0, Number(paymentPurchase.totalAmount) - Number(paymentPurchase.paidAmount));
+                  const thisPay = Number(paymentData.amount) || 0;
+                  const thisAfter = Math.max(0, thisRemaining - thisPay);
+                  return (
+                    <div className="mt-3 space-y-1">
+                      <div className="flex justify-between"><span className="text-gray-600">Previous payable</span><span>{formatCurrency(prev)}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-600">This PO payment</span><span>{formatCurrency(thisPay)}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-600">This PO remaining</span><span>{formatCurrency(thisAfter)}</span></div>
+                      <div className="flex justify-between pt-1 border-t border-orange-200">
+                        <span className="font-semibold">Total payable</span>
+                        <strong style={{ color: '#ff6d00' }}>{formatCurrency(prev + thisAfter)}</strong>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

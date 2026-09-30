@@ -534,12 +534,12 @@ function purchaseFromBody(b = {}, rid) {
   return {
     id: rid || b.id || id('pur'),
     purchase_no: b.poNumber || b.purchaseNo || b.purchase_no || autoPo,
-    date: b.purchaseDate || b.date || today(),
+    date: dateKey(b.purchaseDate || b.date) || today(),
     vendor_id: b.vendorId || b.vendor_id || '',
     vendor_name: b.vendorName || b.vendor_name || '',
     vendor_invoice_number: b.vendorInvoiceNumber || '',
-    expected_delivery_date: b.expectedDeliveryDate || '',
-    actual_delivery_date: b.actualDeliveryDate || '',
+    expected_delivery_date: dateKey(b.expectedDeliveryDate) || '',
+    actual_delivery_date: dateKey(b.actualDeliveryDate) || '',
     linked_order_id: b.linkedOrderId || b.linked_order_id || '',
     items,
     total,
@@ -2695,12 +2695,14 @@ async function dispatch(req, res) {
         const pid = decodeURIComponent(payMatch[1]);
         const { data: po } = await supabase.from('purchases').select('*').eq('id', pid).maybeSingle();
         if (!po) return sendError(res, 'Purchase not found', 404);
+        if (/cancel|revers/i.test(String(po.status || ''))) {
+          return sendError(res, 'Cancelled or reversed purchase cannot be paid', 400);
+        }
         const amount = num(body.amount);
         if (!(amount > 0)) return sendError(res, 'Enter a valid payment amount', 400);
         const paidAfter = num(po.paid_amount) + amount;
         const total = num(po.total);
-        const status = paidAfter + 0.009 >= total ? 'Fully Paid' : 'Partial';
-        await supabase.from('purchases').update({ paid_amount: paidAfter, status }).eq('id', po.id);
+        await supabase.from('purchases').update({ paid_amount: paidAfter }).eq('id', po.id);
         const payRow = {
           id: id('pay'),
           date: body.date || today(),
@@ -2709,6 +2711,7 @@ async function dispatch(req, res) {
           ref_id: po.purchase_no || po.id,
           customer_name: po.vendor_name || '',
           customer_id: po.vendor_id || '',
+          party_phone: body.partyPhone || body.phone || '',
           amount,
           method: body.method || 'Cash',
           notes: body.notes || (`PO ${po.purchase_no || po.id}`),

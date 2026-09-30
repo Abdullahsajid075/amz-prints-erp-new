@@ -1,6 +1,6 @@
 /** Canonical AMZ Prints ERP operator manual — used on-screen, print, and download. */
 
-export const GUIDE_VERSION = '2.5';
+export const GUIDE_VERSION = '2.6';
 export const GUIDE_EFFECTIVE = 'September 2026';
 
 export const GUIDE_SECTIONS = [
@@ -145,8 +145,8 @@ export const GUIDE_SECTIONS = [
     audience: 'Accounts / procurement',
     body: [
       'Vendors are suppliers. Outstanding payable is the sum of unpaid / partial purchase orders for that vendor.',
-      'Create a PO with lines, vendor invoice number, and expected delivery. Status moves Draft → Ordered → Received → Partial / Fully Paid.',
-      'Pay against the PO; do not reduce totals by editing history. Cancelled POs do not count as payables.',
+      'Create a PO with lines, vendor invoice number, and expected delivery. Status moves Draft → Submitted → Received. Reversed and Cancelled stop payables and do not add stock. Dates saved on the PO load again when you edit it. Type to search and select a catalog product on each line.',
+      'Pay against the PO; a payment slip prints and a WhatsApp message opens for the vendor. The form shows previous payable (other open POs for this vendor), this PO payment, remaining, and total payable. Cancelled or reversed POs do not count as payables.',
       'Link a PO to a customer order when the purchase is job-specific (outsourced print, special material).',
     ],
   },
