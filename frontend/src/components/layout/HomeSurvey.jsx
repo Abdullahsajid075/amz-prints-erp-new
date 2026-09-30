@@ -101,38 +101,42 @@ const HomeSurvey = ({ user, autoStart = false }) => {
         Survey
       </button>
 
-      {open && cards.map((card, i) => {
-        const active = step === i;
-        return (
-          <article
-            key={card.id}
-            className={`erp-survey-card erp-survey-card-${card.id} ${active ? 'is-active' : 'is-dim'}`}
-            style={{
-              background: `linear-gradient(160deg, ${card.color} 0%, ${card.color}cc 100%)`,
-              zIndex: active ? 34 : 28,
-            }}
-            data-testid={`erp-survey-card-${card.id}`}
-          >
-            <p className="text-[10px] uppercase tracking-wider font-bold text-white/80">{card.kicker}</p>
-            <p className="text-lg font-display font-bold text-white mt-1">{card.title}</p>
-            {active && <p className="text-xs text-white/90 mt-2 leading-relaxed">{card.body}</p>}
-            <div className="erp-home-bars" aria-hidden="true">
-              {card.bars.map((h, idx) => (
-                <span key={idx} style={{ height: `${h}%`, background: 'rgba(255,255,255,0.88)' }} />
-              ))}
-            </div>
-            {active && (
-              <button
-                type="button"
-                className="erp-survey-card-go"
-                onClick={() => navigate(card.path)}
+      {open && (
+        <div className="erp-survey-stage" data-testid="erp-survey-stage">
+          {cards.map((card, i) => {
+            const active = step === i;
+            return (
+              <article
+                key={card.id}
+                className={`erp-survey-card erp-survey-card-${card.id} ${active ? 'is-active' : 'is-dim'}`}
+                style={{
+                  background: `linear-gradient(160deg, ${card.color} 0%, ${card.color}bb 100%)`,
+                  zIndex: active ? 34 : 28,
+                }}
+                data-testid={`erp-survey-card-${card.id}`}
               >
-                {card.action}
-              </button>
-            )}
-          </article>
-        );
-      })}
+                <p className="text-[10px] uppercase tracking-wider font-bold text-white/80">{card.kicker}</p>
+                <p className="text-lg font-display font-bold text-white mt-1">{card.title}</p>
+                {active && <p className="text-xs text-white/90 mt-2 leading-relaxed">{card.body}</p>}
+                <div className="erp-home-bars" aria-hidden="true">
+                  {card.bars.map((h, idx) => (
+                    <span key={idx} style={{ height: `${h}%`, background: 'rgba(255,255,255,0.92)' }} />
+                  ))}
+                </div>
+                {active && (
+                  <button
+                    type="button"
+                    className="erp-survey-card-go"
+                    onClick={() => navigate(card.path)}
+                  >
+                    {card.action}
+                  </button>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      )}
 
       {open && (
         <div className="erp-survey-overlay" data-testid="erp-survey-overlay">
