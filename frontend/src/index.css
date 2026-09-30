@@ -111,17 +111,36 @@ code {
 
   .erp-home-page {
     position: relative;
+    width: 100%;
     min-height: calc(100vh - 3.5rem);
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 1.5rem 1.25rem 2rem;
-    overflow: auto;
+    align-items: stretch;
+    justify-content: flex-start;
+    padding: 1.15rem 1.5rem 1.35rem;
+    overflow: visible;
     background:
       radial-gradient(720px 420px at 12% 8%, rgba(255, 255, 255, 0.18), transparent 55%),
       radial-gradient(640px 380px at 88% 92%, rgba(7, 71, 163, 0.35), transparent 50%),
       linear-gradient(165deg, #ff8a1a 0%, #ff6d00 42%, #e85d00 72%, #0747a3 140%);
+  }
+  .erp-home-toplogo {
+    position: absolute;
+    top: 1rem;
+    left: 1.25rem;
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    max-width: min(360px, calc(100% - 10rem));
+  }
+  @media (max-width: 900px) {
+    .erp-home-toplogo {
+      position: relative;
+      top: auto;
+      left: auto;
+      max-width: 100%;
+      margin-bottom: 0.45rem;
+    }
   }
   .erp-home-topbrand {
     position: absolute;
@@ -142,9 +161,13 @@ code {
     text-align: center;
     letter-spacing: -0.03em;
     line-height: 1.1;
-    margin: 0 0 0.3rem;
-    max-width: 36rem;
+    margin: 0.35rem auto 0.3rem;
+    max-width: none;
+    padding: 0 14rem;
     text-shadow: 0 8px 24px rgba(7, 71, 163, 0.25);
+  }
+  @media (max-width: 900px) {
+    .erp-home-headline { padding: 0; }
   }
   .erp-home-sub {
     position: relative;
@@ -216,7 +239,7 @@ code {
   .erp-home-panel {
     position: relative;
     z-index: 2;
-    width: min(100%, 980px);
+    width: 100%;
     border-radius: 1.5rem;
     background: #fff;
     box-shadow: 0 28px 64px rgba(28, 36, 48, 0.28);
@@ -230,42 +253,58 @@ code {
     gap: 0.75rem;
     padding: 1rem 1.2rem;
   }
-  .erp-home-panel-body { padding: 1.05rem 1.15rem 1.3rem; }
+  .erp-home-panel-body { padding: 1.1rem 1.25rem 1.4rem; }
   .erp-home-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.7rem;
+    gap: 0.85rem;
   }
   @media (min-width: 640px) {
     .erp-home-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   }
   @media (min-width: 1024px) {
-    .erp-home-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .erp-home-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 1rem; }
   }
   .erp-home-app {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 0.45rem;
-    padding: 0.85rem 0.35rem 0.7rem;
-    border-radius: 1rem;
+    padding: 1.05rem 0.4rem 0.85rem;
+    border-radius: 1.1rem;
     background: #f7f8fb;
     border: 1px solid rgba(7, 71, 163, 0.06);
+  }
+  .erp-home-app-badge {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: #0747a3;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1.25rem;
+    text-align: center;
   }
   .erp-home-app:hover {
     background: #fff7f0;
     border-color: rgba(255, 109, 0, 0.28);
   }
   .erp-home-app-icon {
-    width: 2.75rem;
-    height: 2.75rem;
+    width: 3.1rem;
+    height: 3.1rem;
     border-radius: 0.85rem;
     display: flex;
     align-items: center;
     justify-content: center;
   }
   .erp-home-app-label {
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 700;
     color: #334155;
     letter-spacing: 0.01em;
@@ -297,6 +336,108 @@ code {
     transition: left 0.3s ease-out;
   }
   .erp-sidebar-arrow:hover { background: #0747a3; }
+
+  .erp-survey-launch {
+    position: relative;
+    z-index: 9;
+    align-self: flex-end;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: -0.35rem 0 0.75rem;
+    padding: 0.45rem 0.85rem;
+    border-radius: 999px;
+    background: #0747a3;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 800;
+    box-shadow: 0 8px 20px rgba(7, 71, 163, 0.28);
+  }
+  .erp-survey-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    background: rgba(7, 31, 73, 0.38);
+    pointer-events: none;
+  }
+  .erp-survey-dock {
+    position: fixed;
+    left: 50%;
+    bottom: 1.25rem;
+    transform: translateX(-50%);
+    z-index: 32;
+    width: min(420px, calc(100% - 2rem));
+    padding: 0.9rem 1rem;
+    border-radius: 1rem;
+    background: #042a63;
+    box-shadow: 0 16px 40px rgba(4, 42, 99, 0.35);
+    pointer-events: auto;
+  }
+  .erp-survey-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    height: 34px;
+    padding: 0 0.85rem;
+    border-radius: 0.65rem;
+    background: #ff6d00;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 800;
+  }
+  .erp-survey-btn.ghost {
+    background: rgba(255, 255, 255, 0.12);
+  }
+  .erp-survey-stage {
+    position: absolute;
+    inset: 0;
+    z-index: 28;
+    pointer-events: none;
+  }
+  .erp-survey-card {
+    position: absolute;
+    width: 236px;
+    border-radius: 1.15rem;
+    padding: 0.95rem 1rem 0.85rem;
+    color: #fff;
+    pointer-events: auto;
+    box-shadow: 0 16px 32px rgba(28, 36, 48, 0.22);
+    transition: transform 0.25s ease, opacity 0.25s ease;
+  }
+  .erp-survey-card.is-dim { opacity: 0.5; pointer-events: none; }
+  .erp-survey-card.is-active {
+    transform: scale(1.07);
+    box-shadow: 0 22px 48px rgba(7, 71, 163, 0.35);
+  }
+  .erp-survey-card-balances { left: 1.5rem; top: 34%; }
+  .erp-survey-card-bills { right: 1.5rem; top: 26%; left: auto; }
+  .erp-survey-card-expense { right: 2rem; bottom: 6%; left: auto; top: auto; }
+  .erp-survey-card-go {
+    margin-top: 0.65rem;
+    display: inline-flex;
+    font-size: 11px;
+    font-weight: 800;
+    color: #fff;
+    text-decoration: underline;
+  }
+  @media (max-width: 720px) {
+    .erp-survey-stage {
+      display: flex;
+      flex-direction: column;
+      padding: 5.5rem 1rem 6.5rem;
+      gap: 0.65rem;
+    }
+    .erp-survey-card-balances,
+    .erp-survey-card-bills,
+    .erp-survey-card-expense {
+      position: relative;
+      left: auto;
+      right: auto;
+      top: auto;
+      bottom: auto;
+      width: 100%;
+    }
+  }
 }
 
 @layer base {

@@ -16,6 +16,7 @@ import { isOpenOrder } from '@/utils/constants';
 import { buildPurchaseNeeds, buildLowQuantityAlerts } from '@/utils/purchaseNeeds';
 import { countOpenCrmQueries } from '@/utils/crmStages';
 import { ERP_LEGAL_NAME } from '@/utils/erpApps';
+import BrandLockup from './BrandLockup';
 
 const menuGroups = [
   {
@@ -269,31 +270,8 @@ const Sidebar = ({ isOpen, closeSidebar, toggleSidebar }) => {
       >
         <div className="h-full flex flex-col">
           <div className="h-14 px-4 flex items-center justify-between border-b border-sidebar-border shrink-0">
-            <div className="flex items-center gap-2.5 min-w-0">
-              {company.logo ? (
-                <img
-                  src={company.logo}
-                  alt={company.name}
-                  className="h-9 w-auto max-w-[120px] object-contain rounded-md bg-white p-0.5"
-                />
-              ) : (
-                <div
-                  className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 shadow-lg"
-                  style={{ backgroundColor: accent }}
-                >
-                  <span className="text-white font-display font-bold text-sm">
-                    {(company.name || 'A').charAt(0)}
-                  </span>
-                </div>
-              )}
-              <div className="min-w-0 leading-tight">
-                <p className="font-display font-bold text-sm text-white truncate">
-                  {company.name || 'AMZ Prints'}
-                </p>
-                <p className="text-[10px] text-white/70 font-medium tracking-wide leading-snug">
-                  {ERP_LEGAL_NAME}
-                </p>
-              </div>
+            <div className="min-w-0 flex-1">
+              <BrandLockup company={company} accent={accent} invert compact />
             </div>
             <Button
               variant="ghost"

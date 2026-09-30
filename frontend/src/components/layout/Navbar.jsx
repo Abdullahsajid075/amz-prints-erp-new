@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Menu, LogOut, Settings, Home } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ERP_LEGAL_NAME } from '@/utils/erpApps';
+import BrandLockup from '@/components/layout/BrandLockup';
 import NotificationBell from '@/components/layout/NotificationBell';
 import { useHomeLauncher } from '@/context/HomeLauncherContext';
 
@@ -92,29 +92,9 @@ const Navbar = ({ toggleSidebar }) => {
             <Menu className="h-5 w-5" />
           </Button>
 
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="lg:hidden flex items-center gap-2 min-w-0">
-              {company.logo ? (
-                <img
-                  src={company.logo}
-                  alt={company.name}
-                  className="h-8 w-auto max-w-[96px] object-contain"
-                />
-              ) : (
-                <div
-                  className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                  style={{ backgroundColor: accent }}
-                >
-                  <span className="text-white font-bold text-sm font-display">
-                    {(company.name || 'A').charAt(0)}
-                  </span>
-                </div>
-              )}
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-[0.14em] font-semibold text-slate-400 leading-none mb-0.5 hidden sm:block">
-                {ERP_LEGAL_NAME}
-              </p>
+          <div className="flex items-center gap-3 min-w-0">
+            <BrandLockup company={company} accent={accent} compact />
+            <div className="min-w-0 hidden md:block border-l border-slate-200 pl-3">
               <h1 className="font-display text-base sm:text-lg font-bold text-ink truncate leading-tight">
                 {pageTitle}
               </h1>
