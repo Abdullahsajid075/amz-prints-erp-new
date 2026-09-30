@@ -1,0 +1,553 @@
+<?php
+/**
+ * WordPress Customizer — fully editable theme options
+ *
+ * @package Studio_Portfolio
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+/**
+ * Register all customizer settings.
+ *
+ * @param WP_Customize_Manager $wp_customize Customizer object.
+ */
+function studio_portfolio_customize_register( $wp_customize ) {
+	$wp_customize->add_panel( 'studio_portfolio_panel', array(
+		'title'       => __( 'Studio Portfolio — Full Site', 'studio-portfolio' ),
+		'description' => __( 'Customize every page: Home, About, Services, Portfolio, How I Work, Contact.', 'studio-portfolio' ),
+		'priority'    => 10,
+	) );
+
+	studio_customizer_section_colors( $wp_customize );
+	studio_customizer_section_pages( $wp_customize );
+	studio_customizer_section_header( $wp_customize );
+	studio_customizer_section_hero( $wp_customize );
+	studio_customizer_section_marquee( $wp_customize );
+	studio_customizer_section_portfolio( $wp_customize );
+	studio_customizer_section_work_page( $wp_customize );
+	studio_customizer_section_about( $wp_customize );
+	studio_customizer_section_about_page( $wp_customize );
+	studio_customizer_section_design_system( $wp_customize );
+	studio_customizer_section_contact( $wp_customize );
+	studio_customizer_section_contact_page( $wp_customize );
+	studio_customizer_section_floating( $wp_customize );
+	studio_customizer_section_footer( $wp_customize );
+	studio_customizer_section_visibility( $wp_customize );
+}
+add_action( 'customize_register', 'studio_portfolio_customize_register' );
+
+/**
+ * Add a text setting + control.
+ */
+function studio_add_text( $wp_customize, $section, $id, $label, $default = '', $type = 'text' ) {
+	$wp_customize->add_setting( 'studio_' . $id, array(
+		'default'           => $default,
+		'sanitize_callback' => ( 'textarea' === $type ) ? 'sanitize_textarea_field' : 'sanitize_text_field',
+		'transport'         => 'refresh',
+	) );
+	$wp_customize->add_control( 'studio_' . $id, array(
+		'label'   => $label,
+		'section' => $section,
+		'type'    => $type,
+	) );
+}
+
+/**
+ * Add checkbox setting.
+ */
+function studio_add_checkbox( $wp_customize, $section, $id, $label, $default = true ) {
+	$wp_customize->add_setting( 'studio_' . $id, array(
+		'default'           => $default,
+		'sanitize_callback' => 'studio_sanitize_checkbox',
+		'transport'         => 'refresh',
+	) );
+	$wp_customize->add_control( 'studio_' . $id, array(
+		'label'   => $label,
+		'section' => $section,
+		'type'    => 'checkbox',
+	) );
+}
+
+/**
+ * Colors section.
+ */
+function studio_customizer_section_colors( $wp_customize ) {
+	$section = 'studio_colors';
+	$wp_customize->add_section( $section, array(
+		'title' => __( 'Colors', 'studio-portfolio' ),
+		'panel' => 'studio_portfolio_panel',
+	) );
+
+	$colors = array(
+		'color_black' => array( 'label' => __( 'Text (Dark)', 'studio-portfolio' ), 'default' => '#1A1A1A' ),
+		'color_green' => array( 'label' => __( 'Primary (Green)', 'studio-portfolio' ), 'default' => '#059669' ),
+		'color_light' => array( 'label' => __( 'Background (Light)', 'studio-portfolio' ), 'default' => '#F7FAF7' ),
+		'color_white' => array( 'label' => __( 'Background (White)', 'studio-portfolio' ), 'default' => '#FFFFFF' ),
+	);
+
+	foreach ( $colors as $id => $data ) {
+		$wp_customize->add_setting( 'studio_' . $id, array(
+			'default'           => $data['default'],
+			'sanitize_callback' => 'sanitize_hex_color',
+			'transport'         => 'refresh',
+		) );
+		$wp_customize->add_control( new WP_Customize_Color_Control( $wp_customize, 'studio_' . $id, array(
+			'label'   => $data['label'],
+			'section' => $section,
+		) ) );
+	}
+}
+
+/**
+ * Pages — assign Work, About, Contact pages.
+ */
+function studio_customizer_section_pages( $wp_customize ) {
+	$section = 'studio_pages';
+	$wp_customize->add_section( $section, array(
+		'title'       => __( 'Pages Setup', 'studio-portfolio' ),
+		'description' => __( 'Assign pages for Portfolio, About, How I Work, and Schedule Meeting. Auto-created on theme activation.', 'studio-portfolio' ),
+		'panel'       => 'studio_portfolio_panel',
+		'priority'    => 12,
+	) );
+
+	$page_controls = array(
+		'portfolio_page_id'  => __( 'Portfolio Page', 'studio-portfolio' ),
+		'about_page_id'      => __( 'About Me Page', 'studio-portfolio' ),
+		'services_page_id'   => __( 'Services Page', 'studio-portfolio' ),
+		'how_i_work_page_id' => __( 'How I Work Page', 'studio-portfolio' ),
+		'contact_page_id'    => __( 'Contact Page', 'studio-portfolio' ),
+		'schedule_page_id'   => __( 'Start a Project Page', 'studio-portfolio' ),
+	);
+
+	foreach ( $page_controls as $id => $label ) {
+		$wp_customize->add_setting( 'studio_' . $id, array(
+			'default'           => 0,
+			'sanitize_callback' => 'absint',
+			'transport'         => 'refresh',
+		) );
+		$wp_customize->add_control( 'studio_' . $id, array(
+			'label'   => $label,
+			'section' => $section,
+			'type'    => 'dropdown-pages',
+		) );
+	}
+}
+
+/**
+ * Header section.
+ */
+function studio_customizer_section_header( $wp_customize ) {
+	$section = 'studio_header';
+	$wp_customize->add_section( $section, array(
+		'title' => __( 'Header & Navigation', 'studio-portfolio' ),
+		'panel' => 'studio_portfolio_panel',
+	) );
+
+	studio_add_text( $wp_customize, $section, 'logo_letter', __( 'Logo Letter (if no logo image)', 'studio-portfolio' ), 'S' );
+	studio_add_text( $wp_customize, $section, 'nav_home', __( 'Nav: Home', 'studio-portfolio' ), 'Home' );
+	studio_add_text( $wp_customize, $section, 'nav_about', __( 'Nav: About', 'studio-portfolio' ), 'About' );
+	studio_add_text( $wp_customize, $section, 'nav_services', __( 'Nav: Services', 'studio-portfolio' ), 'Services' );
+	studio_add_text( $wp_customize, $section, 'nav_portfolio', __( 'Nav: Portfolio', 'studio-portfolio' ), 'Portfolio' );
+	studio_add_text( $wp_customize, $section, 'nav_how_i_work', __( 'Nav: How I Work', 'studio-portfolio' ), 'How I Work' );
+	studio_add_text( $wp_customize, $section, 'nav_contact', __( 'Nav: Contact', 'studio-portfolio' ), 'Contact' );
+}
+
+/**
+ * Hero section.
+ */
+function studio_customizer_section_hero( $wp_customize ) {
+	$section = 'studio_hero';
+	$wp_customize->add_section( $section, array(
+		'title' => __( 'Hero Section', 'studio-portfolio' ),
+		'panel' => 'studio_portfolio_panel',
+	) );
+
+	studio_add_text( $wp_customize, $section, 'hero_status', __( 'Status Badge Text', 'studio-portfolio' ), 'Brand Design Expert · Brand Builder' );
+	studio_add_text( $wp_customize, $section, 'hero_name', __( 'Your Name', 'studio-portfolio' ), 'Abdullah' );
+	studio_add_text( $wp_customize, $section, 'hero_role', __( 'Your Role / Title', 'studio-portfolio' ), 'Brand Designer & Brand Builder' );
+	studio_add_text( $wp_customize, $section, 'hero_title_line1', __( 'Title Line 1', 'studio-portfolio' ), 'Welcome to My Creative World' );
+	studio_add_text( $wp_customize, $section, 'hero_title_line2', __( 'Title Line 2 (gradient)', 'studio-portfolio' ), 'I Don’t Just Design.' );
+	studio_add_text( $wp_customize, $section, 'hero_title_line3', __( 'Title Line 3', 'studio-portfolio' ), 'I Build Brands.' );
+	studio_add_text( $wp_customize, $section, 'hero_description', __( 'Introduction Text', 'studio-portfolio' ), 'I help businesses look more professional, feel more consistent, and stand out — through identity, packaging, print, social, signage, and digital design.', 'textarea' );
+	studio_add_text( $wp_customize, $section, 'hero_photo_caption', __( 'Photo Caption', 'studio-portfolio' ), 'Nice to meet you!' );
+	studio_add_text( $wp_customize, $section, 'hero_btn1_text', __( 'Primary Button Text', 'studio-portfolio' ), 'View My Work' );
+	studio_add_text( $wp_customize, $section, 'hero_btn1_url', __( 'Primary Button URL', 'studio-portfolio' ), '#work' );
+	studio_add_text( $wp_customize, $section, 'hero_btn2_text', __( 'Secondary Button Text', 'studio-portfolio' ), 'About Me' );
+	studio_add_text( $wp_customize, $section, 'hero_btn2_url', __( 'Secondary Button URL', 'studio-portfolio' ), '#about' );
+
+	$wp_customize->add_setting( 'studio_hero_personal_photo', array(
+		'default'           => '',
+		'sanitize_callback' => 'absint',
+	) );
+	$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'studio_hero_personal_photo', array(
+		'label'       => __( 'Your Personal Photo (Hero)', 'studio-portfolio' ),
+		'description' => __( 'Upload a PNG with transparent background for best results. Displayed openly — no box or frame.', 'studio-portfolio' ),
+		'section'     => $section,
+		'mime_type'   => 'image',
+	) ) );
+}
+
+/**
+ * Marquee section.
+ */
+function studio_customizer_section_marquee( $wp_customize ) {
+	$section = 'studio_marquee';
+	$wp_customize->add_section( $section, array(
+		'title' => __( 'Marquee Banner', 'studio-portfolio' ),
+		'panel' => 'studio_portfolio_panel',
+	) );
+
+	studio_add_text( $wp_customize, $section, 'marquee_items', __( 'Marquee Items (one per line)', 'studio-portfolio' ), "Brand Identity\nLogo Design\nPackaging\nPrint Design\nSocial Media\nCorporate Branding\nSignage\nDigital Design", 'textarea' );
+
+	$marquee_colors = array(
+		'marquee_text_color' => array(
+			'label'   => __( 'Marquee Text Color', 'studio-portfolio' ),
+			'default' => '#B8B8B8',
+		),
+		'marquee_sep_color'  => array(
+			'label'   => __( 'Marquee Separator (✦) Color', 'studio-portfolio' ),
+			'default' => '#059669',
+		),
+		'marquee_bg_color'   => array(
+			'label'   => __( 'Marquee Background Color', 'studio-portfolio' ),
+			'default' => '#F7FAF7',
+		),
+	);
+
+	foreach ( $marquee_colors as $id => $data ) {
+		$wp_customize->add_setting( 'studio_' . $id, array(
+			'default'           => $data['default'],
+			'sanitize_callback' => 'sanitize_hex_color',
+			'transport'         => 'refresh',
+		) );
+		$wp_customize->add_control( new WP_Customize_Color_Control( $wp_customize, 'studio_' . $id, array(
+			'label'   => $data['label'],
+			'section' => $section,
+		) ) );
+	}
+}
+
+/**
+ * Portfolio section labels.
+ */
+function studio_customizer_section_portfolio( $wp_customize ) {
+	$section = 'studio_portfolio_section';
+	$wp_customize->add_section( $section, array(
+		'title'       => __( 'Homepage — Featured Portfolio', 'studio-portfolio' ),
+		'description' => __( 'Shows featured projects on the homepage. Mark items in Portfolio → Edit → "Show on Homepage".', 'studio-portfolio' ),
+		'panel'       => 'studio_portfolio_panel',
+	) );
+
+	studio_add_text( $wp_customize, $section, 'work_label', __( 'Section Label', 'studio-portfolio' ), 'Selected Work' );
+	studio_add_text( $wp_customize, $section, 'work_title', __( 'Section Title', 'studio-portfolio' ), 'Featured projects' );
+	studio_add_text( $wp_customize, $section, 'work_description', __( 'Section Description', 'studio-portfolio' ), 'A selection of my best work — hover to auto-scroll through projects.', 'textarea' );
+	studio_add_text( $wp_customize, $section, 'work_hint', __( 'Scroll Hint Text', 'studio-portfolio' ), 'Hover to auto-scroll · Drag to explore' );
+	studio_add_text( $wp_customize, $section, 'home_view_all_text', __( 'View All Button Text', 'studio-portfolio' ), 'View All Work →' );
+
+	$wp_customize->add_setting( 'studio_home_portfolio_count', array(
+		'default'           => 6,
+		'sanitize_callback' => 'absint',
+		'transport'         => 'refresh',
+	) );
+	$wp_customize->add_control( 'studio_home_portfolio_count', array(
+		'label'       => __( 'Max Featured Projects on Homepage', 'studio-portfolio' ),
+		'section'     => $section,
+		'type'        => 'number',
+		'input_attrs' => array( 'min' => 1, 'max' => 20 ),
+	) );
+
+	studio_add_checkbox( $wp_customize, $section, 'home_show_view_all', __( 'Show "View All Work" Button', 'studio-portfolio' ), true );
+}
+
+/**
+ * Work page section.
+ */
+function studio_customizer_section_work_page( $wp_customize ) {
+	$section = 'studio_work_page';
+	$wp_customize->add_section( $section, array(
+		'title'       => __( 'Work Page', 'studio-portfolio' ),
+		'description' => __( 'Content for the separate Work page (assign under Pages Setup).', 'studio-portfolio' ),
+		'panel'       => 'studio_portfolio_panel',
+	) );
+
+	studio_add_text( $wp_customize, $section, 'work_page_label', __( 'Section Label', 'studio-portfolio' ), 'All Work' );
+	studio_add_text( $wp_customize, $section, 'work_page_title', __( 'Section Title', 'studio-portfolio' ), 'Full portfolio' );
+	studio_add_text( $wp_customize, $section, 'work_page_description', __( 'Section Description', 'studio-portfolio' ), 'Browse every project by category.', 'textarea' );
+	studio_add_checkbox( $wp_customize, $section, 'work_page_show_categories', __( 'Show Category Filter Buttons', 'studio-portfolio' ), true );
+}
+
+/**
+ * About section.
+ */
+function studio_customizer_section_about( $wp_customize ) {
+	$section = 'studio_about';
+	$wp_customize->add_section( $section, array(
+		'title' => __( 'About Section', 'studio-portfolio' ),
+		'panel' => 'studio_portfolio_panel',
+	) );
+
+	studio_add_text( $wp_customize, $section, 'about_label', __( 'Section Label', 'studio-portfolio' ), 'About Me' );
+	studio_add_text( $wp_customize, $section, 'about_title', __( 'Title', 'studio-portfolio' ), 'More Than a Designer. A Brand Builder.' );
+	studio_add_text( $wp_customize, $section, 'about_text', __( 'Introduction Paragraph', 'studio-portfolio' ), 'I am a brand designer and brand builder. I help businesses communicate clearly, look more professional, and stand out in crowded markets.', 'textarea' );
+	studio_add_text( $wp_customize, $section, 'about_text2', __( 'Closing Paragraph / CTA', 'studio-portfolio' ), 'Have a brand that needs a better identity? Let’s talk about your next project.', 'textarea' );
+
+	studio_add_text( $wp_customize, $section, 'about_experience_title', __( 'Experience — Title', 'studio-portfolio' ), 'Experience' );
+	studio_add_text( $wp_customize, $section, 'about_experience', __( 'Experience — Content', 'studio-portfolio' ), '', 'textarea' );
+	studio_add_text( $wp_customize, $section, 'about_education_title', __( 'Philosophy — Title', 'studio-portfolio' ), 'Design Philosophy' );
+	studio_add_text( $wp_customize, $section, 'about_education', __( 'Philosophy — Content', 'studio-portfolio' ), '', 'textarea' );
+	studio_add_text( $wp_customize, $section, 'about_companies_title', __( 'Industries — Title', 'studio-portfolio' ), 'Industries & Businesses' );
+	studio_add_text( $wp_customize, $section, 'about_companies', __( 'Industries — Content', 'studio-portfolio' ), '', 'textarea' );
+	studio_add_text( $wp_customize, $section, 'about_goal_title', __( 'Role — Title', 'studio-portfolio' ), 'My Role as a Brand Designer' );
+	studio_add_text( $wp_customize, $section, 'about_goal', __( 'Role — Content', 'studio-portfolio' ), '', 'textarea' );
+	studio_add_text( $wp_customize, $section, 'about_founded_title', __( 'Founded — Title', 'studio-portfolio' ), 'Companies & Businesses I Have Founded' );
+	studio_add_text( $wp_customize, $section, 'about_founded', __( 'Founded — Content', 'studio-portfolio' ), '', 'textarea' );
+	studio_add_text( $wp_customize, $section, 'about_struggles_title', __( 'Journey — Title', 'studio-portfolio' ), 'The Journey' );
+	studio_add_text( $wp_customize, $section, 'about_struggles', __( 'Journey — Content', 'studio-portfolio' ), '', 'textarea' );
+
+	studio_add_text( $wp_customize, $section, 'services_label', __( 'Services Label', 'studio-portfolio' ), 'What I Do' );
+	studio_add_text( $wp_customize, $section, 'services_title', __( 'Services Title', 'studio-portfolio' ), 'My Skills & Services' );
+
+	studio_add_text( $wp_customize, $section, 'stat_projects', __( 'Stat 1 Value', 'studio-portfolio' ), '50+' );
+	studio_add_text( $wp_customize, $section, 'stat_projects_label', __( 'Stat 1 Label', 'studio-portfolio' ), 'Projects Delivered' );
+	studio_add_text( $wp_customize, $section, 'stat_clients', __( 'Stat 2 Value', 'studio-portfolio' ), '30+' );
+	studio_add_text( $wp_customize, $section, 'stat_clients_label', __( 'Stat 2 Label', 'studio-portfolio' ), 'Happy Clients' );
+	studio_add_text( $wp_customize, $section, 'stat_experience', __( 'Stat 3 Value', 'studio-portfolio' ), '5' );
+	studio_add_text( $wp_customize, $section, 'stat_experience_label', __( 'Stat 3 Label', 'studio-portfolio' ), 'Years Experience' );
+	studio_add_text( $wp_customize, $section, 'stat_awards', __( 'Stat 4 Value', 'studio-portfolio' ), '12' );
+	studio_add_text( $wp_customize, $section, 'stat_awards_label', __( 'Stat 4 Label', 'studio-portfolio' ), 'Awards Won' );
+
+	for ( $i = 1; $i <= 4; $i++ ) {
+		studio_add_text( $wp_customize, $section, "service_{$i}_icon", sprintf( __( 'Service %d Icon (emoji)', 'studio-portfolio' ), $i ), '🎨' );
+		studio_add_text( $wp_customize, $section, "service_{$i}_title", sprintf( __( 'Service %d Title', 'studio-portfolio' ), $i ), '' );
+		studio_add_text( $wp_customize, $section, "service_{$i}_desc", sprintf( __( 'Service %d Description', 'studio-portfolio' ), $i ), '', 'textarea' );
+	}
+}
+
+/**
+ * About page — optional override title (uses same content as About section).
+ */
+function studio_customizer_section_about_page( $wp_customize ) {
+	$section = 'studio_about_page';
+	$wp_customize->add_section( $section, array(
+		'title'       => __( 'About Page', 'studio-portfolio' ),
+		'description' => __( 'The About page uses content from the About Section settings above.', 'studio-portfolio' ),
+		'panel'       => 'studio_portfolio_panel',
+	) );
+
+	studio_add_text( $wp_customize, $section, 'about_page_intro', __( 'Extra Page Intro (optional)', 'studio-portfolio' ), '', 'textarea' );
+}
+
+/**
+ * Contact page section.
+ */
+function studio_customizer_section_contact_page( $wp_customize ) {
+	$section = 'studio_contact_page';
+	$wp_customize->add_section( $section, array(
+		'title'       => __( 'Contact Page', 'studio-portfolio' ),
+		'description' => __( 'The Contact page uses content from the Contact Section settings.', 'studio-portfolio' ),
+		'panel'       => 'studio_portfolio_panel',
+	) );
+
+	studio_add_text( $wp_customize, $section, 'contact_page_intro', __( 'Extra Page Intro (optional)', 'studio-portfolio' ), '', 'textarea' );
+}
+
+/**
+ * Design system section.
+ */
+function studio_customizer_section_design_system( $wp_customize ) {
+	$section = 'studio_design_system';
+	$wp_customize->add_section( $section, array(
+		'title' => __( 'Design System Section', 'studio-portfolio' ),
+		'panel' => 'studio_portfolio_panel',
+	) );
+
+	studio_add_text( $wp_customize, $section, 'ds_label', __( 'Section Label', 'studio-portfolio' ), 'Design System' );
+	studio_add_text( $wp_customize, $section, 'ds_title', __( 'Section Title', 'studio-portfolio' ), 'Built with intention' );
+	studio_add_text( $wp_customize, $section, 'ds_description', __( 'Section Description', 'studio-portfolio' ), 'Green, black, white, and light — my personal brand design system.', 'textarea' );
+}
+
+/**
+ * Floating contact buttons.
+ */
+function studio_customizer_section_floating( $wp_customize ) {
+	$section = 'studio_floating';
+	$wp_customize->add_section( $section, array(
+		'title' => __( 'Floating Contact Buttons', 'studio-portfolio' ),
+		'panel' => 'studio_portfolio_panel',
+	) );
+
+	studio_add_checkbox( $wp_customize, $section, 'show_float_buttons', __( 'Show Email & WhatsApp floating buttons', 'studio-portfolio' ), true );
+	studio_add_text( $wp_customize, $section, 'whatsapp_number', __( 'WhatsApp Number (with country code, digits only)', 'studio-portfolio' ), '923001234567' );
+	studio_add_text( $wp_customize, $section, 'whatsapp_message', __( 'WhatsApp Pre-filled Message', 'studio-portfolio' ), 'Hello! I found your portfolio and would like to connect.', 'textarea' );
+}
+
+/**
+ * Contact section.
+ */
+function studio_customizer_section_contact( $wp_customize ) {
+	$section = 'studio_contact';
+	$wp_customize->add_section( $section, array(
+		'title' => __( 'Contact Section', 'studio-portfolio' ),
+		'panel' => 'studio_portfolio_panel',
+	) );
+
+	studio_add_text( $wp_customize, $section, 'contact_label', __( 'Section Label', 'studio-portfolio' ), 'Contact' );
+	studio_add_text( $wp_customize, $section, 'contact_title', __( 'Section Title', 'studio-portfolio' ), 'Have a Brand That Needs a Better Identity?' );
+	studio_add_text( $wp_customize, $section, 'contact_description', __( 'Section Description', 'studio-portfolio' ), "Let's talk about your next project.", 'textarea' );
+	studio_add_text( $wp_customize, $section, 'contact_email', __( 'Email Address', 'studio-portfolio' ), 'hello@studio.design' );
+	studio_add_text( $wp_customize, $section, 'contact_location', __( 'Location Text', 'studio-portfolio' ), 'Available Worldwide · Remote' );
+	studio_add_text( $wp_customize, $section, 'contact_btn_text', __( 'Submit Button Text', 'studio-portfolio' ), 'Start a Project' );
+	studio_add_text( $wp_customize, $section, 'contact_success', __( 'Success Message', 'studio-portfolio' ), 'Thank you — I will get back to you shortly.' );
+	studio_add_text( $wp_customize, $section, 'contact_project_types', __( 'Project Types (one per line)', 'studio-portfolio' ), "Brand Identity\nGraphic Design\nPackaging Design\nPrint Design\nSocial Media Design\nCorporate Branding\nSignage & Advertising\nDigital Design\nUI / Website Design\nOther", 'textarea' );
+
+	for ( $i = 1; $i <= 4; $i++ ) {
+		studio_add_text( $wp_customize, $section, "social_{$i}_label", sprintf( __( 'Social Link %d Label', 'studio-portfolio' ), $i ), '' );
+		studio_add_text( $wp_customize, $section, "social_{$i}_url", sprintf( __( 'Social Link %d URL', 'studio-portfolio' ), $i ), '' );
+	}
+}
+
+/**
+ * Footer section.
+ */
+function studio_customizer_section_footer( $wp_customize ) {
+	$section = 'studio_footer';
+	$wp_customize->add_section( $section, array(
+		'title' => __( 'Footer', 'studio-portfolio' ),
+		'panel' => 'studio_portfolio_panel',
+	) );
+
+	studio_add_text( $wp_customize, $section, 'footer_headline', __( 'Footer Headline (Bold)', 'studio-portfolio' ), 'Design that builds bold brands.' );
+	studio_add_text( $wp_customize, $section, 'footer_description', __( 'Footer Description', 'studio-portfolio' ), 'Premium brand identity, print, packaging, digital & corporate design — crafted with strategy and creativity.', 'textarea' );
+	studio_add_text( $wp_customize, $section, 'footer_services_title', __( 'Services Column Title', 'studio-portfolio' ), 'Services' );
+	studio_add_text( $wp_customize, $section, 'footer_services', __( 'Footer Services (one per line)', 'studio-portfolio' ), "Brand Identity\nGraphic Design\nPrint Design\nPackaging Design\nSocial Media Design\nDigital Design\nCorporate Branding\nSignage & Advertising", 'textarea' );
+	studio_add_text( $wp_customize, $section, 'footer_cta_btn', __( 'Footer CTA Button Text', 'studio-portfolio' ), 'Start a Project →' );
+	studio_add_text( $wp_customize, $section, 'footer_tagline', __( 'Copyright Tagline', 'studio-portfolio' ), 'Designed with passion in Pakistan.' );
+}
+
+/**
+ * Section visibility toggles.
+ */
+function studio_customizer_section_visibility( $wp_customize ) {
+	$section = 'studio_visibility';
+	$wp_customize->add_section( $section, array(
+		'title' => __( 'Show / Hide Sections', 'studio-portfolio' ),
+		'panel' => 'studio_portfolio_panel',
+	) );
+
+	studio_add_checkbox( $wp_customize, $section, 'show_marquee', __( 'Show Marquee Banner on Homepage', 'studio-portfolio' ), true );
+	studio_add_checkbox( $wp_customize, $section, 'show_portfolio', __( 'Show Featured Portfolio on Homepage', 'studio-portfolio' ), true );
+	studio_add_checkbox( $wp_customize, $section, 'show_about', __( 'Show About Section on Homepage', 'studio-portfolio' ), false );
+	studio_add_checkbox( $wp_customize, $section, 'show_design_system', __( 'Show Design System on Homepage', 'studio-portfolio' ), false );
+	studio_add_checkbox( $wp_customize, $section, 'show_contact', __( 'Show Contact Section on Homepage', 'studio-portfolio' ), false );
+}
+
+/**
+ * Sanitize checkbox values.
+ *
+ * @param mixed $value Raw value.
+ * @return bool
+ */
+function studio_sanitize_checkbox( $value ) {
+	return (bool) $value;
+}
+
+/**
+ * Output customizer colors as CSS variables.
+ */
+function studio_portfolio_custom_css() {
+	$text  = studio_get_option( 'color_black', '#1A1A1A' );
+	$green = studio_get_option( 'color_green', '#059669' );
+	$light = studio_get_option( 'color_light', '#F7FAF7' );
+	$white = studio_get_option( 'color_white', '#FFFFFF' );
+
+	$marquee_text = studio_get_option( 'marquee_text_color', '#B8B8B8' );
+	$marquee_sep  = studio_get_option( 'marquee_sep_color', '#059669' );
+	$marquee_bg   = studio_get_option( 'marquee_bg_color', '#F7FAF7' );
+
+	$css = ":root {
+		--color-text: {$text};
+		--color-black: {$text};
+		--color-bg: {$white};
+		--color-bg-soft: {$light};
+		--color-bg-muted: " . studio_adjust_brightness( $light, -4 ) . ";
+		--color-green: {$green};
+		--color-green-light: " . studio_adjust_brightness( $green, 20 ) . ";
+		--color-green-dark: " . studio_adjust_brightness( $green, -20 ) . ";
+		--color-light: {$light};
+		--color-white: {$white};
+		--color-blue: {$green};
+		--color-blue-light: " . studio_adjust_brightness( $green, 20 ) . ";
+		--color-blue-dark: " . studio_adjust_brightness( $green, -20 ) . ";
+		--color-gold: {$green};
+		--color-gold-light: " . studio_adjust_brightness( $green, 25 ) . ";
+		--color-gold-dark: " . studio_adjust_brightness( $green, -20 ) . ";
+		--color-gold-soft: " . studio_hex_to_rgba( $green, 0.1 ) . ";
+		--color-black-elevated: {$light};
+		--color-black-overlay: " . studio_adjust_brightness( $light, -6 ) . ";
+		--color-white-muted: #5C5C5C;
+		--color-white-subtle: #8A8A8A;
+		--marquee-text-color: {$marquee_text};
+		--marquee-sep-color: {$marquee_sep};
+		--marquee-bg-color: {$marquee_bg};
+	}
+	body { background: {$white}; color: {$text}; }
+	.marquee-section { background: {$marquee_bg}; }
+	.marquee-item { color: {$marquee_text}; }
+	.marquee-sep { color: {$marquee_sep}; }";
+
+	wp_add_inline_style( 'studio-portfolio-light', $css );
+}
+add_action( 'wp_enqueue_scripts', 'studio_portfolio_custom_css', 20 );
+
+/**
+ * Adjust hex color brightness.
+ *
+ * @param string $hex   Hex color.
+ * @param int    $steps Brightness steps (-255 to 255).
+ * @return string
+ */
+function studio_adjust_brightness( $hex, $steps ) {
+	$hex = ltrim( $hex, '#' );
+	if ( 3 === strlen( $hex ) ) {
+		$hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
+	}
+	$r = max( 0, min( 255, hexdec( substr( $hex, 0, 2 ) ) + $steps ) );
+	$g = max( 0, min( 255, hexdec( substr( $hex, 2, 2 ) ) + $steps ) );
+	$b = max( 0, min( 255, hexdec( substr( $hex, 4, 2 ) ) + $steps ) );
+	return sprintf( '#%02x%02x%02x', $r, $g, $b );
+}
+
+/**
+ * Convert hex to rgba string.
+ *
+ * @param string $hex   Hex color.
+ * @param float  $alpha Alpha 0-1.
+ * @return string
+ */
+function studio_hex_to_rgba( $hex, $alpha = 1 ) {
+	$hex = ltrim( $hex, '#' );
+	if ( 3 === strlen( $hex ) ) {
+		$hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
+	}
+	$r = hexdec( substr( $hex, 0, 2 ) );
+	$g = hexdec( substr( $hex, 2, 2 ) );
+	$b = hexdec( substr( $hex, 4, 2 ) );
+	return "rgba({$r}, {$g}, {$b}, {$alpha})";
+}
+
+/**
+ * Customizer live preview script.
+ */
+function studio_customizer_preview_js() {
+	wp_enqueue_script(
+		'studio-customizer-preview',
+		STUDIO_PORTFOLIO_URI . '/assets/js/customizer-preview.js',
+		array( 'customize-preview' ),
+		STUDIO_PORTFOLIO_VERSION,
+		true
+	);
+}
+add_action( 'customize_preview_init', 'studio_customizer_preview_js' );
