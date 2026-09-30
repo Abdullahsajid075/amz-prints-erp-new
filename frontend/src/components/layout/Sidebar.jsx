@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, ShoppingCart, Users, Warehouse, FileText,
   CreditCard, BarChart3, Settings, X, Ticket,
-  Store, Quote, Calculator, Kanban, ShoppingBag, UsersRound, ChevronDown
+  Store, Quote, Calculator, Kanban, ShoppingBag, UsersRound, ChevronDown, FileUser
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -45,6 +45,7 @@ const menuItems = [
       { label: 'Vendors', path: '/accounts/vendors', requireVendors: true },
     ]
   },
+  { icon: FileUser, label: 'CV Submissions', path: '/cvs', testId: 'nav-cvs' },
   { icon: BarChart3, label: 'Reports', path: '/reports', testId: 'nav-reports' },
   { icon: Settings, label: 'Settings', path: '/settings', testId: 'nav-settings' },
 ];
