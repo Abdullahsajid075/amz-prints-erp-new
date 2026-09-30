@@ -52,7 +52,7 @@ const {
   applyOnHandDelta,
   inventoryModeIsActive,
 } = require('../lib/inventoryStock');
-const { planInvoiceAfterOrderCancel } = require('../lib/orderCancelInvoice');
+const { planInvoiceAfterOrderCancel, appendForfeitOrderNote } = require('../lib/orderCancelInvoice');
 
 function expenseIsApproved(row) {
   if (!row) return false;
@@ -785,6 +785,9 @@ async function findOpenInvoiceForCustomer(order) {
 }
 
 async function findOrCreateInvoiceForOrder(order) {
+  if (isCancelledStatus(order?.status)) {
+    throw Object.assign(new Error(CANCELLED_ORDER_INVOICE_MESSAGE), { statusCode: 400 });
+  }
   const holder = await findInvoiceHoldingOrder(order);
   if (holder) return holder;
   const open = await findOpenInvoiceForCustomer(order);
@@ -792,6 +795,7 @@ async function findOrCreateInvoiceForOrder(order) {
   const { data: invoices } = await supabase.from('invoices').select('*');
   const keys = [order.order_id, order.id].filter(Boolean).map(String);
   const existing = (invoices || []).find((row) => {
+    if (isCancelledStatus(row.status)) return false;
     const ids = collectOrderIds({}, row);
     return keys.some((k) => ids.includes(k) || String(row.order_id) === k);
   });
@@ -1017,78 +1021,76 @@ async function findInvoiceHoldingOrder(order, exceptId = '') {
   }) || null;
 }
 
+const CANCELLED_ORDER_INVOICE_MESSAGE = 'Cancelled orders cannot be invoiced.';
+
+async function assertOrdersNotCancelled(orderIds) {
+  const ids = uniqueStrings(orderIds || []);
+  for (const key of ids) {
+    if (!key) continue;
+    const order = await loadOrderByRef(key);
+    if (order && isCancelledStatus(order.status)) {
+      throw Object.assign(new Error(CANCELLED_ORDER_INVOICE_MESSAGE), { statusCode: 400 });
+    }
+  }
+}
+
 async function syncInvoiceAfterOrderCancelled(order, user) {
   const holder = await findInvoiceHoldingOrder(order);
+  const advance = num(order.advance_payment != null ? order.advance_payment : order.advancePayment);
   if (!holder) {
+    const notes = appendForfeitOrderNote(order.notes, advance);
     await supabase.from('orders').update({
-      advance_payment: 0,
       balance_amount: 0,
+      notes,
     }).eq('id', order.id);
-    return { action: 'none', message: '' };
+    return {
+      action: 'none',
+      forfeited: advance,
+      message: advance > 0.009 ? 'The advance payment was forfeited.' : '',
+    };
   }
   const plan = planInvoiceAfterOrderCancel(holder, order);
   const history = Array.isArray(holder.payment_history) ? [...holder.payment_history] : [];
-  const reverseAmt = num(plan.reversePaid);
-  if (reverseAmt > 0.009) {
+  const forfeitAmt = num(plan.forfeitPaid);
+  if (forfeitAmt > 0.009 && !plan.deleteInvoice) {
     history.push({
       id: id('pay'),
       date: today(),
-      amount: reverseAmt,
-      applied: -reverseAmt,
+      amount: forfeitAmt,
+      applied: -forfeitAmt,
       extra: 0,
-      method: 'Reversal',
-      notes: `Payment reversed — order ${order.order_id || order.id} cancelled`,
+      method: 'Forfeit',
+      notes: `Advance forfeited — order ${order.order_id || order.id} cancelled`,
       orderId: order.order_id || order.id,
-      reversal: true,
-    });
-    await supabase.from('payments').insert({
-      id: id('pay'),
-      date: today(),
-      type: 'outflow',
-      category: 'Invoice Reversal',
-      ref_id: holder.invoice_no || holder.id,
-      customer_name: holder.customer_name || '',
-      customer_id: holder.customer_id || '',
-      party_phone: holder.customer_phone || '',
-      amount: reverseAmt,
-      method: 'Reversal',
-      notes: `Payment reversed — order ${order.order_id || order.id} cancelled`,
-      balance_due: 0,
-      total_amount: reverseAmt,
+      forfeit: true,
     });
   }
-  const creditExtra = num(plan.creditExtra);
-  if (creditExtra > 0.009 && holder.customer_id) {
-    const cust = await loadCustomer(holder.customer_id);
-    if (cust) {
-      await supabase.from('customers').update({
-        credit_balance: num(cust.credit_balance) + creditExtra,
-      }).eq('id', cust.id);
-    }
-  }
-  await supabase.from('invoices').update({
-    items: plan.items,
-    order_ids: plan.orderIds,
-    order_id: plan.orderIds[0] || holder.order_id || '',
-    subtotal: plan.subtotal,
-    total: plan.total,
-    paid: plan.paid,
-    status: plan.status,
-    notes: plan.notes,
-    payment_history: history,
-  }).eq('id', holder.id);
-  await supabase.from('orders').update({
-    advance_payment: 0,
-    balance_amount: 0,
-  }).eq('id', order.id);
-  if (!plan.cancelInvoice) {
+  if (plan.deleteInvoice) {
+    await supabase.from('invoices').delete().eq('id', holder.id);
+  } else {
+    await supabase.from('invoices').update({
+      items: plan.items,
+      order_ids: plan.orderIds,
+      order_id: plan.orderIds[0] || holder.order_id || '',
+      subtotal: plan.subtotal,
+      total: plan.total,
+      paid: plan.paid,
+      status: plan.status,
+      notes: plan.notes,
+      payment_history: history,
+    }).eq('id', holder.id);
     const { data: latest } = await supabase.from('invoices').select('*').eq('id', holder.id).maybeSingle();
     await syncLinkedOrderBalances(latest);
   }
+  await supabase.from('orders').update({
+    balance_amount: 0,
+    notes: plan.orderNotes || appendForfeitOrderNote(order.notes, forfeitAmt || advance),
+  }).eq('id', order.id);
   return {
     action: plan.action,
     invoiceNo: plan.invoiceNo,
-    reversed: reverseAmt,
+    forfeited: forfeitAmt,
+    reversed: 0,
     message: plan.message,
     recordedBy: userLabel(user),
   };
@@ -1114,6 +1116,9 @@ async function assertOrderCanBeDelivered(order) {
 }
 
 async function addOrderOntoInvoice(invoice, order) {
+  if (isCancelledStatus(order?.status)) {
+    throw Object.assign(new Error(CANCELLED_ORDER_INVOICE_MESSAGE), { statusCode: 400 });
+  }
   const oid = order.order_id || order.id;
   const existingIds = collectOrderIds({}, invoice).map(String);
   if (existingIds.includes(String(oid)) || existingIds.includes(String(order.id))) {
@@ -2970,7 +2975,6 @@ async function dispatch(req, res) {
         }
         const orderPatch = { status, status_history: hist };
         if (!wasCancelled && nowCancelled) {
-          orderPatch.advance_payment = 0;
           orderPatch.balance_amount = 0;
         }
         await supabase.from('orders').update(orderPatch).eq('id', existing.id);
@@ -2996,6 +3000,9 @@ async function dispatch(req, res) {
       if (action === 'invoice' && method === 'POST') {
         if (String(existing.doc_type || '').toLowerCase() === 'quotation') {
           return sendError(res, 'Quotations are estimates only. Convert to an order before creating an invoice.', 400);
+        }
+        if (isCancelledStatus(existing.status)) {
+          return sendError(res, CANCELLED_ORDER_INVOICE_MESSAGE, 400);
         }
         const inv = await ensureOrderInvoice(existing);
         await markOrdersEligibleForDelivery(inv, user);
@@ -3045,7 +3052,6 @@ async function dispatch(req, res) {
               await syncProductStock(existing.products, [], { allowShortage: true });
             }
             const invoiceSync = await syncInvoiceAfterOrderCancelled({ ...existing, ...row, status: row.status }, user);
-            row.advance_payment = 0;
             row.balance_amount = 0;
             await supabase.from('orders').update(row).eq('id', existing.id);
             return send(res, { ...mapOrder(row), invoiceSync });
@@ -3118,8 +3124,14 @@ async function dispatch(req, res) {
           assertCustomerNotBlocked(custRow);
         }
         const orderIds = collectOrderIds(body, {});
-        const { data: allInv } = await supabase.from('invoices').select('id,order_id,order_ids');
+        try {
+          await assertOrdersNotCancelled(orderIds);
+        } catch (err) {
+          return sendError(res, err.message, err.statusCode || 400);
+        }
+        const { data: allInv } = await supabase.from('invoices').select('id,order_id,order_ids,status');
         const clash = (allInv || []).find((inv) => {
+          if (isCancelledStatus(inv.status)) return false;
           const ids = collectOrderIds({}, inv);
           return orderIds.some((oid) => ids.includes(oid));
         });
@@ -3199,6 +3211,9 @@ async function dispatch(req, res) {
         if (!order) return sendError(res, 'Order not found', 404);
         if (String(order.doc_type || 'Order').toLowerCase() === 'quotation') {
           return sendError(res, 'Quotations cannot be added to an invoice', 400);
+        }
+        if (isCancelledStatus(order.status)) {
+          return sendError(res, CANCELLED_ORDER_INVOICE_MESSAGE, 400);
         }
         if (invoice.customer_id && order.customer_id && String(invoice.customer_id) !== String(order.customer_id)) {
           return sendError(res, 'Order belongs to a different customer', 400);

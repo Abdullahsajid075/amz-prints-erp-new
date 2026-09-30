@@ -11,7 +11,7 @@ import { openInvoicesForCustomer } from '@/utils/invoiceOrders';
 import { formatCurrency, formatDate, getStatusColor, invoiceBalanceDue } from '@/utils/helpers';
 import { documentFileName } from '@/utils/printHelpers';
 import { printOrderBookSlip } from '@/utils/orderBookSlip';
-import { ORDER_STATUS, ORDER_STATUS_OPTIONS, isOpenOrder, isNotStartedOrder, isSettledOrderStatus, isWebsiteOrder, isPendingStatus, isPendingWebsiteOrder, normalizeOrderStatus } from '@/utils/constants';
+import { ORDER_STATUS, ORDER_STATUS_OPTIONS, isOpenOrder, isNotStartedOrder, isSettledOrderStatus, isCancelledOrderStatus, isWebsiteOrder, isPendingStatus, isPendingWebsiteOrder, normalizeOrderStatus } from '@/utils/constants';
 import { INVOICE_REQUIRED_MESSAGE, STOCK_REQUIRED_MESSAGE, canManuallyDeliver, isReadyForDeliveryStatus } from '@/utils/deliveryRules';
 import { sortBy, pinFirst } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
@@ -613,6 +613,10 @@ const OrdersList = () => {
   };
 
   const handleGenerateInvoice = async (order) => {
+    if (isCancelledOrderStatus(order?.status)) {
+      toast.error('Cancelled orders cannot be invoiced.');
+      return;
+    }
     if (order?.invoiceId) {
       navigate(`/invoices/${order.invoiceId}`);
       return;
@@ -631,6 +635,10 @@ const OrdersList = () => {
 
   const attachOrderToInvoice = async (order, invoice) => {
     if (!order || !invoice) return;
+    if (isCancelledOrderStatus(order?.status)) {
+      toast.error('Cancelled orders cannot be invoiced.');
+      return;
+    }
     setAddInvoiceBusy(true);
     try {
       await invoicesAPI.addOrder(invoice.id, { orderId: order.orderId || order.id });
@@ -646,6 +654,10 @@ const OrdersList = () => {
   };
 
   const handleAddToCurrentInvoice = async (order) => {
+    if (isCancelledOrderStatus(order?.status)) {
+      toast.error('Cancelled orders cannot be invoiced.');
+      return;
+    }
     if (order?.invoiceId) {
       navigate(`/invoices/${order.invoiceId}`);
       return;
@@ -762,7 +774,7 @@ const OrdersList = () => {
               <Button size="sm" variant="outline" className="h-8 px-2 text-[11px] font-semibold rounded-lg bg-white/50" title={order.invoiceNumber || 'Open invoice'} onClick={() => navigate(`/invoices/${order.invoiceId}`)} data-testid={`invoice-order-${order.id}`}>
                 {order.invoiceNumber || 'Invoice'}
               </Button>
-            ) : (
+            ) : !isCancelledOrderStatus(order.status) ? (
               <>
                 <Button size="sm" variant="outline" className="h-8 px-2 text-[11px] rounded-lg bg-white/50" title="Create invoice" onClick={() => handleGenerateInvoice(order)} data-testid={`invoice-order-${order.id}`}>
                   Create invoice
@@ -771,7 +783,7 @@ const OrdersList = () => {
                   <Link className="h-3 w-3 mr-1" />Add to current invoice
                 </Button>
               </>
-            )}
+            ) : null}
             <Button size="icon" variant="outline" className="h-8 w-8 rounded-lg bg-white/50 text-green-600 hover:bg-green-50" title="WhatsApp" onClick={() => handleWhatsApp(order)} data-testid={`whatsapp-order-${order.id}`}>
               <WhatsAppIcon className="h-3.5 w-3.5" />
             </Button>
@@ -930,7 +942,7 @@ const OrdersList = () => {
                             <Button size="sm" variant="ghost" className="h-8 px-2 text-[11px] font-semibold" onClick={() => navigate(`/invoices/${order.invoiceId}`)} title={order.invoiceNumber || 'Open invoice'}>
                               {order.invoiceNumber || 'Invoice'}
                             </Button>
-                          ) : (
+                          ) : !isCancelledOrderStatus(order.status) ? (
                             <>
                               <Button size="sm" variant="ghost" className="h-8 px-2 text-[11px]" onClick={() => handleGenerateInvoice(order)} title="Create invoice">
                                 Create invoice
@@ -939,7 +951,7 @@ const OrdersList = () => {
                                 Add to current invoice
                               </Button>
                             </>
-                          )}
+                          ) : null}
                           <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-700" onClick={() => openPayment(order)} title="Record payment on invoice"><Wallet className="h-4 w-4" /></Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600" onClick={() => handleWhatsApp(order)} title="WhatsApp"><WhatsAppIcon className="h-4 w-4" /></Button>
                           {needsDesignDocsReminder(order) && (
@@ -1165,7 +1177,7 @@ const OrdersList = () => {
                   <Button variant="outline" onClick={() => navigate(`/invoices/${viewOrder.invoiceId}`)}>
                     <Receipt className="h-4 w-4 mr-1" style={{ color: '#ff6d00' }} />{viewOrder.invoiceNumber || 'Invoice'}
                   </Button>
-                ) : (
+                ) : !isCancelledOrderStatus(viewOrder.status) ? (
                   <>
                     <Button variant="outline" onClick={() => handleGenerateInvoice(viewOrder)}>
                       <Receipt className="h-4 w-4 mr-1" style={{ color: '#ff6d00' }} />Create invoice
@@ -1174,7 +1186,7 @@ const OrdersList = () => {
                       <Link className="h-4 w-4 mr-1" />Add to current invoice
                     </Button>
                   </>
-                )}
+                ) : null}
                 <Button variant="outline" className="text-emerald-700 border-emerald-200" onClick={() => openPayment(viewOrder)}>
                   <Wallet className="h-4 w-4 mr-1" />Pay on invoice
                 </Button>

@@ -2248,6 +2248,17 @@ function handleOrderById_(path, method, body) {
 
   if (index < 0) throw new Error('Order not found');
 
+  if (path.indexOf('/invoice') !== -1 && method === 'POST') {
+    if (/cancel/i.test(String(orders[index].status || ''))) {
+      throw new Error('Cancelled orders cannot be invoiced.');
+    }
+    if (isQuotation_(orders[index])) {
+      throw new Error('Quotations are estimates only. Convert to an order before creating an invoice.');
+    }
+    findOrCreateInvoiceForOrder_(orders[index]);
+    return withInvoiceMeta_(toApiOrder_(orders[index]));
+  }
+
   if (path.indexOf('/payment') !== -1 && method === 'POST') {
     var orderForPayment = orders[index];
     if (isQuotation_(orderForPayment)) {
@@ -2834,6 +2845,20 @@ function assertOrdersNotOnOtherInvoice_(orderIds, exceptInvoiceId) {
   });
 }
 
+function assertOrdersNotCancelled_(orderIds) {
+  var orders = [];
+  try { orders = getSheetRows_(SHEET_NAMES.ORDERS); } catch (eOrd) { return; }
+  (orderIds || []).forEach(function (oid) {
+    if (!oid) return;
+    var hit = orders.find(function (o) {
+      return String(o.id) === String(oid) || String(o.orderid) === String(oid);
+    });
+    if (hit && /cancel/i.test(String(hit.status || ''))) {
+      throw new Error('Cancelled orders cannot be invoiced.');
+    }
+  });
+}
+
 function invoiceIsUnpaidOpen_(inv) {
   if (!inv) return false;
   var status = String(inv.status || '').toLowerCase();
@@ -2920,6 +2945,9 @@ function addOrderAdvanceSnapshot_(orderRef, addAmount) {
 }
 
 function linkOrderOntoInvoice_(inv, order) {
+  if (/cancel/i.test(String((order && order.status) || ''))) {
+    throw new Error('Cancelled orders cannot be invoiced.');
+  }
   var oid = String((order && (order.orderid || order.id)) || '');
     if (!oid) throw new Error('Order is missing an ID and cannot be linked to an invoice.');
   assertOrdersNotOnOtherInvoice_([oid], inv.id);
@@ -2962,6 +2990,9 @@ function linkOrderOntoInvoice_(inv, order) {
 }
 
 function createInvoiceFromOrder_(order) {
+  if (/cancel/i.test(String((order && order.status) || ''))) {
+    throw new Error('Cancelled orders cannot be invoiced.');
+  }
   var mapped = mapOrderProductsToInvoiceItems_(order);
   var subtotal = mapped.reduce(function (s, it) {
     return s + Number(it.quantity || 0) * Number(it.rate || 0);
@@ -3020,15 +3051,29 @@ function applyCancelledOrderToInvoice_(order) {
   var oidx = orders.findIndex(function (o) {
     return String(o.id) === String(order.id) || String(o.orderid) === String(order.orderid || order.id);
   });
+  var advance = Number(order.advancepayment || order.advancePayment || 0);
+  var orderNotes = String((oidx >= 0 ? orders[oidx].notes : order.notes) || '').trim();
+  var forfeitTag = advance > 0.009
+    ? '[ADVANCE_FORFEITED] Advance of ' + advance + ' was forfeited when this order was cancelled.'
+    : '[ORDER_CANCELLED] Linked invoice was deleted.';
+  if (orderNotes.indexOf('[ADVANCE_FORFEITED]') < 0 && orderNotes.indexOf('[ORDER_CANCELLED]') < 0) {
+    orderNotes = orderNotes ? (orderNotes + ' ' + forfeitTag) : forfeitTag;
+  }
   if (oidx >= 0) {
     updateObjectProps_(orderSheet, SHEET_NAMES.ORDERS, orders[oidx]._row, {
-      advancepayment: 0,
       balanceamount: 0,
+      notes: orderNotes,
     });
     invalidateSheetCache_(SHEET_NAMES.ORDERS);
   }
   var inv = findInvoiceForOrder_(order);
-  if (!inv) return { action: 'none', message: '' };
+  if (!inv) {
+    return {
+      action: 'none',
+      forfeited: advance,
+      message: advance > 0.009 ? 'The advance payment was forfeited.' : '',
+    };
+  }
   var ids = parseInvoiceOrderIds_(inv).filter(function (id) { return keys.indexOf(String(id)) < 0; });
   var items = inv.items;
   if (typeof items === 'string') {
@@ -3047,69 +3092,67 @@ function applyCancelledOrderToInvoice_(order) {
   }
   var history = parsePaymentHistory_(inv.paymenthistory);
   var paid = Number(inv.paid || 0);
-  var reverse = 0;
+  var forfeit = 0;
   history.forEach(function (h) {
-    if (!h || Number(h.applied) < 0 || h.reversal) return;
-    var oid = String(h.orderId || h.orderid || '');
-    var notes = String(h.notes || '');
-    var hit = keys.indexOf(oid) >= 0;
+    if (!h || Number(h.applied) < 0 || h.reversal || h.forfeit) return;
+    var oidH = String(h.orderId || h.orderid || '');
+    var notesH = String(h.notes || '');
+    var hit = keys.indexOf(oidH) >= 0;
     if (!hit) {
       for (var i = 0; i < keys.length; i++) {
-        if (keys[i] && notes.indexOf(keys[i]) >= 0) hit = true;
+        if (keys[i] && notesH.indexOf(keys[i]) >= 0) hit = true;
       }
     }
-    if (hit) reverse += Number(h.applied != null ? h.applied : h.amount) || 0;
+    if (hit) forfeit += Number(h.applied != null ? h.applied : h.amount) || 0;
   });
   var cancelWhole = ids.length === 0;
-  if (!(reverse > 0) && cancelWhole) reverse = paid;
-  if (!(reverse > 0)) reverse = Math.min(Number(order.advancepayment || order.advancePayment || 0), paid);
-  if (reverse > paid) reverse = paid;
+  if (!(forfeit > 0) && cancelWhole) forfeit = paid;
+  if (!(forfeit > 0)) forfeit = Math.min(Number(order.advancepayment || order.advancePayment || 0), paid);
+  if (forfeit > paid) forfeit = paid;
   var orderTotal = Number(order.totalamount || order.total || 0);
   var prevTotal = Number(inv.total || inv.totalamount || 0);
   var prevSub = Number(inv.subtotal != null ? inv.subtotal : prevTotal);
   var nextTotal = cancelWhole ? 0 : Math.max(0, prevTotal - orderTotal);
   var nextSub = cancelWhole ? 0 : Math.max(0, prevSub - orderTotal);
-  var nextPaid = cancelWhole ? 0 : Math.max(0, paid - reverse);
+  var nextPaid = cancelWhole ? 0 : Math.max(0, paid - forfeit);
   var due = nextTotal + Number(inv.previousbalance || 0);
   if (!cancelWhole && nextPaid > due + 0.009) {
-    addCustomerCredit_(inv.customerid, nextPaid - due, 'Credit from cancelled order ' + (order.orderid || order.id));
+    forfeit += nextPaid - due;
     nextPaid = due;
   }
-  if (reverse > 0.009) {
+  if (cancelWhole) forfeit = paid;
+  var oidLabel = order.orderid || order.id;
+  var forfeitBit = forfeit > 0.009 ? ' The advance payment was forfeited.' : '';
+  if (cancelWhole) {
+    deleteRow_(getSheet_(SHEET_NAMES.INVOICES), inv._row, SHEET_NAMES.INVOICES);
+    return {
+      action: 'deleted-invoice',
+      invoiceNo: inv.invoiceno || inv.id,
+      forfeited: forfeit,
+      reversed: 0,
+      message: 'Invoice ' + (inv.invoiceno || inv.id) + ' was deleted.' + forfeitBit,
+    };
+  }
+  if (forfeit > 0.009) {
     history.push({
       date: nowDate_(),
-      amount: reverse,
-      applied: -reverse,
-      method: 'Reversal',
-      notes: 'Payment reversed — order ' + (order.orderid || order.id) + ' cancelled',
-      orderId: order.orderid || order.id,
-      reversal: true,
-    });
-    appendPaymentsSheetRow_({
-      type: 'outflow',
-      category: 'Invoice Reversal',
-      refId: inv.invoiceno || inv.id,
-      customerId: inv.customerid,
-      customerName: inv.customername,
-      customerPhone: inv.customerphone,
-      amount: reverse,
-      method: 'Reversal',
-      notes: 'Payment reversed — order ' + (order.orderid || order.id) + ' cancelled',
-      totalAmount: reverse,
+      amount: forfeit,
+      applied: -forfeit,
+      method: 'Forfeit',
+      notes: 'Advance forfeited — order ' + oidLabel + ' cancelled',
+      orderId: oidLabel,
+      forfeit: true,
     });
   }
-  var status = cancelWhole ? 'Cancelled' : invoiceStatusFromPaid_(due, nextPaid);
-  var oidLabel = order.orderid || order.id;
-  var tag = cancelWhole
-    ? '[ORDER_CANCELLED] Invoice cancelled because order ' + oidLabel + ' was cancelled.'
-    : '[ORDER_CANCELLED] Removed cancelled order ' + oidLabel + '.';
+  var status = invoiceStatusFromPaid_(due, nextPaid);
+  var tag = '[ORDER_CANCELLED] Removed cancelled order ' + oidLabel + '. Advance was forfeited.';
   var note = String(inv.notes || '').trim();
   if (note.indexOf('[ORDER_CANCELLED]') < 0 || note.indexOf(String(oidLabel)) < 0) {
     note = note ? (note + ' ' + tag) : tag;
   }
   var sheet = getSheet_(SHEET_NAMES.INVOICES);
   updateObjectProps_(sheet, SHEET_NAMES.INVOICES, inv._row, {
-    items: cancelWhole ? [] : items,
+    items: items,
     orderids: ids,
     orderid: ids[0] || '',
     subtotal: nextSub,
@@ -3121,18 +3164,20 @@ function applyCancelledOrderToInvoice_(order) {
   });
   invalidateSheetCache_(SHEET_NAMES.INVOICES);
   return {
-    action: cancelWhole ? 'cancelled-invoice' : 'removed-from-invoice',
+    action: 'removed-from-invoice',
     invoiceNo: inv.invoiceno || inv.id,
-    reversed: reverse,
-    message: cancelWhole
-      ? ('Invoice ' + (inv.invoiceno || inv.id) + ' cancelled. Paid amount for this order was reversed.')
-      : ('Cancelled order ' + oidLabel + ' removed from invoice ' + (inv.invoiceno || inv.id) + '. Paid amount for this order was reversed.'),
+    forfeited: forfeit,
+    reversed: 0,
+    message: 'Cancelled order ' + oidLabel + ' was removed from invoice ' + (inv.invoiceno || inv.id) + '.' + forfeitBit,
   };
 }
 
 function findOrCreateInvoiceForOrder_(order) {
   if (isQuotation_(order)) {
     throw new Error('Quotations are estimates only. Convert to an order before recording payment.');
+  }
+  if (/cancel/i.test(String((order && order.status) || ''))) {
+    throw new Error('Cancelled orders cannot be invoiced.');
   }
   var existing = findInvoiceForOrder_(order);
   if (existing) return existing;
@@ -3594,6 +3639,7 @@ function handleInvoices_(path, method, body) {
         }
         if (invDupIdx >= 0) {
           var dupIds = collectInvoiceOrderIds_(body, rows[invDupIdx]);
+          assertOrdersNotCancelled_(dupIds);
           assertOrdersNotOnOtherInvoice_(dupIds, rows[invDupIdx].id);
           var updInv = normalizeInvoice_(body, rows[invDupIdx]);
           updInv.id = rows[invDupIdx].id;
@@ -3612,6 +3658,7 @@ function handleInvoices_(path, method, body) {
         body.customerId = cust.id;
       }
       var createdIds = collectInvoiceOrderIds_(body, {});
+      assertOrdersNotCancelled_(createdIds);
       assertOrdersNotOnOtherInvoice_(createdIds, '');
   var created = normalizeInvoice_(body);
   if (!created.invoiceno) {
@@ -3671,6 +3718,7 @@ function handleInvoices_(path, method, body) {
       throw new Error('Paid amount is locked — use Record Payment to add payments. Edit history only from Customer Portal.');
     }
     var updatedIds = collectInvoiceOrderIds_(body, rows[index]);
+    assertOrdersNotCancelled_(updatedIds);
     assertOrdersNotOnOtherInvoice_(updatedIds, rows[index].id);
     var updated = normalizeInvoice_(body, rows[index]);
     updated.id = rows[index].id;
