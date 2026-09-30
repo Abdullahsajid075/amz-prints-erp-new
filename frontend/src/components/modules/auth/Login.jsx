@@ -10,6 +10,7 @@ import { tokenStorage } from '@/services/tokenStorage';
 import { clearGasCache } from '@/services/gasClient';
 import { markHomeToOpenAfterLogin } from '@/context/HomeLauncherContext';
 import { ERP_LEGAL_NAME } from '@/utils/erpApps';
+import BrandLockup from '@/components/layout/BrandLockup';
 
 const BRAND_CACHE_KEY = 'amz_erp_brand_v2';
 
@@ -86,22 +87,7 @@ const Login = () => {
         }}
       >
         <div className="relative z-10">
-          {company.logo ? (
-            <img
-              src={company.logo}
-              alt={company.name || 'Company logo'}
-              className="h-12 w-auto max-w-[200px] object-contain brightness-0 invert"
-            />
-          ) : (
-            <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg"
-              style={{ backgroundColor: accent }}
-            >
-              <span className="text-white font-display font-bold text-2xl">
-                {(company.name || 'A').charAt(0)}
-              </span>
-            </div>
-          )}
+          <BrandLockup company={company} accent={accent} invert />
         </div>
 
         <div className="relative z-10 max-w-lg">
@@ -127,29 +113,8 @@ const Login = () => {
           className="w-full max-w-md erp-panel p-7 sm:p-8"
           data-testid="login-card"
         >
-          <div className="lg:hidden mb-6 flex items-center gap-3">
-            {company.logo ? (
-              <img
-                src={company.logo}
-                alt={company.name || 'Company logo'}
-                className="h-10 w-auto max-w-[140px] object-contain"
-              />
-            ) : (
-              <div
-                className="w-11 h-11 rounded-xl flex items-center justify-center"
-                style={{ backgroundColor: accent }}
-              >
-                <span className="text-white font-display font-bold text-xl">
-                  {(company.name || 'A').charAt(0)}
-                </span>
-              </div>
-            )}
-            <div>
-              <p className="font-display font-bold text-ink text-lg leading-tight">
-                {company.name || 'AMZ Prints'}
-              </p>
-              <p className="text-xs text-slate-500">{ERP_LEGAL_NAME}</p>
-            </div>
+          <div className="lg:hidden mb-6">
+            <BrandLockup company={company} accent={accent} />
           </div>
 
           <div className="mb-6">
