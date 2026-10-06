@@ -11,6 +11,7 @@ import { isServiceItem, tracksInventory } from '@/utils/inventoryTrack';
 import useInventoryMode from '@/hooks/useInventoryMode';
 import { toast } from 'sonner';
 
+const UPCOMING_STATUSES = new Set(['Ordered', 'Partial Paid']);
 const OPEN_ORDER_STATUSES = new Set([
   'pending', 'confirmed', 'in production', 'in-progress', 'processing', 'open', 'draft',
 ]);
@@ -66,8 +67,7 @@ const Inventory = () => {
   const upcomingByProduct = useMemo(() => {
     const map = {};
     purchases.forEach((po) => {
-      const st = String(po?.status || '').toLowerCase();
-      if (/received|cancel|revers/.test(st)) return;
+      if (!UPCOMING_STATUSES.has(po.status)) return;
       (po.items || []).forEach((item) => {
         const key = item.productId || item.name;
         if (!key) return;

@@ -1,5 +1,5 @@
 const {
-  amountToForfeit,
+  amountToReverse,
   remainingOrderIds,
   stripCancelledOrderItems,
   planInvoiceAfterOrderCancel,
@@ -29,13 +29,10 @@ const single = {
 };
 
 const singlePlan = planInvoiceAfterOrderCancel(single, orderA);
-assert(singlePlan.action === 'deleted-invoice', 'single invoice deleted');
-assert(singlePlan.deleteInvoice === true, 'delete flag');
+assert(singlePlan.action === 'cancelled-invoice', 'single invoice cancelled');
 assert(singlePlan.paid === 0 && singlePlan.total === 0, 'single totals cleared');
-assert(singlePlan.reversePaid === 0, 'no cash reversal');
-assert(singlePlan.forfeitPaid === 40, 'advance forfeited');
-assert(singlePlan.creditExtra === 0, 'no credit back');
-assert(/deleted/i.test(singlePlan.message) && /forfeit/i.test(singlePlan.message), 'delete + forfeit message');
+assert(singlePlan.reversePaid === 40, 'single reverse paid');
+assert(/cancelled/i.test(singlePlan.status), 'status cancelled');
 
 const multi = {
   id: 'inv2',
@@ -64,8 +61,7 @@ const multiPlan = planInvoiceAfterOrderCancel(multi, orderA);
 assert(multiPlan.action === 'removed-from-invoice', 'multi keeps invoice');
 assert(multiPlan.orderIds.join() === 'ORD-2', 'only B');
 assert(multiPlan.total === 50 && multiPlan.subtotal === 50, 'totals drop A');
-assert(multiPlan.reversePaid === 0 && multiPlan.forfeitPaid === 40 && multiPlan.paid === 0, 'A advance forfeited, not reversed');
-assert(multiPlan.creditExtra === 0, 'no credit on multi');
+assert(multiPlan.reversePaid === 40 && multiPlan.paid === 0, 'A payment reversed');
 assert(multiPlan.status === 'Unpaid', 'remaining unpaid');
 
 const untagged = {
@@ -81,7 +77,7 @@ const untagged = {
 };
 const untaggedPlan = planInvoiceAfterOrderCancel(untagged, orderA);
 assert(untaggedPlan.items.length === 1 && untaggedPlan.items[0].name === 'Banner', 'untagged strip by name');
-assert(amountToForfeit(untagged, orderA) === 0, 'nothing to forfeit');
+assert(amountToReverse(untagged, orderA) === 0, 'nothing to reverse');
 
 const leftoverPaid = {
   ...multi,
@@ -89,9 +85,8 @@ const leftoverPaid = {
   payment_history: [{ amount: 150, applied: 150, notes: 'bulk' }],
 };
 const leftoverPlan = planInvoiceAfterOrderCancel(leftoverPaid, orderA);
-assert(leftoverPlan.reversePaid === 0, 'no reversal on leftover');
-assert(leftoverPlan.creditExtra === 0, 'excess forfeited not credited');
-assert(leftoverPlan.paid === 50, 'remaining due stays paid');
-assert(Math.abs(leftoverPlan.forfeitPaid - 100) < 0.01, 'cancelled share forfeited');
+assert(leftoverPlan.reversePaid === 40, 'advance reversed when unattributed multi');
+assert(leftoverPlan.paid === 50, 'cap paid to remaining due');
+assert(Math.abs(leftoverPlan.creditExtra - 60) < 0.01, 'excess to credit');
 
 console.log('orderCancelInvoice ok');

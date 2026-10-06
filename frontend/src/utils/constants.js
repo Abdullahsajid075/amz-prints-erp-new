@@ -79,10 +79,6 @@ export function isBookingOrder(order) {
   return true;
 }
 
-export function isCancelledOrderStatus(status) {
-  return /cancel|void|voided/i.test(String(status || ''));
-}
-
 export function isSettledOrderStatus(status) {
   const s = String(status || '').trim().toLowerCase();
   return s === 'delivered' || s === 'complete' || s === 'completed'

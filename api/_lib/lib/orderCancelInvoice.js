@@ -19,9 +19,9 @@ function invoiceHoldsOrder(invoice, order) {
 
 function historyIsReversal(entry) {
   if (!entry) return false;
-  if (entry.reversal === true || entry.forfeit === true) return true;
+  if (entry.reversal === true) return true;
   if (num(entry.applied) < 0) return true;
-  return /revers|forfeit/i.test(String(entry.notes || entry.method || ''));
+  return /revers/i.test(String(entry.notes || entry.method || ''));
 }
 
 function paymentAttributedToOrder(entry, keys) {
@@ -44,8 +44,7 @@ function attributedPaidForOrder(invoice, order) {
   return sum;
 }
 
-/** Paid amount on this invoice that belonged to the cancelled order. */
-function amountToForfeit(invoice, order) {
+function amountToReverse(invoice, order) {
   const paid = num(invoice?.paid != null ? invoice.paid : invoice?.paidAmount);
   if (!(paid > 0.009)) return 0;
   const attributed = attributedPaidForOrder(invoice, order);
@@ -95,22 +94,12 @@ function stripCancelledOrderItems(items, order) {
   });
 }
 
-function appendCancelNote(notes, orderId, deletedWhole) {
-  const tag = deletedWhole
-    ? `[ORDER_CANCELLED] Invoice deleted because order ${orderId} was cancelled. Advance was forfeited.`
-    : `[ORDER_CANCELLED] Removed cancelled order ${orderId}. Advance was forfeited.`;
+function appendCancelNote(notes, orderId, cancelledWhole) {
+  const tag = cancelledWhole
+    ? `[ORDER_CANCELLED] Invoice cancelled because order ${orderId} was cancelled.`
+    : `[ORDER_CANCELLED] Removed cancelled order ${orderId}.`;
   const current = String(notes || '').trim();
-  if (current.includes('[ORDER_CANCELLED]') && current.includes(String(orderId))) return current;
-  return current ? `${current} ${tag}` : tag;
-}
-
-function appendForfeitOrderNote(notes, amount) {
-  const n = num(amount);
-  const tag = n > 0.009
-    ? `[ADVANCE_FORFEITED] Advance of ${n} was forfeited when this order was cancelled.`
-    : '[ORDER_CANCELLED] Linked invoice was deleted.';
-  const current = String(notes || '').trim();
-  if (current.includes('[ADVANCE_FORFEITED]') || current.includes('[ORDER_CANCELLED]')) return current || tag;
+  if (current.includes(`[ORDER_CANCELLED]`) && current.includes(String(orderId))) return current;
   return current ? `${current} ${tag}` : tag;
 }
 
@@ -121,7 +110,7 @@ function remainingOrderIds(invoice, order) {
 
 function planInvoiceAfterOrderCancel(invoice, order) {
   if (!invoice || !order) {
-    return { action: 'none', reversePaid: 0, forfeitPaid: 0, creditExtra: 0, deleteInvoice: false };
+    return { action: 'none', reversePaid: 0, creditExtra: 0 };
   }
   const orderId = order.order_id || order.orderId || order.id || '';
   const prevTotal = num(invoice.total != null ? invoice.total : invoice.total_amount);
@@ -130,54 +119,49 @@ function planInvoiceAfterOrderCancel(invoice, order) {
   const prevBal = num(invoice.previous_balance != null ? invoice.previous_balance : invoice.previousBalance);
   const orderTotal = num(order.total_amount != null ? order.total_amount : order.total);
   const nextIds = remainingOrderIds(invoice, order);
-  const deleteInvoice = nextIds.length === 0;
-  let forfeitPaid = amountToForfeit(invoice, order);
-  const nextItems = deleteInvoice ? [] : stripCancelledOrderItems(asArray(invoice.items), order);
-  const nextTotal = deleteInvoice ? 0 : Math.max(0, prevTotal - orderTotal);
-  const nextSub = deleteInvoice ? 0 : Math.max(0, prevSub - orderTotal);
-  let nextPaid = Math.max(0, prevPaid - forfeitPaid);
+  const reversePaid = amountToReverse(invoice, order);
+  const cancelInvoice = nextIds.length === 0;
+  const nextItems = cancelInvoice ? [] : stripCancelledOrderItems(asArray(invoice.items), order);
+  const nextTotal = cancelInvoice ? 0 : Math.max(0, prevTotal - orderTotal);
+  const nextSub = cancelInvoice ? 0 : Math.max(0, prevSub - orderTotal);
+  let nextPaid = Math.max(0, prevPaid - reversePaid);
   const due = nextTotal + prevBal;
-  if (deleteInvoice) {
-    forfeitPaid = prevPaid;
-    nextPaid = 0;
-  } else if (nextPaid > due + 0.009) {
-    forfeitPaid += nextPaid - due;
+  let creditExtra = 0;
+  if (!cancelInvoice && nextPaid > due + 0.009) {
+    creditExtra = nextPaid - due;
     nextPaid = due;
   }
-  const status = deleteInvoice ? 'Cancelled' : invoiceStatusFromPaid(due, nextPaid);
-  const action = deleteInvoice ? 'deleted-invoice' : 'removed-from-invoice';
-  const invoiceNo = invoice.invoice_no || invoice.invoiceNo || invoice.id || '';
-  const forfeitBit = forfeitPaid > 0.009 ? ' The advance payment was forfeited.' : '';
-  const message = deleteInvoice
-    ? `Invoice ${invoiceNo} was deleted.${forfeitBit}`
-    : `Cancelled order ${orderId} was removed from invoice ${invoiceNo}.${forfeitBit}`;
+  if (cancelInvoice) {
+    creditExtra = 0;
+    nextPaid = 0;
+  }
+  const status = cancelInvoice ? 'Cancelled' : invoiceStatusFromPaid(due, nextPaid);
+  const action = cancelInvoice ? 'cancelled-invoice' : 'removed-from-invoice';
+  const message = cancelInvoice
+    ? `Invoice ${invoice.invoice_no || invoice.invoiceNo || invoice.id} cancelled. Paid amount for this order was reversed.`
+    : `Cancelled order ${orderId} removed from invoice ${invoice.invoice_no || invoice.invoiceNo || invoice.id}. Paid amount for this order was reversed.`;
   return {
     action,
-    deleteInvoice,
-    cancelInvoice: deleteInvoice,
-    reversePaid: 0,
-    forfeitPaid,
-    creditExtra: 0,
+    cancelInvoice,
+    reversePaid: cancelInvoice ? prevPaid : reversePaid,
+    creditExtra,
     orderIds: nextIds,
     items: nextItems,
     subtotal: nextSub,
     total: nextTotal,
     paid: nextPaid,
     status,
-    notes: appendCancelNote(invoice.notes, orderId, deleteInvoice),
-    orderNotes: appendForfeitOrderNote(order.notes || order.remarks, forfeitPaid),
+    notes: appendCancelNote(invoice.notes, orderId, cancelInvoice),
     message,
-    invoiceNo,
+    invoiceNo: invoice.invoice_no || invoice.invoiceNo || invoice.id || '',
   };
 }
 
 module.exports = {
   orderKeys,
   invoiceHoldsOrder,
-  amountToForfeit,
-  amountToReverse: amountToForfeit,
+  amountToReverse,
   stripCancelledOrderItems,
   remainingOrderIds,
   planInvoiceAfterOrderCancel,
-  appendForfeitOrderNote,
 };
