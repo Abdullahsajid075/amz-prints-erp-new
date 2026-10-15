@@ -378,8 +378,19 @@ function amz_prints_customize_register( $wp_customize ) {
 		'label'       => __( 'Clients list (one per line)', 'amz-prints' ),
 		'section'     => 'amz_sections',
 		'type'        => 'textarea',
-		'description' => __( 'Each line becomes one client name chip.', 'amz-prints' ),
+		'description' => __( 'Each line is one client. Line 1 uses Client logo 1, line 2 uses Client logo 2, and so on.', 'amz-prints' ),
 	) );
+	for ( $ci = 1; $ci <= 12; $ci++ ) {
+		$wp_customize->add_setting( 'amz_client_logo_' . $ci, array(
+			'default'           => 0,
+			'sanitize_callback' => 'absint',
+		) );
+		$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'amz_client_logo_' . $ci, array(
+			'label'     => sprintf( __( 'Client logo %d', 'amz-prints' ), $ci ),
+			'section'   => 'amz_sections',
+			'mime_type' => 'image',
+		) ) );
+	}
 
 	$wp_customize->add_setting( 'amz_projects_title', array(
 		'default'           => 'Successful Projects',

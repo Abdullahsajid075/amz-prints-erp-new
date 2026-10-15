@@ -145,7 +145,7 @@ $featured_services = array_slice( $catalog, 0, 4 );
 <?php if ( $photo_products && amz_prints_mod( 'amz_show_products', true ) ) : ?>
 	<div class="amz-prodrail" aria-label="<?php esc_attr_e( 'Products with photos', 'amz-prints' ); ?>">
 		<div class="amz-prodrail__track">
-			<?php foreach ( array_slice( $photo_products, 0, 8 ) as $product ) : ?>
+			<?php foreach ( array_merge( $photo_products, $photo_products ) as $product ) : ?>
 				<?php $rail_url = function_exists( 'amz_prints_erp_product_url' ) ? amz_prints_erp_product_url( $product['id'] ?? '' ) : home_url( '/products/' ); ?>
 				<a class="amz-prodrail__card" href="<?php echo esc_url( $rail_url ); ?>">
 					<img src="<?php echo function_exists( 'amz_prints_product_img_src' ) ? amz_prints_product_img_src( $product['image'] ) : esc_url( $product['image'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>" alt="<?php echo esc_attr( $product['name'] ); ?>" loading="lazy" decoding="async" width="160" height="160">
@@ -312,11 +312,22 @@ $featured_services = array_slice( $catalog, 0, 4 );
 			<h2><?php echo esc_html( amz_prints_mod( 'amz_process_title', 'How it works' ) ); ?></h2>
 			<p><?php echo esc_html( amz_prints_mod( 'amz_process_sub', 'A clear path from brief to finished print.' ) ); ?></p>
 		</header>
+		<?php
+		$process_steps = array(
+			array( 'headset', __( 'Customer care', 'amz-prints' ), __( 'Call, WhatsApp, or walk in. The brief is written down before the job starts.', 'amz-prints' ) ),
+			array( 'file', __( 'Quote and confirmation', 'amz-prints' ), __( 'Pricing, timeline, and finish are confirmed, then the order gets a tracking ID.', 'amz-prints' ) ),
+			array( 'printer', __( 'Design and production', 'amz-prints' ), __( 'Artwork is proofed, then printing, finishing, and quality checks follow.', 'amz-prints' ) ),
+			array( 'truck', __( 'Track and delivery', 'amz-prints' ), __( 'Follow the live status, then collect or receive the finished job.', 'amz-prints' ) ),
+		);
+		?>
 		<ol class="home-process">
-			<li><strong><?php esc_html_e( 'Customer care', 'amz-prints' ); ?></strong><span><?php esc_html_e( 'Call, WhatsApp, or walk in. The brief is written down before the job starts.', 'amz-prints' ); ?></span></li>
-			<li><strong><?php esc_html_e( 'Quote and confirmation', 'amz-prints' ); ?></strong><span><?php esc_html_e( 'Pricing, timeline, and finish are confirmed, then the order gets a tracking ID.', 'amz-prints' ); ?></span></li>
-			<li><strong><?php esc_html_e( 'Design and production', 'amz-prints' ); ?></strong><span><?php esc_html_e( 'Artwork is proofed, then printing, finishing, and quality checks follow.', 'amz-prints' ); ?></span></li>
-			<li><strong><?php esc_html_e( 'Track and delivery', 'amz-prints' ); ?></strong><span><?php esc_html_e( 'Follow the live status, then collect or receive the finished job.', 'amz-prints' ); ?></span></li>
+			<?php foreach ( $process_steps as $pi => $step ) : ?>
+				<li>
+					<span class="home-process__icon" aria-hidden="true"><?php echo function_exists( 'amz_prints_work_icon' ) ? amz_prints_work_icon( $step[0] ) : ''; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?><b><?php echo esc_html( (string) ( $pi + 1 ) ); ?></b></span>
+					<strong><?php echo esc_html( $step[1] ); ?></strong>
+					<span><?php echo esc_html( $step[2] ); ?></span>
+				</li>
+			<?php endforeach; ?>
 		</ol>
 		<p class="section-foot"><a class="btn btn--ghost" href="<?php echo esc_url( home_url( '/how-we-work/' ) ); ?>"><?php esc_html_e( 'How we work', 'amz-prints' ); ?></a></p>
 	</div>
@@ -395,9 +406,30 @@ $featured_services = array_slice( $catalog, 0, 4 );
 			<h2><?php echo esc_html( amz_prints_mod( 'amz_clients_title', 'Our Clients' ) ); ?></h2>
 			<p><?php echo esc_html( amz_prints_mod( 'amz_clients_sub', 'Brands that trust AMZ Prints for color-true production and on-time delivery.' ) ); ?></p>
 		</header>
-		<ul class="home-chips">
-			<?php foreach ( $client_lines as $client_name ) : ?>
-				<li><?php echo esc_html( $client_name ); ?></li>
+	</div>
+	<?php
+	$client_cards = array();
+	foreach ( $client_lines as $ci => $client_name ) {
+		$logo_id        = $ci < 12 ? absint( amz_prints_mod( 'amz_client_logo_' . ( $ci + 1 ), 0 ) ) : 0;
+		$client_cards[] = array(
+			'name' => $client_name,
+			'logo' => $logo_id ? wp_get_attachment_image_url( $logo_id, 'medium' ) : '',
+		);
+	}
+	?>
+	<div class="client-rail" aria-label="<?php echo esc_attr( amz_prints_mod( 'amz_clients_title', 'Our Clients' ) ); ?>">
+		<ul class="client-rail__track">
+			<?php foreach ( array_merge( $client_cards, $client_cards ) as $ck => $client ) : ?>
+				<li class="client-rail__card"<?php echo $ck >= count( $client_cards ) ? ' aria-hidden="true"' : ''; ?>>
+					<span class="client-rail__logo">
+						<?php if ( $client['logo'] ) : ?>
+							<img src="<?php echo esc_url( $client['logo'] ); ?>" alt="<?php echo esc_attr( $client['name'] ); ?>" loading="lazy" decoding="async">
+						<?php else : ?>
+							<em aria-hidden="true"><?php echo esc_html( function_exists( 'mb_substr' ) ? mb_strtoupper( mb_substr( $client['name'], 0, 2 ) ) : strtoupper( substr( $client['name'], 0, 2 ) ) ); ?></em>
+						<?php endif; ?>
+					</span>
+					<strong><?php echo esc_html( $client['name'] ); ?></strong>
+				</li>
 			<?php endforeach; ?>
 		</ul>
 	</div>
