@@ -9,7 +9,8 @@ import { formatCurrency } from '@/utils/helpers';
 import { customerMatchesQuery } from '@/utils/customerSearch';
 import { barcodeBlock, openPrintWindow, printOnLoadScript, POS_MAJOR_SERVICES } from '@/utils/printHelpers';
 import { useBrand } from '@/context/BrandContext';
-import { Search, Plus, Minus, Trash2, Printer, ShoppingCart, FileSpreadsheet, PackagePlus, UserPlus, Package, Wrench } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, Printer, ShoppingCart, FileSpreadsheet, PackagePlus, UserPlus, Package, Wrench, GripHorizontal, Pin, PinOff } from 'lucide-react';
+import useFloatingPanel from '@/hooks/useFloatingPanel';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 
@@ -38,6 +39,7 @@ const POS = () => {
   const [discountValue, setDiscountValue] = useState('');
   const [checkingOut, setCheckingOut] = useState(false);
   const [lastSale, setLastSale] = useState(null);
+  const cartPanel = useFloatingPanel('amz-pos-cart-panel');
 
   const loadProducts = useCallback(async () => {
     try {
@@ -386,7 +388,7 @@ const POS = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        <div className="lg:col-span-3 space-y-3">
+        <div className={`${cartPanel.floating ? 'lg:col-span-5' : 'lg:col-span-3'} space-y-3`}>
           <div className="flex flex-wrap gap-2 items-center">
             <div className="relative flex-1 min-w-[180px]">
               <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
@@ -439,11 +441,28 @@ const POS = () => {
           </div>
         </div>
 
-        <Card className="lg:col-span-2">
-          <CardHeader>
+        <Card
+          ref={cartPanel.panelRef}
+          className={cartPanel.floating ? 'bg-white' : 'lg:col-span-2'}
+          style={cartPanel.panelStyle}
+          data-testid="pos-cart-panel"
+        >
+          <CardHeader {...cartPanel.handleProps} className={cartPanel.floating ? 'sticky top-0 z-10 bg-white border-b' : undefined}>
             <CardTitle className="flex items-center gap-2">
+              {cartPanel.floating && <GripHorizontal className="h-4 w-4 text-gray-400" aria-hidden="true" />}
               <ShoppingCart className="h-5 w-5" style={{ color: primary || '#ff6d00' }} />
               Cart
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="ml-auto h-7 text-xs"
+                onClick={cartPanel.toggle}
+                title={cartPanel.floating ? 'Put the cart back in its place' : 'Float the cart and drag it anywhere'}
+                data-testid="pos-cart-float"
+              >
+                {cartPanel.floating ? <><Pin className="h-3.5 w-3.5 mr-1" />Dock</> : <><PinOff className="h-3.5 w-3.5 mr-1" />Float</>}
+              </Button>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
