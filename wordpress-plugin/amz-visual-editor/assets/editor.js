@@ -8,7 +8,7 @@
   var moverBlock = null;
   var chain = Promise.resolve();
   var TEXT = 'h1,h2,h3,h4,h5,h6,p,a,button,figcaption,li,span,strong,em,label,td,th,blockquote';
-  var LOCK = '.shop-card, .product-tile, .product-card, .amz-prodrail, .product-modal, [data-product-id], .shop-card__media, .product-tile__media';
+  var LOCK = '.site-nav, .shop-card, .product-tile, .product-card, .amz-prodrail, .product-modal, [data-product-id], .shop-card__media, .product-tile__media';
   var BANNER = '.stage__photo, .service-pillar__media, .ds-hero__photo, .price-card__media, .amz-banners__slide, .hero__bg-photo, [role="img"]';
 
   document.body.classList.add('amz-ve-on');

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: AMZ Visual Editor
  * Description: Edit banners, paragraphs, and other photos on the live site. Change font, size, style, and alignment, and move sections up or down. Product names and product photos stay locked.
- * Version: 1.1.0
+ * Version: 1.1.1
  * Author: AMZ Prints
  * Requires at least: 6.0
  * Requires PHP: 7.4
@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AMZ_VE_VERSION', '1.1.0' );
+define( 'AMZ_VE_VERSION', '1.1.1' );
 define( 'AMZ_VE_FILE', __FILE__ );
 define( 'AMZ_VE_OPTION', 'amz_ve_content' );
 
