@@ -22,6 +22,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { customersAPI, settingsAPI } from '@/services/api';
+import { clearGasCache } from '@/services/gasClient';
 import { customerMatchesQuery } from '@/utils/customerSearch';
 import { resolveCrmStages, normalizeStageKey, DEFAULT_CRM_STAGES } from '@/utils/crmStages';
 import { useBrand } from '@/context/BrandContext';
@@ -317,6 +318,7 @@ const CustomerCRM = () => {
           return;
         }
         await customersAPI.setCrm(existingId, { inCrm: true, stage });
+        clearGasCache();
         toast.success('Customer added to CRM');
       } else {
         if (!quickForm.name.trim() || !quickForm.phone.trim()) {
@@ -343,6 +345,7 @@ const CustomerCRM = () => {
             });
           } catch { /* ignore */ }
         }
+        clearGasCache();
         toast.success('Customer added to CRM');
       }
       setQuickOpen(false);
