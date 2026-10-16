@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { productsAPI } from '@/services/api';
+import { clearGasCache } from '@/services/gasClient';
 import { isServiceItem } from '@/utils/inventoryTrack';
 import { formatCurrency } from '@/utils/helpers';
 import { Plus, Save, Trash2 } from 'lucide-react';
@@ -75,6 +76,7 @@ export default function ProductVariationsPanel({ products = [], onSaved, allowMa
     try {
       const variations = normalizeVariations(rows);
       const res = await productsAPI.updateVariations(selected.id, variations);
+      clearGasCache();
       toast.success(`${selected.name}: ${variations.length} variation(s) saved`);
       onSaved?.(res.data || { ...selected, variations });
     } catch (err) {

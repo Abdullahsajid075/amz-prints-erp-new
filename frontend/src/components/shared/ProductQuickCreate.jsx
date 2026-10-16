@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { productsAPI, settingsAPI } from '@/services/api';
+import { clearGasCache } from '@/services/gasClient';
 import { mergeInventorySettings } from '@/utils/moduleSettings';
 import { toast } from 'sonner';
 
@@ -63,6 +64,7 @@ export default function ProductQuickCreate({
       };
       const res = await productsAPI.create(payload);
       const created = res.data || payload;
+      clearGasCache();
       toast.success('Product added — returning to the previous form');
       onCreated?.(created);
       onOpenChange?.(false);

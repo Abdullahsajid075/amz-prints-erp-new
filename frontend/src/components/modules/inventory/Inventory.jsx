@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { productsAPI, purchasesAPI, ordersAPI, settingsAPI } from '@/services/api';
+import { clearGasCache } from '@/services/gasClient';
 import { Warehouse, Search, Package, Settings, Save } from 'lucide-react';
 import { mergeInventorySettings } from '@/utils/moduleSettings';
 import { isServiceItem, tracksInventory } from '@/utils/inventoryTrack';
@@ -117,6 +118,7 @@ const Inventory = () => {
     setSavingId(product.id);
     try {
       await productsAPI.update(product.id, { ...product, stock: next });
+      clearGasCache();
       toast.success(`${product.name}: on-hand set to ${next}`);
       setProducts((prev) => prev.map((p) => (p.id === product.id ? { ...p, stock: next } : p)));
       setDraftStock((prev) => {

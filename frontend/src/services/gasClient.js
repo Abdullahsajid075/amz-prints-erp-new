@@ -139,16 +139,16 @@ export async function gasRequest(method, path, options = {}) {
   }
 
   const cacheKey = httpMethod === 'GET' ? url.toString() : null;
-  // Live queues must always hit GAS — never serve stale token/counter lists
+  // Live queues must always hit GAS — never serve stale token/counter lists.
+  // /products and /customers carry embedded base64 photos (up to 5 per product) and are
+  // fetched by almost every screen (pickers, POS, purchases, warehouse) — serving them from
+  // the short in-memory cache instead of bypassing it cuts Vercel bandwidth dramatically.
+  // Every create/update/delete for these already calls clearGasCache() to stay fresh.
   const bypassCache =
     apiPath === '/tokens'
     || apiPath.startsWith('/tokens/')
     || apiPath === '/counters'
     || apiPath.startsWith('/counters/')
-    || apiPath === '/customers'
-    || apiPath.startsWith('/customers/')
-    || apiPath === '/products'
-    || apiPath.startsWith('/products/')
     || apiPath === '/dashboard/bootstrap'
     || apiPath === '/dashboard/stats'
     || apiPath === '/dashboard/charts'

@@ -5,6 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { customersAPI } from '@/services/api';
+import { clearGasCache } from '@/services/gasClient';
 import { customerMatchesQuery } from '@/utils/customerSearch';
 import {
   isCustomerBlocked, getBlockMessage, customerDisplayCode, openCustomerWelcomeWhatsApp,
@@ -138,6 +139,7 @@ export default function CustomerPicker({
         address: draft.address.trim(),
       });
       const c = res.data || {};
+      clearGasCache();
       onCustomersChange?.(c);
       applyCustomer(c);
       setOpen(false);
