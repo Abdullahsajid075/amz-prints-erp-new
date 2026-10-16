@@ -7198,6 +7198,14 @@ body.catalog-pdf-capture .catalog-page:not(.is-capturing) {
   .amz-banner__mark svg { width: 116px; height: 116px; }
 }
 
+.amz-banner__image,
+.amz-banner__image picture,
+.amz-banner__image img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 .section--nadra-cert { padding-top: calc(var(--header-h) + 1.15rem); }
 .amz-cert-page-title { margin: 0 0 1rem; }
 .amz-cert {

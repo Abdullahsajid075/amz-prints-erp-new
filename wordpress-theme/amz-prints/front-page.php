@@ -52,7 +52,32 @@ foreach ( $slide_copy as $i => $copy ) {
 		'tone'   => $copy['tone'],
 	);
 }
-if ( ! empty( $hero_slides[0]['image'] ) ) {
+$image_banners = array();
+if ( function_exists( 'amz_prints_banner_picture' ) ) {
+	for ( $bi = 1; $bi <= 6; $bi++ ) {
+		$b_id = absint( amz_prints_mod( 'amz_banner_' . $bi, 0 ) );
+		if ( ! $b_id || ! wp_get_attachment_image_url( $b_id, 'full' ) ) {
+			continue;
+		}
+		$image_banners[] = array(
+			'id'     => $b_id,
+			'mobile' => absint( amz_prints_mod( 'amz_banner_' . $bi . '_mobile', 0 ) ),
+			'url'    => trim( (string) amz_prints_mod( 'amz_banner_' . $bi . '_url', '' ) ),
+			'alt'    => trim( (string) get_post_meta( $b_id, '_wp_attachment_image_alt', true ) ),
+		);
+	}
+}
+if ( $image_banners ) {
+	if ( ! $image_banners[0]['mobile'] ) {
+		add_action(
+			'wp_head',
+			static function () use ( $image_banners ) {
+				echo '<link rel="preload" as="image" href="' . esc_url( wp_get_attachment_image_url( $image_banners[0]['id'], 'full' ) ) . '" fetchpriority="high">' . "\n";
+			},
+			1
+		);
+	}
+} elseif ( ! empty( $hero_slides[0]['image'] ) ) {
 	add_action(
 		'wp_head',
 		static function () use ( $hero_slides ) {
@@ -96,6 +121,32 @@ $featured_products = array_slice( $photo_products, 0, 8 );
 $featured_services = array_slice( $catalog, 0, 4 );
 ?>
 
+<?php if ( $image_banners ) : ?>
+<section class="stage stage--images" data-hero-rotator data-interval="6000" aria-roledescription="carousel" aria-label="<?php echo esc_attr( $headline ); ?>">
+	<h1 class="screen-reader-text"><?php echo esc_html( $headline ); ?></h1>
+	<div class="stage__panel stage__panel--images">
+		<?php foreach ( $image_banners as $i => $banner ) : ?>
+			<?php
+			$b_alt  = $banner['alt'] ? $banner['alt'] : sprintf( __( 'AMZ Prints banner %d', 'amz-prints' ), $i + 1 );
+			$b_html = amz_prints_banner_picture( $banner['id'], $banner['mobile'], $b_alt, $i > 0 );
+			$b_cls  = 'stage__slide stage__slide--image' . ( 0 === $i ? ' is-active' : '' );
+			?>
+			<?php if ( $banner['url'] ) : ?>
+				<a class="<?php echo esc_attr( $b_cls ); ?>" href="<?php echo esc_url( $banner['url'] ); ?>" data-slide><?php echo $b_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></a>
+			<?php else : ?>
+				<div class="<?php echo esc_attr( $b_cls ); ?>" data-slide><?php echo $b_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div>
+			<?php endif; ?>
+		<?php endforeach; ?>
+		<?php if ( count( $image_banners ) > 1 ) : ?>
+			<div class="stage__dots">
+				<?php foreach ( $image_banners as $i => $banner ) : ?>
+					<button type="button" class="<?php echo 0 === $i ? 'is-active' : ''; ?>" data-stage-dot="<?php echo esc_attr( (string) $i ); ?>" aria-label="<?php echo esc_attr( sprintf( __( 'Slide %d', 'amz-prints' ), $i + 1 ) ); ?>"></button>
+				<?php endforeach; ?>
+			</div>
+		<?php endif; ?>
+	</div>
+</section>
+<?php else : ?>
 <section class="stage" data-hero-rotator data-interval="7000" aria-roledescription="carousel" aria-label="<?php echo esc_attr( $headline ); ?>">
 	<div class="stage__panel">
 		<?php foreach ( $hero_slides as $i => $slide ) : ?>
@@ -133,6 +184,7 @@ $featured_services = array_slice( $catalog, 0, 4 );
 		</div>
 	</div>
 </section>
+<?php endif; ?>
 
 <div class="amz-marquee amz-marquee--ink" aria-hidden="true">
 	<div class="amz-marquee__track">

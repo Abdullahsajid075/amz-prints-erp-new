@@ -127,6 +127,30 @@
   .stage__slide { transition: none; }
 }
 
+.stage__panel.stage__panel--images {
+  min-height: 0;
+  background: #111;
+}
+.stage__panel--images .stage__slide--image {
+  display: block;
+  padding: 0;
+}
+.stage__panel--images .stage__slide--image.is-active { position: relative; }
+.stage__slide--image picture,
+.stage__slide--image img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.stage--images .stage__dots {
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 0.8rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 99px;
+  background: rgba(17, 17, 17, 0.35);
+}
+
 .home-hero {
   padding: calc(var(--header-h) + 1.1rem) 0 0.4rem;
 }

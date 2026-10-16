@@ -210,10 +210,20 @@ function amz_prints_customize_register( $wp_customize ) {
 			'sanitize_callback' => 'absint',
 		) );
 		$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'amz_banner_' . $bi, array(
-			'label'       => sprintf( __( 'Animated banner %d (1250×250)', 'amz-prints' ), $bi ),
+			'label'       => sprintf( __( 'Homepage banner %d image', 'amz-prints' ), $bi ),
 			'section'     => 'amz_hero',
 			'mime_type'   => 'image',
-			'description' => __( 'Full-width homepage slide. Upload 1250×250 px.', 'amz-prints' ),
+			'description' => __( 'Full-width image banner, shown without text. Once any banner image is uploaded, the homepage slider shows only these images. Any size works; 1920×700 px is a good wide size.', 'amz-prints' ),
+		) ) );
+		$wp_customize->add_setting( 'amz_banner_' . $bi . '_mobile', array(
+			'default'           => 0,
+			'sanitize_callback' => 'absint',
+		) );
+		$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'amz_banner_' . $bi . '_mobile', array(
+			'label'       => sprintf( __( 'Homepage banner %d mobile image (optional)', 'amz-prints' ), $bi ),
+			'section'     => 'amz_hero',
+			'mime_type'   => 'image',
+			'description' => __( 'Shown on phones instead of the wide image, for example 800×800 px. Leave empty to use the wide image on phones too.', 'amz-prints' ),
 		) ) );
 		$wp_customize->add_setting( 'amz_banner_' . $bi . '_url', array(
 			'default'           => '',
@@ -514,6 +524,34 @@ function amz_prints_customize_register( $wp_customize ) {
 				'section'     => 'amz_page_banners',
 				'mime_type'   => 'image',
 			) ) );
+			$wp_customize->add_setting( 'amz_banner_' . $banner_key . '_full', array(
+				'default'           => 0,
+				'sanitize_callback' => 'absint',
+			) );
+			$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'amz_banner_' . $banner_key . '_full', array(
+				'label'       => sprintf( __( '%s full banner image', 'amz-prints' ), $banner_def['title'] ),
+				'description' => __( 'Optional. Replaces the whole banner (text and icon) with this image at full width.', 'amz-prints' ),
+				'section'     => 'amz_page_banners',
+				'mime_type'   => 'image',
+			) ) );
+			$wp_customize->add_setting( 'amz_banner_' . $banner_key . '_full_mobile', array(
+				'default'           => 0,
+				'sanitize_callback' => 'absint',
+			) );
+			$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'amz_banner_' . $banner_key . '_full_mobile', array(
+				'label'       => sprintf( __( '%s full banner mobile image (optional)', 'amz-prints' ), $banner_def['title'] ),
+				'section'     => 'amz_page_banners',
+				'mime_type'   => 'image',
+			) ) );
+			$wp_customize->add_setting( 'amz_banner_' . $banner_key . '_link', array(
+				'default'           => '',
+				'sanitize_callback' => 'esc_url_raw',
+			) );
+			$wp_customize->add_control( 'amz_banner_' . $banner_key . '_link', array(
+				'label'   => sprintf( __( '%s full banner link (optional)', 'amz-prints' ), $banner_def['title'] ),
+				'section' => 'amz_page_banners',
+				'type'    => 'url',
+			) );
 		}
 	}
 

@@ -80,9 +80,25 @@ function amz_prints_page_banner( $key ) {
 	if ( ! isset( $defs[ $key ] ) ) {
 		return;
 	}
-	$def    = $defs[ $key ];
-	$title  = (string) amz_prints_mod( 'amz_banner_' . $key . '_title', $def['title'] );
-	$lead   = (string) amz_prints_mod( 'amz_banner_' . $key . '_lead', $def['lead'] );
+	$def     = $defs[ $key ];
+	$title   = (string) amz_prints_mod( 'amz_banner_' . $key . '_title', $def['title'] );
+	$lead    = (string) amz_prints_mod( 'amz_banner_' . $key . '_lead', $def['lead'] );
+	$full_id = absint( amz_prints_mod( 'amz_banner_' . $key . '_full', 0 ) );
+	$full    = $full_id ? amz_prints_banner_picture( $full_id, absint( amz_prints_mod( 'amz_banner_' . $key . '_full_mobile', 0 ) ), $title ) : '';
+	if ( $full ) {
+		$link = trim( (string) amz_prints_mod( 'amz_banner_' . $key . '_link', '' ) );
+		?>
+		<section class="amz-banner amz-banner--image amz-banner--<?php echo esc_attr( $key ); ?>">
+			<h1 class="screen-reader-text"><?php echo esc_html( $title ); ?></h1>
+			<?php if ( $link ) : ?>
+				<a class="amz-banner__image" href="<?php echo esc_url( $link ); ?>"><?php echo $full; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></a>
+			<?php else : ?>
+				<div class="amz-banner__image"><?php echo $full; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div>
+			<?php endif; ?>
+		</section>
+		<?php
+		return;
+	}
 	$img_id = absint( amz_prints_mod( 'amz_banner_' . $key . '_image', 0 ) );
 	$img    = $img_id ? (string) wp_get_attachment_image_url( $img_id, 'large' ) : '';
 	?>
@@ -104,6 +120,42 @@ function amz_prints_page_banner( $key ) {
 		</div>
 	</section>
 	<?php
+}
+
+/**
+ * Full-width banner image that keeps its own proportions. An optional mobile
+ * image replaces it on small screens.
+ *
+ * @param int    $desktop_id Attachment ID for wide screens.
+ * @param int    $mobile_id  Attachment ID for phones, or 0.
+ * @param string $alt        Alt text.
+ * @param bool   $lazy       Defer loading until the slider asks for it.
+ * @return string
+ */
+function amz_prints_banner_picture( $desktop_id, $mobile_id = 0, $alt = '', $lazy = false ) {
+	$src = $desktop_id ? (string) wp_get_attachment_image_url( $desktop_id, 'full' ) : '';
+	if ( '' === $src ) {
+		return '';
+	}
+	$srcset = (string) wp_get_attachment_image_srcset( $desktop_id, 'full' );
+	$meta   = wp_get_attachment_image_src( $desktop_id, 'full' );
+	$width  = $meta ? (int) $meta[1] : 1920;
+	$height = $meta ? (int) $meta[2] : 700;
+	$attr   = $lazy ? 'data-' : '';
+	$blank  = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
+	$html = '<picture>';
+	$m_src = $mobile_id ? (string) wp_get_attachment_image_url( $mobile_id, 'full' ) : '';
+	if ( $m_src ) {
+		$m_set = (string) wp_get_attachment_image_srcset( $mobile_id, 'full' );
+		$html .= '<source media="(max-width: 700px)" ' . $attr . 'srcset="' . esc_attr( $m_set ? $m_set : $m_src ) . '" sizes="100vw">';
+	}
+	$html .= '<img ' . ( $lazy ? 'src="' . esc_attr( $blank ) . '" data-src="' . esc_url( $src ) . '"' : 'src="' . esc_url( $src ) . '" fetchpriority="high"' );
+	if ( $srcset ) {
+		$html .= ' ' . $attr . 'srcset="' . esc_attr( $srcset ) . '" sizes="100vw"';
+	}
+	$html .= ' alt="' . esc_attr( $alt ) . '" width="' . esc_attr( (string) $width ) . '" height="' . esc_attr( (string) $height ) . '" decoding="async"></picture>';
+	return $html;
 }
 
 /**

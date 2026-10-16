@@ -217,6 +217,10 @@
     var stageEditing = /(?:\?|&)amz-edit=1(?:&|$)/.test(window.location.search);
     function stageSrc(slide) {
       if (!slide) return;
+      Array.prototype.forEach.call(slide.querySelectorAll('[data-srcset]'), function (node) {
+        node.setAttribute('srcset', node.getAttribute('data-srcset'));
+        node.removeAttribute('data-srcset');
+      });
       var img = slide.querySelector('img[data-src]');
       if (!img) return;
       img.src = img.getAttribute('data-src');
