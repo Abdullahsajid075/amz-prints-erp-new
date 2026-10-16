@@ -6,29 +6,13 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { dispatch } = require('./routes/dispatch');
+const { isAllowedOrigin, parseOrigins } = require('./lib/corsOrigins');
 
 const app = express();
-const origins = String(process.env.CORS_ORIGINS || '*')
-  .split(',')
-  .map((s) => s.trim())
-  .filter(Boolean);
-
-function isAllowedOrigin(origin) {
-  if (!origin) return true;
-  if (origins.includes('*') || origins.includes(origin)) return true;
-  try {
-    const host = new URL(origin).hostname;
-    if (host === 'localhost' || host === '127.0.0.1') return true;
-    if (host.endsWith('.vercel.app')) return true;
-    if (host === 'amzprints.com' || host.endsWith('.amzprints.com')) return true;
-  } catch {
-    return false;
-  }
-  return false;
-}
+const origins = parseOrigins(process.env.CORS_ORIGINS);
 
 app.use(cors({
-  origin: (origin, cb) => cb(null, isAllowedOrigin(origin) ? origin || true : false),
+  origin: (origin, cb) => cb(null, isAllowedOrigin(origin, origins) ? origin || true : false),
   credentials: true,
 }));
 
