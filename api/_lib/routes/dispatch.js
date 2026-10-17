@@ -1538,7 +1538,9 @@ async function dispatch(req, res) {
       if (method === 'GET' && (path === '/public/catalog.js' || path === '/catalog.js')) {
         if (typeof res.setHeader === 'function') {
           res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+          // This is just code (no product data), and WordPress busts the URL's
+          // ?ver= with the plugin file's own mtime, so it is safe to cache longer.
+          res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=300');
           res.setHeader('Access-Control-Allow-Origin', '*');
         }
         res.statusCode = 200;
@@ -1551,6 +1553,9 @@ async function dispatch(req, res) {
         if (settings.companyLogo) company.logo = settings.companyLogo;
         if (settings.companyStamp) company.stamp = settings.companyStamp;
         if (settings.companySignature) company.signature = settings.companySignature;
+        if (typeof res.setHeader === 'function') {
+          res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=60, stale-while-revalidate=60');
+        }
         return send(res, {
           company,
           theme: settings.theme || {},
@@ -1712,8 +1717,12 @@ async function dispatch(req, res) {
       }
       if (method === 'GET' && path === '/public/products') {
         if (typeof res.setHeader === 'function') {
-          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-          res.setHeader('Pragma', 'no-cache');
+          // Every website page load fetches this (images included, often several
+          // MB) with no per-visitor auth — a short shared cache lets the Hostinger
+          // CDN serve repeat visitors from the edge instead of re-hitting Supabase
+          // for each one. 30s is far below the staleness anyone would notice and
+          // well under the 60s cache the WordPress theme already keeps server-side.
+          res.setHeader('Cache-Control', 'public, max-age=30, s-maxage=30, stale-while-revalidate=30');
         }
         const { data } = await supabase.from('products').select('*');
         await syncWebsiteCatalogFlags(data || []);
@@ -1727,6 +1736,9 @@ async function dispatch(req, res) {
         if (!data) return sendError(res, 'Product not found', 404);
         const pub = mapProduct(data);
         if (!isListedOnWebsite(pub)) return sendError(res, 'Product not available', 404);
+        if (typeof res.setHeader === 'function') {
+          res.setHeader('Cache-Control', 'public, max-age=30, s-maxage=30, stale-while-revalidate=30');
+        }
         return send(res, pub);
       }
       if (method === 'POST' && path === '/public/lead') {

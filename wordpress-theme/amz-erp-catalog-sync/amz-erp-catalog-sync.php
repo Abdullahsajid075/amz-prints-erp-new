@@ -60,11 +60,15 @@ add_filter( 'pre_http_request', 'amz_erp_catalog_reroute_gas', 5, 3 );
  * After the 3.12.0 theme paints shop-cards, hide anything the live ERP catalog rejects.
  */
 function amz_erp_catalog_enqueue_sync() {
+	// A stable version string (file mtime, not time()) lets browsers/CDN cache
+	// this script across page views instead of re-downloading it on every
+	// single request — it only changes when this plugin file is actually
+	// updated.
 	wp_enqueue_script(
 		'amz-erp-catalog-sync',
 		AMZ_ERP_LIVE_API . '?path=/public/catalog.js',
 		array(),
-		(string) time(),
+		(string) filemtime( __FILE__ ),
 		true
 	);
 }

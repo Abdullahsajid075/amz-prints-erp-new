@@ -15,7 +15,11 @@ function websiteCatalogSyncScript(apiBase) {
   const base = String(apiBase || 'https://api.amzprints.com').trim().replace(/\/+$/, '');
   return `(function () {
   'use strict';
-  var API = ${JSON.stringify(base)} + '?path=' + encodeURIComponent('/public/products') + '&_=' + Date.now();
+  // No cache-busting query param on purpose: the server sends a short shared
+  // Cache-Control (see /public/products in dispatch.js), so repeat page loads
+  // across every visitor can be served from the Hostinger CDN edge instead of
+  // each one re-downloading the full (often multi-MB, image-heavy) catalog.
+  var API = ${JSON.stringify(base)} + '?path=' + encodeURIComponent('/public/products');
 
   function realPhoto(src) {
     var s = String(src || '').trim();
@@ -64,7 +68,7 @@ function websiteCatalogSyncScript(apiBase) {
     });
   }
 
-  fetch(API, { cache: 'no-store', credentials: 'omit' })
+  fetch(API, { credentials: 'omit' })
     .then(function (r) { return r.json(); })
     .then(function (data) { apply(data && data.products ? data.products : []); })
     .catch(function () { /* keep server markup if API is unreachable */ });
