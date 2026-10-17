@@ -18,6 +18,10 @@ import { countOpenCrmQueries } from '@/utils/crmStages';
 import { useDashboardLayout } from '@/hooks/useDashboardLayout';
 import HomeSurvey from './HomeSurvey';
 
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
 function SortableApp({ app, badge, onOpen }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: app.id });
   const Icon = app.icon;
@@ -58,8 +62,29 @@ function SortableApp({ app, badge, onOpen }) {
   );
 }
 
-/** Full-width Apps strip. Used on the dashboard above the original KPI view. */
-const ErpHomeLauncher = () => {
+/**
+ * Full-width Apps strip. Used on the dashboard above the original KPI view.
+ *
+ * `orders`/`customers`/`purchases` are optional pre-fetched lists. Dashboard
+ * (the only current caller) already fetches all three for its own KPIs on
+ * every page load — passing them down here instead of refetching avoids
+ * firing duplicate, uncached /orders and /purchases requests (and a second
+ * /customers request) on every single dashboard visit.
+ *
+ * `useSharedData` tells this component those lists are being supplied by the
+ * parent and it should NOT fall back to fetching on its own even before the
+ * parent's fetch resolves (the lists start out `undefined` for one render
+ * while the parent's request is in flight) — without this flag, this
+ * component's own mount effect would race ahead and self-fetch anyway before
+ * the parent had a chance to pass the real arrays down, defeating the point.
+ * Badge counts simply stay at 0 until the shared lists arrive. When
+ * `useSharedData` is not set (e.g. a future standalone usage with no
+ * parent supplying data), each list is fetched independently so the
+ * component still works on its own.
+ */
+const ErpHomeLauncher = ({
+  orders: ordersProp, customers: customersProp, purchases: purchasesProp, useSharedData = false,
+} = {}) => {
   const navigate = useNavigate();
   const { user, canAccessModule } = useAuth();
   const { primary } = useBrand();
@@ -84,43 +109,56 @@ const ErpHomeLauncher = () => {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
+  const hasOrdersProp = Array.isArray(ordersProp);
+  const hasCustomersProp = Array.isArray(customersProp);
+  const hasPurchasesProp = Array.isArray(purchasesProp);
+  // When the parent promises shared data, only fetch a given list ourselves
+  // once it's clear the parent isn't going to supply it (it already has, or
+  // never will because this list isn't one it tracks). Until then, skip —
+  // don't race the parent's own in-flight request with a duplicate one.
+  const skipOrdersFetch = useSharedData && !hasOrdersProp;
+  const skipCustomersFetch = useSharedData && !hasCustomersProp;
+  const skipPurchasesFetch = useSharedData && !hasPurchasesProp;
+
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       const next = { orders: 0, acks: 0, crm: 0 };
       try {
-        if (canAccessModule('orders')) {
-          const res = await ordersAPI.getAll();
-          const list = Array.isArray(res.data) ? res.data : [];
+        if (canAccessModule('orders') && !skipOrdersFetch) {
+          const list = hasOrdersProp ? ordersProp : asArray((await ordersAPI.getAll()).data);
           next.orders = list.filter(isOpenOrder).length;
         }
       } catch { /* keep 0 */ }
       try {
-        if (canAccessModule('crm')) {
-          const res = await customersAPI.getAll();
-          next.crm = countOpenCrmQueries(Array.isArray(res.data) ? res.data : []);
+        if (canAccessModule('crm') && !skipCustomersFetch) {
+          const list = hasCustomersProp ? customersProp : asArray((await customersAPI.getAll()).data);
+          next.crm = countOpenCrmQueries(list);
         }
       } catch { /* keep 0 */ }
       try {
-        if (canAccessModule('acknowledgments')) {
-          const [ordRes, prodRes, poRes] = await Promise.all([
-            ordersAPI.getAll(),
-            productsAPI.getAll(),
-            purchasesAPI.getAll().catch(() => ({ data: [] })),
+        if (canAccessModule('acknowledgments') && !(skipOrdersFetch || skipPurchasesFetch)) {
+          const ordersPromise = hasOrdersProp ? Promise.resolve(ordersProp) : ordersAPI.getAll().then((r) => asArray(r.data));
+          const purchasesPromise = hasPurchasesProp
+            ? Promise.resolve(purchasesProp)
+            : purchasesAPI.getAll().then((r) => asArray(r.data)).catch(() => []);
+          const [orderList, productList, purchaseList] = await Promise.all([
+            ordersPromise,
+            productsAPI.getAll().then((r) => asArray(r.data)),
+            purchasesPromise,
           ]);
-          next.acks = buildPurchaseNeeds({
-            orders: Array.isArray(ordRes.data) ? ordRes.data : [],
-            products: Array.isArray(prodRes.data) ? prodRes.data : [],
-            purchases: Array.isArray(poRes.data) ? poRes.data : [],
-          }).length
-            + buildLowQuantityAlerts({ products: Array.isArray(prodRes.data) ? prodRes.data : [] }).length;
+          next.acks = buildPurchaseNeeds({ orders: orderList, products: productList, purchases: purchaseList }).length
+            + buildLowQuantityAlerts({ products: productList }).length;
         }
       } catch { /* keep 0 */ }
       if (!cancelled) setCounts(next);
     };
     load();
     return () => { cancelled = true; };
-  }, [canAccessModule]);
+  }, [
+    canAccessModule, hasOrdersProp, ordersProp, hasCustomersProp, customersProp, hasPurchasesProp, purchasesProp,
+    skipOrdersFetch, skipCustomersFetch, skipPurchasesFetch,
+  ]);
 
   const badgeFor = (app) => {
     if (app.id === 'orders') return { n: counts.orders, color: '#0747a3' };
