@@ -13,11 +13,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AMZ_ERP_LIVE_API', 'https://amz-prints-api.vercel.app/api' );
+define( 'AMZ_ERP_LIVE_API', 'https://api.amzprints.com' );
 
 /**
  * Live WordPress still calls the old Google Apps Script URL.
- * Send those requests to the ERP/Vercel catalog instead.
+ * Send those requests to the live ERP catalog instead.
  */
 function amz_erp_catalog_reroute_gas( $preempt, $args, $url ) {
 	if ( false !== $preempt ) {

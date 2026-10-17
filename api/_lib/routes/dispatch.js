@@ -1542,7 +1542,8 @@ async function dispatch(req, res) {
           res.setHeader('Access-Control-Allow-Origin', '*');
         }
         res.statusCode = 200;
-        return res.end(websiteCatalogSyncScript());
+        const host = (req.get && req.get('host')) || req.headers?.host || 'api.amzprints.com';
+        return res.end(websiteCatalogSyncScript(`https://${host}`));
       }
       if (method === 'GET' && path === '/public/branding') {
         const settings = await getSettingsObject();

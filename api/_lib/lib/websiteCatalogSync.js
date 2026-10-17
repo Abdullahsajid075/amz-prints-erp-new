@@ -2,11 +2,20 @@
  * Browser script for amzprints.com (theme 3.12.0 shop-cards).
  * Always reads the live ERP catalog and hides anything without a real photo.
  * Same rule for old rows and newly saved products.
+ *
+ * `apiBase` must be the base URL this script itself was served from (e.g.
+ * https://api.amzprints.com). Never hardcode a domain here — a previous
+ * hardcoded `amz-prints-api.vercel.app` silently broke the whole website
+ * catalog sync once that Vercel deployment was paused, because the browser
+ * kept trying to fetch products from a dead host even after the API moved.
+ * Deriving it from the actual request host makes this self-healing if the
+ * API domain ever changes again.
  */
-function websiteCatalogSyncScript() {
+function websiteCatalogSyncScript(apiBase) {
+  const base = String(apiBase || 'https://api.amzprints.com').trim().replace(/\/+$/, '');
   return `(function () {
   'use strict';
-  var API = 'https://amz-prints-api.vercel.app/api?path=' + encodeURIComponent('/public/products') + '&_=' + Date.now();
+  var API = ${JSON.stringify(base)} + '?path=' + encodeURIComponent('/public/products') + '&_=' + Date.now();
 
   function realPhoto(src) {
     var s = String(src || '').trim();

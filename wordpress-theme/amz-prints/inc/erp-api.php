@@ -12,7 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 if ( ! defined( 'AMZ_PRINTS_ERP_API_DEFAULT' ) ) {
 	define(
 		'AMZ_PRINTS_ERP_API_DEFAULT',
-		'https://amz-prints-api.vercel.app/api'
+		'https://api.amzprints.com'
 	);
 }
 
