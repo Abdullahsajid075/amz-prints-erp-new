@@ -2,6 +2,7 @@ const { supabase } = require('../db');
 const { handleLogin, validateToken, sanitizeUser } = require('../lib/auth');
 const { id, today, nowTime, dateKey, num, truthy, send, sendError } = require('../lib/util');
 const { websiteCatalogSyncScript } = require('../lib/websiteCatalogSync');
+const { cachedRead, clearCache } = require('../lib/memoCache');
 const {
   mapCustomer, mapOrder, mapProduct, mapInvoice, mapEmployee,
   mapVendor, mapPayment, mapExpense, mapPurchase, mapUser, mapToken,
@@ -215,6 +216,24 @@ async function syncWebsiteCatalogFlags(rows) {
   return { hidden: hide.length, published: list.filter((row) => isListedOnWebsite(mapProduct(row))).length };
 }
 
+/**
+ * Shared, short-lived cache of the full products table (post auto-hide
+ * sync), reused by both the authenticated `/products` listing and the
+ * public `/public/products` website feed. Both previously ran their own
+ * separate `select('*')` against the same table (images included) — this
+ * way concurrent staff and website traffic share one Supabase read instead
+ * of two. See memoCache.js for why a short TTL, not write-site
+ * invalidation, is used here.
+ */
+async function getProductsRaw() {
+  return cachedRead('products:raw', async () => {
+    const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    await syncWebsiteCatalogFlags(data || []);
+    return data || [];
+  }, 20000);
+}
+
 const LEAN_ORDER_COLS = 'id,order_id,date,created_at,customer_id,customer_phone,customer_name,status,doc_type,total_amount,advance_payment,balance_amount,delivery_date,tracking_number';
 const LEAN_INVOICE_COLS = 'id,customer_id,customer_phone,order_id,total,paid,previous_balance,status,invoice_no,date';
 /** Live payments table has party_phone, not customer_phone. */
@@ -277,12 +296,26 @@ async function ensureWalkIn() {
   return mapCustomer(row);
 }
 
+/**
+ * Settings (branding/logo/stamp/signature, dashboard layouts, inventory
+ * mode, POS register state, ...) are stored as one key/value table and
+ * always read back as a whole. A few UI pieces (the dashboard's inventory
+ * mode badge, the Inventory and Products pages) poll this every ~20s for as
+ * long as they stay open, each time pulling back every key including the
+ * base64 logo/stamp/signature — a steady, continuous Supabase read even
+ * when nobody is actively doing anything. Cache the read for a short TTL so
+ * overlapping polls/pages share one Supabase query, and invalidate
+ * immediately on every write (saveSettingsObject is the only place writes
+ * happen) so a user who just saved a setting never sees stale data back.
+ */
 async function getSettingsObject() {
-  const { data, error } = await supabase.from('settings').select('key,value');
-  if (error) throw error;
-  const obj = {};
-  (data || []).forEach((r) => { obj[r.key] = r.value; });
-  return obj;
+  return cachedRead('settings:all', async () => {
+    const { data, error } = await supabase.from('settings').select('key,value');
+    if (error) throw error;
+    const obj = {};
+    (data || []).forEach((r) => { obj[r.key] = r.value; });
+    return obj;
+  }, 15000);
 }
 
 async function saveSettingsObject(incoming = {}) {
@@ -294,6 +327,7 @@ async function saveSettingsObject(incoming = {}) {
       updated_at: new Date().toISOString(),
     });
   }
+  clearCache('settings:all');
   return getSettingsObject();
 }
 
@@ -1724,9 +1758,8 @@ async function dispatch(req, res) {
           // well under the 60s cache the WordPress theme already keeps server-side.
           res.setHeader('Cache-Control', 'public, max-age=30, s-maxage=30, stale-while-revalidate=30');
         }
-        const { data } = await supabase.from('products').select('*');
-        await syncWebsiteCatalogFlags(data || []);
-        const products = (data || []).map(mapProduct).filter((p) => isListedOnWebsite(p));
+        const rows = await getProductsRaw();
+        const products = rows.map(mapProduct).filter((p) => isListedOnWebsite(p));
         products.sort((a, b) => Number(!!b.showOnTop) - Number(!!a.showOnTop) || String(a.name).localeCompare(String(b.name)));
         return send(res, { products, generatedAt: new Date().toISOString() });
       }
@@ -2270,13 +2303,23 @@ async function dispatch(req, res) {
     // Customers + CRM
     if (path === '/customers' || path.startsWith('/customers/')) {
       if (path === '/customers' && method === 'GET') {
-        const [data, orders, invoices, payments] = await Promise.all([
-          dbSelectSafe('customers', '*', (q) => q.order('created_at', { ascending: false })),
-          dbSelectSafe('orders', LEAN_ORDER_COLS),
-          dbSelectSafe('invoices', LEAN_INVOICE_COLS),
-          dbSelectSafe('payments', LEAN_PAYMENT_COLS),
-        ]);
-        return send(res, (data || []).map((c) => attachCustomerLedger(c, orders || [], invoices || [], payments || [])));
+        // Called from 15+ pages (CRM, POS, Orders, Invoices, Quotations,
+        // Payments, the sidebar, etc.), and every call fans out into four
+        // full-table reads just to compute each customer's running ledger.
+        // The result is identical for every authenticated user, so a short
+        // shared cache collapses repeated bursts of this four-way fan-out
+        // into one. See memoCache.js for why a short TTL, not write-site
+        // invalidation, is used here.
+        const result = await cachedRead('customers:list', async () => {
+          const [data, orders, invoices, payments] = await Promise.all([
+            dbSelectSafe('customers', '*', (q) => q.order('created_at', { ascending: false })),
+            dbSelectSafe('orders', LEAN_ORDER_COLS),
+            dbSelectSafe('invoices', LEAN_INVOICE_COLS),
+            dbSelectSafe('payments', LEAN_PAYMENT_COLS),
+          ]);
+          return (data || []).map((c) => attachCustomerLedger(c, orders || [], invoices || [], payments || []));
+        }, 20000);
+        return send(res, result);
       }
       if (path === '/customers' && method === 'POST') {
         const nameNorm = String(body.name || '').toLowerCase().replace(/[\s_-]+/g, '');
@@ -2610,10 +2653,15 @@ async function dispatch(req, res) {
 
     if (path === '/products' || path.startsWith('/products/')) {
       if (path === '/products' && method === 'GET') {
-        const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false });
-        if (error) throw error;
-        await syncWebsiteCatalogFlags(data || []);
-        return send(res, (data || []).map(mapProduct));
+        // Fetched from more than a dozen pages — POS, Orders, Invoices,
+        // Purchases, Inventory, Quotations, the sidebar, etc. — often
+        // several times a minute across different staff sessions, and the
+        // response (including embedded base64 images, capped at ~220KB per
+        // product) is identical for every authenticated user. getProductsRaw
+        // shares one short-lived cached read with the public catalog feed
+        // below instead of each re-querying the same table separately.
+        const rows = await getProductsRaw();
+        return send(res, rows.map(mapProduct));
       }
       if (path === '/products/publish-website' && (method === 'POST' || method === 'PUT')) {
         const { data, error } = await supabase.from('products').select('*');
