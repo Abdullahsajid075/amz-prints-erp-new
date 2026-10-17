@@ -2,22 +2,20 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, getUserDisplayName } from '@/context/AuthContext';
 import { useBrand } from '@/context/BrandContext';
-import { ERP_HOME_APPS, ERP_LEGAL_NAME } from '@/utils/erpApps';
+import { ERP_HOME_APPS } from '@/utils/erpApps';
 import { ordersAPI, productsAPI, purchasesAPI, customersAPI } from '@/services/api';
 import { isOpenOrder } from '@/utils/constants';
 import { buildPurchaseNeeds, buildLowQuantityAlerts } from '@/utils/purchaseNeeds';
 import { countOpenCrmQueries } from '@/utils/crmStages';
-import BrandLockup from './BrandLockup';
 import HomeSurvey from './HomeSurvey';
 
 /** Full-width Apps strip. Used on the dashboard above the original KPI view. */
 const ErpHomeLauncher = () => {
   const navigate = useNavigate();
   const { user, canAccessModule } = useAuth();
-  const { company, primary } = useBrand();
+  const { primary } = useBrand();
   const name = getUserDisplayName(user);
   const accent = primary || '#ff6d00';
-  const legal = ERP_LEGAL_NAME;
 
   const [counts, setCounts] = useState({ orders: 0, acks: 0, crm: 0 });
 
@@ -118,10 +116,6 @@ const ErpHomeLauncher = () => {
     <div className="erp-home-page" data-testid="erp-home-launcher" aria-label="ERP apps">
       <div className="erp-home-glow" />
 
-      <div className="erp-home-toplogo">
-        <BrandLockup company={company} accent={accent} invert />
-      </div>
-
       <h1 className="erp-home-headline">Welcome, {name}</h1>
       <p className="erp-home-sub">Open an app, or scroll for the operations dashboard</p>
 
@@ -130,7 +124,6 @@ const ErpHomeLauncher = () => {
       <div className="erp-home-panel" data-testid="erp-home-window">
         <div className="erp-home-panel-bar" style={{ background: `linear-gradient(90deg, ${accent} 0%, #0747a3 100%)` }}>
           <p className="text-[11px] uppercase tracking-[0.16em] font-bold text-white/90">Apps</p>
-          <p className="text-[11px] font-semibold text-white/80 truncate">{legal}</p>
         </div>
 
         <div className="erp-home-panel-body">

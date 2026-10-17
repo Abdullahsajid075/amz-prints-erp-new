@@ -9,6 +9,7 @@ import { reportsAPI, ordersAPI, expensesAPI, paymentsAPI, purchasesAPI } from '@
 import { formatCurrency, formatDate, isExpenseApproved } from '@/utils/helpers';
 import { sortBy } from '@/utils/sortBy';
 import SortBar from '@/components/shared/SortBar';
+import { buildDocumentFilename, formatDateRangeForFilename } from '@/utils/documentFilename';
 import { useBrand } from '@/context/BrandContext';
 import { TrendingUp, TrendingDown, DollarSign, ShoppingBag, Calendar, Printer, FileSpreadsheet } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend, AreaChart, Area } from 'recharts';
@@ -328,7 +329,13 @@ const Reports = () => {
       );
       name = 'report-pl';
     }
-    downloadCsv(`${name}-${dateRange.from || 'all'}-${dateRange.to || 'all'}.csv`, csv);
+    const reportLabel = REPORT_TYPES.find((t) => t.value === reportType)?.label || name;
+    const filename = buildDocumentFilename(
+      reportLabel,
+      [formatDateRangeForFilename(dateRange.from, dateRange.to) || 'All dates'],
+      { extension: 'csv' }
+    );
+    downloadCsv(filename, csv);
     toast.success('CSV exported');
   };
 
