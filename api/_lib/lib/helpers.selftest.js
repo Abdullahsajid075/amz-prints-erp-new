@@ -17,6 +17,16 @@ assert(!isListedOnWebsite({ ...readyMug, showOnWebsite: false }), 'hidden when s
 assert(!isListedOnWebsite({ ...readyMug, show_on_website: false }), 'hidden when db flag off');
 assert(!isListedOnWebsite({ ...readyMug, active: false }), 'hidden when inactive');
 assert(!isListedOnWebsite({ name: 'Mug', description: 'Photo mug', images: [] }), 'hidden when incomplete');
+const { productFromBody } = require('./helpers');
+const hugeImage = `data:image/jpeg;base64,${'a'.repeat(500001)}`;
+const normalImage = `data:image/jpeg;base64,${'a'.repeat(1000)}`;
+assert(productFromBody({ name: 'X', images: [hugeImage] }).images.length === 0, 'single oversized image dropped');
+assert(productFromBody({ name: 'X', images: [normalImage] }).images[0] === normalImage, 'normal image kept');
+assert(
+  productFromBody({ name: 'X', images: [normalImage, hugeImage] }).images.join() === normalImage,
+  'oversized image dropped alongside a normal one',
+);
+
 const { customerPhoto } = require('./helpers');
 assert(customerPhoto({ notes: 'x\n[[AMZ_DP]]data:image/png;base64,abc[[/AMZ_DP]]' }).includes('data:image'), 'photo from notes');
 assert(collectOrderIds({ orderIds: ['ORD-1'], orderId: 'ORD-2' }, {}).join() === 'ORD-1,ORD-2', 'order ids');
