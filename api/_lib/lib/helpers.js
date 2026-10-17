@@ -229,10 +229,19 @@ function productFromBody(b = {}, rid) {
       : (b.track_inventory != null ? truthy(b.track_inventory, true) : true));
   let images = parseImages(b.images || b.gallery, b.image || b.photo || '');
   // Live products table often has no `image` column — cover lives in `images` jsonb.
-  // Cap payload so Vercel/PostgREST does not time out on huge data-URLs.
+  // Cap payload so Vercel/PostgREST does not time out on huge data-URLs, and so
+  // this product doesn't keep adding outsized weight to every future
+  // /products read (fetched from 13+ pages, every page load).
   while (images.length > 1 && JSON.stringify(images).length > 220000) {
     images = images.slice(0, -1);
   }
+  // The loop above only trims *extra* gallery photos — a single oversized
+  // image (e.g. an un-resized phone camera photo used as the only photo)
+  // would otherwise slip through uncapped. ~500KB of base64 text is already
+  // generously larger than every real product photo in production today, so
+  // this only ever catches a genuine accidental huge upload, not a normal one.
+  const MAX_SINGLE_IMAGE_CHARS = 500000;
+  images = images.filter((img) => typeof img !== 'string' || img.length <= MAX_SINGLE_IMAGE_CHARS);
   const catalogReady = isWebsiteCatalogReady({
     images,
     description: b.description || '',
