@@ -2,7 +2,7 @@ const { supabase } = require('../db');
 const { handleLogin, validateToken, sanitizeUser } = require('../lib/auth');
 const { id, today, nowTime, dateKey, num, truthy, send, sendError } = require('../lib/util');
 const { websiteCatalogSyncScript } = require('../lib/websiteCatalogSync');
-const { cachedRead } = require('../lib/memoCache');
+const { cachedRead, clearCache } = require('../lib/memoCache');
 const {
   mapCustomer, mapOrder, mapProduct, mapInvoice, mapEmployee,
   mapVendor, mapPayment, mapExpense, mapPurchase, mapUser, mapToken,
@@ -296,12 +296,26 @@ async function ensureWalkIn() {
   return mapCustomer(row);
 }
 
+/**
+ * Settings (branding/logo/stamp/signature, dashboard layouts, inventory
+ * mode, POS register state, ...) are stored as one key/value table and
+ * always read back as a whole. A few UI pieces (the dashboard's inventory
+ * mode badge, the Inventory and Products pages) poll this every ~20s for as
+ * long as they stay open, each time pulling back every key including the
+ * base64 logo/stamp/signature — a steady, continuous Supabase read even
+ * when nobody is actively doing anything. Cache the read for a short TTL so
+ * overlapping polls/pages share one Supabase query, and invalidate
+ * immediately on every write (saveSettingsObject is the only place writes
+ * happen) so a user who just saved a setting never sees stale data back.
+ */
 async function getSettingsObject() {
-  const { data, error } = await supabase.from('settings').select('key,value');
-  if (error) throw error;
-  const obj = {};
-  (data || []).forEach((r) => { obj[r.key] = r.value; });
-  return obj;
+  return cachedRead('settings:all', async () => {
+    const { data, error } = await supabase.from('settings').select('key,value');
+    if (error) throw error;
+    const obj = {};
+    (data || []).forEach((r) => { obj[r.key] = r.value; });
+    return obj;
+  }, 15000);
 }
 
 async function saveSettingsObject(incoming = {}) {
@@ -313,6 +327,7 @@ async function saveSettingsObject(incoming = {}) {
       updated_at: new Date().toISOString(),
     });
   }
+  clearCache('settings:all');
   return getSettingsObject();
 }
 
