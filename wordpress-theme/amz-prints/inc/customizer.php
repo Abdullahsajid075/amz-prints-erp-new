@@ -437,12 +437,12 @@ function amz_prints_customize_register( $wp_customize ) {
 	) );
 
 	$wp_customize->add_setting( 'amz_erp_api_url', array(
-		'default'           => 'https://amz-prints-api.vercel.app/api',
+		'default'           => 'https://api.amzprints.com',
 		'sanitize_callback' => 'esc_url_raw',
 	) );
 	$wp_customize->add_control( 'amz_erp_api_url', array(
 		'label'       => __( 'ERP API URL', 'amz-prints' ),
-		'description' => __( 'Use https://amz-prints-api.vercel.app/api. The old Google Apps Script URL is ignored because it still lists products without photos.', 'amz-prints' ),
+		'description' => __( 'Use https://api.amzprints.com. The old Google Apps Script and amz-prints-api.vercel.app URLs are retired.', 'amz-prints' ),
 		'section'     => 'amz_erp_track',
 		'type'        => 'url',
 	) );

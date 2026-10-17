@@ -10,11 +10,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-/** Live Supabase/Vercel catalog — old Google Apps Script lists products without photos. */
-define(
-	'AMZ_PRINTS_ERP_API_DEFAULT',
-	'https://amz-prints-api.vercel.app/api'
-);
+/** Live ERP API (api.amzprints.com) — old Google Apps Script lists products without photos. */
+if ( ! defined( 'AMZ_PRINTS_ERP_API_DEFAULT' ) ) {
+	define(
+		'AMZ_PRINTS_ERP_API_DEFAULT',
+		'https://api.amzprints.com'
+	);
+}
 
 /**
  * ERP API base URL (Customizer override supported).

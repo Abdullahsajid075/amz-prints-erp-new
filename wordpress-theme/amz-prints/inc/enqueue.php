@@ -45,7 +45,7 @@ function amz_prints_enqueue_assets() {
 
 	wp_enqueue_script(
 		'amz-erp-catalog-sync',
-		'https://amz-prints-api.vercel.app/api?path=/public/catalog.js',
+		trailingslashit( function_exists( 'amz_prints_erp_api_url' ) ? amz_prints_erp_api_url() : 'https://api.amzprints.com' ) . '?path=/public/catalog.js',
 		array( 'amz-prints-shop' ),
 		(string) time(),
 		true

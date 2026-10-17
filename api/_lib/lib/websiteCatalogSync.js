@@ -2,11 +2,24 @@
  * Browser script for amzprints.com (theme 3.12.0 shop-cards).
  * Always reads the live ERP catalog and hides anything without a real photo.
  * Same rule for old rows and newly saved products.
+ *
+ * `apiBase` must be the base URL this script itself was served from (e.g.
+ * https://api.amzprints.com). Never hardcode a domain here — a previous
+ * hardcoded `amz-prints-api.vercel.app` silently broke the whole website
+ * catalog sync once that Vercel deployment was paused, because the browser
+ * kept trying to fetch products from a dead host even after the API moved.
+ * Deriving it from the actual request host makes this self-healing if the
+ * API domain ever changes again.
  */
-function websiteCatalogSyncScript() {
+function websiteCatalogSyncScript(apiBase) {
+  const base = String(apiBase || 'https://api.amzprints.com').trim().replace(/\/+$/, '');
   return `(function () {
   'use strict';
-  var API = 'https://amz-prints-api.vercel.app/api?path=' + encodeURIComponent('/public/products') + '&_=' + Date.now();
+  // No cache-busting query param on purpose: the server sends a short shared
+  // Cache-Control (see /public/products in dispatch.js), so repeat page loads
+  // across every visitor can be served from the Hostinger CDN edge instead of
+  // each one re-downloading the full (often multi-MB, image-heavy) catalog.
+  var API = ${JSON.stringify(base)} + '?path=' + encodeURIComponent('/public/products');
 
   function realPhoto(src) {
     var s = String(src || '').trim();
@@ -55,7 +68,7 @@ function websiteCatalogSyncScript() {
     });
   }
 
-  fetch(API, { cache: 'no-store', credentials: 'omit' })
+  fetch(API, { credentials: 'omit' })
     .then(function (r) { return r.json(); })
     .then(function (data) { apply(data && data.products ? data.products : []); })
     .catch(function () { /* keep server markup if API is unreachable */ });

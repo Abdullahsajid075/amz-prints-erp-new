@@ -145,6 +145,7 @@ const Dashboard = () => {
   const [receivablesOpen, setReceivablesOpen] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [taskSummary, setTaskSummary] = useState(null);
+  const [launcherLists, setLauncherLists] = useState(null);
 
   const fetchDashboardDataWith = useCallback(async (range) => {
     const from = range?.from || '';
@@ -186,13 +187,19 @@ const Dashboard = () => {
         customersAPI.getAll().catch(() => null),
         purchasesAPI.getAll().catch(() => null),
       ]);
+      const liveOrders = asApiList(ordersRes);
+      const liveCustomers = asApiList(custRes);
+      const livePurchases = asApiList(purchRes);
+      // Share these with ErpHomeLauncher so it doesn't re-fetch the same
+      // orders/customers/purchases lists a second time on every dashboard load.
+      setLauncherLists({ orders: liveOrders, customers: liveCustomers, purchases: livePurchases });
       const live = buildDashboardFromLists({
-        orders: asApiList(ordersRes),
+        orders: liveOrders,
         invoices: asApiList(invRes),
         expenses: asApiList(expRes),
         payments: asApiList(payRes),
-        customers: asApiList(custRes),
-        purchases: asApiList(purchRes),
+        customers: liveCustomers,
+        purchases: livePurchases,
         from,
         to,
       });
@@ -327,7 +334,12 @@ const Dashboard = () => {
 
   return (
     <div>
-      <ErpHomeLauncher />
+      <ErpHomeLauncher
+        useSharedData
+        orders={launcherLists?.orders}
+        customers={launcherLists?.customers}
+        purchases={launcherLists?.purchases}
+      />
       <div className="erp-page space-y-5 relative px-4 sm:px-6 py-5 sm:py-6 max-w-[1600px] mx-auto" data-testid="dashboard" id="dashboard-ops">
       <InventoryModeTag />
       {loading && (

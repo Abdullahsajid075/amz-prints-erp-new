@@ -13,11 +13,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AMZ_ERP_LIVE_API', 'https://amz-prints-api.vercel.app/api' );
+define( 'AMZ_ERP_LIVE_API', 'https://api.amzprints.com' );
 
 /**
  * Live WordPress still calls the old Google Apps Script URL.
- * Send those requests to the ERP/Vercel catalog instead.
+ * Send those requests to the live ERP catalog instead.
  */
 function amz_erp_catalog_reroute_gas( $preempt, $args, $url ) {
 	if ( false !== $preempt ) {
@@ -60,11 +60,15 @@ add_filter( 'pre_http_request', 'amz_erp_catalog_reroute_gas', 5, 3 );
  * After the 3.12.0 theme paints shop-cards, hide anything the live ERP catalog rejects.
  */
 function amz_erp_catalog_enqueue_sync() {
+	// A stable version string (file mtime, not time()) lets browsers/CDN cache
+	// this script across page views instead of re-downloading it on every
+	// single request — it only changes when this plugin file is actually
+	// updated.
 	wp_enqueue_script(
 		'amz-erp-catalog-sync',
 		AMZ_ERP_LIVE_API . '?path=/public/catalog.js',
 		array(),
-		(string) time(),
+		(string) filemtime( __FILE__ ),
 		true
 	);
 }
