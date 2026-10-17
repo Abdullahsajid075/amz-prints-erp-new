@@ -1,0 +1,11 @@
+{
+  "name": "studio-portfolio-demo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Localhost demo for Studio Portfolio WordPress theme",
+  "scripts": {
+    "start": "npx --yes serve -l 3000 .",
+    "demo": "npx --yes serve -l 8080 .",
+    "python": "python3 -m http.server 8080"
+  }
+}
