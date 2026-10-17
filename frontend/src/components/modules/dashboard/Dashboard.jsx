@@ -115,7 +115,7 @@ const Panel = ({ title, subtitle, action, children, className = '', testId }) =>
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user, canAccessModule } = useAuth();
-  const { company, primary } = useBrand();
+  const { primary } = useBrand();
   const brand = primary || '#ff6d00';
 
   const quickActions = useMemo(
@@ -359,7 +359,7 @@ const Dashboard = () => {
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-white/65">
                 <Sparkles className="h-3.5 w-3.5" style={{ color: brand }} strokeWidth={2.25} />
-                {company?.name || 'AMZ Prints'} · Operations dashboard
+                Operations dashboard
               </div>
               <h1 className="mt-2 font-display text-2xl sm:text-3xl lg:text-[2.1rem] font-bold leading-tight tracking-tight">
                 {greeting}, {displayName}

@@ -205,13 +205,13 @@ create table if not exists purchases (
   created_at timestamptz default now()
 );
 
--- Existing projects: run once in SQL editor if columns missing
--- alter table purchases add column if not exists paid_amount numeric default 0;
--- alter table purchases add column if not exists vendor_invoice_number text default '';
--- alter table purchases add column if not exists expected_delivery_date text default '';
--- alter table purchases add column if not exists actual_delivery_date text default '';
--- alter table purchases add column if not exists linked_order_id text default '';
--- alter table purchases add column if not exists notes text default '';
+-- Existing projects: safe to re-run — adds these columns only if missing.
+alter table purchases add column if not exists paid_amount numeric default 0;
+alter table purchases add column if not exists vendor_invoice_number text default '';
+alter table purchases add column if not exists expected_delivery_date text default '';
+alter table purchases add column if not exists actual_delivery_date text default '';
+alter table purchases add column if not exists linked_order_id text default '';
+alter table purchases add column if not exists notes text default '';
 
 -- ========== EXPENSES / PAYMENTS ==========
 create table if not exists expenses (

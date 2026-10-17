@@ -10,6 +10,7 @@ import { useBrand } from '@/context/BrandContext';
 import { mergePosSettings } from '@/utils/moduleSettings';
 import { printPosSlip, saleFromPosOrder } from '@/utils/posSlip';
 import { isPosOrder, orderAmount, parsePosCashier, parsePosMethod, posItemSummary } from '@/utils/posSale';
+import { buildDocumentFilename, formatDateRangeForFilename } from '@/utils/documentFilename';
 import { ArrowLeft, Printer, Store, DollarSign, ShoppingBag, FileSpreadsheet, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -89,7 +90,7 @@ const POSStatement = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `pos-statement-${from || 'all'}-${to || 'all'}.csv`;
+    a.download = buildDocumentFilename('POS Statement', [formatDateRangeForFilename(from, to) || 'All dates'], { extension: 'csv' });
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -105,7 +106,7 @@ const POSStatement = () => {
         <td>${parsePosMethod(o)}</td>
         <td style="text-align:right">${formatCurrency(orderAmount(o))}</td>
       </tr>`).join('');
-    const html = `<!DOCTYPE html><html><head><title>POS Statement</title>
+    const html = `<!DOCTYPE html><html><head><title>${buildDocumentFilename('POS Statement', [formatDateRangeForFilename(from, to) || 'All dates'])}</title>
       <style>
         body{font-family:Arial,sans-serif;padding:24px;color:#111}
         h1{margin:0 0 4px;font-size:20px}
