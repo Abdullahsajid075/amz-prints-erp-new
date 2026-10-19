@@ -231,7 +231,7 @@ async function getProductsRaw() {
     if (error) throw error;
     await syncWebsiteCatalogFlags(data || []);
     return data || [];
-  }, 20000);
+  }, 60000);
 }
 
 const LEAN_ORDER_COLS = 'id,order_id,date,created_at,customer_id,customer_phone,customer_name,status,doc_type,total_amount,advance_payment,balance_amount,delivery_date,tracking_number';
@@ -1752,11 +1752,13 @@ async function dispatch(req, res) {
       if (method === 'GET' && path === '/public/products') {
         if (typeof res.setHeader === 'function') {
           // Every website page load fetches this (images included, often several
-          // MB) with no per-visitor auth — a short shared cache lets the Hostinger
-          // CDN serve repeat visitors from the edge instead of re-hitting Supabase
-          // for each one. 30s is far below the staleness anyone would notice and
-          // well under the 60s cache the WordPress theme already keeps server-side.
-          res.setHeader('Cache-Control', 'public, max-age=30, s-maxage=30, stale-while-revalidate=30');
+          // MB) with no per-visitor auth, and search-engine/scraper bots hit it
+          // too — traffic volume here is outside our control. A longer shared
+          // cache (5 min) means that regardless of how many requests come in —
+          // one visitor or a thousand, human or bot — only one of them within
+          // each window actually reaches Supabase. A public catalog listing
+          // does not need staff-level real-time freshness.
+          res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=300, stale-while-revalidate=300');
         }
         const rows = await getProductsRaw();
         const products = rows.map(mapProduct).filter((p) => isListedOnWebsite(p));
@@ -1770,7 +1772,7 @@ async function dispatch(req, res) {
         const pub = mapProduct(data);
         if (!isListedOnWebsite(pub)) return sendError(res, 'Product not available', 404);
         if (typeof res.setHeader === 'function') {
-          res.setHeader('Cache-Control', 'public, max-age=30, s-maxage=30, stale-while-revalidate=30');
+          res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=300, stale-while-revalidate=300');
         }
         return send(res, pub);
       }
