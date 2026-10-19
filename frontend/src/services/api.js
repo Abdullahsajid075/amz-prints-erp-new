@@ -2,8 +2,14 @@ import { gasRequest, withToken } from './gasClient';
 import { tokenStorage } from './tokenStorage';
 import { tasksAPI, broadcastsAPI } from './opsFallback';
 import { appendOrderToInvoicePayload, mergeInvoicePayload } from '@/utils/invoiceOrders';
+import { notifyDataChanged } from '@/utils/crossTabSync';
 
 export { tasksAPI, broadcastsAPI };
+
+// Pings other same-browser tabs (e.g. an Orders list open alongside an Order
+// Booking window) that `topic` changed, right after a write succeeds — no
+// extra API/Supabase calls, just a same-origin broadcast of what already happened.
+const syncing = (topic) => (promise) => promise.then((res) => { notifyDataChanged(topic); return res; });
 
 export const authAPI = {
   login: (credentials) => gasRequest('POST', '/auth/login', { data: credentials }),
@@ -21,16 +27,16 @@ export const dashboardAPI = {
 export const ordersAPI = {
   getAll: (params) => gasRequest('GET', '/orders', withToken({ params })),
   getById: (id) => gasRequest('GET', `/orders/${id}`, withToken()),
-  create: (data) => gasRequest('POST', '/orders', withToken({ data })),
-  update: (id, data) => gasRequest('PUT', `/orders/${id}`, withToken({ data })),
-  delete: (id) => gasRequest('DELETE', `/orders/${id}`, withToken()),
-  duplicate: (id) => gasRequest('POST', `/orders/${id}/duplicate`, withToken()),
-  updateStatus: (id, status) => gasRequest('PATCH', `/orders/${id}/status`, withToken({ data: { status } })),
-  deliver: (id) => gasRequest('POST', `/orders/${id}/deliver`, withToken({ data: {} })),
-  restoreAutoDeliveries: () => gasRequest('POST', '/orders/restore-auto-deliveries', withToken({ data: {} })),
-  pay: (id, data) => gasRequest('POST', `/orders/${id}/payment`, withToken({ data })),
-  createInvoice: (id) => gasRequest('POST', `/orders/${id}/invoice`, withToken({ data: {} })),
-  addToInvoice: (id, invoiceId) => invoicesAPI.addOrder(invoiceId, { orderId: id }),
+  create: (data) => syncing('orders')(gasRequest('POST', '/orders', withToken({ data }))),
+  update: (id, data) => syncing('orders')(gasRequest('PUT', `/orders/${id}`, withToken({ data }))),
+  delete: (id) => syncing('orders')(gasRequest('DELETE', `/orders/${id}`, withToken())),
+  duplicate: (id) => syncing('orders')(gasRequest('POST', `/orders/${id}/duplicate`, withToken())),
+  updateStatus: (id, status) => syncing('orders')(gasRequest('PATCH', `/orders/${id}/status`, withToken({ data: { status } }))),
+  deliver: (id) => syncing('orders')(gasRequest('POST', `/orders/${id}/deliver`, withToken({ data: {} }))),
+  restoreAutoDeliveries: () => syncing('orders')(gasRequest('POST', '/orders/restore-auto-deliveries', withToken({ data: {} }))),
+  pay: (id, data) => syncing('orders')(gasRequest('POST', `/orders/${id}/payment`, withToken({ data }))),
+  createInvoice: (id) => syncing('orders')(gasRequest('POST', `/orders/${id}/invoice`, withToken({ data: {} }))),
+  addToInvoice: (id, invoiceId) => syncing('orders')(invoicesAPI.addOrder(invoiceId, { orderId: id })),
 };
 
 export const customersAPI = {
