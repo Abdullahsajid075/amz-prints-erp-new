@@ -1,0 +1,57 @@
+name: Deploy frontend to Hostinger
+
+# erp.amzprints.com previously required a manual `npm run build` + SFTP/SCP
+# upload after every change — a step that was easy to forget, so merged
+# frontend fixes silently never reached the live site. This workflow
+# removes that manual step: every push to main that touches frontend/
+# builds it and uploads dist/ straight to Hostinger over SSH.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy-frontend.yml'
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build
+        working-directory: frontend
+        env:
+          REACT_APP_GAS_API_URL: https://api.amzprints.com
+        run: npm run build
+
+      # Needs these repo secrets (GitHub repo -> Settings -> Secrets and
+      # variables -> Actions):
+      #   HOSTINGER_SSH_HOST     e.g. 123.45.67.89 or a Hostinger hostname
+      #   HOSTINGER_SSH_PORT     usually 65002 on Hostinger shared hosting (not 22)
+      #   HOSTINGER_SSH_USER     SSH username from hPanel -> Advanced -> SSH Access
+      #   HOSTINGER_SSH_PASSWORD SSH password (set this OR the key below, not both)
+      #   HOSTINGER_SSH_KEY      SSH private key contents (preferred over password)
+      #   HOSTINGER_TARGET_PATH  defaults to the documented erp.amzprints.com folder
+      - name: Upload dist/ via SSH/SCP
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.HOSTINGER_SSH_HOST }}
+          port: ${{ secrets.HOSTINGER_SSH_PORT || '22' }}
+          username: ${{ secrets.HOSTINGER_SSH_USER }}
+          password: ${{ secrets.HOSTINGER_SSH_PASSWORD }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          source: 'frontend/dist/*'
+          target: ${{ secrets.HOSTINGER_TARGET_PATH || '/domains/erp.amzprints.com/public_html' }}
+          strip_components: 2
+          overwrite: true
