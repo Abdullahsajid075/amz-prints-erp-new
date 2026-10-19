@@ -19,6 +19,7 @@ import PageHeader from '@/components/shared/PageHeader';
 import { openWhatsAppChat, fillTemplate, buildTemplateVars, resolveWhatsAppTemplate, notifyOrderEvent } from '@/services/notifications';
 import { orderIsDeliveredWithBalance, openUrduBalanceWhatsApp } from '@/utils/customerHelpers';
 import { finishPaymentRecording } from '@/utils/paymentActions';
+import { onDataChanged } from '@/utils/crossTabSync';
 import { Plus, Search, Eye, Edit, Copy, Trash2, User, Phone, Mail, MapPin, Calendar, Package, FileText, X, Printer, Receipt, Truck, Link2, Bell, StickyNote, Wallet, Link, Globe, CheckCircle2 } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
@@ -146,6 +147,13 @@ const OrdersList = () => {
     settingsAPI.get().then(res => setCompany(res.data?.company || {})).catch(() => {});
     productsAPI.getAll().then((res) => setCatalog(res.data || [])).catch(() => setCatalog([]));
   }, []);
+
+  // If an order is booked/edited/paid in another tab (e.g. an Order Booking
+  // window open alongside this Orders list), refresh automatically instead
+  // of needing a manual page reload. This is a same-browser ping only — it
+  // costs no extra Supabase reads, since the other tab already made its own
+  // API call for the write itself.
+  useEffect(() => onDataChanged('orders', fetchOrders), [fetchOrders]);
 
   const sortedOrders = useMemo(() => sortBy(orders, sort, {
     date: (o) => o.date || o.orderDate || '',
