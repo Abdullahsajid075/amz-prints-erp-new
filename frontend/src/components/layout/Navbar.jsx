@@ -51,7 +51,7 @@ const TITLE_MAP = [
   { match: '/settings', title: 'Settings' },
 ];
 
-const Navbar = ({ toggleSidebar }) => {
+const Navbar = ({ toggleSidebar, isPos }) => {
   const { user, logout } = useAuth();
   const { company, primary } = useBrand();
   const navigate = useNavigate();
@@ -82,15 +82,17 @@ const Navbar = ({ toggleSidebar }) => {
     >
       <div className="h-full px-3 sm:px-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="shrink-0 h-9 w-9"
-            onClick={toggleSidebar}
-            data-testid="sidebar-toggle"
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
+          {!isPos && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="shrink-0 h-9 w-9"
+              onClick={toggleSidebar}
+              data-testid="sidebar-toggle"
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+          )}
 
           <div className="flex items-center gap-3 min-w-0">
             <BrandLockup company={company} accent={accent} compact />

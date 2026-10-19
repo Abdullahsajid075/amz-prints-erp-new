@@ -1,3 +1,9 @@
+/** True for the full-screen POS till route, which hides the main app sidebar/backdrop. */
+export function isPosRoute(pathname) {
+  const p = String(pathname || '');
+  return p === '/pos' || p.startsWith('/pos/counter');
+}
+
 /** Dedicated POS till — always a separate browser window, not an ERP tab. */
 export function openPosCounterWindow() {
   if (typeof window === 'undefined') return null;

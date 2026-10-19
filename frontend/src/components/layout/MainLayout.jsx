@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
 import ModuleGuard from '@/components/ModuleGuard';
+import { isPosRoute } from '@/utils/posWindow';
 
 class PageErrorBoundary extends Component {
   constructor(props) {
@@ -57,17 +58,23 @@ const MainLayout = () => {
   }, [location.pathname]);
 
   const isAppsHome = location.pathname === '/dashboard';
-  const isPos = location.pathname === '/pos' || location.pathname.startsWith('/pos/counter');
+  const isPos = isPosRoute(location.pathname);
 
   return (
     <div className="min-h-screen erp-shell">
-      <Navbar toggleSidebar={toggleSidebar} sidebarOpen={sidebarOpen} />
-      <Sidebar
-        isOpen={sidebarOpen}
-        closeSidebar={closeSidebar}
-        openSidebar={openSidebar}
-        toggleSidebar={toggleSidebar}
-      />
+      <Navbar toggleSidebar={toggleSidebar} sidebarOpen={sidebarOpen} isPos={isPos} />
+      {/* POS is a dedicated full-screen till (opened in its own popup window)
+          whose cart panel is flush against the left edge. The main nav
+          sidebar's fixed arrow toggle and dimming backdrop aren't needed
+          there and previously rendered on top of the cart's Discount row. */}
+      {!isPos && (
+        <Sidebar
+          isOpen={sidebarOpen}
+          closeSidebar={closeSidebar}
+          openSidebar={openSidebar}
+          toggleSidebar={toggleSidebar}
+        />
+      )}
 
       <main className="pt-14 min-h-screen" data-testid="main-content">
         {isAppsHome ? (
