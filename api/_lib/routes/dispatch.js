@@ -54,6 +54,7 @@ const {
   inventoryModeIsActive,
 } = require('../lib/inventoryStock');
 const { planInvoiceAfterOrderCancel, appendForfeitOrderNote } = require('../lib/orderCancelInvoice');
+const { findDuplicateContact, duplicateContactMessage } = require('../lib/duplicateGuard');
 
 function expenseIsApproved(row) {
   if (!row) return false;
@@ -2208,20 +2209,38 @@ async function dispatch(req, res) {
         return { count: rows.length, sales, cashSales, byMethod, tickets: rows.map((o) => o.order_id || o.id) };
       };
 
+      // Cash In / Cash Out drawer movements recorded against the current
+      // register — kept as a plain list on store.current so they travel
+      // with that register into `history` once it's closed.
+      const cashMovementTotals = (current) => {
+        const transactions = (current && Array.isArray(current.transactions)) ? current.transactions : [];
+        let cashIn = 0;
+        let cashOut = 0;
+        transactions.forEach((t) => {
+          const amt = num(t.amount);
+          if (t.type === 'in') cashIn += amt;
+          else if (t.type === 'out') cashOut += amt;
+        });
+        return { cashIn, cashOut, net: cashIn - cashOut, transactions };
+      };
+
       if (method === 'GET' && path === '/pos/register') {
         const totals = store.current ? await shiftTotals(store.current.openedAt) : { count: 0, sales: 0, cashSales: 0, byMethod: {} };
-        return send(res, { ...store, totals });
+        const cashMovements = cashMovementTotals(store.current);
+        return send(res, { ...store, totals, cashMovements });
       }
       if (method === 'GET' && path === '/pos/register/x-report') {
         if (!store.current) return sendError(res, 'No open register — X-report requires an open shift', 400);
         const totals = await shiftTotals(store.current.openedAt);
         const openingFloat = num(store.current.openingFloat);
+        const cashMovements = cashMovementTotals(store.current);
         return send(res, {
           type: 'X',
           generatedAt: new Date().toISOString(),
           register: store.current,
           totals,
-          expectedCash: openingFloat + totals.cashSales,
+          cashMovements,
+          expectedCash: openingFloat + totals.cashSales + cashMovements.net,
           note: 'X-report is a mid-shift snapshot. The drawer stays open (IAS 2 / retail cash control).',
         });
       }
@@ -2238,18 +2257,53 @@ async function dispatch(req, res) {
           openedBy: body.openedBy || userLabel(user),
           openingFloat,
           note: body.note || '',
+          transactions: [],
         };
         await saveSettingsObject({ posRegister: store });
         return send(res, { ok: true, current: store.current, history: store.history });
+      }
+      if (method === 'POST' && (path === '/pos/register/cash-in' || path === '/pos/register/cash-out')) {
+        if (!store.current || store.current.status !== 'open') {
+          return sendError(res, 'No open register — open a register before recording cash movements', 400);
+        }
+        const amount = num(body.amount);
+        if (!(amount > 0)) return sendError(res, 'Enter a valid amount', 400);
+        const reason = String(body.reason || '').trim();
+        if (!reason) return sendError(res, 'Reason is required', 400);
+        const type = path === '/pos/register/cash-in' ? 'in' : 'out';
+        if (type === 'out') {
+          const already = cashMovementTotals(store.current);
+          const openingFloat = num(store.current.openingFloat);
+          const shiftSoFar = await shiftTotals(store.current.openedAt);
+          const available = openingFloat + shiftSoFar.cashSales + already.cashIn - already.cashOut;
+          if (amount > available) {
+            return sendError(res, `Cash out exceeds drawer balance (available: ${available.toFixed(2)})`, 400);
+          }
+        }
+        if (!Array.isArray(store.current.transactions)) store.current.transactions = [];
+        const tx = {
+          id: id('postx'),
+          type,
+          amount,
+          reason,
+          note: body.note || '',
+          at: new Date().toISOString(),
+          user: body.user || userLabel(user),
+          registerId: store.current.id,
+        };
+        store.current.transactions.push(tx);
+        await saveSettingsObject({ posRegister: store });
+        return send(res, { ok: true, transaction: tx, current: store.current, cashMovements: cashMovementTotals(store.current) });
       }
       if (method === 'POST' && path === '/pos/register/close') {
         if (!store.current || store.current.status !== 'open') {
           return sendError(res, 'No open register to close', 400);
         }
         const totals = await shiftTotals(store.current.openedAt);
+        const cashMovements = cashMovementTotals(store.current);
         const countedCash = num(body.countedCash);
         const openingFloat = num(store.current.openingFloat);
-        const expectedCash = openingFloat + totals.cashSales;
+        const expectedCash = openingFloat + totals.cashSales + cashMovements.net;
         const variance = Math.round((countedCash - expectedCash) * 100) / 100;
         const closed = {
           ...store.current,
@@ -2260,6 +2314,7 @@ async function dispatch(req, res) {
           expectedCash,
           variance,
           totals,
+          cashMovements,
           closeNote: body.note || '',
           confirmed: body.confirmed === true,
         };
@@ -2339,33 +2394,13 @@ async function dispatch(req, res) {
       if (path === '/customers' && method === 'POST') {
         const nameNorm = String(body.name || '').toLowerCase().replace(/[\s_-]+/g, '');
         if (nameNorm === 'walkin' || nameNorm === 'walking') return send(res, await ensureWalkIn());
-        let existing = null;
-        if (body.phone) {
-          const { data } = await supabase.from('customers').select('*').eq('phone', String(body.phone).trim()).limit(1);
-          existing = data && data[0];
-        }
-        if (existing) {
-          const updates = {
-            name: body.name || existing.name,
-            phone: body.phone || existing.phone,
-            email: body.email || existing.email,
-            address: body.address || existing.address,
-            city: body.city || existing.city,
-            notes: body.notes != null ? body.notes : existing.notes,
-          };
-          if (body.inCrm === true) {
-            updates.in_crm = true;
-            updates.stage = body.stage || existing.stage || 'lead';
-            updates.stage_updated_at = new Date().toISOString();
-          }
-          Object.assign(updates, withCustomerPhoto(
-            { notes: updates.notes },
-            body.photo != null ? body.photo : customerPhoto(existing),
-          ));
-          await dbWrite('customers', updates, { mode: 'update', id: existing.id });
-          const { data } = await supabase.from('customers').select('*').eq('id', existing.id).maybeSingle();
-          return send(res, mapCustomer(data));
-        }
+        // Block duplicate registrations instead of silently merging into an
+        // existing record — a mistaken re-add should surface as an error the
+        // staff member sees immediately, not quietly overwrite someone else's
+        // customer record.
+        const { data: allCustomers } = await supabase.from('customers').select('id,name,phone');
+        const dupe = findDuplicateContact(allCustomers, { name: body.name, phone: body.phone });
+        if (dupe) return sendError(res, duplicateContactMessage('Customer', dupe.fields), 409);
         const row = withCustomerPhoto({
           id: id('cust'),
           name: body.name || '',
@@ -2749,6 +2784,11 @@ async function dispatch(req, res) {
         ]);
         if (!data) return sendError(res, 'Not found', 404);
         return send(res, attachVendorPayables(data, purchases || []));
+      }
+      if (method === 'POST' && path === '/vendors') {
+        const { data: allVendors } = await supabase.from('vendors').select('id,name,phone');
+        const dupe = findDuplicateContact(allVendors, { name: body.name, phone: body.phone });
+        if (dupe) return sendError(res, duplicateContactMessage('Vendor', dupe.fields), 409);
       }
       const done = await handleCollection('vendors', '/vendors', mapVendor, (b, rid) => ({
         id: rid || b.id || id('vend'),

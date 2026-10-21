@@ -1,4 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  DndContext, PointerSensor, KeyboardSensor, useSensor, useSensors, closestCenter,
+} from '@dnd-kit/core';
+import {
+  SortableContext, useSortable, horizontalListSortingStrategy, verticalListSortingStrategy, sortableKeyboardCoordinates, arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,12 +17,15 @@ import { findProductByBarcode, productMatchesQuery } from '@/utils/productSearch
 import { printPosSlip, buildPosWhatsAppReceipt } from '@/utils/posSlip';
 import { printStampedReceipt, receiptAcceptAttr, isReceiptUploadFile } from '@/utils/posStampedReceipt';
 import { mergePosSettings, mergeInventorySettings } from '@/utils/moduleSettings';
+import { buildRegisterClosingStatement } from '@/utils/registerClosingStatement';
+import { downloadFile } from '@/utils/documentFilename';
+import { usePosCartLayout } from '@/hooks/usePosCartLayout';
 import { useBrand } from '@/context/BrandContext';
 import {
   Search, Plus, Minus, Trash2, Printer, PackagePlus, UserPlus, Package, Wrench,
   Lock, Unlock, BookOpen, Settings, Clock, LayoutGrid, Pause, RotateCcw,
   Banknote, CreditCard, Building2, Quote, User, ArrowDownLeft, Coins, ShoppingCart, X,
-  FileUp,
+  FileUp, ArrowUpCircle, ArrowDownCircle, GripVertical,
 } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
@@ -28,6 +38,66 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 const WALK_IN = { id: 'cust_walkin', name: 'Walk-in', phone: '' };
 const HOLD_KEY = 'amz_pos_held_sale';
 const LAST_SALE_KEY = 'amz_pos_last_sale';
+
+// Drag-and-drop category chip — reorders the persisted per-user category
+// layout (usePosCartLayout) while still being a normal click-to-filter chip.
+function SortableCategoryChip({ id, label, active, accent, onSelect }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  };
+  return (
+    <button
+      ref={setNodeRef}
+      style={{ ...style, ...(active ? { backgroundColor: accent } : undefined) }}
+      type="button"
+      onClick={onSelect}
+      className={`shrink-0 h-10 px-3 rounded-xl text-sm font-semibold border cursor-grab active:cursor-grabbing touch-none ${
+        active ? 'text-white border-transparent' : 'bg-white text-slate-600 border-slate-200 hover:border-orange-200'
+      }`}
+      data-testid={`pos-category-${id}`}
+      aria-roledescription="Draggable category chip. Press space or enter to pick up, arrow keys to move."
+      {...attributes}
+      {...listeners}
+    >
+      {label}
+    </button>
+  );
+}
+
+// Drag-and-drop cart line — reordering is live/per-sale (not persisted); the
+// drag handle is a dedicated grip icon so it never steals clicks from the
+// qty +/- buttons, quantity input, or the delete button in the same row.
+function SortableCartLine({ id, index, item, children }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  };
+  return (
+    <div ref={setNodeRef} style={style} data-testid={`pos-cart-line-${item.productId}`} className="rounded-xl border border-slate-200 bg-white p-2.5 min-h-[4.5rem] shadow-sm">
+      <div className="flex items-start gap-2">
+        <button
+          type="button"
+          className="mt-0.5 shrink-0 cursor-grab active:cursor-grabbing touch-none text-slate-300 hover:text-slate-500"
+          aria-roledescription="Drag to reorder cart line"
+          data-testid={`pos-cart-drag-${item.productId}`}
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <span className="text-[11px] text-slate-400 font-semibold mt-0.5">{index + 1}</span>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 const POS = () => {
   const navigate = useNavigate();
@@ -67,6 +137,11 @@ const POS = () => {
   const [regNote, setRegNote] = useState('');
   const [regBusy, setRegBusy] = useState(false);
   const [confirmedClose, setConfirmedClose] = useState(false);
+  const [cashDlg, setCashDlg] = useState(null); // 'in' | 'out' | null
+  const [cashAmount, setCashAmount] = useState('');
+  const [cashReason, setCashReason] = useState('');
+  const [cashNote, setCashNote] = useState('');
+  const [cashBusy, setCashBusy] = useState(false);
   const [posCfg, setPosCfg] = useState(mergePosSettings({}));
   const [invCfg, setInvCfg] = useState(mergeInventorySettings({}));
   const [clock, setClock] = useState(() => new Date());
@@ -164,7 +239,7 @@ const POS = () => {
     return customerOptions.filter((c) => customerMatchesQuery(c, q)).slice(0, 60);
   }, [customerOptions, customerQuery]);
 
-  const categories = useMemo(() => {
+  const defaultCategories = useMemo(() => {
     const set = new Set();
     products.forEach((p) => {
       const c = String(p.category || '').trim();
@@ -172,6 +247,32 @@ const POS = () => {
     });
     return ['all', ...Array.from(set).sort((a, b) => a.localeCompare(b))];
   }, [products]);
+
+  const {
+    categories, reorder: reorderCategory, resetLayout: resetCategoryLayout, isCustomized: categoryLayoutCustomized,
+  } = usePosCartLayout(user?.id, defaultCategories);
+
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleCategoryDragEnd = (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    reorderCategory(active.id, over.id);
+  };
+
+  const handleCartDragEnd = (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setCart((prev) => {
+      const fromIndex = prev.findIndex((c) => lineKeyOf(c) === active.id);
+      const toIndex = prev.findIndex((c) => lineKeyOf(c) === over.id);
+      if (fromIndex === -1 || toIndex === -1) return prev;
+      return arrayMove(prev, fromIndex, toIndex);
+    });
+  };
 
   const filtered = useMemo(() => {
     const q = search.trim();
@@ -555,8 +656,17 @@ const POS = () => {
         closedBy: cashier,
         confirmed: true,
       });
-      const v = Number(res.data?.closed?.variance || 0);
+      const closed = res.data?.closed;
+      const v = Number(closed?.variance || 0);
       toast.success(`Z-report posted · variance ${formatCurrency(v)}`);
+      if (closed) {
+        try {
+          const { filename, text } = buildRegisterClosingStatement(closed, company);
+          downloadFile(new Blob([text], { type: 'text/plain;charset=utf-8;' }), filename);
+        } catch (e) {
+          console.error('Could not auto-download closing statement', e);
+        }
+      }
       setCloseDlg(false);
       setConfirmedClose(false);
       setRegNote('');
@@ -565,6 +675,37 @@ const POS = () => {
       toast.error(err.response?.data?.message || 'Could not close register');
     } finally {
       setRegBusy(false);
+    }
+  };
+
+  const openCashDlg = (type) => {
+    setCashAmount('');
+    setCashReason('');
+    setCashNote('');
+    setCashDlg(type);
+  };
+
+  const submitCashMovement = async () => {
+    const amount = Number(cashAmount) || 0;
+    if (!(amount > 0)) {
+      toast.error('Enter a valid amount');
+      return;
+    }
+    if (!cashReason.trim()) {
+      toast.error('Reason is required');
+      return;
+    }
+    setCashBusy(true);
+    try {
+      const call = cashDlg === 'in' ? posRegisterAPI.cashIn : posRegisterAPI.cashOut;
+      await call({ amount, reason: cashReason.trim(), note: cashNote, user: cashier });
+      toast.success(cashDlg === 'in' ? 'Cash in recorded' : 'Cash out recorded');
+      setCashDlg(null);
+      loadRegister();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not record cash movement');
+    } finally {
+      setCashBusy(false);
     }
   };
 
@@ -655,9 +796,17 @@ const POS = () => {
           <Pause className="h-4 w-4 mr-1" />Hold sale
         </Button>
         {registerOpen ? (
-          <Button variant="outline" className="h-10 rounded-xl" onClick={() => { setCountedCash(''); setCloseDlg(true); }}>
-            <Lock className="h-4 w-4 mr-1" />Close register
-          </Button>
+          <>
+            <Button variant="outline" className="h-10 rounded-xl" onClick={() => openCashDlg('in')} data-testid="pos-cash-in">
+              <ArrowDownCircle className="h-4 w-4 mr-1 text-emerald-600" />Cash in
+            </Button>
+            <Button variant="outline" className="h-10 rounded-xl" onClick={() => openCashDlg('out')} data-testid="pos-cash-out">
+              <ArrowUpCircle className="h-4 w-4 mr-1 text-rose-600" />Cash out
+            </Button>
+            <Button variant="outline" className="h-10 rounded-xl" onClick={() => { setCountedCash(''); setCloseDlg(true); }}>
+              <Lock className="h-4 w-4 mr-1" />Close register
+            </Button>
+          </>
         ) : (
           <Button className="h-10 rounded-xl text-white" style={{ backgroundColor: accent }} onClick={() => setOpenDlg(true)}>
             <Unlock className="h-4 w-4 mr-1" />Open register
@@ -696,22 +845,35 @@ const POS = () => {
             </div>
           )}
 
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {categories.map((c) => (
-              <button
-                key={c}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+            <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleCategoryDragEnd}>
+              <SortableContext items={categories} strategy={horizontalListSortingStrategy}>
+                {categories.map((c) => (
+                  <SortableCategoryChip
+                    key={c}
+                    id={c}
+                    active={category === c}
+                    accent={accent}
+                    onSelect={() => setCategory(c)}
+                    label={c === 'all' ? (
+                      <span className="inline-flex items-center gap-1.5"><LayoutGrid className="h-4 w-4" />All</span>
+                    ) : c}
+                  />
+                ))}
+              </SortableContext>
+            </DndContext>
+            {categoryLayoutCustomized && (
+              <Button
                 type="button"
-                onClick={() => setCategory(c)}
-                className={`shrink-0 h-10 px-3 rounded-xl text-sm font-semibold border ${
-                  category === c ? 'text-white border-transparent' : 'bg-white text-slate-600 border-slate-200 hover:border-orange-200'
-                }`}
-                style={category === c ? { backgroundColor: accent } : undefined}
+                variant="ghost"
+                size="sm"
+                className="h-8 shrink-0 text-xs text-slate-400"
+                onClick={resetCategoryLayout}
+                data-testid="pos-category-reset-layout"
               >
-                {c === 'all' ? (
-                  <span className="inline-flex items-center gap-1.5"><LayoutGrid className="h-4 w-4" />All</span>
-                ) : c}
-              </button>
-            ))}
+                <RotateCcw className="h-3 w-3 mr-1" />Reset order
+              </Button>
+            )}
           </div>
 
           <div className="flex-1 min-h-0 overflow-y-auto">
@@ -909,59 +1071,66 @@ const POS = () => {
           <div className="flex-1 min-h-[160px] overflow-y-auto px-3 py-2 space-y-2">
             {!cart.length ? (
               <p className="p-8 text-center text-slate-400 text-sm">Tap a product to add</p>
-            ) : cart.map((item, i) => (
-              <div key={`${item.productId}::${item.variationId || i}`} className="rounded-xl border border-slate-200 bg-white p-2.5 min-h-[4.5rem] shadow-sm" data-testid={`pos-cart-line-${item.productId}`}>
-                <div className="flex items-start gap-2">
-                  <span className="text-[11px] text-slate-400 font-semibold mt-0.5">{i + 1}</span>
-                  {item.image ? (
-                    <img src={item.image} alt="" className="h-12 w-12 rounded-lg object-cover bg-slate-100 shrink-0" />
-                  ) : (
-                    <div className="h-12 w-12 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-                      <Package className="h-4 w-4 text-slate-400" />
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold leading-snug text-sm">{item.name}</p>
-                    {item.variationName ? <p className="text-[11px] text-slate-500">{item.variationName}</p> : null}
-                    <p className="text-[11px] text-slate-500">{formatCurrency(item.rate)} each</p>
-                  </div>
-                  <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => removeCartLine(item)}>
-                    <Trash2 className="h-3.5 w-3.5 text-red-500" />
-                  </Button>
-                </div>
-                <div className="mt-2 flex items-center gap-2">
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="outline"
-                    className="h-10 w-10 shrink-0 font-black"
-                    onClick={() => updateQty(item, -1)}
-                    data-testid={`pos-cart-minus-${item.productId}`}
-                  >
-                    <Minus className="h-4 w-4" />
-                  </Button>
-                  <Input
-                    type="number"
-                    min="1"
-                    value={item.quantity}
-                    onChange={(e) => setQtyManual(item, e.target.value)}
-                    className="h-10 w-16 text-center text-base font-black px-1"
-                    data-testid={`pos-cart-qty-${item.productId}`}
-                  />
-                  <Button
-                    type="button"
-                    size="icon"
-                    className="h-10 w-10 shrink-0 text-white"
-                    style={{ backgroundColor: accent }}
-                    onClick={() => updateQty(item, 1)}
-                    data-testid={`pos-cart-plus-${item.productId}`}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                  <span className="ml-auto text-sm font-black" style={{ color: accent }}>{formatCurrency(item.quantity * item.rate)}</span>
-                </div>
-              </div>
-            ))}
+            ) : (
+              <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleCartDragEnd}>
+                <SortableContext items={cart.map((item) => lineKeyOf(item))} strategy={verticalListSortingStrategy}>
+                  {cart.map((item, i) => (
+                    <SortableCartLine key={lineKeyOf(item)} id={lineKeyOf(item)} index={i} item={item}>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start gap-2">
+                          {item.image ? (
+                            <img src={item.image} alt="" className="h-12 w-12 rounded-lg object-cover bg-slate-100 shrink-0" />
+                          ) : (
+                            <div className="h-12 w-12 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                              <Package className="h-4 w-4 text-slate-400" />
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold leading-snug text-sm">{item.name}</p>
+                            {item.variationName ? <p className="text-[11px] text-slate-500">{item.variationName}</p> : null}
+                            <p className="text-[11px] text-slate-500">{formatCurrency(item.rate)} each</p>
+                          </div>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => removeCartLine(item)}>
+                            <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                          </Button>
+                        </div>
+                        <div className="mt-2 flex items-center gap-2">
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="outline"
+                            className="h-10 w-10 shrink-0 font-black"
+                            onClick={() => updateQty(item, -1)}
+                            data-testid={`pos-cart-minus-${item.productId}`}
+                          >
+                            <Minus className="h-4 w-4" />
+                          </Button>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) => setQtyManual(item, e.target.value)}
+                            className="h-10 w-16 text-center text-base font-black px-1"
+                            data-testid={`pos-cart-qty-${item.productId}`}
+                          />
+                          <Button
+                            type="button"
+                            size="icon"
+                            className="h-10 w-10 shrink-0 text-white"
+                            style={{ backgroundColor: accent }}
+                            onClick={() => updateQty(item, 1)}
+                            data-testid={`pos-cart-plus-${item.productId}`}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                          <span className="ml-auto text-sm font-black" style={{ color: accent }}>{formatCurrency(item.quantity * item.rate)}</span>
+                        </div>
+                      </div>
+                    </SortableCartLine>
+                  ))}
+                </SortableContext>
+              </DndContext>
+            )}
           </div>
 
           <div
@@ -1248,7 +1417,13 @@ const POS = () => {
           <div className="space-y-3 text-sm">
             <p>Opening float: <strong>{formatCurrency(register.current?.openingFloat)}</strong></p>
             <p>Cash sales: <strong>{formatCurrency(register.totals?.cashSales)}</strong></p>
-            <p>Expected cash: <strong>{formatCurrency(Number(register.current?.openingFloat || 0) + Number(register.totals?.cashSales || 0))}</strong></p>
+            <p>Cash in: <strong className="text-emerald-700">{formatCurrency(register.cashMovements?.cashIn)}</strong></p>
+            <p>Cash out: <strong className="text-rose-600">{formatCurrency(register.cashMovements?.cashOut)}</strong></p>
+            <p>Expected cash: <strong>{formatCurrency(
+              Number(register.current?.openingFloat || 0)
+              + Number(register.totals?.cashSales || 0)
+              + Number(register.cashMovements?.net || 0)
+            )}</strong></p>
             <div>
               <Label>Counted cash in drawer</Label>
               <Input type="number" min="0" value={countedCash} onChange={(e) => setCountedCash(e.target.value)} />
@@ -1266,6 +1441,45 @@ const POS = () => {
             <Button variant="outline" onClick={() => setCloseDlg(false)}>Cancel</Button>
             <Button className="text-white bg-slate-900" disabled={regBusy} onClick={closeShift}>
               <Lock className="h-4 w-4 mr-1" />{regBusy ? 'Closing…' : 'Post Z-report & close'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!cashDlg} onOpenChange={(open) => { if (!open) setCashDlg(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{cashDlg === 'in' ? 'Cash in' : 'Cash out'}</DialogTitle>
+            <DialogDescription>
+              {cashDlg === 'in'
+                ? 'Add cash into the drawer (e.g. float top-up). Recorded against this register and reflected in the closing report.'
+                : 'Remove cash from the drawer (e.g. courier/expense payout). Recorded against this register and reflected in the closing report.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Amount</Label>
+              <Input type="number" min="0" value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} autoFocus />
+            </div>
+            <div>
+              <Label>Reason</Label>
+              <Input value={cashReason} onChange={(e) => setCashReason(e.target.value)} placeholder={cashDlg === 'in' ? 'e.g. Float top-up' : 'e.g. Courier payment'} />
+            </div>
+            <div>
+              <Label>Detailed note (optional)</Label>
+              <Input value={cashNote} onChange={(e) => setCashNote(e.target.value)} />
+            </div>
+            <p className="text-xs text-slate-500">Recorded by {cashier} · {new Date().toLocaleString()}</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCashDlg(null)}>Cancel</Button>
+            <Button
+              className="text-white"
+              style={{ backgroundColor: cashDlg === 'in' ? '#059669' : '#e11d48' }}
+              disabled={cashBusy}
+              onClick={submitCashMovement}
+            >
+              {cashDlg === 'in' ? <ArrowDownCircle className="h-4 w-4 mr-1" /> : <ArrowUpCircle className="h-4 w-4 mr-1" />}
+              {cashBusy ? 'Saving…' : cashDlg === 'in' ? 'Add cash in' : 'Record cash out'}
             </Button>
           </DialogFooter>
         </DialogContent>
