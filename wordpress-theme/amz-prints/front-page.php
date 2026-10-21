@@ -148,19 +148,6 @@ $home_shortcuts = array(
 	array( 'code', __( 'Digital services', 'amz-prints' ), home_url( '/digital-services/' ), 'blue' ),
 );
 ?>
-<section class="home-shortcuts" aria-label="<?php esc_attr_e( 'Quick links', 'amz-prints' ); ?>">
-	<div class="container">
-		<div class="home-shortcuts__grid">
-			<?php foreach ( $home_shortcuts as $shortcut ) : ?>
-				<a class="home-shortcut home-shortcut--<?php echo esc_attr( $shortcut[3] ); ?>" href="<?php echo esc_url( $shortcut[2] ); ?>">
-					<span class="home-shortcut__icon"><?php echo amz_prints_home_icon( $shortcut[0] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
-					<strong><?php echo esc_html( $shortcut[1] ); ?></strong>
-				</a>
-			<?php endforeach; ?>
-		</div>
-	</div>
-</section>
-
 <div class="amz-marquee amz-marquee--ink" aria-hidden="true">
 	<div class="amz-marquee__track">
 		<?php foreach ( $strip_loop as $item ) : ?>
@@ -183,6 +170,19 @@ $home_shortcuts = array(
 	</div>
 <?php endif; ?>
 
+
+<section class="home-shortcuts" aria-label="<?php esc_attr_e( 'Quick links', 'amz-prints' ); ?>">
+	<div class="container">
+		<div class="home-shortcuts__grid">
+			<?php foreach ( $home_shortcuts as $shortcut ) : ?>
+				<a class="home-shortcut home-shortcut--<?php echo esc_attr( $shortcut[3] ); ?>" href="<?php echo esc_url( $shortcut[2] ); ?>">
+					<span class="home-shortcut__icon"><?php echo amz_prints_home_icon( $shortcut[0] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
+					<strong><?php echo esc_html( $shortcut[1] ); ?></strong>
+				</a>
+			<?php endforeach; ?>
+		</div>
+	</div>
+</section>
 
 <?php if ( amz_prints_mod( 'amz_show_products', true ) ) : ?>
 <section class="section section--shop" id="products">

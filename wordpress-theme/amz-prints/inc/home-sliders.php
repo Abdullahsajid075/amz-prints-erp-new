@@ -34,7 +34,7 @@ function amz_prints_slider_key( $slider, $slide ) {
  */
 function amz_prints_slider_options( $slider ) {
 	$defaults = array(
-		1 => array( 'slide', 'boxed' ),
+		1 => array( 'slide', 'full' ),
 		2 => array( 'fade', 'boxed' ),
 		3 => array( 'zoom', 'boxed' ),
 	);
