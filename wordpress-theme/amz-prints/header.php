@@ -17,6 +17,7 @@
 
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="amz-progress" id="amz-progress" aria-hidden="true"></div>
+<?php if ( function_exists( 'amz_prints_topbar' ) ) { amz_prints_topbar(); } ?>
 
 <header class="site-header" id="site-header">
 	<div class="site-header__inner">

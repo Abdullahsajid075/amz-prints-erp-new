@@ -326,6 +326,16 @@ function amz_prints_customize_register( $wp_customize ) {
 		) );
 	}
 
+	$wp_customize->add_setting( 'amz_show_topbar', array(
+		'default'           => true,
+		'sanitize_callback' => function( $v ) { return (bool) $v; },
+	) );
+	$wp_customize->add_control( 'amz_show_topbar', array(
+		'label'       => __( 'Show the top strip (features 1–4) on every page', 'amz-prints' ),
+		'section'     => 'amz_sections',
+		'type'        => 'checkbox',
+	) );
+
 	foreach ( array( 'amz_show_services', 'amz_show_products', 'amz_show_process', 'amz_show_cta', 'amz_show_clients', 'amz_show_projects' ) as $toggle ) {
 		$wp_customize->add_setting( $toggle, array(
 			'default'           => true,

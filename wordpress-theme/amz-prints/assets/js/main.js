@@ -132,6 +132,24 @@
       });
     }
 
+    var limit = grid ? parseInt(grid.getAttribute('data-shop-limit'), 10) || 0 : 0;
+    var step = grid ? parseInt(grid.getAttribute('data-shop-step'), 10) || 8 : 8;
+    var shown = limit;
+    var moreBtn = document.querySelector('[data-shop-more]');
+    function applyLimit() {
+      if (!limit) return;
+      var cards = visibleCards();
+      cards.forEach(function (card, i) { card.classList.toggle('is-over-limit', i >= shown); });
+      if (moreBtn && moreBtn.parentNode) moreBtn.parentNode.hidden = cards.length <= shown;
+    }
+    if (moreBtn) {
+      moreBtn.addEventListener('click', function () {
+        shown += step;
+        applyLimit();
+      });
+    }
+    applyLimit();
+
     if (cats) {
       cats.addEventListener('click', function (e) {
         var btn = e.target.closest('[data-cat]');
@@ -144,6 +162,8 @@
           var match = cat === 'all' || card.getAttribute('data-category') === cat;
           card.style.display = match ? '' : 'none';
         });
+        shown = limit;
+        applyLimit();
         if (track) goTo(0);
         buildDots();
       });

@@ -7459,3 +7459,77 @@ body.catalog-pdf-capture .catalog-page:not(.is-capturing) {
   .account-split { grid-template-columns: 1fr; }
 }
 
+
+/* ---------- Top strip (site-wide) ---------- */
+:root { --topbar-h: 0px; }
+body.has-topbar { --topbar-h: 40px; }
+body.has-topbar.amz-cv-builder { --topbar-h: 0px; }
+.amz-cv-builder .amz-topbar { display: none; }
+.has-topbar .site-header { top: var(--topbar-h); }
+.has-topbar .site-main { padding-top: var(--topbar-h); }
+.has-topbar .commerce-summary { top: calc(var(--topbar-h) + var(--header-h) + 0.85rem); }
+.amz-topbar {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 101;
+  height: var(--topbar-h);
+  overflow: hidden;
+  color: #fff;
+  background: linear-gradient(90deg, #0747a3 0%, #0a3a85 50%, #111 100%);
+}
+.amz-topbar__track {
+  display: flex;
+  justify-content: center;
+  height: 100%;
+}
+.amz-topbar__list {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2.4rem;
+  margin: 0;
+  padding: 0 1.25rem;
+  list-style: none;
+  white-space: nowrap;
+}
+.amz-topbar__list[aria-hidden="true"] { display: none; }
+.amz-topbar__list li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+.amz-topbar__icon {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  color: #fff;
+  background: #ff6d00;
+}
+.amz-topbar__icon svg { width: 14px; height: 14px; }
+.amz-topbar__list strong { font-weight: 800; letter-spacing: 0.01em; }
+.amz-topbar__list em {
+  font-style: normal;
+  color: rgba(255, 255, 255, 0.72);
+}
+@media (max-width: 1500px) {
+  .amz-topbar__list em { display: none; }
+}
+@media (max-width: 900px) {
+  body.has-topbar { --topbar-h: 34px; }
+  .amz-topbar__track {
+    justify-content: flex-start;
+    width: max-content;
+    animation: marqueeScroll 28s linear infinite;
+  }
+  .amz-topbar__list { gap: 1.8rem; padding: 0 0.9rem; }
+  .amz-topbar__list[aria-hidden="true"] { display: flex; }
+  .amz-topbar__list li { font-size: 0.74rem; }
+  .amz-topbar__icon { width: 20px; height: 20px; border-radius: 6px; }
+  .amz-topbar__icon svg { width: 12px; height: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .amz-topbar__track { animation: none; }
+}

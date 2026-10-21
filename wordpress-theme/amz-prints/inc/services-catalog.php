@@ -190,7 +190,13 @@ function amz_prints_services_catalog() {
 	);
 	foreach ( $rows as &$row ) {
 		$slug = isset( $row['slug'] ) ? (string) $row['slug'] : '';
-		if ( ! $slug || ! function_exists( 'amz_prints_mod' ) ) {
+		if ( ! $slug ) {
+			continue;
+		}
+		if ( defined( 'AMZ_PRINTS_DIR' ) && file_exists( AMZ_PRINTS_DIR . '/assets/img/services/' . $slug . '.jpg' ) ) {
+			$row['image'] = AMZ_PRINTS_URI . '/assets/img/services/' . $slug . '.jpg';
+		}
+		if ( ! function_exists( 'amz_prints_mod' ) ) {
 			continue;
 		}
 		$img_id = absint( amz_prints_mod( 'amz_svc_img_' . $slug, 0 ) );

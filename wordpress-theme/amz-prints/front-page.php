@@ -35,15 +35,15 @@ $slide_copy = array(
 );
 $slide_ids = array( 'amz_hero_image', 'amz_hero_image_2', 'amz_hero_image_3', 'amz_hero_support_1' );
 $fallbacks = array(
-	'https://images.unsplash.com/photo-1562564055-71e051d33c19?auto=format&fit=crop&w=1280&q=50',
-	'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1280&q=50',
-	'https://images.unsplash.com/photo-1626785774573-4b7993143459?auto=format&fit=crop&w=1280&q=50',
-	'https://images.unsplash.com/photo-1586075010923-2dd4570fb338?auto=format&fit=crop&w=1280&q=50',
+	AMZ_PRINTS_URI . '/assets/img/hero/print.jpg',
+	AMZ_PRINTS_URI . '/assets/img/hero/digital.jpg',
+	AMZ_PRINTS_URI . '/assets/img/hero/brand.jpg',
+	AMZ_PRINTS_URI . '/assets/img/hero/gifts.jpg',
 );
 $hero_slides = array();
 foreach ( $slide_copy as $i => $copy ) {
 	$id  = absint( amz_prints_mod( $slide_ids[ $i ], 0 ) );
-	$url = $id ? wp_get_attachment_image_url( $id, 'large' ) : '';
+	$url = $id ? wp_get_attachment_image_url( $id, 'full' ) : '';
 	$hero_slides[] = array(
 		'kicker' => $copy['kicker'],
 		'title'  => $copy['title'],
@@ -108,7 +108,7 @@ $photo_products    = array_merge( $photo_products, $photo_rest );
 					<h1><?php echo esc_html( $slide['title'] ); ?></h1>
 					<p class="stage__lead"><?php echo esc_html( $slide['text'] ); ?></p>
 					<div class="stage__actions">
-						<a class="btn btn--light btn--lg" href="<?php echo esc_url( home_url( '/products/' ) ); ?>"><?php esc_html_e( 'Shop products', 'amz-prints' ); ?></a>
+						<a class="btn btn--primary btn--lg stage__cta" href="<?php echo esc_url( home_url( '/products/' ) ); ?>"><?php esc_html_e( 'Shop products', 'amz-prints' ); ?><i aria-hidden="true">&rarr;</i></a>
 						<a class="btn btn--ghost btn--lg stage__ghost" href="<?php echo esc_url( home_url( '/quote/' ) ); ?>"><?php esc_html_e( 'Get a quote', 'amz-prints' ); ?></a>
 					</div>
 				</div>
@@ -139,12 +139,6 @@ $photo_products    = array_merge( $photo_products, $photo_rest );
 <?php endif; ?>
 
 <?php
-$home_features = array(
-	array( 'zap', amz_prints_mod( 'amz_feature_1_title', 'Fast turnaround' ), amz_prints_mod( 'amz_feature_1_text', 'Quick quotes and on-time delivery.' ) ),
-	array( 'palette', amz_prints_mod( 'amz_feature_2_title', 'Color-true printing' ), amz_prints_mod( 'amz_feature_2_text', 'Proofed artwork and calibrated presses.' ) ),
-	array( 'track', amz_prints_mod( 'amz_feature_3_title', 'Live order tracking' ), amz_prints_mod( 'amz_feature_3_text', 'Follow every job with your order number.' ) ),
-	array( 'shield', amz_prints_mod( 'amz_feature_4_title', 'Authorized NADRA partner' ), amz_prints_mod( 'amz_feature_4_text', 'Official e-services at our counter.' ) ),
-);
 $home_shortcuts = array(
 	array( 'bag', __( 'Shop products', 'amz-prints' ), home_url( '/products/' ), 'orange' ),
 	array( 'track', __( 'Track order', 'amz-prints' ), $track_url, 'blue' ),
@@ -154,19 +148,6 @@ $home_shortcuts = array(
 	array( 'code', __( 'Digital services', 'amz-prints' ), home_url( '/digital-services/' ), 'blue' ),
 );
 ?>
-<section class="home-features" aria-label="<?php esc_attr_e( 'Why AMZ Prints', 'amz-prints' ); ?>">
-	<div class="container">
-		<ul class="home-features__list">
-			<?php foreach ( $home_features as $feature ) : ?>
-				<li>
-					<span class="home-features__icon"><?php echo amz_prints_home_icon( $feature[0] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
-					<span class="home-features__copy"><strong><?php echo esc_html( $feature[1] ); ?></strong><em><?php echo esc_html( $feature[2] ); ?></em></span>
-				</li>
-			<?php endforeach; ?>
-		</ul>
-	</div>
-</section>
-
 <section class="home-shortcuts" aria-label="<?php esc_attr_e( 'Quick links', 'amz-prints' ); ?>">
 	<div class="container">
 		<div class="home-shortcuts__grid">
@@ -189,7 +170,7 @@ $home_shortcuts = array(
 </div>
 
 <?php if ( $photo_products && amz_prints_mod( 'amz_show_products', true ) ) : ?>
-	<div class="amz-prodrail" aria-label="<?php esc_attr_e( 'Products with photos', 'amz-prints' ); ?>">
+	<div class="amz-prodrail" aria-label="<?php esc_attr_e( 'Products with photos', 'amz-prints' ); ?>" style="--rail-duration: <?php echo esc_attr( (string) max( 70, count( $photo_products ) * 7 ) ); ?>s">
 		<div class="amz-prodrail__track">
 			<?php foreach ( array_merge( $photo_products, $photo_products ) as $product ) : ?>
 				<?php $rail_url = function_exists( 'amz_prints_erp_product_url' ) ? amz_prints_erp_product_url( $product['id'] ?? '' ) : home_url( '/products/' ); ?>
@@ -205,7 +186,7 @@ $home_shortcuts = array(
 
 <?php if ( amz_prints_mod( 'amz_show_products', true ) ) : ?>
 <section class="section section--shop" id="products">
-	<div class="container container--banner">
+	<div class="container">
 		<header class="shop-head reveal" data-reveal>
 			<p class="shop-head__eyebrow eyebrow"><?php esc_html_e( 'Ecommerce', 'amz-prints' ); ?></p>
 			<h2><?php echo esc_html( amz_prints_mod( 'amz_products_title', 'Shop print products' ) ); ?></h2>
@@ -219,18 +200,14 @@ $home_shortcuts = array(
 					<button type="button" data-cat="<?php echo esc_attr( $slug ); ?>"><?php echo esc_html( $label ); ?></button>
 				<?php endforeach; ?>
 			</nav>
-			<div class="shop-carousel" data-shop-carousel>
-				<button type="button" class="shop-carousel__arrow" data-shop-prev aria-label="<?php esc_attr_e( 'Previous', 'amz-prints' ); ?>">←</button>
-				<div class="shop-carousel__viewport">
-					<div class="shop-carousel__track" data-shop-track>
-						<?php foreach ( $erp_all as $product ) : ?>
-							<?php get_template_part( 'template-parts/product', 'card', array( 'product' => $product ) ); ?>
-						<?php endforeach; ?>
-					</div>
-				</div>
-				<button type="button" class="shop-carousel__arrow" data-shop-next aria-label="<?php esc_attr_e( 'Next', 'amz-prints' ); ?>">→</button>
+			<div class="shop-grid home-shop-grid" data-shop-grid data-shop-limit="12" data-shop-step="8">
+				<?php foreach ( $erp_all as $product ) : ?>
+					<?php get_template_part( 'template-parts/product', 'card', array( 'product' => $product ) ); ?>
+				<?php endforeach; ?>
 			</div>
-			<div class="shop-dots" data-shop-dots aria-hidden="true"></div>
+			<p class="home-shop-more" hidden>
+				<button type="button" class="btn btn--ghost btn--lg" data-shop-more><?php esc_html_e( 'Show more products', 'amz-prints' ); ?></button>
+			</p>
 		<?php else : ?>
 			<p class="form-note"><?php esc_html_e( 'Products are updating. Please check again in a moment.', 'amz-prints' ); ?></p>
 		<?php endif; ?>
@@ -247,7 +224,7 @@ $home_shortcuts = array(
 <?php if ( amz_prints_mod( 'amz_show_services', true ) ) : ?>
 <section class="section section--services" id="services">
 	<div class="container">
-		<header class="section-head reveal" data-reveal>
+		<header class="section-head section-head--center reveal" data-reveal>
 			<p class="eyebrow"><?php esc_html_e( 'Mixed services', 'amz-prints' ); ?></p>
 			<h2><?php esc_html_e( 'Print, branding, and digital — one house', 'amz-prints' ); ?></h2>
 			<p><?php echo esc_html( amz_t( 'services_lead' ) ); ?></p>
@@ -255,10 +232,18 @@ $home_shortcuts = array(
 		<div class="land-svc-grid">
 			<?php foreach ( $catalog as $i => $cat ) : ?>
 				<a class="land-svc reveal" data-reveal href="<?php echo esc_url( home_url( '/services/#' . $cat['slug'] ) ); ?>" style="--reveal-delay:<?php echo esc_attr( (string) ( $i * 50 ) ); ?>ms">
-					<img src="<?php echo esc_url( $cat['image'] ); ?>" alt="" loading="lazy">
-					<div>
+					<div class="land-svc__media">
+						<img src="<?php echo esc_url( $cat['image'] ); ?>" alt="<?php echo esc_attr( amz_prints_svc_label( $cat ) ); ?>" loading="lazy" decoding="async" width="800" height="600">
+						<b class="land-svc__num"><?php echo esc_html( sprintf( '%02d', $i + 1 ) ); ?></b>
+					</div>
+					<div class="land-svc__body">
 						<h3><?php echo esc_html( amz_prints_svc_label( $cat ) ); ?></h3>
-						<p><?php echo esc_html( implode( ' · ', array_map( 'amz_prints_svc_label', array_slice( $cat['items'], 0, 3 ) ) ) ); ?></p>
+						<span class="land-svc__chips">
+							<?php foreach ( array_slice( $cat['items'], 0, 3 ) as $svc_item ) : ?>
+								<em><?php echo esc_html( amz_prints_svc_label( $svc_item ) ); ?></em>
+							<?php endforeach; ?>
+						</span>
+						<span class="land-svc__more"><?php esc_html_e( 'Explore', 'amz-prints' ); ?> <i aria-hidden="true">&rarr;</i></span>
 					</div>
 				</a>
 			<?php endforeach; ?>

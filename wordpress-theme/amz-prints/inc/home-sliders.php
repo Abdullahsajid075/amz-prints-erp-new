@@ -34,7 +34,7 @@ function amz_prints_slider_key( $slider, $slide ) {
  */
 function amz_prints_slider_options( $slider ) {
 	$defaults = array(
-		1 => array( 'slide', 'full' ),
+		1 => array( 'slide', 'boxed' ),
 		2 => array( 'fade', 'boxed' ),
 		3 => array( 'zoom', 'boxed' ),
 	);
@@ -162,6 +162,69 @@ function amz_prints_home_icon( $name ) {
 		'truck'   => '<path d="M2 6h12v10H2zM14 10h4l3 3v3h-7"/><circle cx="6" cy="18" r="2"/><circle cx="17" cy="18" r="2"/>',
 	);
 	return isset( $icons[ $name ] ) ? $open . $icons[ $name ] . '</svg>' : '';
+}
+
+/**
+ * The four selling points shown in the top strip.
+ *
+ * @return array<int,array{0:string,1:string,2:string}> Icon, title, text.
+ */
+function amz_prints_home_features() {
+	return array(
+		array( 'zap', amz_prints_mod( 'amz_feature_1_title', 'Fast turnaround' ), amz_prints_mod( 'amz_feature_1_text', 'Quick quotes and on-time delivery.' ) ),
+		array( 'palette', amz_prints_mod( 'amz_feature_2_title', 'Color-true printing' ), amz_prints_mod( 'amz_feature_2_text', 'Proofed artwork and calibrated presses.' ) ),
+		array( 'track', amz_prints_mod( 'amz_feature_3_title', 'Live order tracking' ), amz_prints_mod( 'amz_feature_3_text', 'Follow every job with your order number.' ) ),
+		array( 'shield', amz_prints_mod( 'amz_feature_4_title', 'Authorized NADRA partner' ), amz_prints_mod( 'amz_feature_4_text', 'Official e-services at our counter.' ) ),
+	);
+}
+
+/**
+ * Whether the site-wide top strip is on.
+ *
+ * @return bool
+ */
+function amz_prints_topbar_enabled() {
+	return (bool) amz_prints_mod( 'amz_show_topbar', true );
+}
+
+/**
+ * @param string[] $classes Body classes.
+ * @return string[]
+ */
+function amz_prints_topbar_body_class( $classes ) {
+	if ( amz_prints_topbar_enabled() ) {
+		$classes[] = 'has-topbar';
+	}
+	return $classes;
+}
+add_filter( 'body_class', 'amz_prints_topbar_body_class' );
+
+/**
+ * Thin strip above the header with the four selling points. On phones the
+ * items scroll, which is why the list is printed twice.
+ */
+function amz_prints_topbar() {
+	if ( ! amz_prints_topbar_enabled() ) {
+		return;
+	}
+	$features = amz_prints_home_features();
+	?>
+	<div class="amz-topbar" role="region" aria-label="<?php esc_attr_e( 'Why AMZ Prints', 'amz-prints' ); ?>">
+		<div class="amz-topbar__track">
+			<?php for ( $copy = 0; $copy < 2; $copy++ ) : ?>
+				<ul class="amz-topbar__list"<?php echo $copy ? ' aria-hidden="true"' : ''; ?>>
+					<?php foreach ( $features as $feature ) : ?>
+						<li title="<?php echo esc_attr( $feature[2] ); ?>">
+							<span class="amz-topbar__icon"><?php echo amz_prints_home_icon( $feature[0] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
+							<strong><?php echo esc_html( $feature[1] ); ?></strong>
+							<em><?php echo esc_html( $feature[2] ); ?></em>
+						</li>
+					<?php endforeach; ?>
+				</ul>
+			<?php endfor; ?>
+		</div>
+	</div>
+	<?php
 }
 
 /**
