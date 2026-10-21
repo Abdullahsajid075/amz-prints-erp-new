@@ -7,6 +7,7 @@ import { ordersAPI } from '@/services/api';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 import { barcodeBlock, printHtml, printOnLoadScript, moneyPKR, documentFileName, SLIP_QR_CSS } from '@/utils/printHelpers';
 import { buildSlipQrs, verifyUrlForSlip } from '@/utils/slipQr';
+import { paymentQrBlockHtml, PAY_QR_CSS } from '@/utils/paymentQr';
 import { useBrand } from '@/context/BrandContext';
 import { ArrowLeft, Printer, Save } from 'lucide-react';
 import { toast } from 'sonner';
@@ -81,6 +82,7 @@ const DeliverySlip = () => {
       code,
     });
     const qrs = await buildSlipQrs({ company, verifyUrl });
+    const payQrHtml = paymentQrBlockHtml(company, order.balanceAmount);
 
     const html = `<!DOCTYPE html>
 <html>
@@ -110,6 +112,7 @@ const DeliverySlip = () => {
     .barcode-wrap { text-align: center; margin-top: 10px; }
     .foot { text-align: center; font-size: 11px; margin-top: 8px; font-weight: 700; }
     ${SLIP_QR_CSS}
+    ${PAY_QR_CSS}
   </style>
 </head>
 <body>
@@ -147,6 +150,7 @@ const DeliverySlip = () => {
       <thead><tr><th>#</th><th>Item</th><th class="r">Qty</th></tr></thead>
       <tbody>${items || '<tr><td colspan="3">No items</td></tr>'}</tbody>
     </table>
+    ${payQrHtml}
     ${qrs.html}
     ${barcodeBlock(code, { height: 42 })}
     <div class="signs">

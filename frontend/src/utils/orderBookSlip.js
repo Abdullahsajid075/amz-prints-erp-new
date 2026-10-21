@@ -1,5 +1,6 @@
 import { barcodeBlock, printHtml, printOnLoadScript, documentFileName, SLIP_QR_CSS } from '@/utils/printHelpers';
 import { buildSlipQrs, slipWebsiteUrl, verifyUrlForSlip } from '@/utils/slipQr';
+import { paymentQrBlockHtml, PAY_QR_CSS } from '@/utils/paymentQr';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -35,6 +36,7 @@ export async function printOrderBookSlip(order = {}, { company = {}, includePaym
   const advance = Number(order.advancePayment || 0);
   const balance = Math.max(0, Number(order.balanceAmount != null ? order.balanceAmount : (total - advance)));
   const showPay = includePayment || advance > 0;
+  const payQrHtml = showPay ? paymentQrBlockHtml(company, balance) : '';
   const rows = products
     .map((p) => {
       const extra = [p.variationName, p.size, p.material].filter(Boolean).join(' · ');
@@ -96,6 +98,7 @@ export async function printOrderBookSlip(order = {}, { company = {}, includePaym
       .r { text-align: right; }
       .extra { font-size: 10px; font-weight: 600; color: #0747a3; }
       ${SLIP_QR_CSS}
+      ${PAY_QR_CSS}
       .barcode-wrap { text-align: center; margin-top: 8px; }
       .foot { text-align: center; font-size: 11px; font-weight: 800; color: #0747a3; margin-top: 6px; }
       .thanks { text-align: center; font-size: 12px; font-weight: 800; color: #ff6d00; margin-top: 8px; }
@@ -123,6 +126,7 @@ export async function printOrderBookSlip(order = {}, { company = {}, includePaym
       ${showPay ? `<div class="meta">Total: <span>${escapeHtml(total.toFixed(0))}</span></div>
       <div class="meta">Advance received: <span>${escapeHtml(advance.toFixed(0))}</span></div>
       <div class="meta">Balance: <span>${escapeHtml(balance.toFixed(0))}</span></div>` : ''}
+      ${payQrHtml}
       ${qrs.html}
       ${barcodeBlock(tracking || code || 'AMZ', { height: 34 })}
       <div class="thanks">Scan QR to track this order</div>

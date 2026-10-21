@@ -28,8 +28,8 @@ import ReceivablesDialog from '@/components/shared/ReceivablesDialog';
 import InventoryModeCard from '@/components/modules/inventory/InventoryModeCard';
 
 const defaultSettings = {
-  company: { name: 'Amazon Printing Services', tagline: 'Professional Printing & Advertising Services', address: 'King Road, Mandi Bahauddin', phone: '', email: 'amazonprinting@gmail.com', website: 'amzprints.com', taxId: '', authorizedSignatory: 'Authorized Person', logo: '', stamp: '', signature: '' },
-  invoice: { prefix: 'INV-', taxRate: 0, terms: 'Payment due within 30 days.', showQR: true, showStamp: true, showSignature: true, template: 'bold' },
+  company: { name: 'Amazon Printing Services', tagline: 'Professional Printing & Advertising Services', address: 'King Road, Mandi Bahauddin', phone: '', email: 'amazonprinting@gmail.com', website: 'amzprints.com', taxId: '', authorizedSignatory: 'Authorized Person', logo: '', stamp: '', signature: '', paymentQr: '', paymentQrAccountName: '' },
+  invoice: { prefix: 'INV-', taxRate: 0, terms: 'Payment due within 30 days.', showQR: true, showStamp: true, showSignature: true, showPaymentQr: true, template: 'bold' },
   theme: { primary: '#ff6d00', secondary: '#0747a3', accent: '#10B981' },
   orders: { autoNumber: true, orderPrefix: 'ORD-', defaultStatus: 'Order Received', requireDeliveryDate: true },
   customers: { autoCode: true, codePrefix: 'CUST-', creditLimit: 50000, requirePhone: true },
@@ -137,9 +137,10 @@ function mergeSettingsFromApi(data) {
   const logo = pickImg('companyLogo', company.logo);
   const stamp = pickImg('companyStamp', company.stamp);
   const signature = pickImg('companySignature', company.signature);
+  const paymentQr = pickImg('companyPaymentQr', company.paymentQr);
   return {
     ...defaultSettings,
-    company: { ...company, logo, stamp, signature },
+    company: { ...company, logo, stamp, signature, paymentQr },
     invoice: section('invoice'),
     theme: migrateThemeColors(section('theme')),
     orders: section('orders'),
@@ -246,13 +247,15 @@ const Settings = () => {
       const companyLogo = company.logo || '';
       const companyStamp = company.stamp || '';
       const companySignature = company.signature || '';
-      // Keep company JSON small — logo/stamp/signature as separate keys
+      const companyPaymentQr = company.paymentQr || '';
+      // Keep company JSON small — logo/stamp/signature/paymentQr as separate keys
       const payload = {
         ...settings,
-        company: { ...company, logo: '', stamp: '', signature: '' },
+        company: { ...company, logo: '', stamp: '', signature: '', paymentQr: '' },
         companyLogo,
         companyStamp,
         companySignature,
+        companyPaymentQr,
       };
       const res = await settingsAPI.update(payload);
       clearGasCache();
@@ -287,7 +290,7 @@ const Settings = () => {
     try {
       const dataUrl = await compressImageFile(file, { forcePng: true, maxEdge: 360 });
       update('company', field, dataUrl);
-      const labels = { logo: 'Logo', stamp: 'Stamp', signature: 'Signature' };
+      const labels = { logo: 'Logo', stamp: 'Stamp', signature: 'Signature', paymentQr: 'Payment QR' };
       toast.success(`${labels[field] || field} ready — click Save Settings`);
     } catch {
       toast.error('Failed to read file');
@@ -459,6 +462,27 @@ const Settings = () => {
                   </div>
                 )}
               </div>
+              <div>
+                <Label>Payment QR Account Name (optional)</Label>
+                <Input
+                  value={settings.company.paymentQrAccountName || ''}
+                  onChange={(e) => update('company', 'paymentQrAccountName', e.target.value)}
+                  placeholder="AMAZON PRINTING SERVICES"
+                />
+                <p className="text-xs text-gray-500 mt-1">Shown under the Scan to Pay QR. Leave blank to use the default.</p>
+              </div>
+              <div>
+                <Label>Payment QR (optional — overrides the built-in Scan to Pay code)</Label>
+                <Input type="file" accept="image/*" onChange={(e) => onImagePick('paymentQr', e.target.files?.[0])} data-testid="payment-qr-file-input" />
+                {settings.company.paymentQr ? (
+                  <div className="mt-2 flex items-center gap-3">
+                    <img src={settings.company.paymentQr} alt="Payment QR preview" className="h-14 object-contain border rounded p-1" />
+                    <Button type="button" size="sm" variant="ghost" onClick={() => update('company', 'paymentQr', '')}>Clear</Button>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500 mt-1">Unset uses the default Amazon Printing Services Scan to Pay QR.</p>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -526,7 +550,8 @@ const Settings = () => {
 
               <div className="space-y-3 p-4 border rounded-lg">
                 <p className="text-sm font-semibold">Invoice Elements</p>
-                {[{ k: 'showQR', l: 'Show QR Code' }, { k: 'showStamp', l: 'Show Company Stamp' }, { k: 'showSignature', l: 'Show Signature' }].map(o => (
+                <p className="text-xs text-gray-500 -mt-2">Scan to Pay also appears on POS receipts, order booking slips, and delivery slips whenever a balance is due.</p>
+                {[{ k: 'showQR', l: 'Show QR Code' }, { k: 'showStamp', l: 'Show Company Stamp' }, { k: 'showSignature', l: 'Show Signature' }, { k: 'showPaymentQr', l: 'Show Payment QR (Scan to Pay)' }].map(o => (
                   <div key={o.k} className="flex items-center justify-between">
                     <Label>{o.l}</Label>
                     <Switch checked={settings.invoice[o.k]} onCheckedChange={(v) => update('invoice', o.k, v)} />

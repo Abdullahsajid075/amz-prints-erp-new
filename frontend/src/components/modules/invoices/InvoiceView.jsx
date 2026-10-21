@@ -8,6 +8,7 @@ import { notifyOrderEvent, openBlankWhatsAppTab } from '@/services/notifications
 import { lookupCustomerPhone, firstPhone } from '@/utils/notifyPhone';
 import { formatCurrency, formatDate, invoiceOrderIds, invoiceLineItems } from '@/utils/helpers';
 import { documentFileName, printIsolatedNode } from '@/utils/printHelpers';
+import { paymentQrUrl, paymentQrAccountName, shouldShowPaymentQr } from '@/utils/paymentQr';
 import { useBrand } from '@/context/BrandContext';
 import { ERP_LEGAL_NAME } from '@/utils/erpApps';
 import { ArrowLeft, Printer, Copy, Download, CheckCircle2, Edit } from 'lucide-react';
@@ -450,6 +451,23 @@ const InvoiceView = ({ isPublic = false }) => {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {shouldShowPaymentQr(balance, company) && (
+          <div className={`px-8 pb-5 inv-section inv-pay-block border-t ${template === 'minimal' ? 'border-gray-300' : 'border-orange-100'} pt-4 text-center`}>
+            <p className="text-xs uppercase tracking-wider font-bold mb-3 text-black">
+              Scan to Pay
+            </p>
+            <div className="inline-flex flex-col items-center gap-2">
+              <div className="bg-white p-1.5 border-2 border-black">
+                <img src={paymentQrUrl(company)} alt="Scan to pay" className="h-[132px] w-[132px] object-contain" />
+              </div>
+              <p className="text-[11px] font-extrabold uppercase tracking-wider text-black">{paymentQrAccountName(company)}</p>
+            </div>
+            <p className="text-xs text-black max-w-sm mx-auto mt-3 font-semibold">
+              Pending balance: {formatCurrency(balance)} — scan to pay via Raast.
+            </p>
           </div>
         )}
 
