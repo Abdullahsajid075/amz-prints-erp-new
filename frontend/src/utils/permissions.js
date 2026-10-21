@@ -84,6 +84,7 @@ export function moduleForPath(pathname) {
   const path = String(pathname || '').split('?')[0];
   if (!path || path === '/') return 'dashboard';
   if (path.startsWith('/dashboard')) return 'dashboard';
+  if (path.startsWith('/overview')) return 'dashboard';
   if (path.startsWith('/quotations')) return 'quotations';
   if (path.startsWith('/orders')) return 'orders';
   if (path.startsWith('/tokens')) return 'tokens';

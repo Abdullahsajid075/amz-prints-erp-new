@@ -1,9 +1,12 @@
-import React, { Component, useEffect, useState } from 'react';
+import React, { Component, useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
+import AppSurvey from './AppSurvey';
 import ModuleGuard from '@/components/ModuleGuard';
 import { isPosRoute } from '@/utils/posWindow';
+import { useAuth } from '@/context/AuthContext';
+import { moduleForPath } from '@/utils/permissions';
 
 class PageErrorBoundary extends Component {
   constructor(props) {
@@ -48,6 +51,7 @@ class PageErrorBoundary extends Component {
 const MainLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
+  const { user, canAccessModule } = useAuth();
 
   const toggleSidebar = () => setSidebarOpen((open) => !open);
   const closeSidebar = () => setSidebarOpen(false);
@@ -59,6 +63,7 @@ const MainLayout = () => {
 
   const isAppsHome = location.pathname === '/dashboard';
   const isPos = isPosRoute(location.pathname);
+  const originModule = useMemo(() => moduleForPath(location.pathname), [location.pathname]);
 
   return (
     <div className="min-h-screen erp-shell">
@@ -101,6 +106,18 @@ const MainLayout = () => {
           </div>
         )}
       </main>
+
+      {/* Reusable guided-tour entry point, available from every module (not
+          just the launcher) — hidden on POS, same as the sidebar, so it
+          never sits on top of the till's cart panel. */}
+      {!isPos && (
+        <AppSurvey
+          user={user}
+          canAccessModule={canAccessModule}
+          autoStart={isAppsHome}
+          originModule={originModule}
+        />
+      )}
     </div>
   );
 };
