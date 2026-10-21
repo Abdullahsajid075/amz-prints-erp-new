@@ -18,8 +18,8 @@ import NotificationBell from '@/components/layout/NotificationBell';
 import { useHomeLauncher } from '@/context/HomeLauncherContext';
 
 const TITLE_MAP = [
-  { match: '/dashboard/ops', title: 'Overview' },
-  { match: '/dashboard', title: 'Dashboard' },
+  { match: '/overview', title: 'Overview' },
+  { match: '/dashboard', title: 'App Launcher' },
   { match: '/quotations', title: 'Quotations' },
   { match: '/orders', title: 'Orders' },
   { match: '/tokens/counter', title: 'Token · Screen' },

@@ -4,9 +4,16 @@ import { ChevronRight, ClipboardList, X } from 'lucide-react';
 
 const SURVEY_PREFIX = 'amz_erp_home_survey_v1';
 
+/**
+ * Guided-tour steps. Each step is gated behind `module` — a user who can't
+ * access that module never sees (or can navigate into) that step, so the
+ * tour never advertises or links to data the current user isn't authorized
+ * to see (see `filterSteps` below).
+ */
 const STEPS = [
   {
     id: 'balances',
+    module: 'customers',
     kicker: 'Customers',
     title: 'Customer balances',
     body: 'Open Customers to see who owes money and who has credit. This is the live receivables list.',
@@ -19,6 +26,7 @@ const STEPS = [
   },
   {
     id: 'bills',
+    module: 'invoices',
     kicker: 'Bills',
     title: 'Invoices',
     body: 'Create and print invoices in orange + blue. Paid, partial, and due amounts stay on the same document.',
@@ -31,9 +39,10 @@ const STEPS = [
   },
   {
     id: 'expense',
+    module: 'accounts',
     kicker: 'Spend',
     title: 'Expenses',
-    body: 'Record cash out here. The dashboard net position uses Payments in minus Payments out.',
+    body: 'Record cash out here. The Overview net position uses Payments in minus Payments out.',
     action: 'Open Expenses',
     path: '/accounts/expenses',
     color: '#0EA5E9',
@@ -60,22 +69,43 @@ export function markHomeSurveyDone(user) {
   try { localStorage.setItem(surveyKey(user), '1'); } catch { /* ignore */ }
 }
 
-const HomeSurvey = ({ user, autoStart = false }) => {
+/**
+ * Permission-aware guided tour, mountable once in the app shell so its
+ * entry point (the floating "Survey" pill) and overlay are reachable from
+ * every authenticated screen — not just the home launcher. Steps whose
+ * `module` the current user can't access are dropped entirely, and if that
+ * leaves nothing to show, the whole thing renders nothing (no button, no
+ * data about modules the user isn't authorized to see).
+ *
+ * `originModule` — the module key for whatever screen the Survey button was
+ * opened from (see MainLayout). When a step matches that module, the tour
+ * opens straight to it instead of always restarting at step 0, so the tour
+ * stays contextual to where the user asked for help from.
+ */
+const AppSurvey = ({ user, canAccessModule, autoStart = false, originModule = null }) => {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
-  const current = STEPS[step];
-  const last = step >= STEPS.length - 1;
+
+  const steps = useMemo(() => {
+    const canSee = typeof canAccessModule === 'function' ? canAccessModule : () => true;
+    return STEPS.filter((s) => !s.module || canSee(s.module));
+  }, [canAccessModule]);
+
+  const current = steps[step] || steps[0];
+  const last = step >= steps.length - 1;
 
   useEffect(() => {
     if (!autoStart) return;
+    if (!steps.length) return;
     if (hasCompletedHomeSurvey(user)) return;
     setOpen(true);
     setStep(0);
-  }, [autoStart, user]);
+  }, [autoStart, user, steps.length]);
 
   const start = () => {
-    setStep(0);
+    const matchIndex = originModule ? steps.findIndex((s) => s.module === originModule) : -1;
+    setStep(matchIndex >= 0 ? matchIndex : 0);
     setOpen(true);
   };
 
@@ -93,7 +123,7 @@ const HomeSurvey = ({ user, autoStart = false }) => {
     setStep((s) => s + 1);
   };
 
-  const cards = useMemo(() => STEPS, []);
+  if (!steps.length) return null;
 
   return (
     <>
@@ -102,6 +132,7 @@ const HomeSurvey = ({ user, autoStart = false }) => {
         className="erp-survey-launch"
         onClick={start}
         data-testid="erp-home-survey"
+        title="Guided tour"
       >
         <ClipboardList className="h-4 w-4" />
         Survey
@@ -109,7 +140,7 @@ const HomeSurvey = ({ user, autoStart = false }) => {
 
       {open && (
         <div className="erp-survey-stage" data-testid="erp-survey-stage">
-          {cards.map((card, i) => {
+          {steps.map((card, i) => {
             const active = step === i;
             return (
               <article
@@ -145,11 +176,11 @@ const HomeSurvey = ({ user, autoStart = false }) => {
         </div>
       )}
 
-      {open && (
+      {open && current && (
         <div className="erp-survey-overlay" data-testid="erp-survey-overlay">
           <div className="erp-survey-dock">
             <p className="text-xs font-semibold text-white/80">
-              Step {step + 1} of {STEPS.length}
+              Step {step + 1} of {steps.length}
             </p>
             <p className="font-display font-bold text-white text-sm">{current.title}</p>
             <div className="flex items-center gap-2 mt-3">
@@ -169,4 +200,4 @@ const HomeSurvey = ({ user, autoStart = false }) => {
   );
 };
 
-export default HomeSurvey;
+export default AppSurvey;

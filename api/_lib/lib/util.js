@@ -52,6 +52,14 @@ function jsonOk(payload, status = 200) {
 
 /** Match GAS jsonResponse_ behavior: frontend stripStatus expects _status on object */
 function send(res, payload, status = 200) {
+  // A route that already streamed/ended the response (e.g. /public/catalog.js
+  // setting its own content-type and writing bytes directly) must never be
+  // written to again — doing so throws ERR_HTTP_HEADERS_ALREADY_SENT, and
+  // since route handlers run un-awaited from app.js, that throw becomes an
+  // unhandled promise rejection that crashes the whole Node process (Node 18
+  // terminates on unhandled rejections by default) instead of just failing
+  // one request.
+  if (res.headersSent) return undefined;
   if (Array.isArray(payload)) {
     // Frontend expects array as data root — gasClient uses stripStatus on object only
     // GAS returns raw JSON array. Mirror that.
@@ -64,6 +72,7 @@ function send(res, payload, status = 200) {
 }
 
 function sendError(res, message, status = 500) {
+  if (res.headersSent) return undefined;
   return res.status(200).json({ message, _status: status });
 }
 

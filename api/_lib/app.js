@@ -39,7 +39,18 @@ app.all('*', (req, res) => {
   if (isHealth || (!gasPath && (p === '/' || p === '/api' || p === '/api/index'))) {
     return sendHealth(req, res);
   }
-  return dispatch(req, res);
+  // `dispatch` is async and Express never awaits or catches what a route
+  // handler returns, so a rejection here — even one dispatch's own
+  // try/catch didn't anticipate — would otherwise become an unhandled
+  // promise rejection. On the long-running Hostinger process that crashes
+  // the whole Node process (every tenant's request, not just this one)
+  // instead of just failing this single request.
+  return Promise.resolve(dispatch(req, res)).catch((err) => {
+    console.error('Unhandled dispatch error', err);
+    if (!res.headersSent) {
+      res.status(200).json({ message: err && err.message ? err.message : String(err), _status: 500 });
+    }
+  });
 });
 
 module.exports = app;

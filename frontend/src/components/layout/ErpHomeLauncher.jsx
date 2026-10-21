@@ -10,13 +10,12 @@ import { CSS } from '@dnd-kit/utilities';
 import { RotateCcw } from 'lucide-react';
 import { useAuth, getUserDisplayName } from '@/context/AuthContext';
 import { useBrand } from '@/context/BrandContext';
-import { ERP_HOME_APPS } from '@/utils/erpApps';
+import { ERP_HOME_APPS, ERP_HOME_CATEGORIES } from '@/utils/erpApps';
 import { ordersAPI, productsAPI, purchasesAPI, customersAPI } from '@/services/api';
 import { isOpenOrder } from '@/utils/constants';
 import { buildPurchaseNeeds, buildLowQuantityAlerts } from '@/utils/purchaseNeeds';
 import { countOpenCrmQueries } from '@/utils/crmStages';
 import { useDashboardLayout } from '@/hooks/useDashboardLayout';
-import HomeSurvey from './HomeSurvey';
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
@@ -63,13 +62,16 @@ function SortableApp({ app, badge, onOpen }) {
 }
 
 /**
- * Full-width Apps strip. Used on the dashboard above the original KPI view.
+ * Clean application launcher — icons only, grouped by category, with no
+ * dashboard widgets/statistics underneath. Consolidated business numbers
+ * live on the dedicated Overview page (`/overview`), one tap away via its
+ * own tile here.
  *
- * `orders`/`customers`/`purchases` are optional pre-fetched lists. Dashboard
- * (the only current caller) already fetches all three for its own KPIs on
- * every page load — passing them down here instead of refetching avoids
- * firing duplicate, uncached /orders and /purchases requests (and a second
- * /customers request) on every single dashboard visit.
+ * `orders`/`customers`/`purchases` are optional pre-fetched lists. Overview
+ * (the only current caller that already has them) can pass its own lists
+ * down here instead of letting this component refetch — avoids firing
+ * duplicate, uncached /orders and /purchases requests (and a second
+ * /customers request) when both are mounted back to back.
  *
  * `useSharedData` tells this component those lists are being supplied by the
  * parent and it should NOT fall back to fetching on its own even before the
@@ -78,9 +80,8 @@ function SortableApp({ app, badge, onOpen }) {
  * component's own mount effect would race ahead and self-fetch anyway before
  * the parent had a chance to pass the real arrays down, defeating the point.
  * Badge counts simply stay at 0 until the shared lists arrive. When
- * `useSharedData` is not set (e.g. a future standalone usage with no
- * parent supplying data), each list is fetched independently so the
- * component still works on its own.
+ * `useSharedData` is not set (the normal case — this is its own route now),
+ * each list is fetched independently so the component works on its own.
  */
 const ErpHomeLauncher = ({
   orders: ordersProp, customers: customersProp, purchases: purchasesProp, useSharedData = false,
@@ -95,14 +96,15 @@ const ErpHomeLauncher = ({
 
   const apps = useMemo(() => ERP_HOME_APPS.filter((app) => canAccessModule(app.module)), [canAccessModule]);
   const appsById = useMemo(() => new Map(apps.map((a) => [a.id, a])), [apps]);
-  const defaultGroups = useMemo(() => ({
-    main: apps.filter((a) => a.group === 'main').map((a) => a.id),
-    more: apps.filter((a) => a.group === 'more').map((a) => a.id),
-  }), [apps]);
+  const defaultGroups = useMemo(() => {
+    const next = {};
+    ERP_HOME_CATEGORIES.forEach((cat) => {
+      next[cat.key] = apps.filter((a) => a.group === cat.key).map((a) => a.id);
+    });
+    return next;
+  }, [apps]);
 
   const { groups, reorderGroup, resetLayout, isCustomized } = useDashboardLayout(user?.id, defaultGroups);
-  const main = (groups.main || []).map((id) => appsById.get(id)).filter(Boolean);
-  const more = (groups.more || []).map((id) => appsById.get(id)).filter(Boolean);
 
   const dndSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -167,16 +169,7 @@ const ErpHomeLauncher = ({
     return { n: 0, color: '#0747a3' };
   };
 
-  const openApp = (app) => {
-    if (app.id === 'overview') {
-      const el = document.getElementById('dashboard-ops');
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        return;
-      }
-    }
-    navigate(app.path);
-  };
+  const openApp = (app) => navigate(app.path);
 
   const handleDragEnd = (group) => (event) => {
     const { active, over } = event;
@@ -196,14 +189,19 @@ const ErpHomeLauncher = ({
     </DndContext>
   );
 
+  const categorySections = ERP_HOME_CATEGORIES
+    .map((cat) => ({
+      ...cat,
+      list: (groups[cat.key] || []).map((id) => appsById.get(id)).filter(Boolean),
+    }))
+    .filter((cat) => cat.list.length > 0);
+
   return (
     <div className="erp-home-page" data-testid="erp-home-launcher" aria-label="ERP apps">
       <div className="erp-home-glow" />
 
       <h1 className="erp-home-headline">Welcome, {name}</h1>
-      <p className="erp-home-sub">Open an app, or scroll for the operations dashboard</p>
-
-      <HomeSurvey user={user} autoStart />
+      <p className="erp-home-sub">Tap an app to open it, or drag icons to rearrange them</p>
 
       <div className="erp-home-panel" data-testid="erp-home-window">
         <div
@@ -225,13 +223,12 @@ const ErpHomeLauncher = ({
         </div>
 
         <div className="erp-home-panel-body">
-          {renderGrid(main, 'main')}
-          {more.length > 0 && (
-            <>
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 mt-5 mb-3">More</p>
-              {renderGrid(more, 'more')}
-            </>
-          )}
+          {categorySections.map((cat, idx) => (
+            <div key={cat.key} className={idx > 0 ? 'mt-5' : undefined}>
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 mb-3">{cat.label}</p>
+              {renderGrid(cat.list, cat.key)}
+            </div>
+          ))}
         </div>
       </div>
     </div>
