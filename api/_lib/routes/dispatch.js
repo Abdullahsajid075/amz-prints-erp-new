@@ -54,6 +54,7 @@ const {
   inventoryModeIsActive,
 } = require('../lib/inventoryStock');
 const { planInvoiceAfterOrderCancel, appendForfeitOrderNote } = require('../lib/orderCancelInvoice');
+const { findDuplicateContact, duplicateContactMessage } = require('../lib/duplicateGuard');
 
 function expenseIsApproved(row) {
   if (!row) return false;
@@ -2339,33 +2340,13 @@ async function dispatch(req, res) {
       if (path === '/customers' && method === 'POST') {
         const nameNorm = String(body.name || '').toLowerCase().replace(/[\s_-]+/g, '');
         if (nameNorm === 'walkin' || nameNorm === 'walking') return send(res, await ensureWalkIn());
-        let existing = null;
-        if (body.phone) {
-          const { data } = await supabase.from('customers').select('*').eq('phone', String(body.phone).trim()).limit(1);
-          existing = data && data[0];
-        }
-        if (existing) {
-          const updates = {
-            name: body.name || existing.name,
-            phone: body.phone || existing.phone,
-            email: body.email || existing.email,
-            address: body.address || existing.address,
-            city: body.city || existing.city,
-            notes: body.notes != null ? body.notes : existing.notes,
-          };
-          if (body.inCrm === true) {
-            updates.in_crm = true;
-            updates.stage = body.stage || existing.stage || 'lead';
-            updates.stage_updated_at = new Date().toISOString();
-          }
-          Object.assign(updates, withCustomerPhoto(
-            { notes: updates.notes },
-            body.photo != null ? body.photo : customerPhoto(existing),
-          ));
-          await dbWrite('customers', updates, { mode: 'update', id: existing.id });
-          const { data } = await supabase.from('customers').select('*').eq('id', existing.id).maybeSingle();
-          return send(res, mapCustomer(data));
-        }
+        // Block duplicate registrations instead of silently merging into an
+        // existing record — a mistaken re-add should surface as an error the
+        // staff member sees immediately, not quietly overwrite someone else's
+        // customer record.
+        const { data: allCustomers } = await supabase.from('customers').select('id,name,phone');
+        const dupe = findDuplicateContact(allCustomers, { name: body.name, phone: body.phone });
+        if (dupe) return sendError(res, duplicateContactMessage('Customer', dupe.fields), 409);
         const row = withCustomerPhoto({
           id: id('cust'),
           name: body.name || '',
@@ -2749,6 +2730,11 @@ async function dispatch(req, res) {
         ]);
         if (!data) return sendError(res, 'Not found', 404);
         return send(res, attachVendorPayables(data, purchases || []));
+      }
+      if (method === 'POST' && path === '/vendors') {
+        const { data: allVendors } = await supabase.from('vendors').select('id,name,phone');
+        const dupe = findDuplicateContact(allVendors, { name: body.name, phone: body.phone });
+        if (dupe) return sendError(res, duplicateContactMessage('Vendor', dupe.fields), 409);
       }
       const done = await handleCollection('vendors', '/vendors', mapVendor, (b, rid) => ({
         id: rid || b.id || id('vend'),

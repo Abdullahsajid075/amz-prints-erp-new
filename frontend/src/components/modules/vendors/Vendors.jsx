@@ -139,8 +139,8 @@ const Vendors = () => {
       }
       setDialogOpen(false);
       fetchAll();
-    } catch {
-      toast.error('Failed');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed');
     } finally {
       setSaving(false);
     }
