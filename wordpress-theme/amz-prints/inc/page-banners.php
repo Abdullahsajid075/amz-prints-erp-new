@@ -104,6 +104,13 @@ function amz_prints_page_banner( $key ) {
 	?>
 	<section class="amz-banner amz-banner--<?php echo esc_attr( $key ); ?>">
 		<div class="amz-banner__panel">
+			<div class="amz-banner__copy">
+				<?php amz_prints_banner_crumbs( $title ); ?>
+				<h1><?php echo esc_html( $title ); ?></h1>
+				<?php if ( '' !== trim( $lead ) ) : ?>
+					<p><?php echo esc_html( $lead ); ?></p>
+				<?php endif; ?>
+			</div>
 			<div class="amz-banner__mark" aria-hidden="true">
 				<?php if ( $img ) : ?>
 					<img src="<?php echo esc_url( $img ); ?>" alt="">
@@ -111,14 +118,34 @@ function amz_prints_page_banner( $key ) {
 					<?php echo amz_prints_page_banner_icon( $def['icon'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 				<?php endif; ?>
 			</div>
-			<div class="amz-banner__copy">
-				<h1><?php echo esc_html( $title ); ?></h1>
-				<?php if ( '' !== trim( $lead ) ) : ?>
-					<p><?php echo esc_html( $lead ); ?></p>
-				<?php endif; ?>
-			</div>
 		</div>
 	</section>
+	<?php
+}
+
+/**
+ * "Home / Page" trail shown above banner headings.
+ *
+ * @param string $title Current page label. Defaults to the queried title.
+ */
+function amz_prints_banner_crumbs( $title = '' ) {
+	if ( '' === $title ) {
+		if ( is_404() ) {
+			$title = __( 'Page not found', 'amz-prints' );
+		} elseif ( is_post_type_archive() ) {
+			$title = post_type_archive_title( '', false );
+		} elseif ( is_singular() ) {
+			$title = get_the_title( get_queried_object_id() );
+		} else {
+			$title = wp_get_document_title();
+		}
+	}
+	?>
+	<nav class="amz-crumbs" aria-label="<?php esc_attr_e( 'Breadcrumb', 'amz-prints' ); ?>">
+		<a href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php esc_html_e( 'Home', 'amz-prints' ); ?></a>
+		<span aria-hidden="true">/</span>
+		<span aria-current="page"><?php echo esc_html( wp_strip_all_tags( (string) $title ) ); ?></span>
+	</nav>
 	<?php
 }
 

@@ -26,6 +26,7 @@ $checkout_token = function_exists( 'wp_generate_password' ) ? wp_generate_passwo
 
 <section class="page-hero page-hero--compact">
 	<div class="container">
+		<?php if ( function_exists( 'amz_prints_banner_crumbs' ) ) { amz_prints_banner_crumbs(); } ?>
 		<h1><?php the_title(); ?></h1>
 		<p class="page-hero__lead"><?php esc_html_e( 'Choose delivery, review the 50% advance, and place your order.', 'amz-prints' ); ?></p>
 	</div>

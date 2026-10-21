@@ -12,6 +12,7 @@ $type = get_post_type();
 
 <section class="page-hero">
 	<div class="container">
+		<?php if ( function_exists( 'amz_prints_banner_crumbs' ) ) { amz_prints_banner_crumbs(); } ?>
 		<?php if ( 'amz_service' === $type ) : ?>
 			<p class="page-hero__kicker"><?php esc_html_e( 'Service', 'amz-prints' ); ?></p>
 		<?php elseif ( 'amz_product' === $type ) : ?>

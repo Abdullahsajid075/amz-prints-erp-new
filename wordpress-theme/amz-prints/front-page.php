@@ -162,7 +162,7 @@ $home_shortcuts = array(
 			<?php foreach ( array_merge( $photo_products, $photo_products ) as $product ) : ?>
 				<?php $rail_url = function_exists( 'amz_prints_erp_product_url' ) ? amz_prints_erp_product_url( $product['id'] ?? '' ) : home_url( '/products/' ); ?>
 				<a class="amz-prodrail__card" href="<?php echo esc_url( $rail_url ); ?>">
-					<img src="<?php echo function_exists( 'amz_prints_product_img_src' ) ? amz_prints_product_img_src( $product['image'] ) : esc_url( $product['image'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>" alt="<?php echo esc_attr( $product['name'] ); ?>" loading="lazy" decoding="async" width="160" height="160">
+					<img src="<?php echo function_exists( 'amz_prints_product_thumb_src' ) ? amz_prints_product_thumb_src( $product['image'] ) : esc_url( $product['image'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>" alt="<?php echo esc_attr( $product['name'] ); ?>" loading="lazy" decoding="async" width="160" height="160">
 					<span><?php echo esc_html( $product['name'] ); ?></span>
 				</a>
 			<?php endforeach; ?>

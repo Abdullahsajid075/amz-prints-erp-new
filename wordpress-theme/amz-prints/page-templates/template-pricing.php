@@ -11,6 +11,7 @@ get_header();
 
 <section class="page-hero page-hero--light">
 	<div class="container">
+		<?php if ( function_exists( 'amz_prints_banner_crumbs' ) ) { amz_prints_banner_crumbs(); } ?>
 		<h1>Digital Services Pricing</h1>
 		<p class="page-hero__lead">Transparent starting prices for website and social media packages.</p>
 	</div>

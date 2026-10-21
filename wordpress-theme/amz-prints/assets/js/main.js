@@ -740,8 +740,8 @@
     });
   }
 
-  /* 3D tilt cards */
-  if (finePointer && !reduceMotion) {
+  /* 3D tilt cards (skip big product grids — dozens of perspective layers make scrolling heavy) */
+  if (finePointer && !reduceMotion && document.querySelectorAll('.has-tilt').length <= 12) {
     document.querySelectorAll('.has-tilt').forEach(function (card) {
       card.addEventListener('pointermove', function (e) {
         var r = card.getBoundingClientRect();

@@ -10,6 +10,7 @@ get_header();
 
 <section class="page-hero">
 	<div class="container">
+		<?php if ( function_exists( 'amz_prints_banner_crumbs' ) ) { amz_prints_banner_crumbs(); } ?>
 		<h1><?php the_title(); ?></h1>
 		<p class="page-hero__lead"><?php esc_html_e( 'A look at recent print work and finishes.', 'amz-prints' ); ?></p>
 	</div>

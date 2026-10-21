@@ -20,6 +20,7 @@ if ( $product ) {
 
 <section class="page-hero page-hero--compact">
 	<div class="container">
+		<?php if ( function_exists( 'amz_prints_banner_crumbs' ) ) { amz_prints_banner_crumbs( $product ? $product['name'] : '' ); } ?>
 		<h1><?php echo $product ? esc_html( $product['name'] ) : esc_html__( 'Product', 'amz-prints' ); ?></h1>
 	</div>
 </section>

@@ -17,7 +17,7 @@
   inset: 0;
   display: flex;
   align-items: center;
-  padding: 2.4rem max(1.4rem, calc((100% - 1250px) / 2)) 3.4rem;
+  padding: 2.4rem max(1.4rem, calc((100% - var(--container)) / 2)) 3.4rem;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -110,7 +110,7 @@
 }
 .stage__dots {
   position: absolute;
-  left: max(1.4rem, calc((100% - 1250px) / 2));
+  left: max(1.4rem, calc((100% - var(--container)) / 2));
   bottom: 1.5rem;
   z-index: 4;
   display: flex;
@@ -394,6 +394,7 @@
   gap: 0.75rem;
   width: max-content;
   animation: marqueeScroll var(--rail-duration, 90s) linear infinite;
+  will-change: transform;
   padding: 0.4rem 0 0.9rem;
 }
 
@@ -422,11 +423,7 @@
   object-fit: cover;
   display: block;
   background: #eef2f8;
-  animation: prodZoom 7s ease-in-out infinite alternate;
 }
-
-.amz-prodrail__card:nth-child(2n) img { animation-delay: -2s; }
-.amz-prodrail__card:nth-child(3n) img { animation-delay: -4s; }
 
 @keyframes prodZoom {
   from { transform: scale(1); }

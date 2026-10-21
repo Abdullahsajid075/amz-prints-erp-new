@@ -29,7 +29,7 @@ $url = function_exists( 'amz_prints_erp_product_url' ) ? amz_prints_erp_product_
 	<a class="shop-card__link" href="<?php echo esc_url( $url ); ?>">
 		<div class="shop-card__media">
 			<?php if ( $img ) : ?>
-				<img src="<?php echo function_exists( 'amz_prints_product_img_src' ) ? amz_prints_product_img_src( $img ) : esc_url( $img ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>" alt="<?php echo esc_attr( $product['name'] ); ?>" width="800" height="800" loading="lazy" decoding="async">
+				<img src="<?php echo function_exists( 'amz_prints_product_thumb_src' ) ? amz_prints_product_thumb_src( $img ) : esc_url( $img ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>" alt="<?php echo esc_attr( $product['name'] ); ?>" width="420" height="420" loading="lazy" decoding="async">
 			<?php else : ?>
 				<span class="shop-card__letter" aria-hidden="true"><?php echo esc_html( mb_substr( $product['name'], 0, 1 ) ); ?></span>
 			<?php endif; ?>

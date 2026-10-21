@@ -69,7 +69,7 @@ function amz_prints_erp_decode_response( $raw, $code = 200 ) {
  * @param array|null $body   JSON body for non-GET
  * @return array|WP_Error
  */
-function amz_prints_erp_request( $method, $path, $body = null, $token = '' ) {
+function amz_prints_erp_request( $method, $path, $body = null, $token = '', $timeout = 30 ) {
 	$method = strtoupper( (string) $method );
 	$path   = '/' . ltrim( (string) $path, '/' );
 	$api    = amz_prints_erp_api_url();
@@ -86,7 +86,7 @@ function amz_prints_erp_request( $method, $path, $body = null, $token = '' ) {
 	}
 
 	$args = array(
-		'timeout'     => 30,
+		'timeout'     => (int) $timeout,
 		'redirection' => 0, // handle GAS 302 ourselves
 		'headers'     => array(
 			'Accept'       => 'application/json',
@@ -153,8 +153,84 @@ function amz_prints_erp_flag( $value ) {
 	return null;
 }
 
+/**
+ * Turn an ERP data:image into a resized file in uploads so pages link to it
+ * instead of inlining megabytes of base64. Falls back to the original value.
+ *
+ * @param string $src Image src from ERP.
+ * @return string
+ */
+function amz_prints_erp_localize_image( $src ) {
+	$src = trim( (string) $src );
+	if ( ! preg_match( '#^data:image/(jpeg|jpg|png|webp|gif);base64,#i', $src, $m ) ) {
+		return $src;
+	}
+	$uploads = wp_upload_dir();
+	if ( ! empty( $uploads['error'] ) ) {
+		return $src;
+	}
+	$ext  = strtolower( 'jpeg' === strtolower( $m[1] ) ? 'jpg' : $m[1] );
+	$dir  = trailingslashit( $uploads['basedir'] ) . 'amz-products';
+	$name = md5( $src ) . '.' . $ext;
+	$path = $dir . '/' . $name;
+	$url  = trailingslashit( $uploads['baseurl'] ) . 'amz-products/' . $name;
+
+	if ( file_exists( $path ) ) {
+		return $url;
+	}
+	if ( strlen( $src ) > 15 * MB_IN_BYTES || ! wp_mkdir_p( $dir ) ) {
+		return $src;
+	}
+	$bin = base64_decode( substr( $src, strpos( $src, ',' ) + 1 ), true );
+	if ( false === $bin || '' === $bin ) {
+		return $src;
+	}
+	if ( false === file_put_contents( $path, $bin ) ) {
+		return $src;
+	}
+	if ( 'gif' !== $ext && function_exists( 'wp_get_image_editor' ) ) {
+		$editor = wp_get_image_editor( $path );
+		if ( ! is_wp_error( $editor ) ) {
+			$size = $editor->get_size();
+			if ( ! empty( $size['width'] ) && ( $size['width'] > 900 || $size['height'] > 900 ) ) {
+				$editor->resize( 900, 900, false );
+			}
+			$editor->set_quality( 80 );
+			$editor->save( $path );
+			$editor->resize( 420, 420, false );
+			$editor->set_quality( 78 );
+			$editor->save( substr( $path, 0, -strlen( $ext ) - 1 ) . '-sm.' . $ext );
+		}
+	}
+	return $url;
+}
+
+/**
+ * Small (420px) version of a localized ERP image for cards and the product rail.
+ *
+ * @param string $src Product image src.
+ * @return string Escaped src.
+ */
+function amz_prints_product_thumb_src( $src ) {
+	$src     = trim( (string) $src );
+	$uploads = wp_upload_dir();
+	$base    = trailingslashit( $uploads['baseurl'] ) . 'amz-products/';
+	if ( $src && 0 === strpos( $src, $base ) ) {
+		$file = substr( $src, strlen( $base ) );
+		$dot  = strrpos( $file, '.' );
+		if ( false !== $dot ) {
+			$small = substr( $file, 0, $dot ) . '-sm' . substr( $file, $dot );
+			if ( file_exists( trailingslashit( $uploads['basedir'] ) . 'amz-products/' . $small ) ) {
+				return esc_url( $base . $small );
+			}
+		}
+	}
+	return function_exists( 'amz_prints_product_img_src' ) ? amz_prints_product_img_src( $src ) : esc_url( $src );
+}
+
 function amz_prints_erp_get_products( $force_refresh = false ) {
-	$cache_key = 'amz_prints_erp_products_v4';
+	$cache_key = 'amz_prints_erp_products_v5';
+	$stale_key = 'amz_prints_erp_products_last';
 	if ( ! $force_refresh ) {
 		$cached = get_transient( $cache_key );
 		if ( is_array( $cached ) ) {
@@ -162,9 +238,13 @@ function amz_prints_erp_get_products( $force_refresh = false ) {
 		}
 	}
 
-	$data = amz_prints_erp_request( 'GET', '/public/products' );
-	if ( is_wp_error( $data ) ) {
-		return array();
+	$data = amz_prints_erp_request( 'GET', '/public/products', null, '', 12 );
+	if ( is_wp_error( $data ) || ! is_array( $data ) ) {
+		$stale = get_option( $stale_key, array() );
+		$stale = is_array( $stale ) ? $stale : array();
+		// Short retry window so a slow or down ERP doesn't stall every page view.
+		set_transient( $cache_key, $stale, 2 * MINUTE_IN_SECONDS );
+		return $stale;
 	}
 
 	// Payload may be a bare list or { products: [...] }
@@ -200,13 +280,13 @@ function amz_prints_erp_get_products( $force_refresh = false ) {
 		$images = array();
 		if ( ! empty( $row['images'] ) && is_array( $row['images'] ) ) {
 			foreach ( $row['images'] as $img ) {
-				$img = trim( (string) $img );
+				$img = amz_prints_erp_localize_image( $img );
 				if ( $img && ! in_array( $img, $images, true ) ) {
 					$images[] = $img;
 				}
 			}
 		}
-		$primary = (string) ( $row['image'] ?? $row['photo'] ?? '' );
+		$primary = amz_prints_erp_localize_image( (string) ( $row['image'] ?? $row['photo'] ?? '' ) );
 		if ( $primary && ! in_array( $primary, $images, true ) ) {
 			array_unshift( $images, $primary );
 		} elseif ( ! $primary && ! empty( $images ) ) {
@@ -268,7 +348,8 @@ function amz_prints_erp_get_products( $force_refresh = false ) {
 		}
 	);
 
-	set_transient( $cache_key, $products, MINUTE_IN_SECONDS );
+	set_transient( $cache_key, $products, 5 * MINUTE_IN_SECONDS );
+	update_option( $stale_key, $products, false );
 	return $products;
 }
 

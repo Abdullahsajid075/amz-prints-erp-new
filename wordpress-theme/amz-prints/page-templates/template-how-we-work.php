@@ -55,6 +55,7 @@ $steps = array(
 
 <section class="page-hero">
 	<div class="container">
+		<?php if ( function_exists( 'amz_prints_banner_crumbs' ) ) { amz_prints_banner_crumbs(); } ?>
 		<h1><?php the_title(); ?></h1>
 		<p class="page-hero__lead"><?php esc_html_e( 'From first call to final delivery — a clear mechanism built around service, quality, and live tracking.', 'amz-prints' ); ?></p>
 	</div>
