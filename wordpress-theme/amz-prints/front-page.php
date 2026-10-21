@@ -52,32 +52,8 @@ foreach ( $slide_copy as $i => $copy ) {
 		'tone'   => $copy['tone'],
 	);
 }
-$image_banners = array();
-if ( function_exists( 'amz_prints_banner_picture' ) ) {
-	for ( $bi = 1; $bi <= 6; $bi++ ) {
-		$b_id = absint( amz_prints_mod( 'amz_banner_' . $bi, 0 ) );
-		if ( ! $b_id || ! wp_get_attachment_image_url( $b_id, 'full' ) ) {
-			continue;
-		}
-		$image_banners[] = array(
-			'id'     => $b_id,
-			'mobile' => absint( amz_prints_mod( 'amz_banner_' . $bi . '_mobile', 0 ) ),
-			'url'    => trim( (string) amz_prints_mod( 'amz_banner_' . $bi . '_url', '' ) ),
-			'alt'    => trim( (string) get_post_meta( $b_id, '_wp_attachment_image_alt', true ) ),
-		);
-	}
-}
-if ( $image_banners ) {
-	if ( ! $image_banners[0]['mobile'] ) {
-		add_action(
-			'wp_head',
-			static function () use ( $image_banners ) {
-				echo '<link rel="preload" as="image" href="' . esc_url( wp_get_attachment_image_url( $image_banners[0]['id'], 'full' ) ) . '" fetchpriority="high">' . "\n";
-			},
-			1
-		);
-	}
-} elseif ( ! empty( $hero_slides[0]['image'] ) ) {
+$has_top_slider = function_exists( 'amz_prints_slider_slides' ) && amz_prints_slider_slides( 1 );
+if ( ! $has_top_slider && ! empty( $hero_slides[0]['image'] ) ) {
 	add_action(
 		'wp_head',
 		static function () use ( $hero_slides ) {
@@ -117,35 +93,11 @@ foreach ( $erp_all as $p ) {
 	}
 }
 $photo_products    = array_merge( $photo_products, $photo_rest );
-$featured_products = array_slice( $photo_products, 0, 8 );
-$featured_services = array_slice( $catalog, 0, 4 );
 ?>
 
-<?php if ( $image_banners ) : ?>
-<section class="stage stage--images" data-hero-rotator data-interval="6000" aria-roledescription="carousel" aria-label="<?php echo esc_attr( $headline ); ?>">
-	<h1 class="screen-reader-text"><?php echo esc_html( $headline ); ?></h1>
-	<div class="stage__panel stage__panel--images">
-		<?php foreach ( $image_banners as $i => $banner ) : ?>
-			<?php
-			$b_alt  = $banner['alt'] ? $banner['alt'] : sprintf( __( 'AMZ Prints banner %d', 'amz-prints' ), $i + 1 );
-			$b_html = amz_prints_banner_picture( $banner['id'], $banner['mobile'], $b_alt, $i > 0 );
-			$b_cls  = 'stage__slide stage__slide--image' . ( 0 === $i ? ' is-active' : '' );
-			?>
-			<?php if ( $banner['url'] ) : ?>
-				<a class="<?php echo esc_attr( $b_cls ); ?>" href="<?php echo esc_url( $banner['url'] ); ?>" data-slide><?php echo $b_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></a>
-			<?php else : ?>
-				<div class="<?php echo esc_attr( $b_cls ); ?>" data-slide><?php echo $b_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div>
-			<?php endif; ?>
-		<?php endforeach; ?>
-		<?php if ( count( $image_banners ) > 1 ) : ?>
-			<div class="stage__dots">
-				<?php foreach ( $image_banners as $i => $banner ) : ?>
-					<button type="button" class="<?php echo 0 === $i ? 'is-active' : ''; ?>" data-stage-dot="<?php echo esc_attr( (string) $i ); ?>" aria-label="<?php echo esc_attr( sprintf( __( 'Slide %d', 'amz-prints' ), $i + 1 ) ); ?>"></button>
-				<?php endforeach; ?>
-			</div>
-		<?php endif; ?>
-	</div>
-</section>
+<?php if ( $has_top_slider ) : ?>
+<h1 class="screen-reader-text"><?php echo esc_html( $headline ); ?></h1>
+<?php amz_prints_image_slider( 1, true ); ?>
 <?php else : ?>
 <section class="stage" data-hero-rotator data-interval="7000" aria-roledescription="carousel" aria-label="<?php echo esc_attr( $headline ); ?>">
 	<div class="stage__panel">
@@ -186,6 +138,48 @@ $featured_services = array_slice( $catalog, 0, 4 );
 </section>
 <?php endif; ?>
 
+<?php
+$home_features = array(
+	array( 'zap', amz_prints_mod( 'amz_feature_1_title', 'Fast turnaround' ), amz_prints_mod( 'amz_feature_1_text', 'Quick quotes and on-time delivery.' ) ),
+	array( 'palette', amz_prints_mod( 'amz_feature_2_title', 'Color-true printing' ), amz_prints_mod( 'amz_feature_2_text', 'Proofed artwork and calibrated presses.' ) ),
+	array( 'track', amz_prints_mod( 'amz_feature_3_title', 'Live order tracking' ), amz_prints_mod( 'amz_feature_3_text', 'Follow every job with your order number.' ) ),
+	array( 'shield', amz_prints_mod( 'amz_feature_4_title', 'Authorized NADRA partner' ), amz_prints_mod( 'amz_feature_4_text', 'Official e-services at our counter.' ) ),
+);
+$home_shortcuts = array(
+	array( 'bag', __( 'Shop products', 'amz-prints' ), home_url( '/products/' ), 'orange' ),
+	array( 'track', __( 'Track order', 'amz-prints' ), $track_url, 'blue' ),
+	array( 'quote', __( 'Get a quote', 'amz-prints' ), home_url( '/quote/' ), 'ink' ),
+	array( 'cv', __( 'Free CV', 'amz-prints' ), home_url( '/create-free-cv/' ), 'orange' ),
+	array( 'id', __( 'NADRA e-services', 'amz-prints' ), home_url( '/nadra-e-services/' ), 'green' ),
+	array( 'code', __( 'Digital services', 'amz-prints' ), home_url( '/digital-services/' ), 'blue' ),
+);
+?>
+<section class="home-features" aria-label="<?php esc_attr_e( 'Why AMZ Prints', 'amz-prints' ); ?>">
+	<div class="container">
+		<ul class="home-features__list">
+			<?php foreach ( $home_features as $feature ) : ?>
+				<li>
+					<span class="home-features__icon"><?php echo amz_prints_home_icon( $feature[0] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
+					<span class="home-features__copy"><strong><?php echo esc_html( $feature[1] ); ?></strong><em><?php echo esc_html( $feature[2] ); ?></em></span>
+				</li>
+			<?php endforeach; ?>
+		</ul>
+	</div>
+</section>
+
+<section class="home-shortcuts" aria-label="<?php esc_attr_e( 'Quick links', 'amz-prints' ); ?>">
+	<div class="container">
+		<div class="home-shortcuts__grid">
+			<?php foreach ( $home_shortcuts as $shortcut ) : ?>
+				<a class="home-shortcut home-shortcut--<?php echo esc_attr( $shortcut[3] ); ?>" href="<?php echo esc_url( $shortcut[2] ); ?>">
+					<span class="home-shortcut__icon"><?php echo amz_prints_home_icon( $shortcut[0] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
+					<strong><?php echo esc_html( $shortcut[1] ); ?></strong>
+				</a>
+			<?php endforeach; ?>
+		</div>
+	</div>
+</section>
+
 <div class="amz-marquee amz-marquee--ink" aria-hidden="true">
 	<div class="amz-marquee__track">
 		<?php foreach ( $strip_loop as $item ) : ?>
@@ -208,183 +202,6 @@ $featured_services = array_slice( $catalog, 0, 4 );
 	</div>
 <?php endif; ?>
 
-<section class="cv-home-band">
-	<div class="container cv-home-band__inner">
-		<div>
-			<p class="eyebrow"><?php esc_html_e( 'Free', 'amz-prints' ); ?></p>
-			<h2><?php esc_html_e( 'Build your free CV', 'amz-prints' ); ?></h2>
-			<p><?php esc_html_e( 'Create a professional A4 resume online, then print it with us if you want a finished copy.', 'amz-prints' ); ?></p>
-		</div>
-	</div>
-</section>
-
-<?php if ( $featured_products && amz_prints_mod( 'amz_show_products', true ) ) : ?>
-<section class="home-block">
-	<div class="container container--banner">
-		<header class="section-head">
-			<p class="eyebrow"><?php esc_html_e( 'Featured products', 'amz-prints' ); ?></p>
-			<h2><?php esc_html_e( 'Pieces ready to order', 'amz-prints' ); ?></h2>
-		</header>
-		<div class="feat-grid">
-			<?php foreach ( $featured_products as $product ) : ?>
-				<?php get_template_part( 'template-parts/product', 'card', array( 'product' => $product ) ); ?>
-			<?php endforeach; ?>
-		</div>
-	</div>
-</section>
-<?php endif; ?>
-
-<?php if ( $featured_services && amz_prints_mod( 'amz_show_services', true ) ) : ?>
-<section class="home-block home-block--services">
-	<div class="container">
-		<header class="section-head">
-			<p class="eyebrow"><?php esc_html_e( 'Featured services', 'amz-prints' ); ?></p>
-			<h2><?php esc_html_e( 'Print, brand, and digital', 'amz-prints' ); ?></h2>
-		</header>
-		<div class="feat-services">
-			<?php foreach ( $featured_services as $cat ) : ?>
-				<a class="feat-service" href="<?php echo esc_url( home_url( '/services/#' . $cat['slug'] ) ); ?>">
-					<img src="<?php echo esc_url( $cat['image'] ); ?>" alt="">
-					<span>
-						<strong><?php echo esc_html( amz_prints_svc_label( $cat ) ); ?></strong>
-						<em><?php echo esc_html( implode( ' · ', array_map( 'amz_prints_svc_label', array_slice( $cat['items'], 0, 2 ) ) ) ); ?></em>
-					</span>
-				</a>
-			<?php endforeach; ?>
-		</div>
-	</div>
-</section>
-<?php endif; ?>
-
-<section class="land-mix">
-	<div class="container land-mix__grid">
-		<article class="land-mix__card land-mix__card--print">
-			<p><?php esc_html_e( 'Printing', 'amz-prints' ); ?></p>
-			<h2><?php esc_html_e( 'Press, color, and finish', 'amz-prints' ); ?></h2>
-			<ul>
-				<li><?php esc_html_e( 'Offset and digital print', 'amz-prints' ); ?></li>
-				<li><?php esc_html_e( 'Large format, UV, DTF', 'amz-prints' ); ?></li>
-				<li><?php esc_html_e( 'Packaging and signage', 'amz-prints' ); ?></li>
-			</ul>
-			<a class="btn btn--primary" href="<?php echo esc_url( home_url( '/services/' ) ); ?>"><?php esc_html_e( 'Printing services', 'amz-prints' ); ?></a>
-		</article>
-		<article class="land-mix__card land-mix__card--tech">
-			<p><?php esc_html_e( 'Technology', 'amz-prints' ); ?></p>
-			<h2><?php esc_html_e( 'Digital studio and software', 'amz-prints' ); ?></h2>
-			<ul>
-				<li><?php esc_html_e( 'Websites, apps, and ERP', 'amz-prints' ); ?></li>
-				<li><?php esc_html_e( 'Brand systems and motion', 'amz-prints' ); ?></li>
-				<li><?php esc_html_e( 'Live order tracking', 'amz-prints' ); ?></li>
-			</ul>
-			<a class="btn btn--primary" href="<?php echo esc_url( home_url( '/digital-services/' ) ); ?>"><?php esc_html_e( 'Digital services', 'amz-prints' ); ?></a>
-		</article>
-	</div>
-</section>
-
-<section class="land-quick">
-	<div class="container land-quick__grid">
-		<a class="land-quick__card land-quick__card--blue reveal" data-reveal href="<?php echo esc_url( $track_url ); ?>">
-			<span><?php esc_html_e( 'Live status', 'amz-prints' ); ?></span>
-			<strong><?php esc_html_e( 'Track order', 'amz-prints' ); ?></strong>
-		</a>
-		<a class="land-quick__card land-quick__card--orange reveal" data-reveal href="<?php echo esc_url( home_url( '/how-we-work/' ) ); ?>">
-			<span><?php esc_html_e( 'Process', 'amz-prints' ); ?></span>
-			<strong><?php esc_html_e( 'How we work', 'amz-prints' ); ?></strong>
-		</a>
-		<a class="land-quick__card land-quick__card--green reveal" data-reveal href="<?php echo esc_url( home_url( '/nadra-e-services/' ) ); ?>">
-			<span><?php esc_html_e( 'Authorized', 'amz-prints' ); ?></span>
-			<strong><?php esc_html_e( 'NADRA e-services', 'amz-prints' ); ?></strong>
-		</a>
-		<a class="land-quick__card land-quick__card--mix reveal" data-reveal href="<?php echo esc_url( home_url( '/quote/' ) ); ?>">
-			<span><?php esc_html_e( 'Start', 'amz-prints' ); ?></span>
-			<strong><?php esc_html_e( 'Get a quote', 'amz-prints' ); ?></strong>
-		</a>
-	</div>
-</section>
-
-<section class="land-ecom">
-	<div class="container land-ecom__grid">
-		<div class="land-ecom__copy reveal" data-reveal>
-			<p class="eyebrow"><?php esc_html_e( 'Full ecommerce', 'amz-prints' ); ?></p>
-			<h2><?php esc_html_e( 'Shop print + digital, track every job, pay your way', 'amz-prints' ); ?></h2>
-			<p><?php esc_html_e( 'Create an account to get a downloadable customer card, QR, ledger, and pending payments. Matching name, email, and phone opens your existing AMZ Prints record automatically.', 'amz-prints' ); ?></p>
-			<div class="land-hero__actions">
-				<a class="btn btn--primary" href="<?php echo esc_url( home_url( '/products/' ) ); ?>"><?php esc_html_e( 'Open shop', 'amz-prints' ); ?></a>
-				<?php if ( function_exists( 'amz_prints_customer_is_logged_in' ) && amz_prints_customer_is_logged_in() ) : ?>
-					<a class="btn btn--ghost" href="<?php echo esc_url( home_url( '/my-account/' ) ); ?>"><?php esc_html_e( 'My account', 'amz-prints' ); ?></a>
-				<?php else : ?>
-					<a class="btn btn--ghost" href="<?php echo esc_url( home_url( '/customer-signup/' ) ); ?>"><?php esc_html_e( 'Create account', 'amz-prints' ); ?></a>
-				<?php endif; ?>
-			</div>
-		</div>
-		<ul class="land-ecom__list reveal" data-reveal>
-			<li><?php esc_html_e( 'Live order tracking on the main site', 'amz-prints' ); ?></li>
-			<li><?php esc_html_e( 'Customer card + QR you can download', 'amz-prints' ); ?></li>
-			<li><?php esc_html_e( 'Bank payment cards (customizable)', 'amz-prints' ); ?></li>
-			<li><?php esc_html_e( 'Mixed print house + digital services', 'amz-prints' ); ?></li>
-			<li><?php esc_html_e( 'Free CV builder with photo and PDF download', 'amz-prints' ); ?></li>
-		</ul>
-	</div>
-</section>
-
-<?php if ( amz_prints_mod( 'amz_show_services', true ) && function_exists( 'amz_prints_home_service_pillars' ) ) { amz_prints_home_service_pillars(); } ?>
-
-<?php if ( amz_prints_mod( 'amz_show_services', true ) ) : ?>
-<section class="section section--services" id="services">
-	<div class="container">
-		<header class="section-head reveal" data-reveal>
-			<p class="eyebrow"><?php esc_html_e( 'Mixed services', 'amz-prints' ); ?></p>
-			<h2><?php esc_html_e( 'Print, branding, and digital — one house', 'amz-prints' ); ?></h2>
-			<p><?php echo esc_html( amz_t( 'services_lead' ) ); ?></p>
-		</header>
-		<div class="land-svc-grid">
-			<?php foreach ( $catalog as $i => $cat ) : ?>
-				<a class="land-svc reveal" data-reveal href="<?php echo esc_url( home_url( '/services/#' . $cat['slug'] ) ); ?>" style="--reveal-delay:<?php echo esc_attr( (string) ( $i * 50 ) ); ?>ms">
-					<img src="<?php echo esc_url( $cat['image'] ); ?>" alt="" loading="lazy">
-					<div>
-						<h3><?php echo esc_html( amz_prints_svc_label( $cat ) ); ?></h3>
-						<p><?php echo esc_html( implode( ' · ', array_map( 'amz_prints_svc_label', array_slice( $cat['items'], 0, 3 ) ) ) ); ?></p>
-					</div>
-				</a>
-			<?php endforeach; ?>
-		</div>
-		<div class="section-foot reveal" data-reveal>
-			<a class="btn btn--ghost" href="<?php echo esc_url( home_url( '/services/' ) ); ?>"><?php echo esc_html( amz_t( 'view_all' ) ); ?></a>
-			<a class="btn btn--primary" href="<?php echo esc_url( home_url( '/digital-services/' ) ); ?>"><?php esc_html_e( 'Digital services', 'amz-prints' ); ?></a>
-		</div>
-	</div>
-</section>
-<?php endif; ?>
-
-<?php if ( amz_prints_mod( 'amz_show_process', true ) ) : ?>
-<section class="section section--process" id="process">
-	<div class="container">
-		<header class="section-head reveal" data-reveal>
-			<p class="eyebrow"><?php esc_html_e( 'Process', 'amz-prints' ); ?></p>
-			<h2><?php echo esc_html( amz_prints_mod( 'amz_process_title', 'How it works' ) ); ?></h2>
-			<p><?php echo esc_html( amz_prints_mod( 'amz_process_sub', 'A clear path from brief to finished print.' ) ); ?></p>
-		</header>
-		<?php
-		$process_steps = array(
-			array( 'headset', __( 'Customer care', 'amz-prints' ), __( 'Call, WhatsApp, or walk in. The brief is written down before the job starts.', 'amz-prints' ) ),
-			array( 'file', __( 'Quote and confirmation', 'amz-prints' ), __( 'Pricing, timeline, and finish are confirmed, then the order gets a tracking ID.', 'amz-prints' ) ),
-			array( 'printer', __( 'Design and production', 'amz-prints' ), __( 'Artwork is proofed, then printing, finishing, and quality checks follow.', 'amz-prints' ) ),
-			array( 'truck', __( 'Track and delivery', 'amz-prints' ), __( 'Follow the live status, then collect or receive the finished job.', 'amz-prints' ) ),
-		);
-		?>
-		<ol class="home-process">
-			<?php foreach ( $process_steps as $pi => $step ) : ?>
-				<li>
-					<span class="home-process__icon" aria-hidden="true"><?php echo function_exists( 'amz_prints_work_icon' ) ? amz_prints_work_icon( $step[0] ) : ''; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?><b><?php echo esc_html( (string) ( $pi + 1 ) ); ?></b></span>
-					<strong><?php echo esc_html( $step[1] ); ?></strong>
-					<span><?php echo esc_html( $step[2] ); ?></span>
-				</li>
-			<?php endforeach; ?>
-		</ol>
-		<p class="section-foot"><a class="btn btn--ghost" href="<?php echo esc_url( home_url( '/how-we-work/' ) ); ?>"><?php esc_html_e( 'How we work', 'amz-prints' ); ?></a></p>
-	</div>
-</section>
-<?php endif; ?>
 
 <?php if ( amz_prints_mod( 'amz_show_products', true ) ) : ?>
 <section class="section section--shop" id="products">
@@ -425,6 +242,90 @@ $featured_services = array_slice( $catalog, 0, 4 );
 </section>
 <?php endif; ?>
 
+<?php if ( function_exists( 'amz_prints_image_slider' ) ) { amz_prints_image_slider( 2 ); } ?>
+
+<?php if ( amz_prints_mod( 'amz_show_services', true ) ) : ?>
+<section class="section section--services" id="services">
+	<div class="container">
+		<header class="section-head reveal" data-reveal>
+			<p class="eyebrow"><?php esc_html_e( 'Mixed services', 'amz-prints' ); ?></p>
+			<h2><?php esc_html_e( 'Print, branding, and digital — one house', 'amz-prints' ); ?></h2>
+			<p><?php echo esc_html( amz_t( 'services_lead' ) ); ?></p>
+		</header>
+		<div class="land-svc-grid">
+			<?php foreach ( $catalog as $i => $cat ) : ?>
+				<a class="land-svc reveal" data-reveal href="<?php echo esc_url( home_url( '/services/#' . $cat['slug'] ) ); ?>" style="--reveal-delay:<?php echo esc_attr( (string) ( $i * 50 ) ); ?>ms">
+					<img src="<?php echo esc_url( $cat['image'] ); ?>" alt="" loading="lazy">
+					<div>
+						<h3><?php echo esc_html( amz_prints_svc_label( $cat ) ); ?></h3>
+						<p><?php echo esc_html( implode( ' · ', array_map( 'amz_prints_svc_label', array_slice( $cat['items'], 0, 3 ) ) ) ); ?></p>
+					</div>
+				</a>
+			<?php endforeach; ?>
+		</div>
+		<div class="section-foot reveal" data-reveal>
+			<a class="btn btn--ghost" href="<?php echo esc_url( home_url( '/services/' ) ); ?>"><?php echo esc_html( amz_t( 'view_all' ) ); ?></a>
+			<a class="btn btn--primary" href="<?php echo esc_url( home_url( '/digital-services/' ) ); ?>"><?php esc_html_e( 'Digital services', 'amz-prints' ); ?></a>
+		</div>
+	</div>
+</section>
+<?php endif; ?>
+
+<section class="land-mix">
+	<div class="container land-mix__grid">
+		<article class="land-mix__card land-mix__card--print">
+			<p><?php esc_html_e( 'Printing', 'amz-prints' ); ?></p>
+			<h2><?php esc_html_e( 'Press, color, and finish', 'amz-prints' ); ?></h2>
+			<ul>
+				<li><?php esc_html_e( 'Offset and digital print', 'amz-prints' ); ?></li>
+				<li><?php esc_html_e( 'Large format, UV, DTF', 'amz-prints' ); ?></li>
+				<li><?php esc_html_e( 'Packaging and signage', 'amz-prints' ); ?></li>
+			</ul>
+			<a class="btn btn--primary" href="<?php echo esc_url( home_url( '/services/' ) ); ?>"><?php esc_html_e( 'Printing services', 'amz-prints' ); ?></a>
+		</article>
+		<article class="land-mix__card land-mix__card--tech">
+			<p><?php esc_html_e( 'Technology', 'amz-prints' ); ?></p>
+			<h2><?php esc_html_e( 'Digital studio and software', 'amz-prints' ); ?></h2>
+			<ul>
+				<li><?php esc_html_e( 'Websites, apps, and ERP', 'amz-prints' ); ?></li>
+				<li><?php esc_html_e( 'Brand systems and motion', 'amz-prints' ); ?></li>
+				<li><?php esc_html_e( 'Live order tracking', 'amz-prints' ); ?></li>
+			</ul>
+			<a class="btn btn--primary" href="<?php echo esc_url( home_url( '/digital-services/' ) ); ?>"><?php esc_html_e( 'Digital services', 'amz-prints' ); ?></a>
+		</article>
+	</div>
+</section>
+
+<?php if ( amz_prints_mod( 'amz_show_process', true ) ) : ?>
+<section class="section section--process" id="process">
+	<div class="container">
+		<header class="section-head reveal" data-reveal>
+			<p class="eyebrow"><?php esc_html_e( 'Process', 'amz-prints' ); ?></p>
+			<h2><?php echo esc_html( amz_prints_mod( 'amz_process_title', 'How it works' ) ); ?></h2>
+			<p><?php echo esc_html( amz_prints_mod( 'amz_process_sub', 'A clear path from brief to finished print.' ) ); ?></p>
+		</header>
+		<?php
+		$process_steps = array(
+			array( 'headset', __( 'Customer care', 'amz-prints' ), __( 'Call, WhatsApp, or walk in. The brief is written down before the job starts.', 'amz-prints' ) ),
+			array( 'file', __( 'Quote and confirmation', 'amz-prints' ), __( 'Pricing, timeline, and finish are confirmed, then the order gets a tracking ID.', 'amz-prints' ) ),
+			array( 'printer', __( 'Design and production', 'amz-prints' ), __( 'Artwork is proofed, then printing, finishing, and quality checks follow.', 'amz-prints' ) ),
+			array( 'truck', __( 'Track and delivery', 'amz-prints' ), __( 'Follow the live status, then collect or receive the finished job.', 'amz-prints' ) ),
+		);
+		?>
+		<ol class="home-process">
+			<?php foreach ( $process_steps as $pi => $step ) : ?>
+				<li>
+					<span class="home-process__icon" aria-hidden="true"><?php echo function_exists( 'amz_prints_work_icon' ) ? amz_prints_work_icon( $step[0] ) : ''; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?><b><?php echo esc_html( (string) ( $pi + 1 ) ); ?></b></span>
+					<strong><?php echo esc_html( $step[1] ); ?></strong>
+					<span><?php echo esc_html( $step[2] ); ?></span>
+				</li>
+			<?php endforeach; ?>
+		</ol>
+		<p class="section-foot"><a class="btn btn--ghost" href="<?php echo esc_url( home_url( '/how-we-work/' ) ); ?>"><?php esc_html_e( 'How we work', 'amz-prints' ); ?></a></p>
+	</div>
+</section>
+<?php endif; ?>
+
 <section class="section section--track-home" id="track">
 	<div class="container track-home reveal" data-reveal>
 		<div>
@@ -446,6 +347,8 @@ $featured_services = array_slice( $catalog, 0, 4 );
 	</div>
 </section>
 <?php endif; ?>
+
+<?php if ( function_exists( 'amz_prints_image_slider' ) ) { amz_prints_image_slider( 3 ); } ?>
 
 <?php if ( amz_prints_mod( 'amz_show_clients', true ) ) : ?>
 	<?php
@@ -538,6 +441,9 @@ endif;
 		<div class="land-hero__actions">
 			<a class="btn btn--primary btn--lg btn--magnetic" href="<?php echo esc_url( home_url( '/products/' ) ); ?>"><?php esc_html_e( 'Shop now', 'amz-prints' ); ?></a>
 			<a class="btn btn--ghost btn--lg" href="<?php echo esc_url( home_url( '/quote/' ) ); ?>"><?php esc_html_e( 'Get a Quote', 'amz-prints' ); ?></a>
+			<?php if ( ! function_exists( 'amz_prints_customer_is_logged_in' ) || ! amz_prints_customer_is_logged_in() ) : ?>
+				<a class="btn btn--ghost btn--lg" href="<?php echo esc_url( home_url( '/customer-signup/' ) ); ?>"><?php esc_html_e( 'Create account', 'amz-prints' ); ?></a>
+			<?php endif; ?>
 		</div>
 	</div>
 </section>

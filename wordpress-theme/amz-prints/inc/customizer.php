@@ -204,38 +204,6 @@ function amz_prints_customize_register( $wp_customize ) {
 		'description' => __( 'Right-side photo on slide 2. Pair it with Hero slide 2 headline and text.', 'amz-prints' ),
 	) ) );
 
-	for ( $bi = 1; $bi <= 6; $bi++ ) {
-		$wp_customize->add_setting( 'amz_banner_' . $bi, array(
-			'default'           => 0,
-			'sanitize_callback' => 'absint',
-		) );
-		$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'amz_banner_' . $bi, array(
-			'label'       => sprintf( __( 'Homepage banner %d image', 'amz-prints' ), $bi ),
-			'section'     => 'amz_hero',
-			'mime_type'   => 'image',
-			'description' => __( 'Full-width image banner, shown without text. Once any banner image is uploaded, the homepage slider shows only these images. Any size works; 1920×700 px is a good wide size.', 'amz-prints' ),
-		) ) );
-		$wp_customize->add_setting( 'amz_banner_' . $bi . '_mobile', array(
-			'default'           => 0,
-			'sanitize_callback' => 'absint',
-		) );
-		$wp_customize->add_control( new WP_Customize_Media_Control( $wp_customize, 'amz_banner_' . $bi . '_mobile', array(
-			'label'       => sprintf( __( 'Homepage banner %d mobile image (optional)', 'amz-prints' ), $bi ),
-			'section'     => 'amz_hero',
-			'mime_type'   => 'image',
-			'description' => __( 'Shown on phones instead of the wide image, for example 800×800 px. Leave empty to use the wide image on phones too.', 'amz-prints' ),
-		) ) );
-		$wp_customize->add_setting( 'amz_banner_' . $bi . '_url', array(
-			'default'           => '',
-			'sanitize_callback' => 'esc_url_raw',
-		) );
-		$wp_customize->add_control( 'amz_banner_' . $bi . '_url', array(
-			'label'   => sprintf( __( 'Banner %d link (optional)', 'amz-prints' ), $bi ),
-			'section' => 'amz_hero',
-			'type'    => 'url',
-		) );
-	}
-
 	for ( $ai = 1; $ai <= 8; $ai++ ) {
 		$wp_customize->add_setting( 'amz_a4_slide_' . $ai, array(
 			'default'           => 0,
@@ -335,6 +303,14 @@ function amz_prints_customize_register( $wp_customize ) {
 		'amz_process_sub'     => array( 'Process section subtitle', 'A clear path from brief to finished print.' ),
 		'amz_cta_title'       => array( 'Bottom CTA title', 'Ready to print something great?' ),
 		'amz_cta_sub'         => array( 'Bottom CTA subtitle', 'Tell us what you need. We’ll quote fast and keep you in the loop.' ),
+		'amz_feature_1_title' => array( 'Feature 1 title', 'Fast turnaround' ),
+		'amz_feature_1_text'  => array( 'Feature 1 text', 'Quick quotes and on-time delivery.' ),
+		'amz_feature_2_title' => array( 'Feature 2 title', 'Color-true printing' ),
+		'amz_feature_2_text'  => array( 'Feature 2 text', 'Proofed artwork and calibrated presses.' ),
+		'amz_feature_3_title' => array( 'Feature 3 title', 'Live order tracking' ),
+		'amz_feature_3_text'  => array( 'Feature 3 text', 'Follow every job with your order number.' ),
+		'amz_feature_4_title' => array( 'Feature 4 title', 'Authorized NADRA partner' ),
+		'amz_feature_4_text'  => array( 'Feature 4 text', 'Official e-services at our counter.' ),
 		'amz_about_blurb'     => array( 'About blurb (home)', 'AMZ Prints is a full-service print house built for speed, color fidelity, and finishes that feel premium.' ),
 	);
 
