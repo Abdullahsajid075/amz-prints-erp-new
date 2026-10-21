@@ -10,12 +10,14 @@ import { findProductByBarcode, productMatchesQuery } from '@/utils/productSearch
 import { printPosSlip, buildPosWhatsAppReceipt } from '@/utils/posSlip';
 import { printStampedReceipt, receiptAcceptAttr, isReceiptUploadFile } from '@/utils/posStampedReceipt';
 import { mergePosSettings, mergeInventorySettings } from '@/utils/moduleSettings';
+import { buildRegisterClosingStatement } from '@/utils/registerClosingStatement';
+import { downloadFile } from '@/utils/documentFilename';
 import { useBrand } from '@/context/BrandContext';
 import {
   Search, Plus, Minus, Trash2, Printer, PackagePlus, UserPlus, Package, Wrench,
   Lock, Unlock, BookOpen, Settings, Clock, LayoutGrid, Pause, RotateCcw,
   Banknote, CreditCard, Building2, Quote, User, ArrowDownLeft, Coins, ShoppingCart, X,
-  FileUp,
+  FileUp, ArrowUpCircle, ArrowDownCircle,
 } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/shared/WhatsAppIcon';
 import { toast } from 'sonner';
@@ -67,6 +69,11 @@ const POS = () => {
   const [regNote, setRegNote] = useState('');
   const [regBusy, setRegBusy] = useState(false);
   const [confirmedClose, setConfirmedClose] = useState(false);
+  const [cashDlg, setCashDlg] = useState(null); // 'in' | 'out' | null
+  const [cashAmount, setCashAmount] = useState('');
+  const [cashReason, setCashReason] = useState('');
+  const [cashNote, setCashNote] = useState('');
+  const [cashBusy, setCashBusy] = useState(false);
   const [posCfg, setPosCfg] = useState(mergePosSettings({}));
   const [invCfg, setInvCfg] = useState(mergeInventorySettings({}));
   const [clock, setClock] = useState(() => new Date());
@@ -555,8 +562,17 @@ const POS = () => {
         closedBy: cashier,
         confirmed: true,
       });
-      const v = Number(res.data?.closed?.variance || 0);
+      const closed = res.data?.closed;
+      const v = Number(closed?.variance || 0);
       toast.success(`Z-report posted · variance ${formatCurrency(v)}`);
+      if (closed) {
+        try {
+          const { filename, text } = buildRegisterClosingStatement(closed, company);
+          downloadFile(new Blob([text], { type: 'text/plain;charset=utf-8;' }), filename);
+        } catch (e) {
+          console.error('Could not auto-download closing statement', e);
+        }
+      }
       setCloseDlg(false);
       setConfirmedClose(false);
       setRegNote('');
@@ -565,6 +581,37 @@ const POS = () => {
       toast.error(err.response?.data?.message || 'Could not close register');
     } finally {
       setRegBusy(false);
+    }
+  };
+
+  const openCashDlg = (type) => {
+    setCashAmount('');
+    setCashReason('');
+    setCashNote('');
+    setCashDlg(type);
+  };
+
+  const submitCashMovement = async () => {
+    const amount = Number(cashAmount) || 0;
+    if (!(amount > 0)) {
+      toast.error('Enter a valid amount');
+      return;
+    }
+    if (!cashReason.trim()) {
+      toast.error('Reason is required');
+      return;
+    }
+    setCashBusy(true);
+    try {
+      const call = cashDlg === 'in' ? posRegisterAPI.cashIn : posRegisterAPI.cashOut;
+      await call({ amount, reason: cashReason.trim(), note: cashNote, user: cashier });
+      toast.success(cashDlg === 'in' ? 'Cash in recorded' : 'Cash out recorded');
+      setCashDlg(null);
+      loadRegister();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not record cash movement');
+    } finally {
+      setCashBusy(false);
     }
   };
 
@@ -655,9 +702,17 @@ const POS = () => {
           <Pause className="h-4 w-4 mr-1" />Hold sale
         </Button>
         {registerOpen ? (
-          <Button variant="outline" className="h-10 rounded-xl" onClick={() => { setCountedCash(''); setCloseDlg(true); }}>
-            <Lock className="h-4 w-4 mr-1" />Close register
-          </Button>
+          <>
+            <Button variant="outline" className="h-10 rounded-xl" onClick={() => openCashDlg('in')} data-testid="pos-cash-in">
+              <ArrowDownCircle className="h-4 w-4 mr-1 text-emerald-600" />Cash in
+            </Button>
+            <Button variant="outline" className="h-10 rounded-xl" onClick={() => openCashDlg('out')} data-testid="pos-cash-out">
+              <ArrowUpCircle className="h-4 w-4 mr-1 text-rose-600" />Cash out
+            </Button>
+            <Button variant="outline" className="h-10 rounded-xl" onClick={() => { setCountedCash(''); setCloseDlg(true); }}>
+              <Lock className="h-4 w-4 mr-1" />Close register
+            </Button>
+          </>
         ) : (
           <Button className="h-10 rounded-xl text-white" style={{ backgroundColor: accent }} onClick={() => setOpenDlg(true)}>
             <Unlock className="h-4 w-4 mr-1" />Open register
@@ -1248,7 +1303,13 @@ const POS = () => {
           <div className="space-y-3 text-sm">
             <p>Opening float: <strong>{formatCurrency(register.current?.openingFloat)}</strong></p>
             <p>Cash sales: <strong>{formatCurrency(register.totals?.cashSales)}</strong></p>
-            <p>Expected cash: <strong>{formatCurrency(Number(register.current?.openingFloat || 0) + Number(register.totals?.cashSales || 0))}</strong></p>
+            <p>Cash in: <strong className="text-emerald-700">{formatCurrency(register.cashMovements?.cashIn)}</strong></p>
+            <p>Cash out: <strong className="text-rose-600">{formatCurrency(register.cashMovements?.cashOut)}</strong></p>
+            <p>Expected cash: <strong>{formatCurrency(
+              Number(register.current?.openingFloat || 0)
+              + Number(register.totals?.cashSales || 0)
+              + Number(register.cashMovements?.net || 0)
+            )}</strong></p>
             <div>
               <Label>Counted cash in drawer</Label>
               <Input type="number" min="0" value={countedCash} onChange={(e) => setCountedCash(e.target.value)} />
@@ -1266,6 +1327,45 @@ const POS = () => {
             <Button variant="outline" onClick={() => setCloseDlg(false)}>Cancel</Button>
             <Button className="text-white bg-slate-900" disabled={regBusy} onClick={closeShift}>
               <Lock className="h-4 w-4 mr-1" />{regBusy ? 'Closing…' : 'Post Z-report & close'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!cashDlg} onOpenChange={(open) => { if (!open) setCashDlg(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{cashDlg === 'in' ? 'Cash in' : 'Cash out'}</DialogTitle>
+            <DialogDescription>
+              {cashDlg === 'in'
+                ? 'Add cash into the drawer (e.g. float top-up). Recorded against this register and reflected in the closing report.'
+                : 'Remove cash from the drawer (e.g. courier/expense payout). Recorded against this register and reflected in the closing report.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Amount</Label>
+              <Input type="number" min="0" value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} autoFocus />
+            </div>
+            <div>
+              <Label>Reason</Label>
+              <Input value={cashReason} onChange={(e) => setCashReason(e.target.value)} placeholder={cashDlg === 'in' ? 'e.g. Float top-up' : 'e.g. Courier payment'} />
+            </div>
+            <div>
+              <Label>Detailed note (optional)</Label>
+              <Input value={cashNote} onChange={(e) => setCashNote(e.target.value)} />
+            </div>
+            <p className="text-xs text-slate-500">Recorded by {cashier} · {new Date().toLocaleString()}</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCashDlg(null)}>Cancel</Button>
+            <Button
+              className="text-white"
+              style={{ backgroundColor: cashDlg === 'in' ? '#059669' : '#e11d48' }}
+              disabled={cashBusy}
+              onClick={submitCashMovement}
+            >
+              {cashDlg === 'in' ? <ArrowDownCircle className="h-4 w-4 mr-1" /> : <ArrowUpCircle className="h-4 w-4 mr-1" />}
+              {cashBusy ? 'Saving…' : cashDlg === 'in' ? 'Add cash in' : 'Record cash out'}
             </Button>
           </DialogFooter>
         </DialogContent>

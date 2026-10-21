@@ -158,6 +158,8 @@ export const posRegisterAPI = {
   open: (data) => gasRequest('POST', '/pos/register/open', withToken({ data })),
   close: (data) => gasRequest('POST', '/pos/register/close', withToken({ data })),
   xReport: () => gasRequest('GET', '/pos/register/x-report', withToken()),
+  cashIn: (data) => gasRequest('POST', '/pos/register/cash-in', withToken({ data })),
+  cashOut: (data) => gasRequest('POST', '/pos/register/cash-out', withToken({ data })),
 };
 
 export const vendorsAPI = {

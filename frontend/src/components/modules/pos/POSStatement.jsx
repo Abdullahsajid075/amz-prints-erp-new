@@ -10,7 +10,8 @@ import { useBrand } from '@/context/BrandContext';
 import { mergePosSettings } from '@/utils/moduleSettings';
 import { printPosSlip, saleFromPosOrder } from '@/utils/posSlip';
 import { isPosOrder, orderAmount, parsePosCashier, parsePosMethod, posItemSummary } from '@/utils/posSale';
-import { buildDocumentFilename, formatDateRangeForFilename } from '@/utils/documentFilename';
+import { buildDocumentFilename, formatDateRangeForFilename, downloadFile } from '@/utils/documentFilename';
+import { buildRegisterClosingStatement } from '@/utils/registerClosingStatement';
 import { ArrowLeft, Printer, Store, DollarSign, ShoppingBag, FileSpreadsheet, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -135,6 +136,11 @@ const POSStatement = () => {
     w.document.close();
   };
 
+  const downloadRegisterStatement = (closedRegister) => {
+    const { filename, text } = buildRegisterClosingStatement(closedRegister, company);
+    downloadFile(new Blob([text], { type: 'text/plain;charset=utf-8;' }), filename);
+  };
+
   const reprintSlip = async (order) => {
     const key = order.id || order.orderId;
     setReprintingId(key);
@@ -236,9 +242,12 @@ const POSStatement = () => {
                   <th className="p-3">Closed</th>
                   <th className="p-3">Cashier</th>
                   <th className="p-3 text-right">Float</th>
+                  <th className="p-3 text-right">Cash in</th>
+                  <th className="p-3 text-right">Cash out</th>
                   <th className="p-3 text-right">Expected</th>
                   <th className="p-3 text-right">Counted</th>
                   <th className="p-3 text-right">Variance</th>
+                  <th className="p-3 text-right">Statement</th>
                 </tr>
               </thead>
               <tbody>
@@ -247,9 +256,23 @@ const POSStatement = () => {
                     <td className="p-3">{z.closedAt ? new Date(z.closedAt).toLocaleString() : '—'}</td>
                     <td className="p-3 font-semibold">{z.closedBy || z.openedBy || '—'}</td>
                     <td className="p-3 text-right">{formatCurrency(z.openingFloat)}</td>
+                    <td className="p-3 text-right text-emerald-700">{formatCurrency(z.cashMovements?.cashIn)}</td>
+                    <td className="p-3 text-right text-rose-600">{formatCurrency(z.cashMovements?.cashOut)}</td>
                     <td className="p-3 text-right">{formatCurrency(z.expectedCash)}</td>
                     <td className="p-3 text-right">{formatCurrency(z.countedCash)}</td>
                     <td className={`p-3 text-right font-bold ${Number(z.variance) === 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{formatCurrency(z.variance)}</td>
+                    <td className="p-3 text-right">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8"
+                        onClick={() => downloadRegisterStatement(z)}
+                        data-testid={`pos-register-statement-${z.id}`}
+                      >
+                        <FileSpreadsheet className="h-3.5 w-3.5 mr-1" />
+                        Download
+                      </Button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
