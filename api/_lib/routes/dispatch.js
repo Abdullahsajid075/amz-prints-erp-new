@@ -297,6 +297,29 @@ async function ensureWalkIn() {
 }
 
 /**
+ * Dashboard stats/bootstrap each independently ran the same six full-table
+ * reads (orders, customers, expenses, purchases, invoices, payments) with
+ * zero caching, so every single dashboard page view — and the frontend's
+ * own live-fallback recompute of the same numbers — paid for a fresh round
+ * trip to Supabase every time. A short shared cache collapses that into one
+ * read per table per TTL window, the same pattern already used for
+ * products/settings/customers above.
+ */
+async function getDashboardRawData() {
+  return cachedRead('dashboard:raw', async () => {
+    const [orders, customers, expenses, purchases, invoices, payments] = await Promise.all([
+      dbSelectSafe('orders', LEAN_ORDER_COLS),
+      dbSelectSafe('customers', 'id,phone,name,credit_balance'),
+      dbSelectSafe('expenses', LEAN_EXPENSE_COLS),
+      dbSelectSafe('purchases', LEAN_PURCHASE_COLS),
+      dbSelectSafe('invoices', LEAN_INVOICE_COLS),
+      dbSelectSafe('payments', LEAN_PAYMENT_COLS),
+    ]);
+    return { orders, customers, expenses, purchases, invoices, payments };
+  }, 20000);
+}
+
+/**
  * Settings (branding/logo/stamp/signature, dashboard layouts, inventory
  * mode, POS register state, ...) are stored as one key/value table and
  * always read back as a whole. A few UI pieces (the dashboard's inventory
@@ -2053,14 +2076,7 @@ async function dispatch(req, res) {
         if (to && dk > to) return false;
         return true;
       };
-      const [orders, customers, expenses, purchases, invoices, payments] = await Promise.all([
-        dbSelectSafe('orders', LEAN_ORDER_COLS),
-        dbSelectSafe('customers', 'id,phone,name,credit_balance'),
-        dbSelectSafe('expenses', LEAN_EXPENSE_COLS),
-        dbSelectSafe('purchases', LEAN_PURCHASE_COLS),
-        dbSelectSafe('invoices', LEAN_INVOICE_COLS),
-        dbSelectSafe('payments', LEAN_PAYMENT_COLS),
-      ]);
+      const { orders, customers, expenses, purchases, invoices, payments } = await getDashboardRawData();
       const quotations = (orders || []).filter((o) => isQuotation(o) && inRange(o.date));
       const realOrders = (orders || []).filter((o) => !isQuotation(o) && inRange(o.date) && !isCancelledStatus(o.status));
       const allDatedOrders = (orders || []).filter((o) => !isQuotation(o) && inRange(o.date));
@@ -2144,10 +2160,7 @@ async function dispatch(req, res) {
       return send(res, stats);
     }
     if (method === 'GET' && path === '/dashboard/charts') {
-      const [orders, expenses] = await Promise.all([
-        dbSelectSafe('orders', 'date,doc_type,status,total_amount'),
-        dbSelectSafe('expenses', 'id,date,amount,approved'),
-      ]);
+      const { orders, expenses } = await getDashboardRawData();
       const monthly = buildMonthlySales(orders || [], expenses || []);
       return send(res, { sales: monthly, expenses: monthly, monthlySales: monthly });
     }

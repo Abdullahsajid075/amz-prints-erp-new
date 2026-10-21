@@ -178,44 +178,63 @@ const Dashboard = () => {
       console.error('Dashboard bootstrap failed', error);
     }
 
+    // Bootstrap already runs the orders/customers/expenses/purchases/invoices/
+    // payments reads server-side. When it comes back with real numbers there
+    // is no point re-fetching all six lists again here just to recompute the
+    // same stats client-side — that used to happen, uncached, on every single
+    // dashboard visit. Only re-fetch orders/customers/purchases (not
+    // invoices/expenses/payments) to hand ErpHomeLauncher the lists its
+    // badges need. The full live re-fetch+recompute below stays as a
+    // fallback for when bootstrap fails or returns nothing usable.
+    const bootHasData = !dashboardLooksEmpty(bootBundle?.stats, bootBundle?.recentOrders);
+
     try {
-      const [ordersRes, invRes, expRes, payRes, custRes, purchRes] = await Promise.all([
-        ordersAPI.getAll().catch(() => null),
-        invoicesAPI.getAll().catch(() => null),
-        expensesAPI.getAll().catch(() => null),
-        paymentsAPI.getAll().catch(() => null),
-        customersAPI.getAll().catch(() => null),
-        purchasesAPI.getAll().catch(() => null),
-      ]);
-      const liveOrders = asApiList(ordersRes);
-      const liveCustomers = asApiList(custRes);
-      const livePurchases = asApiList(purchRes);
-      // Share these with ErpHomeLauncher so it doesn't re-fetch the same
-      // orders/customers/purchases lists a second time on every dashboard load.
-      setLauncherLists({ orders: liveOrders, customers: liveCustomers, purchases: livePurchases });
-      const live = buildDashboardFromLists({
-        orders: liveOrders,
-        invoices: asApiList(invRes),
-        expenses: asApiList(expRes),
-        payments: asApiList(payRes),
-        customers: liveCustomers,
-        purchases: livePurchases,
-        from,
-        to,
-      });
-      const liveHasData = !dashboardLooksEmpty(live.stats, live.recentOrders);
-      const bootEmpty = dashboardLooksEmpty(bootBundle?.stats, bootBundle?.recentOrders);
-      if (liveHasData || !bootBundle) {
+      if (bootHasData) {
+        const [ordersRes, custRes, purchRes] = await Promise.all([
+          ordersAPI.getAll().catch(() => null),
+          customersAPI.getAll().catch(() => null),
+          purchasesAPI.getAll().catch(() => null),
+        ]);
+        setLauncherLists({
+          orders: asApiList(ordersRes),
+          customers: asApiList(custRes),
+          purchases: asApiList(purchRes),
+        });
+        applyBundle(bootBundle);
+      } else {
+        const [ordersRes, invRes, expRes, payRes, custRes, purchRes] = await Promise.all([
+          ordersAPI.getAll().catch(() => null),
+          invoicesAPI.getAll().catch(() => null),
+          expensesAPI.getAll().catch(() => null),
+          paymentsAPI.getAll().catch(() => null),
+          customersAPI.getAll().catch(() => null),
+          purchasesAPI.getAll().catch(() => null),
+        ]);
+        const liveOrders = asApiList(ordersRes);
+        const liveCustomers = asApiList(custRes);
+        const livePurchases = asApiList(purchRes);
+        // Share these with ErpHomeLauncher so it doesn't re-fetch the same
+        // orders/customers/purchases lists a second time on every dashboard load.
+        setLauncherLists({ orders: liveOrders, customers: liveCustomers, purchases: livePurchases });
+        const live = buildDashboardFromLists({
+          orders: liveOrders,
+          invoices: asApiList(invRes),
+          expenses: asApiList(expRes),
+          payments: asApiList(payRes),
+          customers: liveCustomers,
+          purchases: livePurchases,
+          from,
+          to,
+        });
+        const liveHasData = !dashboardLooksEmpty(live.stats, live.recentOrders);
         applyBundle(live);
         if (!liveHasData && bootBundle) applyBundle(bootBundle);
-      } else {
-        applyBundle(bootEmpty ? live : bootBundle);
-      }
-      if (dashboardLooksEmpty(live.stats, live.recentOrders) && bootEmpty) {
-        const msg = bootErr?.response?.data?.message
-          || bootErr?.message
-          || 'Dashboard loaded but no orders/invoices were returned.';
-        setLoadError(msg);
+        if (!liveHasData) {
+          const msg = bootErr?.response?.data?.message
+            || bootErr?.message
+            || 'Dashboard loaded but no orders/invoices were returned.';
+          setLoadError(msg);
+        }
       }
     } catch (fallbackErr) {
       if (bootBundle) applyBundle(bootBundle);
