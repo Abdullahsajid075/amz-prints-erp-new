@@ -10,6 +10,7 @@ import Login from '@/components/modules/auth/Login';
 import { HomeLauncherProvider } from '@/context/HomeLauncherContext';
 import MainLayout from '@/components/layout/MainLayout';
 import Dashboard from '@/components/modules/dashboard/Dashboard';
+import Overview from '@/components/modules/dashboard/Overview';
 import OrdersList from '@/components/modules/orders/OrdersList';
 import OrderForm from '@/components/modules/orders/OrderForm';
 import DeliverySlip from '@/components/modules/orders/DeliverySlip';
@@ -144,7 +145,8 @@ function App() {
         <Route path="/" element={<AuthenticatedApp />}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
-          <Route path="dashboard/ops" element={<Navigate to="/dashboard#dashboard-ops" replace />} />
+          <Route path="dashboard/ops" element={<Navigate to="/overview" replace />} />
+          <Route path="overview" element={<Overview />} />
 
           <Route path="quotations" element={<Quotations />} />
           <Route path="quotations/new" element={<QuotationForm />} />
