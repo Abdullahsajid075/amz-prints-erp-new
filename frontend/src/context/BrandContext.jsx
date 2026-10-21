@@ -17,6 +17,9 @@ const defaultBrand = {
     logo: '',
     stamp: '',
     signature: '',
+    paymentQr: '',
+    paymentQrAccountName: '',
+    showPaymentQr: true,
   },
   theme: {
     primary: '#ff6d00',
@@ -30,6 +33,7 @@ const defaultBrand = {
     showQR: true,
     showStamp: true,
     showSignature: true,
+    showPaymentQr: true,
     template: 'bold',
   },
 };
@@ -75,10 +79,15 @@ function normalizeBrandPayload(data) {
   company.logo = pickImageField(data, 'companyLogo', company.logo);
   company.stamp = pickImageField(data, 'companyStamp', company.stamp);
   company.signature = pickImageField(data, 'companySignature', company.signature);
+  company.paymentQr = pickImageField(data, 'companyPaymentQr', company.paymentQr);
+  const invoice = { ...defaultBrand.invoice, ...(typeof data.invoice === 'object' ? data.invoice : {}) };
+  // Non-invoice print builders (POS/order/delivery slips) only receive `company`,
+  // so mirror the Settings toggle here instead of threading `invoice` everywhere.
+  company.showPaymentQr = invoice.showPaymentQr !== false;
   return {
     company,
     theme: migrateThemeColors({ ...defaultBrand.theme, ...(typeof data.theme === 'object' ? data.theme : {}) }),
-    invoice: { ...defaultBrand.invoice, ...(typeof data.invoice === 'object' ? data.invoice : {}) },
+    invoice,
   };
 }
 
@@ -98,10 +107,13 @@ function brandSignature(b) {
     imgSig(b.company?.logo),
     imgSig(b.company?.stamp),
     imgSig(b.company?.signature),
+    imgSig(b.company?.paymentQr),
+    b.company?.paymentQrAccountName,
     b.theme?.primary,
     b.theme?.secondary,
     b.invoice?.showStamp,
     b.invoice?.showSignature,
+    b.invoice?.showPaymentQr,
     b.invoice?.template,
   ].join('|');
 }

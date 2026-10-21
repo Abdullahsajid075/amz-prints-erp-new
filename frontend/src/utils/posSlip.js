@@ -3,6 +3,7 @@ import { barcodeBlock, printHtml, printOnLoadScript, POS_MAJOR_SERVICES, documen
 import { buildSlipQrs, slipWebsiteUrl, verifyUrlForSlip } from '@/utils/slipQr';
 import { mergePosSettings } from '@/utils/moduleSettings';
 import { parsePosCashier } from '@/utils/posSale';
+import { paymentQrBlockHtml, PAY_QR_CSS } from '@/utils/paymentQr';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -98,6 +99,9 @@ export async function printPosSlip(sale, { company = {}, posCfg } = {}) {
     .map((s) => `<div class="svc-card">${escapeHtml(s)}</div>`)
     .join('');
   const qrs = await buildSlipQrs({ company, verifyUrl: invoiceUrl });
+  const paidSoFar = sale.receivedAmount != null ? Number(sale.receivedAmount) : Number(sale.totalAmount || 0);
+  const posBalance = Math.max(0, Number(sale.totalAmount || 0) - paidSoFar);
+  const payQrHtml = paymentQrBlockHtml(company, posBalance);
   const html = `<!DOCTYPE html><html><head><title>${escapeHtml(printTitle)}</title>
       <style>
         @page { size: 80mm auto; margin: 3mm; }
@@ -117,6 +121,7 @@ export async function printPosSlip(sale, { company = {}, posCfg } = {}) {
         .total { font-size: 16px; font-weight: 800; display:flex; justify-content:space-between; }
         .meta { font-size: 12px; font-weight: 600; margin: 2px 0; }
         ${SLIP_QR_CSS}
+        ${PAY_QR_CSS}
         .svc-grid { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
         .svc-card { border:1.5px solid #000; border-radius:4px; padding:4px 5px; font-size:10px; font-weight:800; width:calc(50% - 3px); box-sizing:border-box; }
         .powered { text-align:center; font-size:10px; font-weight:800; letter-spacing:0.04em; margin-top:10px; }
@@ -146,6 +151,7 @@ export async function printPosSlip(sale, { company = {}, posCfg } = {}) {
       <div class="total"><span>TOTAL</span><span>${formatCurrency(sale.totalAmount)}</span></div>
       <div class="total" style="font-size:13px;margin-top:3px"><span>RECEIVED</span><span>${formatCurrency(sale.receivedAmount != null ? sale.receivedAmount : sale.totalAmount)}</span></div>
       <div class="total" style="font-size:13px;margin-top:3px"><span>CHANGE</span><span>${formatCurrency(sale.changeBack != null ? sale.changeBack : 0)}</span></div>
+      ${payQrHtml}
       ${qrs.html}
       <hr />
       <div style="font-size:11px;font-weight:800;letter-spacing:0.06em">OUR SERVICES</div>

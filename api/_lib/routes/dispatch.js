@@ -1611,6 +1611,7 @@ async function dispatch(req, res) {
         if (settings.companyLogo) company.logo = settings.companyLogo;
         if (settings.companyStamp) company.stamp = settings.companyStamp;
         if (settings.companySignature) company.signature = settings.companySignature;
+        if (settings.companyPaymentQr) company.paymentQr = settings.companyPaymentQr;
         if (typeof res.setHeader === 'function') {
           res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=60, stale-while-revalidate=60');
         }
@@ -1621,6 +1622,7 @@ async function dispatch(req, res) {
           companyLogo: settings.companyLogo || company.logo || '',
           companyStamp: settings.companyStamp || company.stamp || '',
           companySignature: settings.companySignature || company.signature || '',
+          companyPaymentQr: settings.companyPaymentQr || company.paymentQr || '',
         });
       }
       if (method === 'GET' && path.startsWith('/public/invoice/')) {
