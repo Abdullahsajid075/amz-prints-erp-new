@@ -30,15 +30,27 @@
   z-index: 2;
   transition: opacity 0.8s ease;
 }
-.stage__slide::after {
+.stage__slide::after,
+.stage__slide--orange::after,
+.stage__slide--blue::after {
   content: "";
   position: absolute;
   inset: 0;
   z-index: 1;
-  background: linear-gradient(90deg, rgba(17, 17, 17, 0.9) 0%, rgba(17, 17, 17, 0.62) 40%, rgba(17, 17, 17, 0.08) 78%);
+  background:
+    linear-gradient(90deg, rgba(6, 14, 32, 0.94) 0%, rgba(6, 18, 44, 0.82) 34%, rgba(7, 40, 96, 0.38) 60%, rgba(7, 40, 96, 0) 82%),
+    linear-gradient(0deg, rgba(6, 14, 32, 0.55) 0%, rgba(6, 14, 32, 0) 30%);
 }
-.stage__slide--orange::after { background: linear-gradient(90deg, rgba(92, 30, 0, 0.92) 0%, rgba(140, 46, 0, 0.62) 40%, rgba(255, 109, 0, 0.06) 78%); }
-.stage__slide--blue::after { background: linear-gradient(90deg, rgba(3, 25, 66, 0.92) 0%, rgba(7, 71, 163, 0.6) 40%, rgba(7, 71, 163, 0.06) 78%); }
+.stage__slide::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  background: linear-gradient(180deg, #ff6d00, #0747a3);
+}
 .stage__photo {
   position: absolute;
   inset: 0;
@@ -57,44 +69,88 @@
   transform: scale(1);
   transition: transform 8s ease-out;
 }
+/* Inline sizes/alignment from the visual editor are overridden so every slide keeps one layout. */
 .stage__copy {
   position: relative;
-  z-index: 2;
-  max-width: 580px;
+  z-index: 3;
+  width: 100%;
+  max-width: 600px;
+  text-align: left !important;
 }
+.stage__copy > * { text-align: left !important; }
 .stage__kicker {
-  display: inline-block;
-  margin: 0 0 1rem;
-  padding: 0.4rem 0.85rem;
-  border-radius: 99px;
-  color: #fff;
-  background: #ff6d00;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin: 0 0 1.1rem;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: #ffb070;
+  font-family: inherit;
   font-weight: 800;
-  letter-spacing: 0.12em;
+  font-size: 0.8rem !important;
+  line-height: 1.2;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  font-size: 0.7rem;
-  box-shadow: 0 8px 20px rgba(255, 109, 0, 0.35);
 }
-.stage__copy h1 {
-  margin: 0 0 0.8rem;
+.stage__kicker::before {
+  content: "";
+  width: 34px;
+  height: 3px;
+  border-radius: 3px;
+  background: #ff6d00;
+}
+.stage__copy h1,
+.stage__copy .stage__kicker:has(+ h1:empty) {
+  display: block;
+  margin: 0 0 1.1rem;
   color: #fff;
-  font-weight: 800;
-  font-size: clamp(2rem, 4.1vw, 3.5rem);
-  line-height: 1.05;
-  letter-spacing: -0.03em;
-  max-width: 15ch;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(2.1rem, 4vw, 3.4rem) !important;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  max-width: 16ch;
   text-transform: none;
+  text-wrap: balance;
 }
+.stage__copy .stage__kicker:has(+ h1:empty)::before { display: none; }
+.stage__copy h1:empty { display: none; }
 .stage__copy .stage__lead {
-  margin: 0 0 1.5rem;
-  max-width: 46ch;
+  margin: 0 0 1.8rem;
+  max-width: 48ch;
   color: rgba(255, 255, 255, 0.86);
-  font-size: clamp(0.98rem, 1.3vw, 1.1rem);
-  font-weight: 500;
-  line-height: 1.55;
+  font-family: inherit;
+  font-size: clamp(1rem, 1.25vw, 1.12rem) !important;
+  font-weight: 500 !important;
+  font-style: normal !important;
+  line-height: 1.6;
   letter-spacing: 0;
 }
-.stage__actions { display: flex; flex-wrap: wrap; gap: 0.7rem; }
+.stage__actions { display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: flex-start !important; }
+.stage__actions .btn {
+  min-height: 50px;
+  padding: 0.85rem 1.5rem;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+.stage__trust {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.4rem;
+  margin: 1.8rem 0 0;
+  padding: 1.2rem 0 0;
+  list-style: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+.stage__trust li { display: inline-flex; align-items: center; gap: 0.45rem; }
+.stage__trust svg { flex: none; color: #ff8a33; }
 .stage__cta i { display: inline-block; margin-left: 0.35rem; font-style: normal; transition: transform 0.25s ease; }
 .stage__cta:hover i { transform: translateX(4px); }
 .stage__ghost {
@@ -130,12 +186,16 @@
 @media (max-width: 800px) {
   :root { --banner-radius: 14px; }
   .stage__panel { height: 540px; }
-  .stage__slide { align-items: flex-end; padding: 1.4rem 1.2rem 3rem; }
+  .stage__slide { align-items: flex-end; padding: 1.4rem 1.2rem 3.2rem; }
   .stage__slide::after,
   .stage__slide--orange::after,
-  .stage__slide--blue::after { background: linear-gradient(0deg, rgba(17, 17, 17, 0.92) 0%, rgba(17, 17, 17, 0.6) 55%, rgba(17, 17, 17, 0.1) 100%); }
-  .stage__copy h1 { font-size: 1.85rem; }
+  .stage__slide--blue::after { background: linear-gradient(0deg, rgba(6, 14, 32, 0.96) 0%, rgba(6, 18, 44, 0.78) 50%, rgba(6, 18, 44, 0.15) 100%); }
+  .stage__copy h1,
+  .stage__copy .stage__kicker:has(+ h1:empty) { font-size: 1.9rem !important; margin-bottom: 0.8rem; }
   .stage__kicker { margin-bottom: 0.7rem; }
+  .stage__copy .stage__lead { margin-bottom: 1.3rem; }
+  .stage__actions .btn { min-height: 46px; padding: 0.75rem 1.2rem; }
+  .stage__trust { display: none; }
   .stage__dots { left: 1.2rem; bottom: 1.1rem; }
 }
 @media (prefers-reduced-motion: reduce) {

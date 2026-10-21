@@ -52,6 +52,11 @@ foreach ( $slide_copy as $i => $copy ) {
 		'tone'   => $copy['tone'],
 	);
 }
+$stage_trust = array(
+	__( 'Free design support', 'amz-prints' ),
+	__( 'Delivery across Pakistan', 'amz-prints' ),
+	__( 'Live order tracking', 'amz-prints' ),
+);
 $has_top_slider = function_exists( 'amz_prints_slider_slides' ) && amz_prints_slider_slides( 1 );
 if ( ! $has_top_slider && ! empty( $hero_slides[0]['image'] ) ) {
 	add_action(
@@ -111,6 +116,11 @@ $photo_products    = array_merge( $photo_products, $photo_rest );
 						<a class="btn btn--primary btn--lg stage__cta" href="<?php echo esc_url( home_url( '/products/' ) ); ?>"><?php esc_html_e( 'Shop products', 'amz-prints' ); ?><i aria-hidden="true">&rarr;</i></a>
 						<a class="btn btn--ghost btn--lg stage__ghost" href="<?php echo esc_url( home_url( '/quote/' ) ); ?>"><?php esc_html_e( 'Get a quote', 'amz-prints' ); ?></a>
 					</div>
+					<ul class="stage__trust">
+						<?php foreach ( $stage_trust as $trust ) : ?>
+							<li><svg viewBox="0 0 20 20" width="16" height="16" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M6 10.2l2.6 2.6L14 7.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><?php echo esc_html( $trust ); ?></li>
+						<?php endforeach; ?>
+					</ul>
 				</div>
 				<div class="stage__photo">
 					<img
