@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import {
-  LayoutDashboard, ShoppingCart, Users, Warehouse, FileText,
+  LayoutGrid, Activity, ShoppingCart, Users, Warehouse, FileText,
   CreditCard, BarChart3, Settings, X, Ticket,
   Store, Quote, Calculator, Kanban, ShoppingBag, UsersRound, ChevronDown,
   ListTodo, Megaphone, ClipboardCheck, ChevronLeft, ChevronRight,
@@ -15,15 +15,14 @@ import { ordersAPI, productsAPI, purchasesAPI, customersAPI } from '@/services/a
 import { isOpenOrder } from '@/utils/constants';
 import { buildPurchaseNeeds, buildLowQuantityAlerts } from '@/utils/purchaseNeeds';
 import { countOpenCrmQueries } from '@/utils/crmStages';
-import { ERP_LEGAL_NAME } from '@/utils/erpApps';
-import BrandLockup from './BrandLockup';
 
 const menuGroups = [
   {
     id: 'overview',
     label: null,
     items: [
-      { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', module: 'dashboard', testId: 'nav-dashboard' },
+      { icon: LayoutGrid, label: 'App Launcher', path: '/dashboard', module: 'dashboard', testId: 'nav-dashboard' },
+      { icon: Activity, label: 'Overview', path: '/overview', module: 'dashboard', testId: 'nav-overview' },
     ],
   },
   {
@@ -128,7 +127,7 @@ const pathMatches = (base, pathname) => {
 };
 
 const Sidebar = ({ isOpen, closeSidebar, toggleSidebar }) => {
-  const { company, primary } = useBrand();
+  const { primary } = useBrand();
   const { canAccessModule } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -269,10 +268,11 @@ const Sidebar = ({ isOpen, closeSidebar, toggleSidebar }) => {
         data-testid="sidebar"
       >
         <div className="h-full flex flex-col">
+          {/* Company branding lives once, in the always-visible Navbar — not
+              repeated here, to avoid showing the logo/name twice at once
+              whenever this sidebar is open. */}
           <div className="h-14 px-4 flex items-center justify-between border-b border-sidebar-border shrink-0">
-            <div className="min-w-0 flex-1">
-              <BrandLockup company={company} accent={accent} invert compact />
-            </div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/70">Menu</p>
             <Button
               variant="ghost"
               size="icon"
@@ -434,12 +434,6 @@ const Sidebar = ({ isOpen, closeSidebar, toggleSidebar }) => {
               ))}
             </nav>
           </ScrollArea>
-
-          <div className="px-3 py-3 border-t border-sidebar-border shrink-0">
-            <p className="text-[10px] text-white/70 text-center tracking-wide leading-snug">
-              {ERP_LEGAL_NAME}
-            </p>
-          </div>
         </div>
       </aside>
     </>
